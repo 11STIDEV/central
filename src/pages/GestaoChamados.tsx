@@ -1,0 +1,309 @@
+import { useState } from "react";
+import {
+  Search,
+  MessageSquare,
+  ListChecks,
+  CheckCircle2,
+  Clock,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Send,
+  Eye,
+  EyeOff,
+} from "lucide-react";
+
+type Chamado = {
+  id: string;
+  titulo: string;
+  solicitante: string;
+  categoria: string;
+  prioridade: "baixa" | "media" | "alta";
+  status: "aberto" | "em_andamento" | "resolvido";
+  data: string;
+  descricao: string;
+  acompanhamentos: { autor: string; texto: string; data: string }[];
+  tarefas: { autor: string; texto: string; data: string }[];
+  solucao?: { autor: string; texto: string; data: string };
+};
+
+const mockChamados: Chamado[] = [
+  {
+    id: "CHM-001",
+    titulo: "Computador não liga",
+    solicitante: "Ana Costa",
+    categoria: "Hardware",
+    prioridade: "alta",
+    status: "aberto",
+    data: "25/02/2026",
+    descricao: "O computador da sala 102 não liga desde ontem. Já verifiquei os cabos e está tudo conectado.",
+    acompanhamentos: [
+      { autor: "João Santos", texto: "Vamos verificar a fonte de alimentação.", data: "25/02/2026 10:30" },
+    ],
+    tarefas: [
+      { autor: "João Santos", texto: "Testar fonte com multímetro", data: "25/02/2026 10:35" },
+    ],
+  },
+  {
+    id: "CHM-002",
+    titulo: "Sem acesso ao sistema ERP",
+    solicitante: "Pedro Lima",
+    categoria: "Acesso / Permissão",
+    prioridade: "media",
+    status: "em_andamento",
+    data: "24/02/2026",
+    descricao: "Preciso de acesso ao módulo de compras no ERP. Meu usuário é pedro.lima.",
+    acompanhamentos: [
+      { autor: "João Santos", texto: "Solicitação de acesso encaminhada ao administrador do ERP.", data: "24/02/2026 14:00" },
+    ],
+    tarefas: [],
+  },
+  {
+    id: "CHM-003",
+    titulo: "Impressora travando",
+    solicitante: "Juliana Rocha",
+    categoria: "Impressora",
+    prioridade: "baixa",
+    status: "resolvido",
+    data: "23/02/2026",
+    descricao: "A impressora do 2º andar trava constantemente ao imprimir PDF.",
+    acompanhamentos: [
+      { autor: "João Santos", texto: "Driver atualizado e impressora reiniciada.", data: "23/02/2026 16:00" },
+    ],
+    tarefas: [
+      { autor: "João Santos", texto: "Verificar driver e firmware", data: "23/02/2026 15:00" },
+    ],
+    solucao: { autor: "João Santos", texto: "Driver desatualizado causava o travamento. Atualizado para versão 5.2.1 e testado com sucesso.", data: "23/02/2026 16:30" },
+  },
+];
+
+const prioridadeConfig = {
+  baixa: { label: "Baixa", className: "bg-success/10 text-success" },
+  media: { label: "Média", className: "bg-warning/10 text-warning" },
+  alta: { label: "Alta", className: "bg-destructive/10 text-destructive" },
+};
+
+const statusConfig = {
+  aberto: { label: "Aberto", icon: AlertTriangle, className: "bg-destructive/10 text-destructive" },
+  em_andamento: { label: "Em Andamento", icon: Clock, className: "bg-warning/10 text-warning" },
+  resolvido: { label: "Resolvido", icon: CheckCircle2, className: "bg-success/10 text-success" },
+};
+
+export default function GestaoChamados() {
+  const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<Record<string, "acompanhamentos" | "tarefas" | "solucao">>({});
+  const [filter, setFilter] = useState<"todos" | "aberto" | "em_andamento" | "resolvido">("todos");
+
+  const filtered = mockChamados.filter((c) => {
+    const matchSearch =
+      c.titulo.toLowerCase().includes(search.toLowerCase()) ||
+      c.solicitante.toLowerCase().includes(search.toLowerCase()) ||
+      c.id.toLowerCase().includes(search.toLowerCase());
+    const matchFilter = filter === "todos" || c.status === filter;
+    return matchSearch && matchFilter;
+  });
+
+  const getTab = (id: string) => activeTab[id] || "acompanhamentos";
+
+  return (
+    <div className="animate-fade-in">
+      <div className="gradient-hero px-8 py-12">
+        <div className="mx-auto max-w-6xl">
+          <h1 className="text-3xl font-bold text-primary-foreground">Gestão de Chamados</h1>
+          <p className="mt-2 text-primary-foreground/70">Gerencie e resolva os chamados de suporte</p>
+        </div>
+      </div>
+
+      <div className="mx-auto max-w-6xl px-8 py-8">
+        {/* Stats */}
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {(["aberto", "em_andamento", "resolvido"] as const).map((s) => {
+            const config = statusConfig[s];
+            const count = mockChamados.filter((c) => c.status === s).length;
+            return (
+              <div key={s} className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-card">
+                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${config.className}`}>
+                  <config.icon className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold text-card-foreground">{count}</p>
+                  <p className="text-xs text-muted-foreground">{config.label}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Filters */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Buscar chamados..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-xl border border-input bg-card py-3 pl-10 pr-4 text-sm text-card-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+            />
+          </div>
+          <div className="flex gap-2">
+            {(["todos", "aberto", "em_andamento", "resolvido"] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                  filter === f
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-card text-muted-foreground border border-border hover:text-foreground"
+                }`}
+              >
+                {f === "todos" ? "Todos" : f === "em_andamento" ? "Em Andamento" : f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Chamados list */}
+        <div className="space-y-3">
+          {filtered.map((chamado) => {
+            const isExpanded = expanded === chamado.id;
+            const tab = getTab(chamado.id);
+            const sc = statusConfig[chamado.status];
+            const pc = prioridadeConfig[chamado.prioridade];
+
+            return (
+              <div key={chamado.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+                {/* Header */}
+                <button
+                  onClick={() => setExpanded(isExpanded ? null : chamado.id)}
+                  className="flex w-full items-center gap-4 px-6 py-4 text-left transition-colors hover:bg-muted/30"
+                >
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs font-mono text-muted-foreground">{chamado.id}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${sc.className}`}>{sc.label}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${pc.className}`}>{pc.label}</span>
+                    </div>
+                    <p className="mt-1 text-sm font-semibold text-card-foreground">{chamado.titulo}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {chamado.solicitante} · {chamado.data} · {chamado.categoria}
+                    </p>
+                  </div>
+                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                </button>
+
+                {/* Expanded content */}
+                {isExpanded && (
+                  <div className="animate-fade-in border-t border-border px-6 py-4">
+                    <p className="mb-4 text-sm text-card-foreground">{chamado.descricao}</p>
+
+                    {/* Tabs */}
+                    <div className="mb-4 flex gap-1 rounded-lg bg-muted p-1">
+                      {([
+                        { key: "acompanhamentos" as const, label: "Acompanhamentos", icon: MessageSquare, iconVisible: Eye },
+                        { key: "tarefas" as const, label: "Tarefas (TI)", icon: ListChecks, iconVisible: EyeOff },
+                        { key: "solucao" as const, label: "Solução", icon: CheckCircle2 },
+                      ]).map((t) => (
+                        <button
+                          key={t.key}
+                          onClick={() => setActiveTab({ ...activeTab, [chamado.id]: t.key })}
+                          className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-all ${
+                            tab === t.key ? "bg-card text-card-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          <t.icon className="h-3.5 w-3.5" />
+                          {t.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Tab content */}
+                    <div className="space-y-3">
+                      {tab === "acompanhamentos" && (
+                        <>
+                          {chamado.acompanhamentos.map((a, i) => (
+                            <div key={i} className="rounded-lg bg-muted/50 px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <Eye className="h-3 w-3 text-info" />
+                                <span className="text-xs font-medium text-card-foreground">{a.autor}</span>
+                                <span className="text-xs text-muted-foreground">{a.data}</span>
+                              </div>
+                              <p className="mt-1 text-sm text-card-foreground">{a.texto}</p>
+                            </div>
+                          ))}
+                          <div className="flex gap-2">
+                            <input placeholder="Adicionar acompanhamento..." className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20" />
+                            <button className="rounded-lg gradient-primary px-4 py-2 text-primary-foreground transition-all hover:opacity-90">
+                              <Send className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+
+                      {tab === "tarefas" && (
+                        <>
+                          <div className="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2">
+                            <EyeOff className="h-3.5 w-3.5 text-warning" />
+                            <span className="text-xs text-warning">Visível apenas para a equipe de TI</span>
+                          </div>
+                          {chamado.tarefas.map((t, i) => (
+                            <div key={i} className="rounded-lg bg-muted/50 px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <ListChecks className="h-3 w-3 text-primary" />
+                                <span className="text-xs font-medium text-card-foreground">{t.autor}</span>
+                                <span className="text-xs text-muted-foreground">{t.data}</span>
+                              </div>
+                              <p className="mt-1 text-sm text-card-foreground">{t.texto}</p>
+                            </div>
+                          ))}
+                          <div className="flex gap-2">
+                            <input placeholder="Adicionar tarefa interna..." className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20" />
+                            <button className="rounded-lg gradient-primary px-4 py-2 text-primary-foreground transition-all hover:opacity-90">
+                              <Send className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </>
+                      )}
+
+                      {tab === "solucao" && (
+                        <>
+                          {chamado.solucao ? (
+                            <div className="rounded-lg border border-success/30 bg-success/5 px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                                <span className="text-xs font-medium text-card-foreground">{chamado.solucao.autor}</span>
+                                <span className="text-xs text-muted-foreground">{chamado.solucao.data}</span>
+                              </div>
+                              <p className="mt-1 text-sm text-card-foreground">{chamado.solucao.texto}</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <textarea
+                                rows={3}
+                                placeholder="Descreva a solução aplicada..."
+                                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                              />
+                              <button className="flex items-center gap-2 rounded-lg bg-success px-4 py-2 text-sm font-medium text-success-foreground transition-all hover:opacity-90">
+                                <CheckCircle2 className="h-4 w-4" />
+                                Resolver Chamado
+                              </button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {filtered.length === 0 && (
+          <div className="py-12 text-center text-sm text-muted-foreground">Nenhum chamado encontrado.</div>
+        )}
+      </div>
+    </div>
+  );
+}
