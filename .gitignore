@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Server (API) - env e chaves da service account
+server/.env
+server/*-key.json
+server/service-account*.json
+server/data/agenda-cci-reservas.json
+server/data/papeis-manuais.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

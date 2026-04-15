@@ -1,5 +1,9 @@
 import { useState } from "react";
-import { Send, AlertCircle, CheckCircle } from "lucide-react";
+import { Send, AlertCircle, CheckCircle, LogIn } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useAuth } from "@/auth/AuthProvider";
+import { adicionarChamado, papelPrincipalUsuario } from "@/lib/chamados";
+import type { Chamado } from "@/lib/chamados";
 
 const categories = [
   "Hardware",
@@ -19,16 +23,35 @@ const priorities = [
 ];
 
 export default function AbrirChamado() {
+  const { usuario } = useAuth();
   const [submitted, setSubmitted] = useState(false);
   const [form, setForm] = useState({
     titulo: "",
     categoria: "",
-    prioridade: "media",
+    prioridade: "media" as "baixa" | "media" | "alta",
     descricao: "",
   });
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!usuario) return;
+
+    const novo: Chamado = {
+      id: `CHM-${Date.now()}`,
+      titulo: form.titulo.trim(),
+      solicitante: usuario.nome,
+      solicitanteEmail: usuario.email,
+      papelAbertura: papelPrincipalUsuario(usuario.papeis),
+      categoria: form.categoria,
+      prioridade: form.prioridade,
+      status: "aberto",
+      data: new Date().toLocaleDateString("pt-BR"),
+      descricao: form.descricao.trim(),
+      acompanhamentos: [],
+      tarefas: [],
+    };
+    adicionarChamado(novo);
+
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
@@ -46,7 +69,23 @@ export default function AbrirChamado() {
       </div>
 
       <div className="mx-auto max-w-3xl px-8 py-8">
-        {submitted ? (
+        {!usuario ? (
+          <div className="rounded-xl border border-border bg-card p-8 text-center shadow-card">
+            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
+              <LogIn className="h-7 w-7 text-muted-foreground" />
+            </div>
+            <h2 className="text-lg font-semibold text-card-foreground">Entre para abrir um chamado</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              O chamado será vinculado ao seu e-mail e ao seu perfil para acompanhamento na gestão.
+            </p>
+            <Link
+              to="/login"
+              className="mt-6 inline-flex items-center justify-center rounded-lg gradient-primary px-6 py-2.5 text-sm font-semibold text-primary-foreground"
+            >
+              Ir para o login
+            </Link>
+          </div>
+        ) : submitted ? (
           <div className="animate-fade-in rounded-xl border border-border bg-card p-12 text-center shadow-card">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
               <CheckCircle className="h-8 w-8 text-success" />
@@ -125,7 +164,8 @@ export default function AbrirChamado() {
 
             <button
               type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-lg gradient-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90"
+              disabled={!usuario}
+              className="flex w-full items-center justify-center gap-2 rounded-lg gradient-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
               Enviar Chamado

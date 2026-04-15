@@ -97,12 +97,27 @@ export default {
           from: { opacity: "0", transform: "translateX(-12px)" },
           to: { opacity: "1", transform: "translateX(0)" },
         },
+        "ticket-pop": {
+          from: { opacity: "0", transform: "scale(0.95)" },
+          to: { opacity: "1", transform: "scale(1)" },
+        },
+        "number-call": {
+          "0%, 100%": { transform: "scale(1)" },
+          "50%": { transform: "scale(1.05)" },
+        },
+        "pulse-glow": {
+          "0%, 100%": { boxShadow: "0 0 24px rgba(59, 130, 246, 0.25)" },
+          "50%": { boxShadow: "0 0 48px rgba(59, 130, 246, 0.45)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
         "fade-in": "fade-in 0.4s ease-out",
         "slide-in": "slide-in 0.3s ease-out",
+        "ticket-pop": "ticket-pop 0.35s ease-out",
+        "number-call": "number-call 0.6s ease-in-out",
+        "pulse-glow": "pulse-glow 2s ease-in-out infinite",
       },
     },
   },

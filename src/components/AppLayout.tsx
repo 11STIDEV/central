@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink } from "@/components/NavLink";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import {
   Home,
   Phone,
@@ -9,12 +9,29 @@ import {
   BookOpen,
   ShieldCheck,
   FileText,
+  CircleDollarSign,
   ChevronLeft,
   ChevronRight,
   Building2,
+  CalendarDays,
+  Boxes,
+  Warehouse,
+  Wallet,
+  Shield,
+  UserCog,
+  Hash,
 } from "lucide-react";
+import { useAuth } from "@/auth/AuthProvider";
+import { canAccessRoute } from "@/auth/routeAccess";
 
-const navItems = [
+type NavItem = {
+  title: string;
+  url: string;
+  icon: typeof Home;
+};
+
+/** Todas as rotas da aplicação (visibilidade conforme `canAccessRoute` em `routeAccess.ts`). */
+const navItems: NavItem[] = [
   { title: "Central de Sistemas", url: "/", icon: Home },
   { title: "Ramais", url: "/ramais", icon: Phone },
   { title: "Abrir Chamado", url: "/chamados/novo", icon: Ticket },
@@ -22,11 +39,29 @@ const navItems = [
   { title: "Base de Conhecimento", url: "/base-conhecimento", icon: BookOpen },
   { title: "Área Interna TI", url: "/ti-interno", icon: ShieldCheck },
   { title: "Documentos", url: "/documentos", icon: FileText },
+  { title: "Agenda CCI", url: "/agenda-cci", icon: CalendarDays },
+  { title: "Agenda CCI — Admin", url: "/agenda-cci/admin", icon: Shield },
+  { title: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes },
+  { title: "Almoxarifado (Entrada/Saída)", url: "/controle-materiais-almoxarifado", icon: Warehouse },
+  { title: "Vale Adiantamento", url: "/vale-adiantamento", icon: Wallet },
+  { title: "Financeiro — Vales", url: "/financeiro/vales-adiantamento", icon: CircleDollarSign },
+  { title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog },
+  { title: "Painel de senhas", url: "/senhas", icon: Hash },
 ];
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { usuario, logout } = useAuth();
+
+  if (location.pathname === "/login") {
+    return <div className="min-h-screen w-full">{children}</div>;
+  }
+
+  if (location.pathname.startsWith("/senhas")) {
+    return <div className="min-h-screen w-full">{children}</div>;
+  }
 
   return (
     <div className="flex min-h-screen w-full">
@@ -55,7 +90,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <ul className="space-y-1">
-            {navItems.map((item) => {
+            {navItems
+              .filter((item) =>
+                canAccessRoute(usuario?.papeis ?? [], item.url),
+              )
+              .map((item) => {
               const isActive = location.pathname === item.url;
               return (
                 <li key={item.url}>
@@ -80,17 +119,47 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   </NavLink>
                 </li>
               );
-            })}
+              })}
           </ul>
         </nav>
 
-        {/* Collapse toggle */}
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className="flex h-12 items-center justify-center border-t border-sidebar-border text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground"
-        >
-          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-        </button>
+        {/* User & Collapse */}
+        <div className="border-t border-sidebar-border px-3 py-2 text-xs text-sidebar-muted">
+          {usuario ? (
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <div className="flex flex-col">
+                <span className="max-w-[140px] truncate font-medium text-sidebar-foreground">
+                  {usuario.nome}
+                </span>
+                <span className="max-w-[160px] truncate text-[11px]">
+                  {usuario.email}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  logout();
+                  navigate("/login");
+                }}
+                className="text-[11px] font-medium text-sidebar-primary hover:underline"
+              >
+                Sair
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => navigate("/login")}
+              className="mb-2 text-[11px] font-medium text-sidebar-primary hover:underline"
+            >
+              Entrar
+            </button>
+          )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            className="flex h-10 w-full items-center justify-center rounded-md text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent/40 hover:text-sidebar-foreground"
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        </div>
       </aside>
 
       {/* Main content */}

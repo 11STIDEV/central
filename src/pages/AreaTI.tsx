@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ShieldCheck, BookOpen, Key, Eye, EyeOff, Copy, Search, Plus, Lock } from "lucide-react";
-
 const tutoriaisInternos = [
   {
     id: 1,

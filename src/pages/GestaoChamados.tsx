@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
   MessageSquare,
   ListChecks,
   CheckCircle2,
-  Clock,
   AlertTriangle,
   ChevronDown,
   ChevronUp,
@@ -12,70 +11,14 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
-
-type Chamado = {
-  id: string;
-  titulo: string;
-  solicitante: string;
-  categoria: string;
-  prioridade: "baixa" | "media" | "alta";
-  status: "aberto" | "em_andamento" | "resolvido";
-  data: string;
-  descricao: string;
-  acompanhamentos: { autor: string; texto: string; data: string }[];
-  tarefas: { autor: string; texto: string; data: string }[];
-  solucao?: { autor: string; texto: string; data: string };
-};
-
-const mockChamados: Chamado[] = [
-  {
-    id: "CHM-001",
-    titulo: "Computador não liga",
-    solicitante: "Ana Costa",
-    categoria: "Hardware",
-    prioridade: "alta",
-    status: "aberto",
-    data: "25/02/2026",
-    descricao: "O computador da sala 102 não liga desde ontem. Já verifiquei os cabos e está tudo conectado.",
-    acompanhamentos: [
-      { autor: "João Santos", texto: "Vamos verificar a fonte de alimentação.", data: "25/02/2026 10:30" },
-    ],
-    tarefas: [
-      { autor: "João Santos", texto: "Testar fonte com multímetro", data: "25/02/2026 10:35" },
-    ],
-  },
-  {
-    id: "CHM-002",
-    titulo: "Sem acesso ao sistema ERP",
-    solicitante: "Pedro Lima",
-    categoria: "Acesso / Permissão",
-    prioridade: "media",
-    status: "em_andamento",
-    data: "24/02/2026",
-    descricao: "Preciso de acesso ao módulo de compras no ERP. Meu usuário é pedro.lima.",
-    acompanhamentos: [
-      { autor: "João Santos", texto: "Solicitação de acesso encaminhada ao administrador do ERP.", data: "24/02/2026 14:00" },
-    ],
-    tarefas: [],
-  },
-  {
-    id: "CHM-003",
-    titulo: "Impressora travando",
-    solicitante: "Juliana Rocha",
-    categoria: "Impressora",
-    prioridade: "baixa",
-    status: "resolvido",
-    data: "23/02/2026",
-    descricao: "A impressora do 2º andar trava constantemente ao imprimir PDF.",
-    acompanhamentos: [
-      { autor: "João Santos", texto: "Driver atualizado e impressora reiniciada.", data: "23/02/2026 16:00" },
-    ],
-    tarefas: [
-      { autor: "João Santos", texto: "Verificar driver e firmware", data: "23/02/2026 15:00" },
-    ],
-    solucao: { autor: "João Santos", texto: "Driver desatualizado causava o travamento. Atualizado para versão 5.2.1 e testado com sucesso.", data: "23/02/2026 16:30" },
-  },
-];
+import { Navigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/auth/AuthProvider";
+import {
+  type Chamado,
+  podeVerChamado,
+  salvarChamados,
+  obterChamadosParaExibir,
+} from "@/lib/chamados";
 
 const prioridadeConfig = {
   baixa: { label: "Baixa", className: "bg-success/10 text-success" },
@@ -85,26 +28,114 @@ const prioridadeConfig = {
 
 const statusConfig = {
   aberto: { label: "Aberto", icon: AlertTriangle, className: "bg-destructive/10 text-destructive" },
-  em_andamento: { label: "Em Andamento", icon: Clock, className: "bg-warning/10 text-warning" },
   resolvido: { label: "Resolvido", icon: CheckCircle2, className: "bg-success/10 text-success" },
 };
 
+type TabKey = "acompanhamentos" | "tarefas" | "solucao";
+
+function agoraLegivel(): string {
+  const d = new Date();
+  return d.toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function GestaoChamados() {
+  const { usuario } = useAuth();
+  const location = useLocation();
+  const [chamados, setChamados] = useState<Chamado[]>(() => obterChamadosParaExibir());
+
+  useEffect(() => {
+    if (location.pathname === "/chamados/gestao") {
+      setChamados(obterChamadosParaExibir());
+    }
+  }, [location.pathname]);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<Record<string, "acompanhamentos" | "tarefas" | "solucao">>({});
-  const [filter, setFilter] = useState<"todos" | "aberto" | "em_andamento" | "resolvido">("todos");
+  const [activeTab, setActiveTab] = useState<Record<string, TabKey>>({});
+  const [filter, setFilter] = useState<"todos" | "aberto" | "resolvido">("todos");
 
-  const filtered = mockChamados.filter((c) => {
-    const matchSearch =
-      c.titulo.toLowerCase().includes(search.toLowerCase()) ||
-      c.solicitante.toLowerCase().includes(search.toLowerCase()) ||
-      c.id.toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === "todos" || c.status === filter;
-    return matchSearch && matchFilter;
-  });
+  const [acompanhamentoDraft, setAcompanhamentoDraft] = useState<Record<string, string>>({});
+  const [tarefaDraft, setTarefaDraft] = useState<Record<string, string>>({});
+  const [solucaoDraft, setSolucaoDraft] = useState<Record<string, string>>({});
 
-  const getTab = (id: string) => activeTab[id] || "acompanhamentos";
+  const persistir = useCallback((lista: Chamado[]) => {
+    setChamados(lista);
+    salvarChamados(lista);
+  }, []);
+
+  const isSetape = usuario?.papeis.includes("setape") ?? false;
+
+  const visiveisBase = useMemo(() => {
+    if (!usuario) return [];
+    return chamados.filter((c) => podeVerChamado(usuario, c));
+  }, [chamados, usuario]);
+
+  const filtered = useMemo(() => {
+    return visiveisBase.filter((c) => {
+      const matchSearch =
+        c.titulo.toLowerCase().includes(search.toLowerCase()) ||
+        c.solicitante.toLowerCase().includes(search.toLowerCase()) ||
+        c.id.toLowerCase().includes(search.toLowerCase());
+      const matchFilter = filter === "todos" || c.status === filter;
+      return matchSearch && matchFilter;
+    });
+  }, [visiveisBase, search, filter]);
+
+  const getTab = (id: string): TabKey => {
+    const raw = activeTab[id] ?? "acompanhamentos";
+    if (!isSetape && raw === "tarefas") return "acompanhamentos";
+    return raw;
+  };
+
+  const atualizarChamado = (id: string, fn: (c: Chamado) => Chamado) => {
+    persistir(chamados.map((c) => (c.id === id ? fn(c) : c)));
+  };
+
+  const adicionarAcompanhamento = (id: string) => {
+    const texto = (acompanhamentoDraft[id] ?? "").trim();
+    if (!texto || !usuario) return;
+    atualizarChamado(id, (c) => ({
+      ...c,
+      acompanhamentos: [
+        ...c.acompanhamentos,
+        { autor: usuario.nome, texto, data: agoraLegivel() },
+      ],
+    }));
+    setAcompanhamentoDraft((d) => ({ ...d, [id]: "" }));
+  };
+
+  const adicionarTarefa = (id: string) => {
+    const texto = (tarefaDraft[id] ?? "").trim();
+    if (!texto || !usuario || !isSetape) return;
+    atualizarChamado(id, (c) => ({
+      ...c,
+      tarefas: [...c.tarefas, { autor: usuario.nome, texto, data: agoraLegivel() }],
+    }));
+    setTarefaDraft((d) => ({ ...d, [id]: "" }));
+  };
+
+  const resolverChamado = (id: string) => {
+    const texto = (solucaoDraft[id] ?? "").trim();
+    if (!texto || !usuario || !isSetape) return;
+    atualizarChamado(id, (c) => ({
+      ...c,
+      status: "resolvido" as const,
+      solucao: { autor: usuario.nome, texto, data: agoraLegivel() },
+    }));
+    setSolucaoDraft((d) => ({ ...d, [id]: "" }));
+  };
+
+  if (!usuario) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const contagem = (s: "aberto" | "resolvido") =>
+    visiveisBase.filter((c) => c.status === s).length;
 
   return (
     <div className="animate-fade-in">
@@ -117,17 +148,16 @@ export default function GestaoChamados() {
 
       <div className="mx-auto max-w-6xl px-8 py-8">
         {/* Stats */}
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {(["aberto", "em_andamento", "resolvido"] as const).map((s) => {
+        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {(["aberto", "resolvido"] as const).map((s) => {
             const config = statusConfig[s];
-            const count = mockChamados.filter((c) => c.status === s).length;
             return (
               <div key={s} className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-card">
                 <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${config.className}`}>
                   <config.icon className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-card-foreground">{count}</p>
+                  <p className="text-2xl font-bold text-card-foreground">{contagem(s)}</p>
                   <p className="text-xs text-muted-foreground">{config.label}</p>
                 </div>
               </div>
@@ -147,18 +177,19 @@ export default function GestaoChamados() {
               className="w-full rounded-xl border border-input bg-card py-3 pl-10 pr-4 text-sm text-card-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
             />
           </div>
-          <div className="flex gap-2">
-            {(["todos", "aberto", "em_andamento", "resolvido"] as const).map((f) => (
+          <div className="flex flex-wrap gap-2">
+            {(["todos", "aberto", "resolvido"] as const).map((f) => (
               <button
                 key={f}
+                type="button"
                 onClick={() => setFilter(f)}
                 className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
                   filter === f
                     ? "bg-primary text-primary-foreground"
-                    : "bg-card text-muted-foreground border border-border hover:text-foreground"
+                    : "border border-border bg-card text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {f === "todos" ? "Todos" : f === "em_andamento" ? "Em Andamento" : f.charAt(0).toUpperCase() + f.slice(1)}
+                {f === "todos" ? "Todos" : f === "aberto" ? "Aberto" : "Resolvido"}
               </button>
             ))}
           </div>
@@ -172,15 +203,21 @@ export default function GestaoChamados() {
             const sc = statusConfig[chamado.status];
             const pc = prioridadeConfig[chamado.prioridade];
 
+            const tabsVisiveis: { key: TabKey; label: string; icon: typeof MessageSquare }[] = [
+              { key: "acompanhamentos", label: "Acompanhamentos", icon: MessageSquare },
+              ...(isSetape ? [{ key: "tarefas" as const, label: "Tarefas (TI)", icon: ListChecks }] : []),
+              { key: "solucao", label: "Solução", icon: CheckCircle2 },
+            ];
+
             return (
               <div key={chamado.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
-                {/* Header */}
                 <button
+                  type="button"
                   onClick={() => setExpanded(isExpanded ? null : chamado.id)}
                   className="flex w-full items-center gap-4 px-6 py-4 text-left transition-colors hover:bg-muted/30"
                 >
                   <div className="flex-1">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       <span className="text-xs font-mono text-muted-foreground">{chamado.id}</span>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${sc.className}`}>{sc.label}</span>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${pc.className}`}>{pc.label}</span>
@@ -190,35 +227,33 @@ export default function GestaoChamados() {
                       {chamado.solicitante} · {chamado.data} · {chamado.categoria}
                     </p>
                   </div>
-                  {isExpanded ? <ChevronUp className="h-4 w-4 text-muted-foreground" /> : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                  {isExpanded ? (
+                    <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  )}
                 </button>
 
-                {/* Expanded content */}
                 {isExpanded && (
                   <div className="animate-fade-in border-t border-border px-6 py-4">
                     <p className="mb-4 text-sm text-card-foreground">{chamado.descricao}</p>
 
-                    {/* Tabs */}
-                    <div className="mb-4 flex gap-1 rounded-lg bg-muted p-1">
-                      {([
-                        { key: "acompanhamentos" as const, label: "Acompanhamentos", icon: MessageSquare, iconVisible: Eye },
-                        { key: "tarefas" as const, label: "Tarefas (TI)", icon: ListChecks, iconVisible: EyeOff },
-                        { key: "solucao" as const, label: "Solução", icon: CheckCircle2 },
-                      ]).map((t) => (
+                    <div className="mb-4 flex flex-wrap gap-1 rounded-lg bg-muted p-1">
+                      {tabsVisiveis.map((t) => (
                         <button
                           key={t.key}
+                          type="button"
                           onClick={() => setActiveTab({ ...activeTab, [chamado.id]: t.key })}
-                          className={`flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-all ${
+                          className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-all sm:flex-initial ${
                             tab === t.key ? "bg-card text-card-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
                           }`}
                         >
-                          <t.icon className="h-3.5 w-3.5" />
-                          {t.label}
+                          <t.icon className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{t.label}</span>
                         </button>
                       ))}
                     </div>
 
-                    {/* Tab content */}
                     <div className="space-y-3">
                       {tab === "acompanhamentos" && (
                         <>
@@ -233,19 +268,30 @@ export default function GestaoChamados() {
                             </div>
                           ))}
                           <div className="flex gap-2">
-                            <input placeholder="Adicionar acompanhamento..." className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20" />
-                            <button className="rounded-lg gradient-primary px-4 py-2 text-primary-foreground transition-all hover:opacity-90">
+                            <input
+                              placeholder="Adicionar acompanhamento..."
+                              value={acompanhamentoDraft[chamado.id] ?? ""}
+                              onChange={(e) =>
+                                setAcompanhamentoDraft((d) => ({ ...d, [chamado.id]: e.target.value }))
+                              }
+                              className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => adicionarAcompanhamento(chamado.id)}
+                              className="rounded-lg gradient-primary px-4 py-2 text-primary-foreground transition-all hover:opacity-90"
+                            >
                               <Send className="h-4 w-4" />
                             </button>
                           </div>
                         </>
                       )}
 
-                      {tab === "tarefas" && (
+                      {tab === "tarefas" && isSetape && (
                         <>
                           <div className="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2">
                             <EyeOff className="h-3.5 w-3.5 text-warning" />
-                            <span className="text-xs text-warning">Visível apenas para a equipe de TI</span>
+                            <span className="text-xs text-warning">Visível apenas para a equipe de TI (Setape)</span>
                           </div>
                           {chamado.tarefas.map((t, i) => (
                             <div key={i} className="rounded-lg bg-muted/50 px-4 py-3">
@@ -258,8 +304,19 @@ export default function GestaoChamados() {
                             </div>
                           ))}
                           <div className="flex gap-2">
-                            <input placeholder="Adicionar tarefa interna..." className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20" />
-                            <button className="rounded-lg gradient-primary px-4 py-2 text-primary-foreground transition-all hover:opacity-90">
+                            <input
+                              placeholder="Adicionar tarefa interna..."
+                              value={tarefaDraft[chamado.id] ?? ""}
+                              onChange={(e) =>
+                                setTarefaDraft((d) => ({ ...d, [chamado.id]: e.target.value }))
+                              }
+                              className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => adicionarTarefa(chamado.id)}
+                              className="rounded-lg gradient-primary px-4 py-2 text-primary-foreground transition-all hover:opacity-90"
+                            >
                               <Send className="h-4 w-4" />
                             </button>
                           </div>
@@ -278,17 +335,35 @@ export default function GestaoChamados() {
                               <p className="mt-1 text-sm text-card-foreground">{chamado.solucao.texto}</p>
                             </div>
                           ) : (
-                            <div className="space-y-3">
-                              <textarea
-                                rows={3}
-                                placeholder="Descreva a solução aplicada..."
-                                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
-                              />
-                              <button className="flex items-center gap-2 rounded-lg bg-success px-4 py-2 text-sm font-medium text-success-foreground transition-all hover:opacity-90">
-                                <CheckCircle2 className="h-4 w-4" />
-                                Resolver Chamado
-                              </button>
-                            </div>
+                            <>
+                              {isSetape && chamado.status === "aberto" ? (
+                                <div className="space-y-3">
+                                  <textarea
+                                    rows={3}
+                                    placeholder="Descreva a solução aplicada..."
+                                    value={solucaoDraft[chamado.id] ?? ""}
+                                    onChange={(e) =>
+                                      setSolucaoDraft((d) => ({ ...d, [chamado.id]: e.target.value }))
+                                    }
+                                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => resolverChamado(chamado.id)}
+                                    className="flex items-center gap-2 rounded-lg bg-success px-4 py-2 text-sm font-medium text-success-foreground transition-all hover:opacity-90"
+                                  >
+                                    <CheckCircle2 className="h-4 w-4" />
+                                    Resolver chamado
+                                  </button>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-muted-foreground">
+                                  {chamado.status === "aberto"
+                                    ? "A solução será registrada pela equipe de TI (Setape) quando o chamado for resolvido."
+                                    : "Nenhuma solução registrada."}
+                                </p>
+                              )}
+                            </>
                           )}
                         </>
                       )}
@@ -301,7 +376,9 @@ export default function GestaoChamados() {
         </div>
 
         {filtered.length === 0 && (
-          <div className="py-12 text-center text-sm text-muted-foreground">Nenhum chamado encontrado.</div>
+          <div className="py-12 text-center text-sm text-muted-foreground">
+            Nenhum chamado encontrado para o seu perfil ou para os filtros selecionados.
+          </div>
         )}
       </div>
     </div>

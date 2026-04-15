@@ -1,37 +1,27 @@
 import {
-  ExternalLink,
-  Monitor,
-  Mail,
-  FileSpreadsheet,
-  Cloud,
-  Shield,
-  Database,
-  Printer,
-  Globe,
-  MessageSquare,
   Ticket,
   BookOpen,
   Phone,
   FileText,
+  CalendarDays,
+  Boxes,
+  ClipboardList,
+  CircleDollarSign,
   Clock,
 } from "lucide-react";
-
-const systemLinks = [
-  { name: "E-mail Corporativo", url: "#", icon: Mail, description: "Acesse seu e-mail institucional", color: "bg-primary" },
-  { name: "ERP / Gestão", url: "#", icon: FileSpreadsheet, description: "Sistema integrado de gestão", color: "bg-primary" },
-  { name: "Cloud Storage", url: "#", icon: Cloud, description: "Armazenamento em nuvem", color: "gradient-primary" },
-  { name: "VPN / Acesso Remoto", url: "#", icon: Shield, description: "Conexão segura remota", color: "gradient-primary" },
-  { name: "BI / Relatórios", url: "#", icon: Database, description: "Dashboards e relatórios", color: "bg-primary" },
-  { name: "Impressoras", url: "#", icon: Printer, description: "Gerenciar impressões", color: "bg-primary" },
-  { name: "Intranet", url: "#", icon: Globe, description: "Portal interno", color: "gradient-primary" },
-  { name: "Chat Corporativo", url: "#", icon: MessageSquare, description: "Comunicação interna", color: "gradient-primary" },
-];
+import { Link } from "react-router-dom";
+import { useAuth } from "@/auth/AuthProvider";
+import { canAccessRoute } from "@/auth/routeAccess";
 
 const quickActions = [
   { name: "Abrir Chamado", url: "/chamados/novo", icon: Ticket, description: "Solicitar suporte de TI" },
   { name: "Base de Conhecimento", url: "/base-conhecimento", icon: BookOpen, description: "Tutoriais e guias" },
   { name: "Ramais", url: "/ramais", icon: Phone, description: "Lista de ramais" },
   { name: "Documentos", url: "/documentos", icon: FileText, description: "Documentos institucionais" },
+  { name: "Agenda CCI", url: "/agenda-cci", icon: CalendarDays, description: "Reserva de equipamentos da CCI" },
+  { name: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes, description: "Controle interno de materiais da TI" },
+  { name: "Entrada/Saída Almoxarifado", url: "/controle-materiais-almoxarifado", icon: ClipboardList, description: "Movimentação de materiais pelo almoxarifado" },
+  { name: "Solicitar Vale-Adiantamento", url: "/vale-adiantamento", icon: CircleDollarSign, description: "Envio de pedido de vale para o financeiro" },
 ];
 
 const recentNews = [
@@ -41,6 +31,10 @@ const recentNews = [
 ];
 
 export default function Index() {
+  const { usuario } = useAuth();
+  const papeis = usuario?.papeis ?? [];
+  const visiveis = quickActions.filter((a) => canAccessRoute(papeis, a.url));
+
   return (
     <div className="animate-fade-in">
       {/* Hero */}
@@ -60,10 +54,10 @@ export default function Index() {
         <section className="mb-10">
           <h2 className="mb-4 text-lg font-semibold text-foreground">Acesso Rápido</h2>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {quickActions.map((action) => (
-              <a
+            {visiveis.map((action) => (
+              <Link
                 key={action.name}
-                href={action.url}
+                to={action.url}
                 className="group flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-card transition-all duration-200 hover:shadow-elevated hover:-translate-y-0.5"
               >
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg gradient-primary">
@@ -73,30 +67,7 @@ export default function Index() {
                   <p className="text-sm font-semibold text-card-foreground">{action.name}</p>
                   <p className="text-xs text-muted-foreground">{action.description}</p>
                 </div>
-              </a>
-            ))}
-          </div>
-        </section>
-
-        {/* Systems Grid */}
-        <section className="mb-10">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">Sistemas</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {systemLinks.map((system) => (
-              <a
-                key={system.name}
-                href={system.url}
-                className="group relative flex flex-col items-center gap-3 rounded-xl border border-border bg-card p-6 shadow-card transition-all duration-200 hover:shadow-elevated hover:-translate-y-0.5"
-              >
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${system.color}`}>
-                  <system.icon className="h-6 w-6 text-primary-foreground" />
-                </div>
-                <div className="text-center">
-                  <p className="text-sm font-semibold text-card-foreground">{system.name}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{system.description}</p>
-                </div>
-                <ExternalLink className="absolute right-3 top-3 h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-              </a>
+              </Link>
             ))}
           </div>
         </section>
