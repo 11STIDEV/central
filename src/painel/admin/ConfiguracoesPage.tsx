@@ -99,7 +99,7 @@ export default function ConfiguracoesPage() {
               <Input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Ex: Colégio CCI"
+                placeholder="Ex: Grupo CCI"
               />
             </div>
             <div className="space-y-2">

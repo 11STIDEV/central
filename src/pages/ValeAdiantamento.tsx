@@ -1,8 +1,9 @@
 import { useState } from "react";
+import { PageHero } from "@/components/PageHero";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CircleDollarSign, CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 
 type Status = "idle" | "success" | "error";
@@ -46,25 +47,12 @@ export default function ValeAdiantamento() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
-              <CircleDollarSign className="h-5 w-5 text-accent-foreground" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-primary-foreground">
-                Solicitação de Vale-Adiantamento
-              </h1>
-              <p className="text-primary-foreground/70">
-                Preencha os dados para solicitar um vale-adiantamento ao setor financeiro.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHero
+        title="Solicitação de Vale-Adiantamento"
+        subtitle="Preencha os dados para solicitar um vale-adiantamento ao setor financeiro."
+      />
 
-      <div className="mx-auto max-w-2xl px-8 py-8">
+      <div className="mx-auto max-w-2xl px-4 py-8 md:px-8">
         <div className="mb-6 rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
           <p>
             Informe a <strong>chave Pix</strong> de recebimento e o <strong>valor</strong> desejado.

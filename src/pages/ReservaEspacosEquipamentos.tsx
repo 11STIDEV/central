@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { Calendar, Check, Clock3, Laptop, Package, MapPin, XCircle } from "lucide-react";
+import { PageHero } from "@/components/PageHero";
 import { useAuth } from "@/auth/AuthProvider";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -355,20 +356,16 @@ export default function ReservaEspacosEquipamentos() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <h1 className="text-3xl font-bold text-primary-foreground">
-            Reserva de Equipamentos e Espaços
-          </h1>
-          <p className="mt-2 text-primary-foreground/70">
-            {papelAluno
-              ? "Reserva de Chromebooks da CCI."
-              : "Chromebooks, equipamentos e espaços. A agenda da semana fica em Agenda CCI."}
-          </p>
-        </div>
-      </div>
+      <PageHero
+        title="Reserva de Equipamentos e Espaços"
+        subtitle={
+          papelAluno
+            ? "Reserva de Chromebooks da CCI."
+            : "Chromebooks, equipamentos e espaços. A agenda da semana fica em Agenda CCI."
+        }
+      />
 
-      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-8 py-8 xl:grid-cols-3">
+      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 py-8 md:px-8 xl:grid-cols-3">
         <section className="rounded-xl border border-border bg-card p-6 shadow-card xl:col-span-2">
           <div className="mb-4 flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" />

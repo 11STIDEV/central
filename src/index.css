@@ -127,4 +127,33 @@
   .shadow-elevated {
     box-shadow: var(--shadow-elevated);
   }
+
+  /** Fundo suave para o shell principal (atrás do conteúdo) */
+  .app-shell-bg {
+    background-image:
+      radial-gradient(ellipse 120% 80% at 100% 0%, hsl(210 100% 97% / 0.9), transparent 50%),
+      radial-gradient(ellipse 80% 60% at 0% 100%, hsl(199 90% 96% / 0.6), transparent 45%);
+  }
+
+  /**
+   * Scrollbar discreta no menu lateral (Firefox + WebKit).
+   * Evita a barra grossa branca padrão sobre fundo escuro.
+   */
+  .sidebar-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+  }
+  .sidebar-scroll::-webkit-scrollbar {
+    width: 5px;
+  }
+  .sidebar-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 9999px;
+  }
+  .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.22);
+  }
 }

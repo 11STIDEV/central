@@ -1,3 +1,4 @@
+import { PageHero } from "@/components/PageHero";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -139,14 +140,12 @@ export default function GestaoChamados() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <h1 className="text-3xl font-bold text-primary-foreground">Gestão de Chamados</h1>
-          <p className="mt-2 text-primary-foreground/70">Gerencie e resolva os chamados de suporte</p>
-        </div>
-      </div>
+      <PageHero
+        title="Gestão de Chamados"
+        subtitle="Gerencie e resolva os chamados de suporte"
+      />
 
-      <div className="mx-auto max-w-6xl px-8 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
         {/* Stats */}
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {(["aberto", "resolvido"] as const).map((s) => {

@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { PageHero } from "@/components/PageHero";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -131,18 +132,12 @@ export default function ControleMateriaisTI() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <h1 className="text-3xl font-bold text-primary-foreground">
-            Controle Interno de Materiais (TI)
-          </h1>
-          <p className="mt-2 text-primary-foreground/70">
-            Registro de uso de materiais de TI por ambiente.
-          </p>
-        </div>
-      </div>
+      <PageHero
+        title="Controle Interno de Materiais (TI)"
+        subtitle="Registro de uso de materiais de TI por ambiente."
+      />
 
-      <div className="mx-auto max-w-6xl px-8 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
         <Tabs defaultValue="registro">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <TabsList>

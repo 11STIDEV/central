@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getPainelSupabase } from "@/painel/supabaseClient";
 import { getOverlayDurationMs, getYoutubePlaylistId } from "@/painel/painelEnv";
 import { CciLogoBranca } from "@/painel/components/CciLogoBranca";
-import { schoolDisplayName } from "@/painel/schoolDisplayName";
 import type { CallWithDetails, School } from "@/painel/types/database";
 import { Volume2, VolumeX } from "lucide-react";
 import { format } from "date-fns";
@@ -175,14 +174,8 @@ export default function SenhasPainelClient({ school, initialCalls }: PainelClien
   return (
     <main className="min-h-screen w-full bg-slate-950 flex flex-col overflow-hidden">
       <header className="flex items-center justify-between px-8 py-4 bg-slate-900/80 border-b border-white/5 shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
+        <div className="flex items-center min-w-0">
           <CciLogoBranca height={40} className="shrink-0" />
-          <div className="min-w-0">
-            <h1 className="text-white font-bold text-lg leading-none">
-              {schoolDisplayName(school?.name) ?? "Secretaria Escolar"}
-            </h1>
-            <p className="text-blue-400 text-xs mt-0.5">Sistema de Senhas</p>
-          </div>
         </div>
 
         <div className="flex items-center gap-6">

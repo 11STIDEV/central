@@ -23,6 +23,7 @@ import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useChimeSound } from "@/painel/hooks/useChimeSound";
+import { PageHero, PageHeroEyebrow } from "@/components/PageHero";
 
 function labelGuiche(w: ServiceWindow) {
   return `${w.name} · Guichê ${w.number}`;
@@ -253,24 +254,27 @@ export default function SenhasAtendenteClient({
   }
 
   return (
-    <div className="animate-fade-in min-h-screen bg-slate-50">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
-              <MonitorSpeaker className="h-5 w-5 text-accent-foreground" />
+    <div className="animate-fade-in">
+      <PageHero>
+        <>
+          <PageHeroEyebrow />
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
+              <MonitorSpeaker className="h-5 w-5 text-amber-300" strokeWidth={1.75} />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-primary-foreground">Painel do Atendente</h1>
-              <p className="text-primary-foreground/70">
+              <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl lg:text-4xl">
+                Painel do Atendente
+              </h1>
+              <p className="mt-2 max-w-2xl text-slate-300">
                 Chame senhas e gerencie o atendimento no seu guichê.
               </p>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      </PageHero>
 
-      <div className="mx-auto max-w-5xl w-full px-8 py-8">
+      <div className="mx-auto w-full max-w-5xl px-4 py-8 md:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column: Controls */}
         <div className="lg:col-span-2 space-y-4">

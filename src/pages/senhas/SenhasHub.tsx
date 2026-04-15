@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Hash, MonitorSpeaker, Ticket, Tv, LayoutDashboard } from "lucide-react";
+import { PageHero, PageHeroEyebrow } from "@/components/PageHero";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { isPainelSupabaseConfigured } from "@/painel/supabaseClient";
 
@@ -34,22 +35,25 @@ export default function SenhasHub() {
   const supabaseOk = isPainelSupabaseConfigured();
 
   return (
-    <div className="animate-fade-in min-h-screen bg-slate-50">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
-              <Hash className="h-5 w-5 text-accent-foreground" />
+    <div className="animate-fade-in">
+      <PageHero>
+        <>
+          <PageHeroEyebrow />
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
+              <Hash className="h-5 w-5 text-amber-300" strokeWidth={1.75} />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-primary-foreground">Painel de senhas</h1>
-              <p className="text-primary-foreground/70">Escolha o modo de uso</p>
+              <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl lg:text-4xl">
+                Painel de senhas
+              </h1>
+              <p className="mt-2 max-w-2xl text-slate-300">Escolha o modo de uso</p>
             </div>
           </div>
-        </div>
-      </div>
+        </>
+      </PageHero>
 
-      <div className="mx-auto max-w-3xl px-8 py-8">
+      <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
         {!supabaseOk && (
           <div className="mb-6 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <p className="font-medium">Painel sem conexão ao Supabase</p>

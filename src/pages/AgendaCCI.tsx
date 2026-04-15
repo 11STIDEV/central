@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { CalendarDays, Laptop, Layers, MapPin, Package } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
+import { PageHero, PageHeroEyebrow } from "@/components/PageHero";
 import { Button } from "@/components/ui/button";
 import type { ReservaAgendaCCI } from "@/lib/agendaCci";
 import {
@@ -85,34 +86,35 @@ export default function AgendaCCI() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
+      <PageHero>
+        <>
+          <PageHeroEyebrow />
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent">
-                <CalendarDays className="h-5 w-5 text-accent-foreground" />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
+                <CalendarDays className="h-5 w-5 text-amber-300" strokeWidth={1.75} />
               </div>
               <div>
-                <h1 className="text-3xl font-bold text-primary-foreground">Agenda CCI</h1>
-                <p className="mt-1 max-w-2xl text-primary-foreground/70">
+                <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl lg:text-4xl">Agenda CCI</h1>
+                <p className="mt-2 max-w-2xl text-slate-300">
                   Visão da semana: reservas ativas de Chromebooks, equipamentos e espaços. Para criar
                   ou cancelar uma reserva, use{" "}
-                  <strong className="text-primary-foreground/90">Reserva de Equipamentos e Espaços</strong>.
+                  <strong className="text-white font-semibold">Reserva de Equipamentos e Espaços</strong>.
                 </p>
               </div>
             </div>
             <Button
               asChild
               variant="secondary"
-              className="shrink-0 bg-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/25"
+              className="shrink-0 border border-white/20 bg-white/10 text-white hover:bg-white/20"
             >
               <Link to="/reserva-espacos-equipamentos">Ir para reservas</Link>
             </Button>
           </div>
-        </div>
-      </div>
+        </>
+      </PageHero>
 
-      <div className="mx-auto max-w-6xl px-8 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
         <p className="mb-6 text-sm text-muted-foreground">
           Período exibido:{" "}
           <strong>

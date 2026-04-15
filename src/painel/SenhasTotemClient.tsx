@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getPainelSupabase } from "@/painel/supabaseClient";
 import { CciLogoBranca } from "@/painel/components/CciLogoBranca";
-import { schoolDisplayName } from "@/painel/schoolDisplayName";
 import type { Queue, School, Ticket } from "@/painel/types/database";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -95,13 +94,12 @@ export default function SenhasTotemClient({ school, queues }: TotemClientProps) 
     <main className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 flex flex-col items-center justify-center p-6 select-none">
       {/* Header */}
       <div className="w-full max-w-2xl mb-8 text-center">
-        <div className="inline-flex flex-wrap items-center justify-center gap-3 mb-2">
+        <div className="mb-2 flex justify-center">
           <CciLogoBranca height={44} className="shrink-0 object-center" />
-          <h1 className="text-2xl font-bold text-white">
-            {schoolDisplayName(school?.name) ?? "Secretaria Escolar"}
-          </h1>
         </div>
-        <p className="text-blue-300 text-sm">{school?.panel_message}</p>
+        {school?.panel_message ? (
+          <p className="text-blue-300 text-sm">{school.panel_message}</p>
+        ) : null}
       </div>
 
       {/* Step: Select Queue */}

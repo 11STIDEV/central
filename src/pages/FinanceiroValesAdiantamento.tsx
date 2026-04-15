@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { PageHero } from "@/components/PageHero";
 import {
   Table,
   TableBody,
@@ -22,7 +23,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { CircleDollarSign, CheckCircle2, XCircle, AlertCircle } from "lucide-react";
+import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
 type StatusVale = "pendente" | "aprovado" | "negado";
 
 type Vale = {
@@ -124,25 +125,12 @@ export default function FinanceiroValesAdiantamento() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
-              <CircleDollarSign className="h-5 w-5 text-accent-foreground" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-primary-foreground">
-                Controle de Vales - Financeiro
-              </h1>
-              <p className="text-primary-foreground/70">
-                Tela interna do financeiro para análise, aprovação e negativa de vales-adiantamento.
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHero
+        title="Controle de Vales — Financeiro"
+        subtitle="Tela interna do financeiro para análise, aprovação e negativa de vales-adiantamento."
+      />
 
-      <div className="mx-auto max-w-6xl px-8 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
         {mensagem.tipo === "sucesso" && (
           <Alert className="mb-4 border-emerald-500/40 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/10 dark:text-emerald-100">
             <CheckCircle2 className="h-4 w-4" />

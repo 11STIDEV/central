@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { FileText, Download, Search, Folder, File, Calendar } from "lucide-react";
+import { PageHero } from "@/components/PageHero";
 
 const documentos = [
   { id: 1, nome: "Regimento Interno", categoria: "Institucional", tamanho: "2.4 MB", data: "15/01/2026", tipo: "PDF" },
@@ -26,14 +27,12 @@ export default function Documentos() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <h1 className="text-3xl font-bold text-primary-foreground">Documentos Institucionais</h1>
-          <p className="mt-2 text-primary-foreground/70">Documentos oficiais e políticas da organização</p>
-        </div>
-      </div>
+      <PageHero
+        title="Documentos Institucionais"
+        subtitle="Documentos oficiais e políticas da organização"
+      />
 
-      <div className="mx-auto max-w-6xl px-8 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
         {/* Filters */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row">
           <div className="relative flex-1">

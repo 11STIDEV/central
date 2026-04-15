@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Send, AlertCircle, CheckCircle, LogIn } from "lucide-react";
 import { Link } from "react-router-dom";
+import { PageHero } from "@/components/PageHero";
 import { useAuth } from "@/auth/AuthProvider";
 import { adicionarChamado, papelPrincipalUsuario } from "@/lib/chamados";
 import type { Chamado } from "@/lib/chamados";
@@ -61,16 +62,11 @@ export default function AbrirChamado() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <h1 className="text-3xl font-bold text-primary-foreground">Abrir Chamado</h1>
-          <p className="mt-2 text-primary-foreground/70">Solicite suporte da equipe de TI</p>
-        </div>
-      </div>
+      <PageHero title="Abrir Chamado" subtitle="Solicite suporte da equipe de TI" />
 
-      <div className="mx-auto max-w-3xl px-8 py-8">
+      <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
         {!usuario ? (
-          <div className="rounded-xl border border-border bg-card p-8 text-center shadow-card">
+          <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-8 text-center shadow-xl shadow-slate-900/5 backdrop-blur-sm">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
               <LogIn className="h-7 w-7 text-muted-foreground" />
             </div>
@@ -86,7 +82,7 @@ export default function AbrirChamado() {
             </Link>
           </div>
         ) : submitted ? (
-          <div className="animate-fade-in rounded-xl border border-border bg-card p-12 text-center shadow-card">
+          <div className="animate-fade-in rounded-2xl border border-slate-200/80 bg-white/90 p-12 text-center shadow-xl shadow-slate-900/5 backdrop-blur-sm">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
               <CheckCircle className="h-8 w-8 text-success" />
             </div>
@@ -94,32 +90,35 @@ export default function AbrirChamado() {
             <p className="mt-2 text-sm text-muted-foreground">Você receberá atualizações sobre o andamento.</p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-6 rounded-xl border border-border bg-card p-8 shadow-card">
-            <div className="flex items-center gap-2 rounded-lg bg-info/10 px-4 py-3">
-              <AlertCircle className="h-4 w-4 text-info" />
-              <p className="text-sm text-info">Preencha todos os campos para abrir seu chamado.</p>
+          <form
+            onSubmit={handleSubmit}
+            className="space-y-6 rounded-2xl border border-slate-200/80 bg-white/90 p-8 shadow-xl shadow-slate-900/5 backdrop-blur-sm"
+          >
+            <div className="flex items-center gap-2 rounded-xl border border-sky-200/60 bg-sky-50/80 px-4 py-3 text-sky-900">
+              <AlertCircle className="h-4 w-4 shrink-0 text-sky-600" />
+              <p className="text-sm">Preencha todos os campos para abrir seu chamado.</p>
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-card-foreground">Título</label>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Título</label>
               <input
                 type="text"
                 required
                 value={form.titulo}
                 onChange={(e) => setForm({ ...form, titulo: e.target.value })}
                 placeholder="Descreva brevemente o problema"
-                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                className="w-full rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
               />
             </div>
 
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-card-foreground">Categoria</label>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Categoria</label>
                 <select
                   required
                   value={form.categoria}
                   onChange={(e) => setForm({ ...form, categoria: e.target.value })}
-                  className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  className="w-full rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
                 >
                   <option value="">Selecione...</option>
                   {categories.map((c) => (
@@ -129,17 +128,17 @@ export default function AbrirChamado() {
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-card-foreground">Prioridade</label>
+                <label className="mb-1.5 block text-sm font-medium text-foreground">Prioridade</label>
                 <div className="flex gap-2">
                   {priorities.map((p) => (
                     <button
                       key={p.value}
                       type="button"
                       onClick={() => setForm({ ...form, prioridade: p.value })}
-                      className={`flex-1 rounded-lg border-2 px-3 py-2 text-sm font-medium transition-all ${
+                      className={`flex-1 rounded-xl border-2 px-3 py-2 text-sm font-medium transition-all ${
                         form.prioridade === p.value
-                          ? "border-primary bg-primary/5 text-primary"
-                          : "border-border text-muted-foreground hover:border-primary/30"
+                          ? "border-primary bg-primary/5 text-primary shadow-sm"
+                          : "border-slate-200/90 text-muted-foreground hover:border-primary/25"
                       }`}
                     >
                       <div className={`mx-auto mb-1 h-2 w-2 rounded-full ${p.color}`} />
@@ -151,21 +150,21 @@ export default function AbrirChamado() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-card-foreground">Descrição detalhada</label>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Descrição detalhada</label>
               <textarea
                 required
                 rows={5}
                 value={form.descricao}
                 onChange={(e) => setForm({ ...form, descricao: e.target.value })}
                 placeholder="Descreva o problema com o máximo de detalhes possível..."
-                className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                className="w-full rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
               />
             </div>
 
             <button
               type="submit"
               disabled={!usuario}
-              className="flex w-full items-center justify-center gap-2 rounded-lg gradient-primary px-6 py-3 text-sm font-semibold text-primary-foreground transition-all hover:opacity-90 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-blue-600 px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:opacity-95 disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
               Enviar Chamado

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ShieldCheck, BookOpen, Key, Eye, EyeOff, Copy, Search, Plus, Lock } from "lucide-react";
+import { PageHero } from "@/components/PageHero";
+import { BookOpen, Key, Eye, EyeOff, Copy, Search, Plus, Lock } from "lucide-react";
 const tutoriaisInternos = [
   {
     id: 1,
@@ -52,21 +53,9 @@ export default function AreaTI() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
-              <ShieldCheck className="h-5 w-5 text-accent-foreground" />
-            </div>
-            <div>
-              <h1 className="text-3xl font-bold text-primary-foreground">Área Interna TI</h1>
-              <p className="text-primary-foreground/70">Acesso restrito à equipe de Tecnologia</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PageHero title="Área Interna TI" subtitle="Acesso restrito à equipe de Tecnologia" />
 
-      <div className="mx-auto max-w-6xl px-8 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
         {/* Restricted notice */}
         <div className="mb-6 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3">
           <Lock className="h-4 w-4 text-warning" />

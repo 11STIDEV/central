@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Search, Phone as PhoneIcon, User, Filter } from "lucide-react";
+import { PageHero } from "@/components/PageHero";
 import {
   Select,
   SelectContent,
@@ -105,16 +106,9 @@ export default function Ramais() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <h1 className="text-3xl font-bold text-primary-foreground">Ramais</h1>
-          <p className="mt-2 text-primary-foreground/70">
-            Lista de ramais da organização
-          </p>
-        </div>
-      </div>
+      <PageHero title="Ramais" subtitle="Lista de ramais da organização" />
 
-      <div className="mx-auto max-w-6xl px-8 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
         {/* Filtros */}
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center">
           <div className="flex flex-1 items-center gap-2">

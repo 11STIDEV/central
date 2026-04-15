@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { PageHero } from "@/components/PageHero";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -138,18 +139,12 @@ export default function ControleMateriaisAlmoxarifado() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto max-w-6xl">
-          <h1 className="text-3xl font-bold text-primary-foreground">
-            Controle de Materiais - Almoxarifado
-          </h1>
-          <p className="mt-2 text-primary-foreground/70">
-            Registro de entrada, saída e visão de estoque dos materiais.
-          </p>
-        </div>
-      </div>
+      <PageHero
+        title="Controle de Materiais — Almoxarifado"
+        subtitle="Registro de entrada, saída e visão de estoque dos materiais."
+      />
 
-      <div className="mx-auto max-w-6xl px-8 py-8">
+      <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
         <Tabs defaultValue="entrada">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <TabsList>

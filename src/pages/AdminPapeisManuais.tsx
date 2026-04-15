@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { ArrowLeft, Shield, UserCog } from "lucide-react";
+import { PageHero, PageHeroEyebrow } from "@/components/PageHero";
 import { useAuth } from "@/auth/AuthProvider";
 import { PAPEIS_ATRIBUICAO_MANUAL } from "@/lib/papeisManuais";
 import { Button } from "@/components/ui/button";
@@ -115,33 +116,38 @@ export default function AdminPapeisManuais() {
 
   return (
     <div className="animate-fade-in">
-      <div className="gradient-hero px-8 py-12">
-        <div className="mx-auto flex max-w-4xl flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/10 px-3 py-1 text-xs font-medium text-primary-foreground">
-              <Shield className="h-3.5 w-3.5" />
-              Administrador
+      <PageHero>
+        <>
+          <PageHeroEyebrow />
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-slate-200">
+                <Shield className="h-3.5 w-3.5 text-amber-300" />
+                Administrador
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl lg:text-4xl">
+                Papéis manuais
+              </h1>
+              <p className="mt-2 max-w-2xl text-slate-300">
+                Atribua papéis que não vêm da unidade organizacional do Google Workspace. Apenas o
+                papel <strong className="text-white">admin</strong> existe por enquanto; outros serão adicionados depois.
+              </p>
             </div>
-            <h1 className="text-3xl font-bold text-primary-foreground">Papéis manuais</h1>
-            <p className="mt-2 max-w-2xl text-primary-foreground/70">
-              Atribua papéis que não vêm da unidade organizacional do Google Workspace. Apenas o
-              papel <strong>admin</strong> existe por enquanto; outros serão adicionados depois.
-            </p>
+            <Button
+              asChild
+              variant="secondary"
+              className="shrink-0 border border-white/20 bg-white/10 text-white hover:bg-white/20"
+            >
+              <Link to="/" className="inline-flex items-center gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Voltar à Central
+              </Link>
+            </Button>
           </div>
-          <Button
-            asChild
-            variant="secondary"
-            className="shrink-0 border border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground hover:bg-primary-foreground/20"
-          >
-            <Link to="/" className="inline-flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Voltar à Central
-            </Link>
-          </Button>
-        </div>
-      </div>
+        </>
+      </PageHero>
 
-      <div className="mx-auto max-w-4xl space-y-8 px-8 py-8">
+      <div className="mx-auto max-w-4xl space-y-8 px-4 py-8 md:px-8">
         <section className="rounded-xl border border-border bg-card p-6 shadow-card">
           <div className="mb-4 flex items-center gap-2">
             <UserCog className="h-5 w-5 text-primary" />
