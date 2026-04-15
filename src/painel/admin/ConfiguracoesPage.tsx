@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Settings, Save, Monitor, Link, Loader2 } from "lucide-react";
+import { schoolDisplayName } from "@/painel/schoolDisplayName";
 import { toast } from "sonner";
 
 export default function ConfiguracoesPage() {
@@ -41,7 +42,7 @@ export default function ConfiguracoesPage() {
 
       if (school) {
         setForm({
-          name: school.name,
+          name: schoolDisplayName(school.name) ?? school.name,
           panel_message: school.panel_message ?? "",
         });
       }
@@ -98,7 +99,7 @@ export default function ConfiguracoesPage() {
               <Input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                placeholder="Ex: Escola Estadual João da Silva"
+                placeholder="Ex: Colégio CCI"
               />
             </div>
             <div className="space-y-2">

@@ -1,0 +1,28 @@
+# Teste local (produção): docker compose up --build
+# Volume persiste agenda CCI e papéis manuais em server/data.
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+        VITE_SCHOOL_SLUG: ${VITE_SCHOOL_SLUG:-}
+        VITE_PAINEL_YOUTUBE_PLAYLIST_ID: ${VITE_PAINEL_YOUTUBE_PLAYLIST_ID:-}
+        VITE_PAINEL_OVERLAY_SECONDS: ${VITE_PAINEL_OVERLAY_SECONDS:-}
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      # Copie server/.env ou defina aqui (não commitar secrets):
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      DOMINIOS_PERMITIDOS: ${DOMINIOS_PERMITIDOS:-}
+    volumes:
+      - central-server-data:/app/server/data
+
+volumes:
+  central-server-data:

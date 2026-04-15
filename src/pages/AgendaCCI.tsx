@@ -1,50 +1,50 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
-import { Calendar, Check, Clock3, Laptop, Package, MapPin, XCircle } from "lucide-react";
+import { Link, useLocation } from "react-router-dom";
+import { CalendarDays, Laptop, Layers, MapPin, Package } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
+import { Button } from "@/components/ui/button";
+import type { ReservaAgendaCCI } from "@/lib/agendaCci";
 import {
-  type ChromebookAgendaItem,
-  type ReservaAgendaCCI,
-  type TipoReservaAgenda,
-  CHROMEBOOKS_CATALOGO_FALLBACK,
-  EQUIPAMENTOS_CATALOGO,
-  ESPACOS_CATALOGO,
   STORAGE_KEY_AGENDA_CCI,
-  TOLERANCIA_FIM_RESERVA_MIN,
   carregarReservasAgenda,
-  dataReservaDentroDaSemanaPermitida,
   formatarYmdParaBR,
   limitesDatasReservaSemanaCorrente,
   obterReservasDoServidor,
-  salvarReservasAgenda,
-  reservasChromebookConflitam,
+  textoResumoAgenda,
   toMinutes,
   toYmdLocal,
-  rangesOverlap,
 } from "@/lib/agendaCci";
+
+/** Dias do período liberado para reservas (hoje até sábado da semana corrente). */
+function diasPeriodoReserva(agora = new Date()): string[] {
+  const { min, max } = limitesDatasReservaSemanaCorrente(agora);
+  const [y1, m1, d1] = min.split("-").map(Number);
+  const [y2, m2, d2] = max.split("-").map(Number);
+  const out: string[] = [];
+  const cur = new Date(y1, m1 - 1, d1);
+  const fim = new Date(y2, m2 - 1, d2);
+  while (cur <= fim) {
+    out.push(toYmdLocal(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
+
+function tituloDia(ymd: string): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  const base = date.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "short",
+  });
+  return base.charAt(0).toUpperCase() + base.slice(1);
+}
 
 export default function AgendaCCI() {
   const location = useLocation();
   const { usuario, googleIdToken } = useAuth();
-  /** Papéis de faculdade/tecs: reserva de no máximo 1 Chromebook por vez. */
-  const papelAluno = usuario?.papeis.includes("aluno") ?? false;
-  const [tipo, setTipo] = useState<TipoReservaAgenda>("chromebook");
-  const [data, setData] = useState<string>(() => toYmdLocal(new Date()));
-  const [inicio, setInicio] = useState("08:00");
-  const [fim, setFim] = useState("08:50");
-  const [somenteHdmi, setSomenteHdmi] = useState(false);
-  const [chromebooksSelecionados, setChromebooksSelecionados] = useState<string[]>([]);
-  const [equipamentoNome, setEquipamentoNome] = useState(EQUIPAMENTOS_CATALOGO[0].nome);
-  const [equipamentoQuantidade, setEquipamentoQuantidade] = useState(1);
-  const [espacoNome, setEspacoNome] = useState(ESPACOS_CATALOGO[0]);
-  const [observacao, setObservacao] = useState("");
-  const [mensagem, setMensagem] = useState<string | null>(null);
   const [reservas, setReservas] = useState<ReservaAgendaCCI[]>(() => carregarReservasAgenda());
-  const [chromebooksCatalogo, setChromebooksCatalogo] = useState<ChromebookAgendaItem[]>(
-    CHROMEBOOKS_CATALOGO_FALLBACK,
-  );
-  const [carregandoChromebooks, setCarregandoChromebooks] = useState(false);
-  const [avisoChromebooks, setAvisoChromebooks] = useState<string | null>(null);
 
   useEffect(() => {
     if (!googleIdToken || !usuario || location.pathname !== "/agenda-cci") return;
@@ -64,584 +64,125 @@ export default function AgendaCCI() {
     };
   }, [googleIdToken, usuario, location.pathname]);
 
-  useEffect(() => {
-    if (!googleIdToken || !usuario) return;
-    let cancelado = false;
-    setCarregandoChromebooks(true);
-    setAvisoChromebooks(null);
-    (async () => {
-      try {
-        const res = await fetch("/api/chromebooks", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idToken: googleIdToken }),
-        });
-        const text = await res.text();
-        let body: { devices?: ChromebookAgendaItem[]; error?: string } = {};
-        try {
-          if (text) body = JSON.parse(text) as typeof body;
-        } catch {
-          /* ignore */
-        }
-        if (!res.ok) {
-          const msg =
-            typeof body.error === "string" ? body.error : `HTTP ${res.status}`;
-          if (!cancelado) {
-            setChromebooksCatalogo(CHROMEBOOKS_CATALOGO_FALLBACK);
-            setAvisoChromebooks(
-              `Não foi possível carregar Chromebooks do Google Workspace (${msg}). Exibindo lista de exemplo.`,
-            );
-          }
-          return;
-        }
-        const list = body.devices;
-        if (!cancelado && Array.isArray(list) && list.length > 0) {
-          setChromebooksCatalogo(list);
-        } else if (!cancelado) {
-          setChromebooksCatalogo(CHROMEBOOKS_CATALOGO_FALLBACK);
-          setAvisoChromebooks(
-            "Nenhum Chromebook retornado pelo Workspace (ativos ou desativados). Confira o inventário no Admin Console ou a OU em GOOGLE_CHROMEBOOK_ORG_UNIT. Exibindo lista de exemplo.",
-          );
-        }
-      } catch {
-        if (!cancelado) {
-          setChromebooksCatalogo(CHROMEBOOKS_CATALOGO_FALLBACK);
-          setAvisoChromebooks(
-            "Falha de rede ao buscar Chromebooks. Verifique se a API em server/ está rodando. Exibindo lista de exemplo.",
-          );
-        }
-      } finally {
-        if (!cancelado) setCarregandoChromebooks(false);
-      }
-    })();
-    return () => {
-      cancelado = true;
-    };
-  }, [googleIdToken, usuario]);
-
-  useEffect(() => {
-    const ids = new Set(chromebooksCatalogo.map((c) => c.id));
-    setChromebooksSelecionados((prev) => prev.filter((id) => ids.has(id)));
-  }, [chromebooksCatalogo]);
+  const dias = useMemo(() => diasPeriodoReserva(new Date()), []);
+  const { min: dataMin, max: dataMax } = limitesDatasReservaSemanaCorrente(new Date());
 
   const reservasAtivas = useMemo(
     () => reservas.filter((r) => r.status === "ativa"),
     [reservas],
   );
 
-  const disponiveisChromebook = useMemo(() => {
-    return chromebooksCatalogo.filter((cb) => {
-      if (somenteHdmi && !cb.hasHdmi) return false;
-      const conflita = reservasAtivas.some((r) => {
-        if (r.tipo !== "chromebook" || r.data !== data) return false;
-        if (!(r.chromebookIds ?? []).includes(cb.id)) return false;
-        return reservasChromebookConflitam(inicio, fim, r.inicio, r.fim);
-      });
-      return !conflita;
-    });
-  }, [chromebooksCatalogo, data, fim, inicio, reservasAtivas, somenteHdmi]);
-
-  const maxEquipamentoDisponivel = useMemo(() => {
-    const def = EQUIPAMENTOS_CATALOGO.find((e) => e.nome === equipamentoNome);
-    if (!def) return 1;
-    const reservadoNoHorario = reservasAtivas
-      .filter((r) => r.tipo === "equipamento" && r.equipamentoNome === equipamentoNome && r.data === data)
-      .filter((r) => rangesOverlap(inicio, fim, r.inicio, r.fim))
-      .reduce((acc, r) => acc + (r.equipamentoQuantidade ?? 0), 0);
-    return Math.max(0, def.total - reservadoNoHorario);
-  }, [data, equipamentoNome, fim, inicio, reservasAtivas]);
-
-  const espacosDisponiveis = useMemo(() => {
-    return ESPACOS_CATALOGO.filter((esp) => {
-      const conflita = reservasAtivas.some((r) => {
-        if (r.tipo !== "espaco" || r.data !== data) return false;
-        if (r.espacoNome !== esp) return false;
-        return rangesOverlap(inicio, fim, r.inicio, r.fim);
-      });
-      return !conflita;
-    });
-  }, [data, fim, inicio, reservasAtivas]);
-
-  const minhasReservas = useMemo(() => {
-    if (!usuario) return [];
-    return reservas
-      .filter((r) => r.solicitanteEmail === usuario.email)
-      .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
-  }, [reservas, usuario]);
-
-  /** Aluno: no máximo uma reserva ativa de Chromebook no total (não só por agendamento). */
-  const alunoJaTemReservaAtivaChromebook = useMemo(() => {
-    if (!usuario || !papelAluno) return false;
-    return reservas.some(
-      (r) =>
-        r.status === "ativa" &&
-        r.tipo === "chromebook" &&
-        r.solicitanteEmail === usuario.email,
-    );
-  }, [reservas, usuario, papelAluno]);
-
-  const { min: dataMin, max: dataMax } = limitesDatasReservaSemanaCorrente(new Date());
-
-  useEffect(() => {
-    const { min, max } = limitesDatasReservaSemanaCorrente(new Date());
-    setData((d) => (d < min || d > max ? min : d));
-  }, []);
-
-  /** Papel aluno: apenas reserva de Chromebooks (sem equipamentos nem espaços). */
-  useEffect(() => {
-    if (!usuario?.papeis.includes("aluno")) return;
-    setTipo("chromebook");
-    setMensagem(null);
-  }, [usuario]);
-
-  function resetCamposEspecificos() {
-    setChromebooksSelecionados([]);
-    setEquipamentoQuantidade(1);
-    setObservacao("");
-  }
-
-  function criarReserva() {
-    setMensagem(null);
-    if (!usuario) {
-      setMensagem("Faça login para reservar.");
-      return;
+  const porDia = useMemo(() => {
+    const map = new Map<string, ReservaAgendaCCI[]>();
+    for (const ymd of dias) {
+      const lista = reservasAtivas
+        .filter((r) => r.data === ymd)
+        .sort((a, b) => toMinutes(a.inicio) - toMinutes(b.inicio));
+      map.set(ymd, lista);
     }
-    if (!data || !inicio || !fim || toMinutes(fim) <= toMinutes(inicio)) {
-      setMensagem("Informe data e horário válidos.");
-      return;
-    }
-
-    if (!dataReservaDentroDaSemanaPermitida(data)) {
-      setMensagem(
-        "Só é possível reservar até o sábado da semana corrente. A próxima semana (domingo a sábado) fica disponível a partir do próximo domingo.",
-      );
-      return;
-    }
-
-    if (papelAluno && tipo !== "chromebook") {
-      setMensagem(
-        "Contas com papel aluno só podem reservar Chromebooks.",
-      );
-      return;
-    }
-
-    if (papelAluno && tipo === "chromebook") {
-      const jaTemOutraAtiva = reservas.some(
-        (r) =>
-          r.status === "ativa" &&
-          r.tipo === "chromebook" &&
-          r.solicitanteEmail === usuario.email,
-      );
-      if (jaTemOutraAtiva) {
-        setMensagem(
-          "Você já possui uma reserva ativa de Chromebook. Cancele-a em Minhas reservas antes de criar outra.",
-        );
-        return;
-      }
-    }
-
-    if (tipo === "chromebook" && chromebooksSelecionados.length === 0) {
-      setMensagem("Selecione ao menos um Chromebook.");
-      return;
-    }
-    if (
-      tipo === "chromebook" &&
-      papelAluno &&
-      chromebooksSelecionados.length > 1
-    ) {
-      setMensagem(
-        "Contas de aluno podem reservar apenas um Chromebook (e uma reserva ativa por vez).",
-      );
-      return;
-    }
-    if (tipo === "equipamento") {
-      if (equipamentoQuantidade <= 0) {
-        setMensagem("Informe uma quantidade válida.");
-        return;
-      }
-      if (equipamentoQuantidade > maxEquipamentoDisponivel) {
-        setMensagem(`Só há ${maxEquipamentoDisponivel} unidade(s) disponível(is) nesse horário.`);
-        return;
-      }
-    }
-    if (tipo === "espaco" && !espacosDisponiveis.includes(espacoNome)) {
-      setMensagem("Este espaço não está disponível nesse horário.");
-      return;
-    }
-
-    const linhasHdmi =
-      tipo === "chromebook"
-        ? chromebooksSelecionados
-            .map((deviceId) => {
-              const cb = chromebooksCatalogo.find((x) => x.id === deviceId);
-              const recursoId = cb?.annotatedAssetId ?? cb?.id ?? deviceId;
-              return cb?.hasHdmi ? `${recursoId}: COM HDMI` : `${recursoId}: SEM HDMI`;
-            })
-            .filter((s): s is string => Boolean(s))
-        : [];
-
-    const observacaoFinal =
-      tipo === "chromebook"
-        ? (linhasHdmi.length ? linhasHdmi.join("\n") : undefined)
-        : observacao.trim() || undefined;
-
-    const nova: ReservaAgendaCCI = {
-      id: `RSV-${Date.now()}`,
-      tipo,
-      data,
-      inicio,
-      fim,
-      solicitanteEmail: usuario.email,
-      solicitanteNome: usuario.nome,
-      chromebookIds: tipo === "chromebook" ? chromebooksSelecionados : undefined,
-      equipamentoNome: tipo === "equipamento" ? equipamentoNome : undefined,
-      equipamentoQuantidade: tipo === "equipamento" ? equipamentoQuantidade : undefined,
-      espacoNome: tipo === "espaco" ? espacoNome : undefined,
-      observacao: observacaoFinal,
-      status: "ativa",
-      criadoEm: new Date().toISOString(),
-    };
-
-    const next = [nova, ...reservas];
-    setReservas(next);
-    salvarReservasAgenda(next, googleIdToken);
-    setMensagem("Reserva criada com sucesso.");
-    resetCamposEspecificos();
-  }
-
-  function cancelarReserva(id: string) {
-    const next = reservas.map((r) => (r.id === id ? { ...r, status: "cancelada" as const } : r));
-    setReservas(next);
-    salvarReservasAgenda(next, googleIdToken);
-  }
+    return map;
+  }, [dias, reservasAtivas]);
 
   return (
     <div className="animate-fade-in">
       <div className="gradient-hero px-8 py-12">
         <div className="mx-auto max-w-6xl">
-          <h1 className="text-3xl font-bold text-primary-foreground">Agenda CCI</h1>
-          <p className="mt-2 text-primary-foreground/70">
-            {papelAluno
-              ? "Reserva de Chromebooks da CCI."
-              : "Reserva de Chromebooks, equipamentos e espaços da CCI."}
-          </p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent">
+                <CalendarDays className="h-5 w-5 text-accent-foreground" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-primary-foreground">Agenda CCI</h1>
+                <p className="mt-1 max-w-2xl text-primary-foreground/70">
+                  Visão da semana: reservas ativas de Chromebooks, equipamentos e espaços. Para criar
+                  ou cancelar uma reserva, use{" "}
+                  <strong className="text-primary-foreground/90">Reserva de Equipamentos e Espaços</strong>.
+                </p>
+              </div>
+            </div>
+            <Button
+              asChild
+              variant="secondary"
+              className="shrink-0 bg-primary-foreground/15 text-primary-foreground hover:bg-primary-foreground/25"
+            >
+              <Link to="/reserva-espacos-equipamentos">Ir para reservas</Link>
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-8 py-8 xl:grid-cols-3">
-        <section className="rounded-xl border border-border bg-card p-6 shadow-card xl:col-span-2">
-          <div className="mb-4 flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-card-foreground">Nova Reserva</h2>
-          </div>
+      <div className="mx-auto max-w-6xl px-8 py-8">
+        <p className="mb-6 text-sm text-muted-foreground">
+          Período exibido:{" "}
+          <strong>
+            {formatarYmdParaBR(dataMin)} a {formatarYmdParaBR(dataMax)}
+          </strong>{" "}
+          (mesma janela em que novas reservas podem ser feitas).
+        </p>
 
-          {!usuario && (
-            <div className="mb-4 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-              Entre com sua conta para criar reservas.
-            </div>
-          )}
-
-          <div className="mb-4 flex flex-wrap gap-2">
-            {(
-              [
-                { key: "chromebook" as const, label: "Chromebooks", icon: Laptop },
-                { key: "equipamento" as const, label: "Equipamentos", icon: Package },
-                { key: "espaco" as const, label: "Espaços", icon: MapPin },
-              ] as const
-            )
-              .filter((opt) => !papelAluno || opt.key === "chromebook")
-              .map((opt) => (
-                <button
-                  key={opt.key}
-                  type="button"
-                  onClick={() => {
-                    setTipo(opt.key);
-                    setMensagem(null);
-                  }}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
-                    tipo === opt.key
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : "border-border bg-card text-card-foreground hover:bg-muted/40"
+        <div className="space-y-8">
+          {dias.map((ymd) => {
+            const lista = porDia.get(ymd) ?? [];
+            const hoje = toYmdLocal(new Date()) === ymd;
+            return (
+              <section key={ymd}>
+                <h2
+                  className={`mb-3 border-b border-border pb-2 text-lg font-semibold ${
+                    hoje ? "text-primary" : "text-foreground"
                   }`}
                 >
-                  <opt.icon className="h-4 w-4" />
-                  {opt.label}
-                </button>
-              ))}
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            <label className="text-sm">
-              <span className="mb-1 block text-muted-foreground">Data</span>
-              <input
-                type="date"
-                min={dataMin}
-                max={dataMax}
-                value={data}
-                onChange={(e) => setData(e.target.value)}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block text-muted-foreground">Início</span>
-              <input
-                type="time"
-                value={inicio}
-                onChange={(e) => setInicio(e.target.value)}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2"
-              />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block text-muted-foreground">Fim</span>
-              <input
-                type="time"
-                value={fim}
-                onChange={(e) => setFim(e.target.value)}
-                className="w-full rounded-lg border border-input bg-background px-3 py-2"
-              />
-            </label>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Período liberado para novas reservas:{" "}
-            <strong>
-              {formatarYmdParaBR(dataMin)} a {formatarYmdParaBR(dataMax)}
-            </strong>{" "}
-            (semana domingo a sábado; no próximo domingo abre a próxima semana).
-          </p>
-
-          {tipo === "chromebook" && (
-            <div className="mt-4 space-y-3">
-              <p className="text-xs text-muted-foreground">
-                Reservas consideram <strong>{TOLERANCIA_FIM_RESERVA_MIN} minutos</strong> após o
-                horário de fim. Aparelhos já reservados no mesmo intervalo não aparecem na lista.
-              </p>
-              {papelAluno && (
-                <p className="text-xs text-amber-800 dark:text-amber-100">
-                  <strong>Papel aluno:</strong> você pode ter{" "}
-                  <strong>apenas uma reserva ativa</strong> de Chromebook por vez, com{" "}
-                  <strong>um único aparelho</strong>. Para outro horário, cancele a reserva atual em
-                  Minhas reservas.
-                </p>
-              )}
-              {papelAluno && alunoJaTemReservaAtivaChromebook && (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
-                  Você já possui uma reserva ativa de Chromebook. Cancele-a abaixo em{" "}
-                  <strong>Minhas reservas</strong> para poder criar uma nova.
-                </div>
-              )}
-              {avisoChromebooks && (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:bg-amber-950/20 dark:text-amber-100">
-                  {avisoChromebooks}
-                </div>
-              )}
-              {carregandoChromebooks && (
-                <p className="text-xs text-muted-foreground">Carregando Chromebooks do Workspace…</p>
-              )}
-              <label className="inline-flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={somenteHdmi}
-                  onChange={(e) => setSomenteHdmi(e.target.checked)}
-                />
-                Apenas Chromebooks com HDMI (considera sua observação)
-              </label>
-              <div className="grid max-h-52 grid-cols-1 gap-2 overflow-auto rounded-lg border border-border p-3 sm:grid-cols-2 md:grid-cols-3">
-                {disponiveisChromebook.map((cb) => {
-                  const checked = chromebooksSelecionados.includes(cb.id);
-                  return (
-                    <div key={cb.id} className="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (checked) {
-                            setChromebooksSelecionados((prev) => prev.filter((id) => id !== cb.id));
-                          } else if (papelAluno) {
-                            setChromebooksSelecionados([cb.id]);
-                          } else {
-                            setChromebooksSelecionados((prev) => [...prev, cb.id]);
-                          }
-                        }}
-                        className={`relative flex min-h-[3.5rem] flex-col items-start gap-1 rounded-lg border-2 px-3 py-2.5 pr-10 text-left text-xs font-medium transition-shadow ${
-                          checked
-                            ? "border-primary bg-primary/15 text-foreground shadow-md ring-2 ring-primary/40"
-                            : "border-border text-foreground hover:border-primary/40 hover:bg-muted/30"
-                        }`}
+                  {tituloDia(ymd)}
+                  {hoje && (
+                    <span className="ml-2 text-xs font-normal text-muted-foreground">(hoje)</span>
+                  )}
+                </h2>
+                {lista.length === 0 ? (
+                  <p className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-sm text-muted-foreground">
+                    Nenhuma reserva ativa neste dia.
+                  </p>
+                ) : (
+                  <ul className="space-y-2">
+                    {lista.map((r) => (
+                      <li
+                        key={r.id}
+                        className="flex flex-col gap-1 rounded-lg border border-border bg-card p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between"
                       >
-                        {checked && (
-                          <span className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
-                            <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden />
-                          </span>
-                        )}
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {cb.annotatedAssetId ?? cb.id}
-                        </span>
-
-                        <span
-                          className={`mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold ${
-                            cb.hasHdmi
-                              ? "bg-success/15 text-success"
-                              : "bg-muted text-muted-foreground"
-                          }`}
-                        >
-                          {cb.hasHdmi ? "COM HDMI" : "SEM HDMI"}
-                        </span>
-                      </button>
-                    </div>
-                  );
-                })}
-                {disponiveisChromebook.length === 0 && !carregandoChromebooks && (
-                  <p className="col-span-full text-sm text-muted-foreground">
-                    Nenhum Chromebook disponível nesse horário.
-                  </p>
+                        <div className="flex items-center gap-3">
+                          {r.tipo === "composta" && (
+                            <Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          )}
+                          {r.tipo === "chromebook" && (
+                            <Laptop className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          )}
+                          {r.tipo === "equipamento" && (
+                            <Package className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          )}
+                          {r.tipo === "espaco" && (
+                            <MapPin className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          )}
+                          <div>
+                            {r.titulo && (
+                              <p className="font-semibold text-card-foreground">{r.titulo}</p>
+                            )}
+                            <p className="font-medium text-card-foreground">
+                              {r.inicio} – {r.fim}
+                            </p>
+                            <p className="text-sm text-muted-foreground">{textoResumoAgenda(r)}</p>
+                          </div>
+                        </div>
+                        <div className="text-left text-sm text-muted-foreground sm:text-right">
+                          <p className="font-medium text-foreground">{r.solicitanteNome}</p>
+                          <p className="text-xs">{r.solicitanteEmail}</p>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
                 )}
-              </div>
-            </div>
-          )}
-
-          {tipo === "equipamento" && (
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="text-sm">
-                <span className="mb-1 block text-muted-foreground">Equipamento</span>
-                <select
-                  value={equipamentoNome}
-                  onChange={(e) => setEquipamentoNome(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2"
-                >
-                  {EQUIPAMENTOS_CATALOGO.map((e) => (
-                    <option key={e.nome} value={e.nome}>
-                      {e.nome}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm">
-                <span className="mb-1 block text-muted-foreground">
-                  Quantidade (disponível: {maxEquipamentoDisponivel})
-                </span>
-                <input
-                  type="number"
-                  min={1}
-                  value={equipamentoQuantidade}
-                  onChange={(e) => setEquipamentoQuantidade(Number(e.target.value || "1"))}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2"
-                />
-              </label>
-            </div>
-          )}
-
-          {tipo === "espaco" && (
-            <div className="mt-4">
-              <label className="text-sm">
-                <span className="mb-1 block text-muted-foreground">Espaço</span>
-                <select
-                  value={espacoNome}
-                  onChange={(e) => setEspacoNome(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2"
-                >
-                  {ESPACOS_CATALOGO.map((esp) => (
-                    <option key={esp} value={esp} disabled={!espacosDisponiveis.includes(esp)}>
-                      {esp} {!espacosDisponiveis.includes(esp) ? "(indisponível)" : ""}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          )}
-
-          {tipo !== "chromebook" && (
-            <div className="mt-4">
-              <label className="text-sm">
-                <span className="mb-1 block text-muted-foreground">Observação (opcional)</span>
-                <textarea
-                  rows={3}
-                  value={observacao}
-                  onChange={(e) => setObservacao(e.target.value)}
-                  className="w-full rounded-lg border border-input bg-background px-3 py-2"
-                  placeholder="Ex.: Aula 2º ano, apresentação final, evento..."
-                />
-              </label>
-            </div>
-          )}
-
-          {mensagem && (
-            <div className="mt-4 rounded-lg border border-border bg-muted/30 px-4 py-2 text-sm text-card-foreground">
-              {mensagem}
-            </div>
-          )}
-
-          <div className="mt-4 flex items-center justify-end">
-            <button
-              type="button"
-              onClick={criarReserva}
-              disabled={!usuario || alunoJaTemReservaAtivaChromebook}
-              className="rounded-lg gradient-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Confirmar reserva
-            </button>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-border bg-card p-6 shadow-card">
-          <div className="mb-4 flex items-center gap-2">
-            <Clock3 className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-card-foreground">Minhas Reservas</h2>
-          </div>
-          <div className="space-y-3">
-            {minhasReservas.length === 0 && (
-              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                Você ainda não possui reservas.
-              </div>
-            )}
-            {minhasReservas.map((r) => (
-              <div key={r.id} className="rounded-lg border border-border bg-background p-3">
-                <div className="mb-1 flex items-center justify-between gap-3">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {r.tipo === "chromebook"
-                      ? "Chromebooks"
-                      : r.tipo === "equipamento"
-                        ? "Equipamento"
-                        : "Espaço"}
-                  </span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                      r.status === "ativa"
-                        ? "bg-success/15 text-success"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {r.status}
-                  </span>
-                </div>
-                <p className="text-sm text-card-foreground">
-                  {r.data} • {r.inicio} às {r.fim}
-                </p>
-                {r.tipo === "chromebook" && (
-                  <p className="text-xs text-muted-foreground">
-                    {r.chromebookIds?.length ?? 0} unidade(s): {(r.chromebookIds ?? []).join(", ")}
-                  </p>
-                )}
-                {r.tipo === "equipamento" && (
-                  <p className="text-xs text-muted-foreground">
-                    {r.equipamentoNome} • {r.equipamentoQuantidade} unidade(s)
-                  </p>
-                )}
-                {r.tipo === "espaco" && (
-                  <p className="text-xs text-muted-foreground">{r.espacoNome}</p>
-                )}
-                {r.status === "ativa" && (
-                  <button
-                    type="button"
-                    onClick={() => cancelarReserva(r.id)}
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-destructive hover:underline"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                    Cancelar reserva
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
+              </section>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { getPainelSupabase } from "@/painel/supabaseClient";
+import { schoolDisplayName } from "@/painel/schoolDisplayName";
 import type { Profile, School } from "@/painel/types/database";
 import {
   LayoutDashboard,
@@ -47,7 +48,9 @@ export default function AdminSidebar({ school, profile }: AdminSidebarProps) {
         <div className="flex items-center gap-3">
           <BrandLogo height={32} className="shrink-0" />
           <div className="overflow-hidden">
-            <p className="text-white font-bold text-sm truncate">{school?.name}</p>
+            <p className="text-white font-bold text-sm truncate">
+              {schoolDisplayName(school?.name) ?? "—"}
+            </p>
             <p className="text-white/40 text-xs">Painel Admin</p>
           </div>
         </div>

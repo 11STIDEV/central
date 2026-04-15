@@ -1,5 +1,4 @@
 import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import { getPainelSupabase } from "@/painel/supabaseClient";
 import type { Profile, Queue, School, ServiceWindow, Ticket } from "@/painel/types/database";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +11,6 @@ import {
   Bell,
   CheckCircle2,
   ChevronRight,
-  LogOut,
   SkipForward,
   Star,
   Users,
@@ -24,7 +22,6 @@ import {
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { BrandLogo } from "@/painel/components/BrandLogo";
 import { useChimeSound } from "@/painel/hooks/useChimeSound";
 
 function labelGuiche(w: ServiceWindow) {
@@ -109,7 +106,6 @@ export default function SenhasAtendenteClient({
   const [calling, setCalling] = useState(false);
   const [showAllQueue, setShowAllQueue] = useState(false);
   const consecutivePriorityRef = useRef(0);
-  const navigate = useNavigate();
   const supabase = getPainelSupabase();
   const { playChime } = useChimeSound();
 
@@ -256,40 +252,26 @@ export default function SenhasAtendenteClient({
     setCurrentTicket(null);
   }
 
-  async function handleLogout() {
-    await supabase.auth.signOut();
-    navigate("/senhas");
-  }
-
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-[#0F172B] border-b border-[#1E2A45] px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <BrandLogo height={36} className="shrink-0" />
-          <div>
-            <h1 className="font-bold text-white">Colégio CCI</h1>
-            <p className="text-blue-100 text-xs">Painel do Atendente</p>
+    <div className="animate-fade-in min-h-screen bg-slate-50">
+      <div className="gradient-hero px-8 py-12">
+        <div className="mx-auto max-w-6xl">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent">
+              <MonitorSpeaker className="h-5 w-5 text-accent-foreground" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-primary-foreground">Painel do Atendente</h1>
+              <p className="text-primary-foreground/70">
+                Chame senhas e gerencie o atendimento no seu guichê.
+              </p>
+            </div>
           </div>
         </div>
+      </div>
 
-        <div className="flex items-center gap-4">
-          <div className="text-right hidden sm:block">
-            <p className="font-semibold text-white text-sm">{profile.full_name}</p>
-            <p className="text-blue-100 text-xs">Atendente</p>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="text-white/90 hover:text-white hover:bg-white/10"
-          >
-            <LogOut className="w-4 h-4" />
-          </Button>
-        </div>
-      </header>
-
-      <div className="flex-1 p-6 max-w-5xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="mx-auto max-w-5xl w-full px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column: Controls */}
         <div className="lg:col-span-2 space-y-4">
           {/* Window selector */}
@@ -523,6 +505,7 @@ export default function SenhasAtendenteClient({
               </div>
             </DialogContent>
           </Dialog>
+        </div>
         </div>
       </div>
     </div>

@@ -859,6 +859,32 @@ app.get("/api/health", (_, res) => {
   res.json({ ok: true });
 });
 
+/** Build Vite (`dist/`) ao lado de `server/` — produção e Docker. */
+const DIST_DIR = path.join(__dirname, "..", "dist");
+
+function shouldServeStatic() {
+  if (process.env.SERVE_STATIC === "0" || process.env.SERVE_STATIC === "false") return false;
+  if (process.env.SERVE_STATIC === "1" || process.env.SERVE_STATIC === "true") return true;
+  return process.env.NODE_ENV === "production";
+}
+
+if (shouldServeStatic() && fs.existsSync(DIST_DIR)) {
+  if (process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+  app.use(express.static(DIST_DIR));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    res.sendFile(path.join(DIST_DIR, "index.html"), (err) => {
+      if (err) next(err);
+    });
+  });
+} else if (shouldServeStatic() && !fs.existsSync(DIST_DIR)) {
+  console.warn(`[static] Produção esperada mas dist/ ausente em ${DIST_DIR}. Rode npm run build na raiz ou defina SERVE_STATIC=0.`);
+}
+
 app.listen(PORT, () => {
   console.log(`API rodando em http://localhost:${PORT}`);
   const sa = getServiceAccountCredentials();

@@ -1,11 +1,13 @@
 /** Modelo e persistência da Agenda CCI (reservas no navegador). */
 
-export type TipoReservaAgenda = "chromebook" | "equipamento" | "espaco";
+export type TipoReservaAgenda = "chromebook" | "equipamento" | "espaco" | "composta";
 export type StatusReservaAgenda = "ativa" | "cancelada";
 
 export type ReservaAgendaCCI = {
   id: string;
   tipo: TipoReservaAgenda;
+  /** Obrigatório em reservas novas (`composta`); legados podem não ter. */
+  titulo?: string;
   data: string;
   inicio: string;
   fim: string;
@@ -16,9 +18,74 @@ export type ReservaAgendaCCI = {
   equipamentoQuantidade?: number;
   espacoNome?: string;
   observacao?: string;
+  /** Reservas compostas: intenção de usar checklist do evento (funcionalidade futura). */
+  checklistEventoHabilitado?: boolean;
   status: StatusReservaAgenda;
   criadoEm: string;
 };
+
+/** Chromebooks vinculados (tipo `chromebook` ou `composta`). */
+export function reservaChromebookIds(r: ReservaAgendaCCI): string[] {
+  if (r.tipo !== "chromebook" && r.tipo !== "composta") return [];
+  return r.chromebookIds ?? [];
+}
+
+/** Nome do espaço se a reserva ocupa um espaço. */
+export function reservaEspacoNome(r: ReservaAgendaCCI): string | undefined {
+  if (r.tipo === "espaco") return r.espacoNome;
+  if (r.tipo === "composta") return r.espacoNome;
+  return undefined;
+}
+
+/** Equipamento + quantidade quando aplicável. */
+export function reservaEquipamentoInfo(
+  r: ReservaAgendaCCI,
+): { nome: string; quantidade: number } | undefined {
+  if (r.tipo === "equipamento" && r.equipamentoNome) {
+    return { nome: r.equipamentoNome, quantidade: r.equipamentoQuantidade ?? 0 };
+  }
+  if (r.tipo === "composta" && r.equipamentoNome) {
+    return { nome: r.equipamentoNome, quantidade: r.equipamentoQuantidade ?? 0 };
+  }
+  return undefined;
+}
+
+export function reservaIncluiChromebookId(r: ReservaAgendaCCI, deviceId: string): boolean {
+  return reservaChromebookIds(r).includes(deviceId);
+}
+
+export function reservaIncluiEspacoNome(r: ReservaAgendaCCI, espaco: string): boolean {
+  const n = reservaEspacoNome(r);
+  return n !== undefined && n === espaco;
+}
+
+export function reservaIncluiEquipamentoNome(r: ReservaAgendaCCI, nomeEquip: string): boolean {
+  const info = reservaEquipamentoInfo(r);
+  return info !== undefined && info.nome === nomeEquip;
+}
+
+/** Uma linha legível para agenda / listagens (inclui legado e composta). */
+export function textoResumoAgenda(r: ReservaAgendaCCI): string {
+  if (r.tipo === "composta") {
+    const p: string[] = [];
+    if ((r.chromebookIds?.length ?? 0) > 0) {
+      p.push(`${r.chromebookIds!.length} Chromebook(s)`);
+    }
+    if (r.equipamentoNome && (r.equipamentoQuantidade ?? 0) > 0) {
+      p.push(`${r.equipamentoNome} × ${r.equipamentoQuantidade}`);
+    }
+    if (r.espacoNome) p.push(r.espacoNome);
+    return p.length ? p.join(" · ") : "Reserva composta";
+  }
+  if (r.tipo === "chromebook") {
+    const n = r.chromebookIds?.length ?? 0;
+    return `${n} Chromebook${n !== 1 ? "s" : ""}`;
+  }
+  if (r.tipo === "equipamento") {
+    return `${r.equipamentoNome ?? "Equipamento"} · ${r.equipamentoQuantidade ?? 0} un.`;
+  }
+  return r.espacoNome ?? "Espaço";
+}
 
 export type EquipamentoCatalogo = {
   nome: string;
@@ -246,10 +313,10 @@ export function estadoChromebookNoHorarioLocal(
   const doDia = reservasAtivas
     .filter(
       (r) =>
-        r.tipo === "chromebook" &&
+        (r.tipo === "chromebook" || r.tipo === "composta") &&
         r.status === "ativa" &&
         r.data === dataSelecionada &&
-        (r.chromebookIds ?? []).includes(deviceId),
+        reservaIncluiChromebookId(r, deviceId),
     )
     .map((r) => ({
       inicio: r.inicio,

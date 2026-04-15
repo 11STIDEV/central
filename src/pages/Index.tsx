@@ -4,6 +4,7 @@ import {
   Phone,
   FileText,
   CalendarDays,
+  MapPin,
   Boxes,
   ClipboardList,
   CircleDollarSign,
@@ -18,7 +19,18 @@ const quickActions = [
   { name: "Base de Conhecimento", url: "/base-conhecimento", icon: BookOpen, description: "Tutoriais e guias" },
   { name: "Ramais", url: "/ramais", icon: Phone, description: "Lista de ramais" },
   { name: "Documentos", url: "/documentos", icon: FileText, description: "Documentos institucionais" },
-  { name: "Agenda CCI", url: "/agenda-cci", icon: CalendarDays, description: "Reserva de equipamentos da CCI" },
+  {
+    name: "Agenda CCI",
+    url: "/agenda-cci",
+    icon: CalendarDays,
+    description: "Calendário semanal de reservas",
+  },
+  {
+    name: "Reserva de Equipamentos e Espaços",
+    url: "/reserva-espacos-equipamentos",
+    icon: MapPin,
+    description: "Chromebooks, equipamentos e espaços",
+  },
   { name: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes, description: "Controle interno de materiais da TI" },
   { name: "Entrada/Saída Almoxarifado", url: "/controle-materiais-almoxarifado", icon: ClipboardList, description: "Movimentação de materiais pelo almoxarifado" },
   { name: "Solicitar Vale-Adiantamento", url: "/vale-adiantamento", icon: CircleDollarSign, description: "Envio de pedido de vale para o financeiro" },
@@ -33,7 +45,9 @@ const recentNews = [
 export default function Index() {
   const { usuario } = useAuth();
   const papeis = usuario?.papeis ?? [];
-  const visiveis = quickActions.filter((a) => canAccessRoute(papeis, a.url));
+  const visiveis = quickActions
+    .filter((a) => canAccessRoute(papeis, a.url))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 
   return (
     <div className="animate-fade-in">

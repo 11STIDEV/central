@@ -20,6 +20,7 @@ import {
   Shield,
   UserCog,
   Hash,
+  MapPin,
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { canAccessRoute } from "@/auth/routeAccess";
@@ -40,6 +41,11 @@ const navItems: NavItem[] = [
   { title: "Área Interna TI", url: "/ti-interno", icon: ShieldCheck },
   { title: "Documentos", url: "/documentos", icon: FileText },
   { title: "Agenda CCI", url: "/agenda-cci", icon: CalendarDays },
+  {
+    title: "Reserva de Equipamentos e Espaços",
+    url: "/reserva-espacos-equipamentos",
+    icon: MapPin,
+  },
   { title: "Agenda CCI — Admin", url: "/agenda-cci/admin", icon: Shield },
   { title: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes },
   { title: "Almoxarifado (Entrada/Saída)", url: "/controle-materiais-almoxarifado", icon: Warehouse },
@@ -59,7 +65,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return <div className="min-h-screen w-full">{children}</div>;
   }
 
-  if (location.pathname.startsWith("/senhas")) {
+  /** Totem e painel TV ficam em tela cheia (quiosque / TV); demais rotas /senhas usam o menu Extranet. */
+  if (
+    location.pathname === "/senhas/totem" ||
+    location.pathname === "/senhas/painel"
+  ) {
     return <div className="min-h-screen w-full">{children}</div>;
   }
 
@@ -71,7 +81,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           fixed left-0 top-0 z-40 flex h-screen flex-col
           bg-sidebar text-sidebar-foreground
           transition-all duration-300 ease-in-out
-          ${collapsed ? "w-[68px]" : "w-64"}
+          ${collapsed ? "w-[68px]" : "w-72"}
         `}
       >
         {/* Logo area */}
@@ -94,15 +104,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               .filter((item) =>
                 canAccessRoute(usuario?.papeis ?? [], item.url),
               )
+              .sort((a, b) => a.title.localeCompare(b.title, "pt-BR"))
               .map((item) => {
-              const isActive = location.pathname === item.url;
+              const isActive =
+                item.url === "/senhas"
+                  ? location.pathname.startsWith("/senhas")
+                  : location.pathname === item.url;
               return (
                 <li key={item.url}>
                   <NavLink
                     to={item.url}
                     end={item.url === "/"}
                     className={`
-                      group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
+                      group flex items-start gap-3 rounded-lg px-3 py-2.5 text-sm font-medium
                       transition-all duration-200
                       ${isActive
                         ? "bg-sidebar-accent text-sidebar-accent-foreground"
@@ -111,10 +125,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     `}
                     activeClassName=""
                   >
-                    <item.icon className={`h-5 w-5 shrink-0 ${isActive ? "text-sidebar-primary" : ""}`} />
-                    {!collapsed && <span className="animate-fade-in truncate">{item.title}</span>}
-                    {isActive && (
-                      <div className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-sidebar-primary" />
+                    <item.icon className={`mt-0.5 h-5 w-5 shrink-0 ${isActive ? "text-sidebar-primary" : ""}`} />
+                    {!collapsed && (
+                      <div className="animate-fade-in flex min-w-0 flex-1 items-start justify-between gap-2">
+                        <span className="min-w-0 flex-1 leading-snug">{item.title}</span>
+                        {isActive && (
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-sidebar-primary" aria-hidden />
+                        )}
+                      </div>
                     )}
                   </NavLink>
                 </li>
@@ -164,7 +182,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Main content */}
       <main
-        className={`flex-1 transition-all duration-300 ${collapsed ? "ml-[68px]" : "ml-64"}`}
+        className={`flex-1 transition-all duration-300 ${collapsed ? "ml-[68px]" : "ml-72"}`}
       >
         <div className="min-h-screen">
           {children}

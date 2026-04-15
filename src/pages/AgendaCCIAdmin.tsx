@@ -4,6 +4,7 @@ import {
   ArrowLeft,
   Calendar,
   Laptop,
+  Layers,
   MapPin,
   Package,
   Search,
@@ -18,6 +19,7 @@ import {
   obterReservasDoServidor,
   salvarReservasAgenda,
   STORAGE_KEY_AGENDA_CCI,
+  textoResumoAgenda,
 } from "@/lib/agendaCci";
 import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
@@ -39,19 +41,18 @@ import {
 } from "@/components/ui/select";
 
 function labelTipo(t: TipoReservaAgenda): string {
+  if (t === "composta") return "Composta";
   if (t === "chromebook") return "Chromebooks";
   if (t === "equipamento") return "Equipamento";
   return "Espaço";
 }
 
 function detalheReserva(r: ReservaAgendaCCI): string {
-  if (r.tipo === "chromebook") {
-    return `${r.chromebookIds?.length ?? 0} unid.: ${(r.chromebookIds ?? []).join(", ") || "—"}`;
+  const base = textoResumoAgenda(r);
+  if (r.titulo?.trim()) {
+    return `${r.titulo.trim()} — ${base}`;
   }
-  if (r.tipo === "equipamento") {
-    return `${r.equipamentoNome ?? "—"} × ${r.equipamentoQuantidade ?? 0}`;
-  }
-  return r.espacoNome ?? "—";
+  return base;
 }
 
 export default function AgendaCCIAdmin() {
@@ -100,6 +101,7 @@ export default function AgendaCCIAdmin() {
           r.id.toLowerCase().includes(q) ||
           r.solicitanteEmail.toLowerCase().includes(q) ||
           r.solicitanteNome.toLowerCase().includes(q) ||
+          (r.titulo?.toLowerCase().includes(q) ?? false) ||
           detalheReserva(r).toLowerCase().includes(q)
         );
       })
@@ -231,6 +233,7 @@ export default function AgendaCCIAdmin() {
                 <SelectItem value="chromebook">Chromebooks</SelectItem>
                 <SelectItem value="equipamento">Equipamentos</SelectItem>
                 <SelectItem value="espaco">Espaços</SelectItem>
+                <SelectItem value="composta">Composta</SelectItem>
               </SelectContent>
             </Select>
             <Select
@@ -283,6 +286,7 @@ export default function AgendaCCIAdmin() {
                     <TableCell className="font-mono text-xs">{r.id}</TableCell>
                     <TableCell>
                       <span className="inline-flex items-center gap-1 text-sm">
+                        {r.tipo === "composta" && <Layers className="h-3.5 w-3.5 text-muted-foreground" />}
                         {r.tipo === "chromebook" && <Laptop className="h-3.5 w-3.5 text-muted-foreground" />}
                         {r.tipo === "equipamento" && <Package className="h-3.5 w-3.5 text-muted-foreground" />}
                         {r.tipo === "espaco" && <MapPin className="h-3.5 w-3.5 text-muted-foreground" />}

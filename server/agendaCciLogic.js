@@ -26,7 +26,8 @@ export function fimReservaComTolerancia(fim, tolMin = TOLERANCIA_FIM_MIN) {
 export function estaEmJanelaReservaAtiva(deviceId, reservas, ymd, minutesNow) {
   if (!Array.isArray(reservas)) return false;
   for (const r of reservas) {
-    if (r.tipo !== "chromebook" || r.status !== "ativa") continue;
+    if (r.status !== "ativa") continue;
+    if (r.tipo !== "chromebook" && r.tipo !== "composta") continue;
     if (r.data !== ymd) continue;
     const ids = r.chromebookIds;
     if (!Array.isArray(ids) || !ids.includes(deviceId)) continue;

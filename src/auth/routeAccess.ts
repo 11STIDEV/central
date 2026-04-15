@@ -35,7 +35,11 @@ export function canAccessRoute(papeis: Papel[], pathname: string): boolean {
   const path = normalizarPath(pathname);
   if (papeis.includes("admin")) return true;
   if (isSomenteAluno(papeis)) {
-    return path === "/login" || path === "/agenda-cci";
+    return (
+      path === "/login" ||
+      path === "/agenda-cci" ||
+      path === "/reserva-espacos-equipamentos"
+    );
   }
   const obrigatorios = ROTAS_PAPEIS_OBRIGATORIOS[path];
   if (!obrigatorios || obrigatorios.length === 0) return true;
