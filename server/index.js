@@ -16,6 +16,8 @@ import {
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3001;
+/** Endereço de bind (Docker/rede: use 0.0.0.0 para aceitar conexões externas ao container). */
+const HOST = process.env.HOST || "0.0.0.0";
 
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "2mb" }));
@@ -885,8 +887,8 @@ if (shouldServeStatic() && fs.existsSync(DIST_DIR)) {
   console.warn(`[static] Produção esperada mas dist/ ausente em ${DIST_DIR}. Rode npm run build na raiz ou defina SERVE_STATIC=0.`);
 }
 
-app.listen(PORT, () => {
-  console.log(`API rodando em http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`API rodando em http://${HOST}:${PORT}`);
   const sa = getServiceAccountCredentials();
   if (sa?.client_id) {
     console.log(

@@ -47,6 +47,7 @@ Definir **no build** da imagem (Build Arguments no Coolify):
 | Variável | Descrição |
 |----------|-----------|
 | `PORT` | Padrão `3001` — alinhar health check e proxy |
+| `HOST` | Padrão `0.0.0.0` — bind em todas as interfaces (Docker); o log mostra o host real |
 | `NODE_ENV` | `production` para servir `dist/` |
 | `SERVE_STATIC` | `0`/`false` força **não** servir SPA (só API); `1`/`true` força servir se existir `dist/` |
 | `TRUST_PROXY` | `1` com proxy reverso (junto a `NODE_ENV=production` ativa `trust proxy` no Express) |
