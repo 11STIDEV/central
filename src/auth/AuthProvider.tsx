@@ -16,7 +16,10 @@ export type Papel =
   | "professortecs"
   | "professorregular"
   | "almoxarifado"
-  | "aluno";
+  | "aluno"
+  /** Painel de senhas — alinhado a `OU_PAINEL_*` e ao `POST /api/painel/sync-profile`. */
+  | "painel_atendente"
+  | "painel_admin";
 
 export type UsuarioLogado = {
   nome: string;
@@ -76,6 +79,17 @@ const OU_PARA_PAPEL = new Map<string, Papel>([
   [normalizarCaminhoOu("/Alunos TECSCCI"), "aluno"],
 ]);
 
+/** Prefixos de OU (inclui sub-OUs) — alinhar ao servidor em `painelPermissoesDoOrgUnit`. */
+const PREFIXOS_PAINEL_ATENDENTE = [normalizarCaminhoOu("/Administrativo/Secretaria")];
+const PREFIXOS_PAINEL_ADMIN = [
+  normalizarCaminhoOu("/Administrativo/Setape"),
+  normalizarCaminhoOu("/Administrativo/Direção"),
+];
+
+function ouCobrePrefixoPainel(chave: string, prefixo: string): boolean {
+  return chave === prefixo || chave.startsWith(`${prefixo}/`);
+}
+
 /** Domínios Google permitidos a entrar na Central (OAuth). */
 const DOMINIOS_PERMITIDOS = [
   "@portalcci.com.br",
@@ -103,6 +117,12 @@ function mapearPapeis(tokenPayload: any): Papel[] {
     const papelOu = OU_PARA_PAPEL.get(chave);
     if (papelOu) {
       papeis.add(papelOu);
+    }
+    if (PREFIXOS_PAINEL_ATENDENTE.some((p) => ouCobrePrefixoPainel(chave, p))) {
+      papeis.add("painel_atendente");
+    }
+    if (PREFIXOS_PAINEL_ADMIN.some((p) => ouCobrePrefixoPainel(chave, p))) {
+      papeis.add("painel_admin");
     }
   }
 
@@ -265,7 +285,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (res.ok) {
           const data = (await res.json()) as { papeisManuais?: string[] };
           const extras = Array.isArray(data.papeisManuais) ? data.papeisManuais : [];
-          const permitidos = new Set<Papel>(["admin"]);
+          const permitidos = new Set<Papel>(["admin", "painel_admin", "painel_atendente"]);
           for (const p of extras) {
             if (typeof p === "string" && permitidos.has(p as Papel)) {
               papeis = [...papeis, p as Papel];
@@ -275,6 +295,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {
         /* papéis manuais opcionais se a API estiver indisponível */
+      }
+      const allowLocalRaw = import.meta.env.VITE_PAINEL_LOCAL_ALLOW_EMAILS || "";
+      const allowLocal = allowLocalRaw
+        .split(",")
+        .map((s) => s.trim().toLowerCase())
+        .filter(Boolean);
+      const em = String(payload.email || "").toLowerCase();
+      if (allowLocal.length > 0 && em && allowLocal.includes(em)) {
+        papeis = Array.from(new Set([...papeis, "painel_atendente"]));
+        if (import.meta.env.VITE_PAINEL_LOCAL_ROLE === "admin") {
+          papeis = Array.from(new Set([...papeis, "painel_admin"]));
+        }
       }
       setUsuario({
         nome: payload.name ?? payload.given_name ?? "Usuário",

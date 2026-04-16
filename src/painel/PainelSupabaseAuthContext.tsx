@@ -50,6 +50,47 @@ export function PainelSupabaseAuthProvider({ children }: { children: ReactNode }
     const supabase = getPainelSupabase();
     let cancelled = false;
 
+    const syncPainelProfile = async () => {
+      const attempt = async () => {
+        const res = await fetch("/api/painel/sync-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ idToken: googleIdToken }),
+        });
+        const data = (await res.json().catch(() => ({}))) as {
+          ok?: boolean;
+          synced?: boolean;
+          reason?: string;
+          error?: string;
+        };
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.log("[painel/sync-profile]", res.status, data);
+        }
+        if (res.ok && data.reason === "no_supabase_user") {
+          await new Promise((r) => setTimeout(r, 600));
+          const res2 = await fetch("/api/painel/sync-profile", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken: googleIdToken }),
+          });
+          const data2 = (await res2.json().catch(() => ({}))) as typeof data;
+          if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.log("[painel/sync-profile] retry", res2.status, data2);
+          }
+        }
+      };
+      try {
+        await attempt();
+      } catch (e) {
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn("[painel/sync-profile] rede ou API indisponível:", e);
+        }
+      }
+    };
+
     const sync = async () => {
       setState({ status: "syncing" });
       try {
@@ -70,10 +111,17 @@ export function PainelSupabaseAuthProvider({ children }: { children: ReactNode }
           data: { session },
         } = await supabase.auth.getSession();
         if (cancelled) return;
+        if (session?.user) {
+          await syncPainelProfile();
+        }
+        if (cancelled) return;
+        const {
+          data: { session: sessionAfter },
+        } = await supabase.auth.getSession();
         setState({
           status: "ready",
-          session,
-          syncError: session?.user
+          session: sessionAfter,
+          syncError: sessionAfter?.user
             ? null
             : signErr?.message ?? "Sem sessão no Supabase após o login com Google.",
         });

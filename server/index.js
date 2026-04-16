@@ -61,6 +61,51 @@ function emailDominioPermitido(email) {
   const e = String(email).toLowerCase();
   return DOMINIOS_PERMITIDOS.some((d) => e.endsWith(d.toLowerCase()));
 }
+
+/** Slug em `painel_schools` — alinhar ao `VITE_SCHOOL_SLUG` do build do front. */
+const PAINEL_SCHOOL_SLUG = (process.env.PAINEL_SCHOOL_SLUG || process.env.VITE_SCHOOL_SLUG || "demo").trim();
+
+function normalizarCaminhoOu(path) {
+  return String(path)
+    .trim()
+    .replace(/\/+$/, "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase();
+}
+
+const PREFIXOS_PAINEL_ATENDENTE = [normalizarCaminhoOu("/Administrativo/Secretaria")];
+const PREFIXOS_PAINEL_ADMIN = [
+  normalizarCaminhoOu("/Administrativo/Setape"),
+  normalizarCaminhoOu("/Administrativo/Direção"),
+];
+
+function ouCobrePrefixo(chave, prefixo) {
+  return chave === prefixo || chave.startsWith(`${prefixo}/`);
+}
+
+function painelPermissoesDoOrgUnit(orgUnitPath) {
+  if (!orgUnitPath || String(orgUnitPath).trim() === "") {
+    return { atendente: false, admin: false };
+  }
+  const chave = normalizarCaminhoOu(orgUnitPath);
+  return {
+    atendente: PREFIXOS_PAINEL_ATENDENTE.some((p) => ouCobrePrefixo(chave, p)),
+    admin: PREFIXOS_PAINEL_ADMIN.some((p) => ouCobrePrefixo(chave, p)),
+  };
+}
+
+/** E-mails que podem usar o painel sem bater OU (dev/teste). Mesmo valor que VITE_PAINEL_LOCAL_ALLOW_EMAILS no front. */
+const PAINEL_LOCAL_ALLOW_EMAILS = (process.env.PAINEL_LOCAL_ALLOW_EMAILS || "")
+  .split(",")
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean);
+
+function emailPainelLocalPermitido(email) {
+  const e = String(email).toLowerCase();
+  return PAINEL_LOCAL_ALLOW_EMAILS.length > 0 && PAINEL_LOCAL_ALLOW_EMAILS.includes(e);
+}
+
 /** Um ou mais Client IDs OAuth (mesmo valor de VITE_GOOGLE_CLIENT_ID no front); separados por vírgula se precisar. */
 const GOOGLE_CLIENT_IDS = (process.env.GOOGLE_CLIENT_ID || "")
   .split(",")
@@ -77,7 +122,7 @@ const ARQUIVO_RESERVAS_AGENDA = path.join(DATA_DIR, "agenda-cci-reservas.json");
 const ARQUIVO_PAPEIS_MANUAIS = path.join(DATA_DIR, "papeis-manuais.json");
 
 /** Papéis atribuíveis apenas via API admin (extensível). */
-const PAPEIS_MANUAIS_PERMITIDOS = ["admin"];
+const PAPEIS_MANUAIS_PERMITIDOS = ["admin", "painel_admin", "painel_atendente"];
 
 /** Seed na primeira criação do arquivo (atribuição manual inicial). */
 const PAPEIS_MANUAIS_SEED = {
@@ -751,6 +796,142 @@ app.post("/api/papeis-manuais/atualizar", async (req, res) => {
     }
     salvarPapeisManuaisArquivo(mapa);
     return res.json({ ok: true, atribuicoes: lerPapeisManuaisArquivo() });
+  } catch (e) {
+    const st = e.status || 500;
+    if (st === 401 && e.audDoToken) {
+      return res.status(st).json({
+        error: `${e.message} Use o mesmo valor de VITE_GOOGLE_CLIENT_ID no server/.env.`,
+        audDoToken: e.audDoToken,
+      });
+    }
+    return res.status(st).json({ error: e.message });
+  }
+});
+
+/**
+ * Consulta orgUnitPath no Admin SDK (mesma ideia de /api/organizacao).
+ * @returns {Promise<string|null>}
+ */
+async function obterOrgUnitPathUsuario(email) {
+  const auth = getJwtOrganizacao();
+  if (!auth) return null;
+  try {
+    await auth.authorize();
+    const directory = google.admin({ version: "directory_v1", auth });
+    const user = await directory.users.get({ userKey: email });
+    if (user.data?.orgUnitPath != null && user.data.orgUnitPath !== "") {
+      return String(user.data.orgUnitPath);
+    }
+    return null;
+  } catch (e) {
+    console.warn("[painel/sync-profile] Admin SDK:", e.message);
+    return null;
+  }
+}
+
+/**
+ * POST /api/painel/sync-profile
+ * Body: { idToken }
+ * Sincroniza painel_profiles com a OU do Workspace e papéis manuais (admin), sem cadastro manual.
+ */
+app.post("/api/painel/sync-profile", async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    const { email } = await verificarIdTokenUsuario(idToken);
+    const payload = decodeJwtPayloadUnsafe(idToken);
+    const fullName =
+      (typeof payload?.name === "string" && payload.name) ||
+      (typeof payload?.given_name === "string" && payload.given_name) ||
+      String(email).split("@")[0];
+
+    const supabaseSrv = getSupabaseAdmin();
+    if (!supabaseSrv) {
+      return res.status(503).json({
+        error: "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no servidor.",
+      });
+    }
+
+    const orgUnitPath = await obterOrgUnitPathUsuario(email);
+    const manual = lerPapeisManuaisArquivo()[email.toLowerCase()] || [];
+    const manualGlobalAdmin = manual.includes("admin");
+    const manualPainelAdmin = manual.includes("painel_admin");
+    const manualPainelAtt = manual.includes("painel_atendente");
+    const perm = painelPermissoesDoOrgUnit(orgUnitPath);
+    const localAllow = emailPainelLocalPermitido(email);
+    const eligible =
+      manualGlobalAdmin ||
+      manualPainelAdmin ||
+      manualPainelAtt ||
+      perm.admin ||
+      perm.atendente ||
+      localAllow;
+
+    const authUser = await findAuthUserByEmail(supabaseSrv, email);
+    if (!authUser) {
+      return res.json({
+        ok: true,
+        synced: false,
+        reason: "no_supabase_user",
+      });
+    }
+
+    const { data: school, error: schoolErr } = await supabaseSrv
+      .from("painel_schools")
+      .select("id")
+      .eq("slug", PAINEL_SCHOOL_SLUG)
+      .maybeSingle();
+
+    if (schoolErr || !school?.id) {
+      return res.status(500).json({
+        error: "Escola não encontrada em painel_schools (slug).",
+        slug: PAINEL_SCHOOL_SLUG,
+      });
+    }
+
+    if (!eligible) {
+      await supabaseSrv.from("painel_profiles").delete().eq("id", authUser.id);
+      return res.json({
+        ok: true,
+        synced: false,
+        reason: "no_painel_workspace_permission",
+      });
+    }
+
+    let role =
+      manualGlobalAdmin || manualPainelAdmin || perm.admin ? "admin" : "attendant";
+    if (
+      localAllow &&
+      !manualGlobalAdmin &&
+      !manualPainelAdmin &&
+      !perm.admin &&
+      process.env.PAINEL_LOCAL_ROLE === "admin"
+    ) {
+      role = "admin";
+    }
+
+    const { data: existing } = await supabaseSrv
+      .from("painel_profiles")
+      .select("service_window_id")
+      .eq("id", authUser.id)
+      .maybeSingle();
+
+    const row = {
+      id: authUser.id,
+      school_id: school.id,
+      full_name: fullName,
+      role,
+      service_window_id: existing?.service_window_id ?? null,
+    };
+
+    const { error: upsertErr } = await supabaseSrv
+      .from("painel_profiles")
+      .upsert(row, { onConflict: "id" });
+
+    if (upsertErr) {
+      return res.status(500).json({ error: upsertErr.message });
+    }
+
+    return res.json({ ok: true, synced: true, role });
   } catch (e) {
     const st = e.status || 500;
     if (st === 401 && e.audDoToken) {
