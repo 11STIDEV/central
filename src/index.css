@@ -36,15 +36,16 @@
 
     --radius: 0.75rem;
 
-    --sidebar-background: 210 100% 12%;
-    --sidebar-foreground: 210 20% 90%;
-    --sidebar-primary: 48 100% 50%;
-    --sidebar-primary-foreground: 210 50% 10%;
-    --sidebar-accent: 210 80% 22%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 210 60% 20%;
-    --sidebar-ring: 48 100% 50%;
-    --sidebar-muted: 210 40% 30%;
+    /* Sidebar — modo claro: azul-gelo, texto escuro */
+    --sidebar-background: 214 42% 97%;
+    --sidebar-foreground: 222 47% 16%;
+    --sidebar-primary: 48 100% 46%;
+    --sidebar-primary-foreground: 222 47% 14%;
+    --sidebar-accent: 214 48% 91%;
+    --sidebar-accent-foreground: 222 47% 16%;
+    --sidebar-border: 214 28% 86%;
+    --sidebar-ring: 48 100% 46%;
+    --sidebar-muted: 215 16% 42%;
 
     --success: 142 70% 40%;
     --success-foreground: 0 0% 100%;
@@ -55,39 +56,78 @@
 
     --gradient-primary: linear-gradient(135deg, hsl(210, 100%, 40%), hsl(210, 100%, 55%));
     --gradient-accent: linear-gradient(135deg, hsl(48, 100%, 50%), hsl(38, 100%, 55%));
-    --gradient-hero: linear-gradient(135deg, hsl(210, 100%, 12%), hsl(210, 100%, 30%));
+    --gradient-hero: linear-gradient(135deg, hsl(214 45% 94%), hsl(210 42% 96%));
     --shadow-card: 0 1px 3px 0 hsl(210 20% 10% / 0.06), 0 1px 2px -1px hsl(210 20% 10% / 0.06);
     --shadow-elevated: 0 10px 30px -10px hsl(210 100% 40% / 0.15);
+
+    /* Hero — cartão claro */
+    --hero-surface: 214 40% 97%;
+    --hero-border: 214 32% 88%;
+    --hero-foreground: 222 47% 14%;
+    --hero-muted: 215 18% 38%;
+    --hero-eyebrow: 200 72% 32%;
+    --hero-shadow: 0 25px 50px -12px hsl(214 35% 50% / 0.14);
+    --hero-mesh-opacity: 0.55;
+    --hero-mesh-gradient:
+      radial-gradient(ellipse 80% 60% at 20% 40%, hsl(210 90% 72% / 0.42), transparent 55%),
+      radial-gradient(ellipse 60% 50% at 85% 20%, hsl(199 85% 68% / 0.32), transparent 50%),
+      linear-gradient(135deg, hsl(214 45% 96%) 0%, hsl(210 42% 94%) 50%, hsl(214 40% 97%) 100%);
+
+    /* Login — painel marca sempre escuro (logo branca) */
+    --login-brand-surface: 218 38% 22%;
+    --login-brand-mesh-opacity: 0.5;
+    --login-brand-mesh-gradient:
+      radial-gradient(ellipse 90% 70% at 20% 30%, hsl(210 90% 48% / 0.38), transparent 55%),
+      radial-gradient(ellipse 60% 50% at 90% 10%, hsl(38 95% 55% / 0.22), transparent 50%),
+      linear-gradient(165deg, hsl(222 42% 14%) 0%, hsl(215 40% 20%) 100%);
   }
 
   .dark {
-    --background: 210 50% 5%;
-    --foreground: 210 20% 95%;
-    --card: 210 40% 8%;
-    --card-foreground: 210 20% 95%;
-    --popover: 210 40% 8%;
-    --popover-foreground: 210 20% 95%;
-    --primary: 210 100% 50%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 210 40% 20%;
-    --secondary-foreground: 210 20% 90%;
-    --muted: 210 30% 15%;
-    --muted-foreground: 210 15% 60%;
+    --background: 218 35% 9%;
+    --foreground: 210 25% 95%;
+    --card: 218 32% 12%;
+    --card-foreground: 210 25% 95%;
+    --popover: 218 32% 12%;
+    --popover-foreground: 210 25% 95%;
+    --primary: 210 95% 55%;
+    --primary-foreground: 222 47% 8%;
+    --secondary: 218 30% 20%;
+    --secondary-foreground: 210 25% 92%;
+    --muted: 218 28% 16%;
+    --muted-foreground: 215 15% 62%;
     --accent: 48 100% 50%;
-    --accent-foreground: 210 50% 10%;
-    --destructive: 0 62% 30%;
+    --accent-foreground: 222 47% 10%;
+    --destructive: 0 62% 35%;
     --destructive-foreground: 0 0% 100%;
-    --border: 210 30% 18%;
-    --input: 210 30% 18%;
-    --ring: 210 100% 50%;
-    --sidebar-background: 210 50% 5%;
-    --sidebar-foreground: 210 20% 90%;
-    --sidebar-primary: 48 100% 50%;
-    --sidebar-primary-foreground: 210 50% 10%;
-    --sidebar-accent: 210 40% 15%;
+    --border: 218 28% 22%;
+    --input: 218 28% 22%;
+    --ring: 210 95% 55%;
+
+    /* Sidebar — azul médio (menos “preto” que slate-950) */
+    --sidebar-background: 218 36% 17%;
+    --sidebar-foreground: 210 22% 92%;
+    --sidebar-primary: 48 100% 52%;
+    --sidebar-primary-foreground: 222 47% 10%;
+    --sidebar-accent: 218 32% 24%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 210 30% 15%;
-    --sidebar-ring: 48 100% 50%;
+    --sidebar-border: 218 28% 26%;
+    --sidebar-ring: 48 100% 52%;
+    --sidebar-muted: 215 16% 58%;
+
+    --gradient-hero: linear-gradient(135deg, hsl(218 38% 20%), hsl(215 40% 28%));
+
+    /* Hero — cartão escuro mais claro que o antigo slate-950 */
+    --hero-surface: 218 38% 18%;
+    --hero-border: 218 30% 28%;
+    --hero-foreground: 0 0% 100%;
+    --hero-muted: 215 20% 72%;
+    --hero-eyebrow: 190 85% 72%;
+    --hero-shadow: 0 25px 50px -12px hsl(220 40% 4% / 0.45);
+    --hero-mesh-opacity: 0.4;
+    --hero-mesh-gradient:
+      radial-gradient(ellipse 80% 60% at 20% 40%, hsl(210 88% 52% / 0.32), transparent 55%),
+      radial-gradient(ellipse 60% 50% at 85% 20%, hsl(199 82% 55% / 0.22), transparent 50%),
+      linear-gradient(135deg, hsl(222 40% 14%) 0%, hsl(215 38% 20%) 50%, hsl(222 36% 16%) 100%);
   }
 }
 
@@ -128,20 +168,57 @@
     box-shadow: var(--shadow-elevated);
   }
 
+  .intranet-hero {
+    background-color: hsl(var(--hero-surface));
+    border-color: hsl(var(--hero-border));
+    box-shadow: var(--hero-shadow);
+  }
+
+  .intranet-hero-mesh {
+    opacity: var(--hero-mesh-opacity);
+    background-image: var(--hero-mesh-gradient);
+  }
+
+  .text-hero-foreground {
+    color: hsl(var(--hero-foreground));
+  }
+  .text-hero-muted {
+    color: hsl(var(--hero-muted));
+  }
+  .text-hero-eyebrow {
+    color: hsl(var(--hero-eyebrow));
+  }
+
   /** Fundo suave para o shell principal (atrás do conteúdo) */
   .app-shell-bg {
+    background-color: hsl(var(--background));
     background-image:
       radial-gradient(ellipse 120% 80% at 100% 0%, hsl(210 100% 97% / 0.9), transparent 50%),
       radial-gradient(ellipse 80% 60% at 0% 100%, hsl(199 90% 96% / 0.6), transparent 45%);
   }
 
+  .dark .app-shell-bg {
+    background-image:
+      radial-gradient(ellipse 120% 80% at 100% 0%, hsl(218 40% 14% / 0.5), transparent 50%),
+      radial-gradient(ellipse 80% 60% at 0% 100%, hsl(215 35% 12% / 0.4), transparent 45%);
+  }
+
+  /** Painel de login (marca) — sempre escuro para contraste com logo branca */
+  .intranet-login-brand {
+    background-color: hsl(var(--login-brand-surface));
+  }
+
+  .intranet-login-brand-mesh {
+    opacity: var(--login-brand-mesh-opacity);
+    background-image: var(--login-brand-mesh-gradient);
+  }
+
   /**
    * Scrollbar discreta no menu lateral (Firefox + WebKit).
-   * Evita a barra grossa branca padrão sobre fundo escuro.
    */
   .sidebar-scroll {
     scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+    scrollbar-color: hsl(var(--sidebar-muted) / 0.45) transparent;
   }
   .sidebar-scroll::-webkit-scrollbar {
     width: 5px;
@@ -150,10 +227,20 @@
     background: transparent;
   }
   .sidebar-scroll::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
+    background: hsl(var(--sidebar-muted) / 0.4);
     border-radius: 9999px;
   }
   .sidebar-scroll::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.22);
+    background: hsl(var(--sidebar-muted) / 0.65);
+  }
+
+  .dark .sidebar-scroll {
+    scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  }
+  .dark .sidebar-scroll::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .dark .sidebar-scroll::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.24);
   }
 }

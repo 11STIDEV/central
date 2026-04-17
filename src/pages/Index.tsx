@@ -1,26 +1,19 @@
-import {
-  Ticket,
-  BookOpen,
-  Phone,
-  FileText,
-  CalendarDays,
-  MapPin,
-  Boxes,
-  ClipboardList,
-  CircleDollarSign,
-  Clock,
-  ArrowUpRight,
-  Sparkles,
-} from "lucide-react";
+import { Ticket, CalendarDays, MapPin, CircleDollarSign, Clock, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { canAccessRoute } from "@/auth/routeAccess";
+import { IntranetHero } from "@/components/IntranetHero";
+import { PageHeroEyebrow } from "@/components/PageHero";
 
-const quickActions = [
+/** Atalhos exibidos na home (ordem fixa; demais rotas ficam só no menu lateral). */
+const highlightedShortcuts = [
+  {
+    name: "Reserva de Equipamentos e Espaços",
+    url: "/reserva-espacos-equipamentos",
+    icon: MapPin,
+    description: "Chromebooks, equipamentos e espaços",
+  },
   { name: "Abrir Chamado", url: "/chamados/novo", icon: Ticket, description: "Solicitar suporte de TI" },
-  { name: "Base de Conhecimento", url: "/base-conhecimento", icon: BookOpen, description: "Tutoriais e guias" },
-  { name: "Ramais", url: "/ramais", icon: Phone, description: "Lista de ramais" },
-  { name: "Documentos", url: "/documentos", icon: FileText, description: "Documentos institucionais" },
   {
     name: "Agenda CCI",
     url: "/agenda-cci",
@@ -28,14 +21,11 @@ const quickActions = [
     description: "Calendário semanal de reservas",
   },
   {
-    name: "Reserva de Equipamentos e Espaços",
-    url: "/reserva-espacos-equipamentos",
-    icon: MapPin,
-    description: "Chromebooks, equipamentos e espaços",
+    name: "Solicitar Vale-Adiantamento",
+    url: "/vale-adiantamento",
+    icon: CircleDollarSign,
+    description: "Pedido de vale para o financeiro",
   },
-  { name: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes, description: "Controle interno de materiais da TI" },
-  { name: "Entrada/Saída Almoxarifado", url: "/controle-materiais-almoxarifado", icon: ClipboardList, description: "Movimentação de materiais pelo almoxarifado" },
-  { name: "Solicitar Vale-Adiantamento", url: "/vale-adiantamento", icon: CircleDollarSign, description: "Envio de pedido de vale para o financeiro" },
 ];
 
 const recentNews = [
@@ -75,60 +65,33 @@ function primeiroNome(nome: string | undefined): string {
 export default function Index() {
   const { usuario } = useAuth();
   const papeis = usuario?.papeis ?? [];
-  const visiveis = quickActions
-    .filter((a) => canAccessRoute(papeis, a.url))
-    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+  const visiveis = highlightedShortcuts.filter((a) => canAccessRoute(papeis, a.url));
 
   const nome = primeiroNome(usuario?.nome);
-  const destaque = visiveis[0];
-  const demais = visiveis.slice(1);
 
   return (
     <div className="animate-fade-in min-h-full">
-      {/* Faixa hero — contraste escuro sobre fundo claro da intranet */}
-      <section className="relative mx-4 mt-4 overflow-hidden rounded-2xl border border-slate-200/80 bg-slate-950 shadow-2xl shadow-slate-900/20 md:mx-8 md:mt-6">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-[0.4]"
-          style={{
-            backgroundImage: `
-              radial-gradient(ellipse 80% 60% at 20% 40%, hsl(210, 90%, 45%, 0.35), transparent 55%),
-              radial-gradient(ellipse 60% 50% at 85% 20%, hsl(199, 85%, 48%, 0.25), transparent 50%),
-              linear-gradient(135deg, hsl(222, 47%, 6%) 0%, hsl(215, 45%, 10%) 50%, hsl(222, 40%, 8%) 100%)
-            `,
-          }}
-        />
-        <div
-          className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-blue-500/20 blur-3xl"
-          aria-hidden
-        />
-        <div
-          className="pointer-events-none absolute -bottom-16 left-1/4 h-48 w-48 rounded-full bg-cyan-400/10 blur-3xl"
-          aria-hidden
-        />
-
-        <div className="relative px-6 py-10 md:px-12 md:py-14 lg:flex lg:items-end lg:justify-between lg:gap-12">
+      <IntranetHero padding="comfortable">
+        <div className="lg:flex lg:items-end lg:justify-between lg:gap-12">
           <div className="max-w-2xl">
-            <p className="mb-3 inline-flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.25em] text-cyan-300/90">
-              <Sparkles className="h-3.5 w-3.5 text-amber-300" aria-hidden />
-              Intranet · Grupo CCI
-            </p>
-            <h1 className="text-3xl font-bold tracking-tight text-white md:text-4xl lg:text-[2.75rem] lg:leading-[1.1]">
+            <PageHeroEyebrow text="Intranet · Grupo CCI" />
+            <h1 className="text-3xl font-bold tracking-tight text-hero-foreground md:text-4xl lg:text-[2.75rem] lg:leading-[1.1]">
               {saudacao()}, {nome}.
             </h1>
-            <p className="mt-4 max-w-lg text-base leading-relaxed text-slate-300 md:text-lg">
+            <p className="mt-4 max-w-lg text-base leading-relaxed text-hero-muted md:text-lg">
               Um só lugar para dúvidas, reservas, chamados e o que mais você precisar no dia a dia — rápido, organizado,
               feito para quem trabalha junto.
             </p>
           </div>
           <div className="mt-8 hidden shrink-0 lg:mt-0 lg:block">
-            <div className="rounded-xl border border-white/10 bg-white/5 px-5 py-4 backdrop-blur-sm">
-              <p className="font-mono text-[10px] uppercase tracking-widest text-slate-400">Status</p>
-              <p className="mt-1 text-sm font-semibold text-emerald-300/95">Sistemas operacionais</p>
-              <p className="mt-2 text-xs text-slate-500">Atualizado em tempo real ao acessar os serviços</p>
+            <div className="rounded-xl border border-border/60 bg-background/55 px-5 py-4 backdrop-blur-sm dark:border-white/10 dark:bg-white/5">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-hero-muted">Status</p>
+              <p className="mt-1 text-sm font-semibold text-emerald-600 dark:text-emerald-300/95">Sistemas operacionais</p>
+              <p className="mt-2 text-xs text-hero-muted">Atualizado em tempo real ao acessar os serviços</p>
             </div>
           </div>
         </div>
-      </section>
+      </IntranetHero>
 
       <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
         {visiveis.length === 0 ? (
@@ -139,63 +102,40 @@ export default function Index() {
           <>
             <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">O que você precisa</h2>
-                <p className="mt-1 text-sm text-muted-foreground">Atalhos ordenados alfabeticamente — clique e siga.</p>
+                <h2 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">Em destaque</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Atalhos rápidos; o menu lateral reúne todas as ferramentas.
+                </p>
               </div>
-              <span className="font-mono text-xs text-muted-foreground/80">
-                {visiveis.length} {visiveis.length === 1 ? "ferramenta" : "ferramentas"}
-              </span>
+              {visiveis.length > 0 ? (
+                <span className="font-mono text-xs text-muted-foreground/80">
+                  {visiveis.length} {visiveis.length === 1 ? "atalho" : "atalhos"}
+                </span>
+              ) : null}
             </div>
 
-            {/* Destaque + bento */}
-            <div className="grid gap-4 lg:grid-cols-12 lg:gap-5">
-              {destaque && (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {visiveis.map((action) => (
                 <Link
-                  to={destaque.url}
-                  className={`group relative overflow-hidden rounded-2xl border border-border/80 bg-card p-6 shadow-card transition-all duration-300 hover:border-primary/30 hover:shadow-elevated lg:min-h-[220px] lg:p-8 ${demais.length === 0 ? "lg:col-span-12" : "lg:col-span-5"}`}
+                  key={action.url}
+                  to={action.url}
+                  className="group relative overflow-hidden rounded-xl border border-border/90 bg-card p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
                 >
-                  <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-primary/10 blur-2xl transition-opacity group-hover:opacity-100" />
-                  <div className="relative flex h-full flex-col justify-between">
-                    <div>
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-primary">
-                        Em destaque
-                      </span>
-                      <h3 className="mt-4 text-xl font-bold tracking-tight text-card-foreground group-hover:text-primary md:text-2xl">
-                        {destaque.name}
-                      </h3>
-                      <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">{destaque.description}</p>
-                    </div>
-                    <div className="mt-6 flex items-center gap-2 text-sm font-semibold text-primary">
-                      Abrir
-                      <ArrowUpRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                    </div>
+                  <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+                    Destaque
                   </div>
-                  <div className="absolute bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-blue-600 text-primary-foreground shadow-lg transition-transform duration-300 group-hover:scale-105">
-                    <destaque.icon className="h-7 w-7" strokeWidth={1.75} />
+                  <div className="flex items-start gap-4">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted/80 text-primary ring-1 ring-border/60 transition-colors group-hover:bg-primary/10 group-hover:ring-primary/20">
+                      <action.icon className="h-5 w-5" strokeWidth={1.75} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold leading-snug text-card-foreground group-hover:text-primary">{action.name}</p>
+                      <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{action.description}</p>
+                    </div>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground/50 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
                   </div>
                 </Link>
-              )}
-
-              <div className="grid gap-4 sm:grid-cols-2 lg:col-span-7 lg:grid-cols-2 lg:gap-4">
-                {demais.map((action) => (
-                  <Link
-                    key={action.name}
-                    to={action.url}
-                    className="group relative overflow-hidden rounded-xl border border-border/90 bg-card p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
-                  >
-                    <div className="flex items-start gap-4">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted/80 text-primary ring-1 ring-border/60 transition-colors group-hover:bg-primary/10 group-hover:ring-primary/20">
-                        <action.icon className="h-5 w-5" strokeWidth={1.75} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="font-semibold leading-snug text-card-foreground group-hover:text-primary">{action.name}</p>
-                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{action.description}</p>
-                      </div>
-                      <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground/50 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
-                    </div>
-                  </Link>
-                ))}
-              </div>
+              ))}
             </div>
           </>
         )}

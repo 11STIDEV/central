@@ -64,16 +64,16 @@ export default function SenhasPainelPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-950">
-        <Loader2 className="h-10 w-10 animate-spin text-white/60" />
+      <div className="dark flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-950 p-6 text-center text-white">
-        <p className="max-w-md text-sm text-white/90">{error}</p>
+      <div className="dark flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center text-foreground">
+        <p className="max-w-md text-sm text-foreground/90">{error}</p>
       </div>
     );
   }

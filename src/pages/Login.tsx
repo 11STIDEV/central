@@ -4,6 +4,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { destinoAposLogin } from "@/auth/RequireAuth";
 import { canAccessRoute } from "@/auth/routeAccess";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { CciLogoBranca } from "@/painel/components/CciLogoBranca";
 import { AlertCircle, Sparkles } from "lucide-react";
 
@@ -36,19 +37,13 @@ export default function Login() {
   }, [usuario, navigate, redirectBruto]);
 
   return (
-    <div className="flex min-h-screen flex-col lg:flex-row">
+    <div className="relative flex min-h-screen flex-col lg:flex-row">
+      <div className="absolute right-4 top-4 z-10 lg:right-8 lg:top-6">
+        <ThemeToggle className="border border-white/10 bg-white/5 text-white hover:bg-white/10 dark:border-border dark:bg-background/80 dark:text-foreground dark:hover:bg-muted" />
+      </div>
       {/* Painel marca — alinhado ao shell da intranet */}
-      <div className="relative flex min-h-[40vh] flex-1 flex-col justify-end overflow-hidden bg-slate-950 px-8 py-12 lg:min-h-screen lg:min-w-[50%] lg:justify-center lg:px-16">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-50"
-          style={{
-            backgroundImage: `
-              radial-gradient(ellipse 90% 70% at 20% 30%, hsl(210, 90%, 45%, 0.35), transparent 55%),
-              radial-gradient(ellipse 60% 50% at 90% 10%, hsl(32, 95%, 55%, 0.2), transparent 50%),
-              linear-gradient(165deg, hsl(222, 47%, 6%) 0%, hsl(215, 45%, 11%) 100%)
-            `,
-          }}
-        />
+      <div className="intranet-login-brand relative flex min-h-[40vh] flex-1 flex-col justify-end overflow-hidden px-8 py-12 lg:min-h-screen lg:min-w-[50%] lg:justify-center lg:px-16">
+        <div className="intranet-login-brand-mesh pointer-events-none absolute inset-0" aria-hidden />
         <div className="pointer-events-none absolute -right-24 top-0 h-72 w-72 rounded-full bg-blue-500/15 blur-3xl" />
         <div className="pointer-events-none absolute bottom-0 left-1/4 h-56 w-56 rounded-full bg-amber-500/10 blur-3xl" />
 
@@ -56,14 +51,14 @@ export default function Login() {
           <div className="mb-6">
             <CciLogoBranca height={56} className="object-left" />
           </div>
-          <p className="mb-3 inline-flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.28em] text-cyan-300/90">
+          <p className="mb-3 inline-flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.28em] text-cyan-200/95">
             <Sparkles className="h-3.5 w-3.5 text-amber-300" aria-hidden />
             Intranet
           </p>
           <h1 className="text-3xl font-bold tracking-tight text-white md:text-4xl lg:text-[2.5rem] lg:leading-tight">
             Central de Informações
           </h1>
-          <p className="mt-4 max-w-md text-base leading-relaxed text-slate-400">
+          <p className="mt-4 max-w-md text-base leading-relaxed text-white/65">
             Acesso unificado para colaboradores do Grupo CCI — chamados, agenda, documentos e
             ferramentas do dia a dia.
           </p>

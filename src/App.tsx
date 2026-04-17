@@ -1,3 +1,4 @@
+import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -42,15 +43,16 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <AuthProvider>
-          <RequireAuth>
-            <AppLayout>
-            <RouteGuard>
-            <Routes>
+    <ThemeProvider>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <AuthProvider>
+            <RequireAuth>
+              <AppLayout>
+                <RouteGuard>
+                  <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<Index />} />
               <Route
@@ -124,13 +126,14 @@ const App = () => (
                 </Route>
               </Route>
               <Route path="*" element={<NotFound />} />
-            </Routes>
-            </RouteGuard>
-            </AppLayout>
-          </RequireAuth>
-        </AuthProvider>
-      </BrowserRouter>
-    </TooltipProvider>
+                  </Routes>
+                </RouteGuard>
+              </AppLayout>
+            </RequireAuth>
+          </AuthProvider>
+        </BrowserRouter>
+      </TooltipProvider>
+    </ThemeProvider>
   </QueryClientProvider>
 );
 
