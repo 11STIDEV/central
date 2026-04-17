@@ -88,15 +88,24 @@ export default function ReservaEspacosEquipamentos() {
           body: JSON.stringify({ idToken: googleIdToken }),
         });
         const text = await res.text();
-        let body: { devices?: ChromebookAgendaItem[]; error?: string } = {};
+        let body: {
+          devices?: ChromebookAgendaItem[];
+          error?: string;
+          detalhe?: string;
+        } = {};
         try {
           if (text) body = JSON.parse(text) as typeof body;
         } catch {
           /* ignore */
         }
         if (!res.ok) {
-          const msg =
+          const detalhe =
+            typeof body.detalhe === "string" && body.detalhe.trim() !== ""
+              ? body.detalhe.trim()
+              : "";
+          const base =
             typeof body.error === "string" ? body.error : `HTTP ${res.status}`;
+          const msg = detalhe ? `${base} — ${detalhe}` : base;
           if (!cancelado) {
             setChromebooksCatalogo(CHROMEBOOKS_CATALOGO_FALLBACK);
             setAvisoChromebooks(

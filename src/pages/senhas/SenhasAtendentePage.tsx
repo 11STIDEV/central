@@ -5,6 +5,8 @@ import { useAuth } from "@/auth/AuthProvider";
 import { getPainelSupabase, isPainelSupabaseConfigured } from "@/painel/supabaseClient";
 import { usePainelSupabaseAuth } from "@/painel/PainelSupabaseAuthContext";
 import { fetchMyProfile } from "@/painel/fetchMyProfile";
+import { getSchoolSlug } from "@/painel/painelEnv";
+import { perfilPainelPorOu } from "@/painel/painelProfileOu";
 import { podePainelAtendente } from "@/painel/painelWorkspaceAccess";
 import type { Profile, Queue, School, ServiceWindow } from "@/painel/types/database";
 import SenhasAtendenteClient from "@/painel/SenhasAtendenteClient";
@@ -68,15 +70,35 @@ export default function SenhasAtendentePage() {
             await new Promise((r) => setTimeout(r, 400));
           }
         }
+        const papeis = usuario?.papeis ?? [];
+        const pode = podePainelAtendente(papeis);
+        const uid = painelAuth.session.user.id;
+        const email = usuario?.email ?? painelAuth.session.user.email ?? "";
+        const nome = usuario?.nome ?? "";
+
+        if (!baseProfile && pode && email) {
+          const slug = getSchoolSlug();
+          const { data: schoolBySlug, error: schoolErr } = await supabase
+            .from("painel_schools")
+            .select("*")
+            .eq("slug", slug)
+            .maybeSingle();
+          if (!cancelled && schoolErr) {
+            setError(schoolErr.message);
+            return;
+          }
+          if (schoolBySlug) {
+            baseProfile = perfilPainelPorOu(uid, schoolBySlug as School, nome, email, papeis);
+          }
+        }
+
         if (!baseProfile) {
           if (!cancelled) {
-            const papeis = usuario?.papeis ?? [];
-            const pode = podePainelAtendente(papeis);
             const soUsuario =
               papeis.length === 1 && papeis[0] === "usuario";
             setAccessDenied(
               pode
-                ? "O perfil do painel ainda não foi criado no Supabase. Confira: (1) API rodando (`npm run dev:server` na raiz do projeto, porta 3001); (2) `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` no `server/.env`; (3) em `painel_schools` existe uma escola com o slug igual a `PAINEL_SCHOOL_SLUG` / `VITE_SCHOOL_SLUG`."
+                ? `Sua OU no Google já permite o painel, mas não foi possível montar o perfil. Confira se existe uma escola em painel_schools com slug "${getSchoolSlug()}" (mesmo valor que VITE_SCHOOL_SLUG). Se as filas/senhas não carregarem, pode ser política (RLS) no Supabase — aí use /api/painel/sync-profile com SUPABASE_SERVICE_ROLE_KEY ou ajuste as policies.`
                 : soUsuario
                   ? "A Central não carregou sua OU nem papéis manuais (só aparece o papel \"usuario\"). Inicie a API em outro terminal: `npm run dev:server`. Se sua OU no Google não for Secretaria/Setape/Direção, em `server/.env` use PAINEL_LOCAL_ALLOW_EMAILS=seu@email.com (e o mesmo e-mail em `VITE_PAINEL_LOCAL_ALLOW_EMAILS` no `.env.local`) para testar."
                   : "Sua conta não tem permissão para o atendente (OU Secretaria ou subpastas, ou Setape/Direção para admin; ou papel manual `painel_atendente` / lista local em `VITE_PAINEL_LOCAL_ALLOW_EMAILS`).",
@@ -151,7 +173,14 @@ export default function SenhasAtendentePage() {
     return () => {
       cancelled = true;
     };
-  }, [painelAuth.status, painelAuth.session?.user?.id, googleIdToken, usuario?.email]);
+  }, [
+    painelAuth.status,
+    painelAuth.session?.user?.id,
+    googleIdToken,
+    usuario?.email,
+    usuario?.nome,
+    usuario?.papeis,
+  ]);
 
   if (painelAuth.status === "auth_loading" || painelAuth.status === "syncing") {
     return (

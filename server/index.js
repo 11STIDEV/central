@@ -138,26 +138,63 @@ const AGENDA_CCI_DISABLE_WHEN_EMPTY =
   process.env.AGENDA_CCI_DISABLE_WHEN_EMPTY === "true" ||
   process.env.AGENDA_CCI_DISABLE_WHEN_EMPTY === "1";
 
-function getServiceAccountCredentials() {
+/**
+ * @returns {{ ok: true, parsed: object } | { ok: false, error: string }}
+ */
+function loadServiceAccountCredentials() {
   if (GOOGLE_SERVICE_ACCOUNT_JSON) {
     try {
-      return JSON.parse(GOOGLE_SERVICE_ACCOUNT_JSON);
+      return { ok: true, parsed: JSON.parse(GOOGLE_SERVICE_ACCOUNT_JSON) };
     } catch (e) {
-      console.error("GOOGLE_SERVICE_ACCOUNT_JSON inválido:", e.message);
-      return null;
+      return {
+        ok: false,
+        error: `GOOGLE_SERVICE_ACCOUNT_JSON inválido: ${e.message}`,
+      };
     }
   }
   if (GOOGLE_SERVICE_ACCOUNT_PATH) {
-    try {
-      const fullPath = path.isAbsolute(GOOGLE_SERVICE_ACCOUNT_PATH)
-        ? GOOGLE_SERVICE_ACCOUNT_PATH
-        : path.resolve(__dirname, GOOGLE_SERVICE_ACCOUNT_PATH);
-      const raw = fs.readFileSync(fullPath, "utf8");
-      return JSON.parse(raw);
-    } catch (e) {
-      console.error("Erro ao ler GOOGLE_SERVICE_ACCOUNT_PATH:", e.message);
-      return null;
+    const rawPath = String(GOOGLE_SERVICE_ACCOUNT_PATH).trim();
+    const fullPath = path.isAbsolute(rawPath)
+      ? rawPath
+      : path.resolve(__dirname, rawPath);
+    if (!fs.existsSync(fullPath)) {
+      return {
+        ok: false,
+        error: `Arquivo não encontrado: ${fullPath}. Salve o JSON da service account (Google Cloud → chave) nesse caminho ou ajuste GOOGLE_SERVICE_ACCOUNT_PATH.`,
+      };
     }
+    try {
+      const raw = fs.readFileSync(fullPath, "utf8");
+      return { ok: true, parsed: JSON.parse(raw) };
+    } catch (e) {
+      return {
+        ok: false,
+        error: `Não foi possível ler ou interpretar o JSON em ${fullPath}: ${e.message}`,
+      };
+    }
+  }
+  return {
+    ok: false,
+    error:
+      "Defina GOOGLE_SERVICE_ACCOUNT_PATH (caminho para o .json) ou GOOGLE_SERVICE_ACCOUNT_JSON no server/.env.",
+  };
+}
+
+function getServiceAccountCredentials() {
+  const r = loadServiceAccountCredentials();
+  if (!r.ok) {
+    console.error("[service-account]", r.error);
+    return null;
+  }
+  return r.parsed;
+}
+
+/** Motivo legível quando JWT Admin não pode ser criado (arquivo ausente, JSON inválido, etc.). */
+function getServiceAccountSetupError() {
+  const r = loadServiceAccountCredentials();
+  if (!r.ok) return r.error;
+  if (!GOOGLE_ADMIN_IMPERSONATE) {
+    return "Defina GOOGLE_ADMIN_IMPERSONATE no server/.env (e-mail de um administrador do Google Workspace).";
   }
   return null;
 }
@@ -389,6 +426,7 @@ async function aplicarPoliticaChromebooks() {
   if (!auth) {
     console.warn(
       "[agenda-cci] AGENDA_CCI_ENFORCE_DISABLE ativo mas Admin SDK não configurado.",
+      getServiceAccountSetupError() || "",
     );
     return;
   }
@@ -536,9 +574,13 @@ app.post("/api/organizacao", async (req, res) => {
 
     const auth = getJwtOrganizacao();
     if (!auth) {
+      const detalhe =
+        getServiceAccountSetupError() ||
+        "Falha ao criar JWT do Admin SDK (confira o JSON da service account).";
       return res.status(500).json({
         error:
           "Servidor não configurado para Admin SDK. Defina GOOGLE_SERVICE_ACCOUNT_JSON (ou GOOGLE_SERVICE_ACCOUNT_PATH) e GOOGLE_ADMIN_IMPERSONATE.",
+        detalhe,
       });
     }
 
@@ -599,9 +641,13 @@ app.post("/api/chromebooks", async (req, res) => {
 
     const auth = getJwtChromeOs();
     if (!auth) {
+      const detalhe =
+        getServiceAccountSetupError() ||
+        "Falha ao criar JWT do Admin SDK (confira o JSON da service account).";
       return res.status(500).json({
         error:
           "Servidor não configurado para Admin SDK. Defina GOOGLE_SERVICE_ACCOUNT_JSON (ou GOOGLE_SERVICE_ACCOUNT_PATH) e GOOGLE_ADMIN_IMPERSONATE.",
+        detalhe,
       });
     }
 
@@ -1082,10 +1128,16 @@ app.listen(PORT, HOST, () => {
       SCOPE_ADMIN_CHROME_DEVICE,
     );
   }
-  const hasServiceAccount = GOOGLE_SERVICE_ACCOUNT_JSON || GOOGLE_SERVICE_ACCOUNT_PATH;
-  if (GOOGLE_CLIENT_IDS.length === 0 || !hasServiceAccount || !GOOGLE_ADMIN_IMPERSONATE) {
+  const setupErr = getServiceAccountSetupError();
+  if (GOOGLE_CLIENT_IDS.length === 0 || setupErr) {
     console.warn(
-      "Aviso: configure GOOGLE_CLIENT_ID, GOOGLE_SERVICE_ACCOUNT_JSON e GOOGLE_ADMIN_IMPERSONATE para /api/organizacao funcionar."
+      "Aviso: configure GOOGLE_CLIENT_ID, credenciais da service account (arquivo ou JSON) e GOOGLE_ADMIN_IMPERSONATE para /api/organizacao e /api/chromebooks.",
+      setupErr ? `— ${setupErr}` : "",
+    );
+  }
+  if (SUPABASE_URL && !SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn(
+      "Aviso: defina SUPABASE_SERVICE_ROLE_KEY no server/.env (chave service_role do Supabase) para o painel de senhas e /api/painel/sync-profile.",
     );
   }
   if (AGENDA_CCI_ENFORCE_DISABLE) {
