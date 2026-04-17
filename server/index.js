@@ -7,11 +7,6 @@ import express from "express";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
-import {
-  agoraLocalParts,
-  estaEmJanelaReservaAtiva,
-  dispositivoEstaDisabled,
-} from "./agendaCciLogic.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -118,7 +113,6 @@ const GOOGLE_SERVICE_ACCOUNT_PATH = process.env.GOOGLE_SERVICE_ACCOUNT_PATH;
 const GOOGLE_CHROMEBOOK_ORG_UNIT = process.env.GOOGLE_CHROMEBOOK_ORG_UNIT?.trim() || "";
 
 const DATA_DIR = path.join(__dirname, "data");
-const ARQUIVO_RESERVAS_AGENDA = path.join(DATA_DIR, "agenda-cci-reservas.json");
 const ARQUIVO_PAPEIS_MANUAIS = path.join(DATA_DIR, "papeis-manuais.json");
 
 /** Papéis atribuíveis apenas via API admin (extensível). */
@@ -128,15 +122,6 @@ const PAPEIS_MANUAIS_PERMITIDOS = ["admin", "painel_admin", "painel_atendente"];
 const PAPEIS_MANUAIS_SEED = {
   "thiago.ferreira@portalcci.com.br": ["admin"],
 };
-const AGENDA_CCI_TIMEZONE = process.env.AGENDA_CCI_TIMEZONE || "America/Sao_Paulo";
-const AGENDA_CCI_POLL_MS = Number(process.env.AGENDA_CCI_POLL_MS) || 60_000;
-const AGENDA_CCI_ENFORCE_DISABLE =
-  process.env.AGENDA_CCI_ENFORCE_DISABLE === "true" ||
-  process.env.AGENDA_CCI_ENFORCE_DISABLE === "1";
-/** Se true e não houver nenhuma reserva salva, aplica disable em todo o parque (política dura). */
-const AGENDA_CCI_DISABLE_WHEN_EMPTY =
-  process.env.AGENDA_CCI_DISABLE_WHEN_EMPTY === "true" ||
-  process.env.AGENDA_CCI_DISABLE_WHEN_EMPTY === "1";
 
 /**
  * @returns {{ ok: true, parsed: object } | { ok: false, error: string }}
@@ -312,27 +297,8 @@ function ensureDataDir() {
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   } catch (e) {
-    console.error("[agenda-cci] não foi possível criar", DATA_DIR, e.message);
+    console.error("[data] não foi possível criar", DATA_DIR, e.message);
   }
-}
-
-function lerReservasArquivo() {
-  try {
-    const raw = fs.readFileSync(ARQUIVO_RESERVAS_AGENDA, "utf8");
-    const j = JSON.parse(raw);
-    return Array.isArray(j) ? j : [];
-  } catch {
-    return [];
-  }
-}
-
-function salvarReservasArquivo(lista) {
-  ensureDataDir();
-  fs.writeFileSync(
-    ARQUIVO_RESERVAS_AGENDA,
-    JSON.stringify(lista, null, 2),
-    "utf8",
-  );
 }
 
 function normalizarEmailMapaPapeis(obj) {
@@ -409,105 +375,6 @@ async function listarTodosChromeosAdmin(admin) {
     pageToken = r.data.nextPageToken;
   } while (pageToken);
   return out;
-}
-
-async function chromeosAcao(admin, resourceId, actionName) {
-  await admin.chromeosdevices.action({
-    customerId: "my_customer",
-    resourceId,
-    requestBody: { action: actionName },
-  });
-}
-
-async function aplicarPoliticaChromebooks() {
-  if (!AGENDA_CCI_ENFORCE_DISABLE) return;
-
-  const auth = getJwtChromeOs();
-  if (!auth) {
-    console.warn(
-      "[agenda-cci] AGENDA_CCI_ENFORCE_DISABLE ativo mas Admin SDK não configurado.",
-      getServiceAccountSetupError() || "",
-    );
-    return;
-  }
-
-  try {
-    await auth.authorize();
-  } catch (e) {
-    console.warn(
-      "[agenda-cci] JWT Chrome OS não autorizado (delegação de escopo?). Desative AGENDA_CCI_ENFORCE_DISABLE ou adicione o escopo device.chromeos no Admin:",
-      mensagemErroGoogle(e),
-    );
-    return;
-  }
-  const admin = google.admin({ version: "directory_v1", auth });
-
-  let devices;
-  try {
-    devices = await listarTodosChromeosAdmin(admin);
-  } catch (e) {
-    console.error("[agenda-cci] listar Chromebooks:", mensagemErroGoogle(e));
-    return;
-  }
-
-  const reservas = lerReservasArquivo();
-  const { ymd, minutes } = agoraLocalParts(AGENDA_CCI_TIMEZONE);
-
-  if (!reservas.length) {
-    if (AGENDA_CCI_DISABLE_WHEN_EMPTY) {
-      for (const d of devices) {
-        if (dispositivoEstaDisabled(d)) continue;
-        try {
-          await chromeosAcao(admin, d.deviceId, "disable");
-          console.log(`[agenda-cci] disable (sem reservas, política dura): ${d.deviceId}`);
-        } catch (e) {
-          console.warn(
-            `[agenda-cci] disable ${d.deviceId}:`,
-            mensagemErroGoogle(e),
-          );
-        }
-        await new Promise((r) => setTimeout(r, 250));
-      }
-    } else {
-      for (const d of devices) {
-        if (!dispositivoEstaDisabled(d)) continue;
-        try {
-          await chromeosAcao(admin, d.deviceId, "reenable");
-          console.log(`[agenda-cci] reenable (lista vazia, recuperação): ${d.deviceId}`);
-        } catch (e) {
-          console.warn(
-            `[agenda-cci] reenable ${d.deviceId}:`,
-            mensagemErroGoogle(e),
-          );
-        }
-        await new Promise((r) => setTimeout(r, 250));
-      }
-    }
-    return;
-  }
-
-  for (const d of devices) {
-    const id = d.deviceId;
-    const deveHabilitar = estaEmJanelaReservaAtiva(id, reservas, ymd, minutes);
-    const disabled = dispositivoEstaDisabled(d);
-
-    if (deveHabilitar && disabled) {
-      try {
-        await chromeosAcao(admin, id, "reenable");
-        console.log(`[agenda-cci] reenable (janela de reserva): ${id}`);
-      } catch (e) {
-        console.warn(`[agenda-cci] reenable ${id}:`, mensagemErroGoogle(e));
-      }
-    } else if (!deveHabilitar && !disabled) {
-      try {
-        await chromeosAcao(admin, id, "disable");
-        console.log(`[agenda-cci] disable (fora da reserva): ${id}`);
-      } catch (e) {
-        console.warn(`[agenda-cci] disable ${id}:`, mensagemErroGoogle(e));
-      }
-    }
-    await new Promise((r) => setTimeout(r, 250));
-  }
 }
 
 /** Decodifica payload do JWT (sem validar assinatura) — só para ler `aud` e diagnosticar mismatch de Client ID. */
@@ -694,68 +561,6 @@ app.post("/api/chromebooks", async (req, res) => {
     return res.status(500).json({
       error: msg || "Erro ao listar Chromebooks.",
     });
-  }
-});
-
-/**
- * POST /api/agenda-cci/reservas
- * Body: { idToken, reservas: [...] }
- * Persiste reservas no servidor (para o worker de disable/reenable).
- */
-app.post("/api/agenda-cci/reservas", async (req, res) => {
-  try {
-    const { idToken, reservas } = req.body || {};
-    try {
-      await verificarIdTokenUsuario(idToken);
-    } catch (e) {
-      const st = e.status || 500;
-      if (st === 401 && e.audDoToken) {
-        return res.status(st).json({
-          error: `${e.message} Use o mesmo valor de VITE_GOOGLE_CLIENT_ID no server/.env.`,
-          audDoToken: e.audDoToken,
-        });
-      }
-      return res.status(st).json({ error: e.message });
-    }
-    if (!Array.isArray(reservas)) {
-      return res.status(400).json({ error: "reservas deve ser um array." });
-    }
-    salvarReservasArquivo(reservas);
-    setImmediate(() =>
-      aplicarPoliticaChromebooks().catch((e) => console.error(e)),
-    );
-    return res.json({ ok: true });
-  } catch (err) {
-    const msg = mensagemErroGoogle(err);
-    console.error("Erro /api/agenda-cci/reservas:", msg);
-    return res.status(500).json({ error: msg || "Erro ao salvar reservas." });
-  }
-});
-
-/**
- * POST /api/agenda-cci/reservas/obter
- * Body: { idToken }
- */
-app.post("/api/agenda-cci/reservas/obter", async (req, res) => {
-  try {
-    const { idToken } = req.body || {};
-    try {
-      await verificarIdTokenUsuario(idToken);
-    } catch (e) {
-      const st = e.status || 500;
-      if (st === 401 && e.audDoToken) {
-        return res.status(st).json({
-          error: `${e.message} Use o mesmo valor de VITE_GOOGLE_CLIENT_ID no server/.env.`,
-          audDoToken: e.audDoToken,
-        });
-      }
-      return res.status(st).json({ error: e.message });
-    }
-    return res.json({ reservas: lerReservasArquivo() });
-  } catch (err) {
-    const msg = mensagemErroGoogle(err);
-    console.error("Erro /api/agenda-cci/reservas/obter:", msg);
-    return res.status(500).json({ error: msg || "Erro ao ler reservas." });
   }
 });
 
@@ -1139,14 +944,5 @@ app.listen(PORT, HOST, () => {
     console.warn(
       "Aviso: defina SUPABASE_SERVICE_ROLE_KEY no server/.env (chave service_role do Supabase) para o painel de senhas e /api/painel/sync-profile.",
     );
-  }
-  if (AGENDA_CCI_ENFORCE_DISABLE) {
-    console.log(
-      `[agenda-cci] disable/reenable ativo — intervalo ${AGENDA_CCI_POLL_MS}ms, fuso ${AGENDA_CCI_TIMEZONE}. Lista vazia: ${AGENDA_CCI_DISABLE_WHEN_EMPTY ? "disable em todo o parque" : "só reabilita bloqueados (recuperação)"}.`,
-    );
-    setInterval(() => {
-      aplicarPoliticaChromebooks().catch((e) => console.error(e));
-    }, AGENDA_CCI_POLL_MS);
-    setTimeout(() => aplicarPoliticaChromebooks().catch(console.error), 12_000);
   }
 });

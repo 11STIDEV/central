@@ -2,23 +2,13 @@ import type { Papel } from "./AuthProvider";
 
 /**
  * Rotas restritas: só usuários com **pelo menos um** dos papéis listados acessam.
- * Rotas não listadas aqui: qualquer usuário logado pode acessar.
- *
- * Regras de negócio (resumo):
- * - TI interno / Controle materiais TI → setape
- * - Almoxarifado → almoxarifado (OU /Administrativo/Almoxarifado)
- * - Financeiro vales → dp
+ * Rotas não listadas: qualquer usuário logado pode acessar (exceto regra `isSomenteAluno`).
  */
 export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/admin/papeis-manuais": ["admin"],
-  "/ti-interno": ["setape"],
-  "/controle-materiais-ti": ["setape"],
-  "/controle-materiais-almoxarifado": ["almoxarifado"],
-  "/financeiro/vales-adiantamento": ["dp"],
-  "/agenda-cci/admin": ["setape"],
 };
 
-/** Usuário só com papel `aluno` (além de `usuario`): acesso exclusivo à Agenda CCI. */
+/** Usuário só com papel `aluno` (além de `usuario`): nesta branch, acesso à home e ao hub do painel (totem e TV). */
 export function isSomenteAluno(papeis: Papel[]): boolean {
   if (papeis.includes("admin")) return false;
   if (!papeis.includes("aluno")) return false;
@@ -37,8 +27,10 @@ export function canAccessRoute(papeis: Papel[], pathname: string): boolean {
   if (isSomenteAluno(papeis)) {
     return (
       path === "/login" ||
-      path === "/agenda-cci" ||
-      path === "/reserva-espacos-equipamentos"
+      path === "/" ||
+      path === "/senhas" ||
+      path.startsWith("/senhas/totem") ||
+      path.startsWith("/senhas/painel")
     );
   }
   const obrigatorios = ROTAS_PAPEIS_OBRIGATORIOS[path];

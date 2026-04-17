@@ -31,7 +31,7 @@ export default function Login() {
     if (!usuario) return;
     let to = redirectBruto;
     if (!canAccessRoute(usuario.papeis, to)) {
-      to = "/agenda-cci";
+      to = "/";
     }
     navigate(to, { replace: true });
   }, [usuario, navigate, redirectBruto]);

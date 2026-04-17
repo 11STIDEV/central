@@ -1,22 +1,5 @@
 import type { LucideIcon } from "lucide-react";
-import {
-  BookOpen,
-  Boxes,
-  CalendarDays,
-  CircleDollarSign,
-  ClipboardList,
-  FileText,
-  Hash,
-  Home,
-  MapPin,
-  Phone,
-  Shield,
-  ShieldCheck,
-  Ticket,
-  UserCog,
-  Wallet,
-  Warehouse,
-} from "lucide-react";
+import { Hash, Home, UserCog } from "lucide-react";
 import type { Papel } from "@/auth/AuthProvider";
 import { canAccessRoute } from "@/auth/routeAccess";
 
@@ -29,7 +12,6 @@ export type NavLeaf = {
 
 /** Subgrupo dentro de uma seção `nested` (Setores, Suporte, Agenda, etc.). */
 export type NavSector = {
-  /** Chave estável para merge com extras vindos do banco (ex.: Supabase). */
   id: string;
   label: string;
   items: NavLeaf[];
@@ -52,104 +34,23 @@ export type NavSectionNested = {
 export type NavSection = NavSectionFlat | NavSectionNested;
 
 /**
- * Árvore estática do menu. Ordem = ordem de exibição.
- * Itens extras por setor podem ser mesclados via `mergeNavExtras` (ex.: tabela futura no Supabase).
+ * Branch produção: apenas início, painel de senhas e admin de papéis manuais (mapeamento OU / extras).
  */
 export const INTRANET_NAV_SECTIONS: NavSection[] = [
   {
     id: "portal",
     label: "Portal",
     type: "flat",
-    items: [{ title: "Central de Informações", url: "/", icon: Home }],
-  },
-  {
-    id: "suporte",
-    label: "Suporte & conhecimento",
-    type: "nested",
-    sectors: [
-      {
-        id: "suporte-chamados",
-        label: "Chamados",
-        items: [
-          { title: "Abrir Chamado", url: "/chamados/novo", icon: Ticket },
-          { title: "Gestão de Chamados", url: "/chamados/gestao", icon: ClipboardList },
-        ],
-      },
-      {
-        id: "suporte-conhecimento",
-        label: "Conhecimento & TI",
-        items: [
-          { title: "Base de Conhecimento", url: "/base-conhecimento", icon: BookOpen },
-          { title: "Área Interna TI", url: "/ti-interno", icon: ShieldCheck },
-        ],
-      },
-    ],
-  },
-  {
-    id: "agenda",
-    label: "Agenda & espaços",
-    type: "nested",
-    sectors: [
-      {
-        id: "agenda-calendario-reservas",
-        label: "Calendário & reservas",
-        items: [
-          { title: "Agenda CCI", url: "/agenda-cci", icon: CalendarDays },
-          {
-            title: "Reserva de Equipamentos e Espaços",
-            url: "/reserva-espacos-equipamentos",
-            icon: MapPin,
-          },
-        ],
-      },
-      {
-        id: "agenda-administracao",
-        label: "Administração",
-        items: [{ title: "Agenda CCI — Admin", url: "/agenda-cci/admin", icon: Shield }],
-      },
-    ],
-  },
-  {
-    id: "setores",
-    label: "Setores",
-    type: "nested",
-    sectors: [
-      {
-        id: "secretaria-comunicacao",
-        label: "Secretaria & comunicação",
-        items: [
-          { title: "Ramais", url: "/ramais", icon: Phone },
-          { title: "Documentos", url: "/documentos", icon: FileText },
-        ],
-      },
-      {
-        id: "materiais-patrimonio",
-        label: "Materiais & patrimônio",
-        items: [
-          { title: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes },
-          {
-            title: "Almoxarifado (Entrada/Saída)",
-            url: "/controle-materiais-almoxarifado",
-            icon: Warehouse,
-          },
-        ],
-      },
-      {
-        id: "financeiro-setor",
-        label: "Financeiro",
-        items: [{ title: "Vale Adiantamento", url: "/vale-adiantamento", icon: Wallet }],
-      },
+    items: [
+      { title: "Início", url: "/", icon: Home },
+      { title: "Painel de senhas", url: "/senhas", icon: Hash },
     ],
   },
   {
     id: "admin",
     label: "Administração",
     type: "flat",
-    items: [
-      { title: "Financeiro — Vales", url: "/financeiro/vales-adiantamento", icon: CircleDollarSign },
-      { title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog },
-      { title: "Painel de senhas", url: "/senhas", icon: Hash },
-    ],
+    items: [{ title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog }],
   },
 ];
 

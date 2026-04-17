@@ -5,8 +5,7 @@ import { canAccessRoute } from "./routeAccess";
 type Props = { children: React.ReactNode };
 
 /**
- * Redireciona usuários com papel exclusivo de aluno para `/agenda-cci` se tentarem rota não permitida
- * (alunos podem acessar `/agenda-cci` e `/reserva-espacos-equipamentos`).
+ * Redireciona para `/` quando o papel não permite a rota atual (branch produção: ver `routeAccess`).
  */
 export function RouteGuard({ children }: Props) {
   const { usuario } = useAuth();
@@ -17,7 +16,7 @@ export function RouteGuard({ children }: Props) {
   }
 
   if (!canAccessRoute(usuario.papeis, location.pathname)) {
-    return <Navigate to="/agenda-cci" replace />;
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
