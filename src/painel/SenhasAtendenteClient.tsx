@@ -43,6 +43,8 @@ interface AtendenteClientProps {
   queues: Queue[];
   serviceWindows: ServiceWindow[];
   initialWaiting: TicketWithQueue[];
+  /** ID token Google — usado para chamar senha via API (service role), evitando bloqueio por RLS no Supabase. */
+  googleIdToken: string | null;
 }
 
 const TYPE_BADGE: Record<string, "default" | "destructive"> = {
@@ -98,6 +100,7 @@ export default function SenhasAtendenteClient({
   school,
   serviceWindows,
   initialWaiting,
+  googleIdToken,
 }: AtendenteClientProps) {
   const [waiting, setWaiting] = useState<TicketWithQueue[]>(initialWaiting);
   const [currentTicket, setCurrentTicket] = useState<TicketWithQueue | null>(null);
@@ -185,30 +188,54 @@ export default function SenhasAtendenteClient({
     const { ticket: next, newCounter } = nextPick;
 
     try {
-      const { error: ticketError } = await supabase
-        .from("painel_tickets")
-        .update({ status: "called", called_at: new Date().toISOString() })
-        .eq("id", next.id);
-
-      if (ticketError) throw ticketError;
-
-      const { error: callError } = await supabase
-        .from("painel_calls")
-        .insert({
-          school_id: profile.school_id,
-          ticket_id: next.id,
-          service_window_id: selectedWindowId,
-          attendant_id: profile.id,
+      if (googleIdToken) {
+        const res = await fetch("/api/painel/call-ticket", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken: googleIdToken,
+            ticket_id: next.id,
+            service_window_id: selectedWindowId,
+          }),
         });
+        const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+        if (!res.ok) {
+          throw new Error(data.error || `Erro ${res.status}`);
+        }
+      } else {
+        const calledAt = new Date().toISOString();
+        const { error: ticketError } = await supabase
+          .from("painel_tickets")
+          .update({ status: "called", called_at: calledAt })
+          .eq("id", next.id);
 
-      if (callError) throw callError;
+        if (ticketError) throw ticketError;
+
+        const { error: callError } = await supabase
+          .from("painel_calls")
+          .insert({
+            school_id: profile.school_id,
+            ticket_id: next.id,
+            service_window_id: selectedWindowId,
+            attendant_id: profile.id,
+            called_at: calledAt,
+          });
+
+        if (callError) throw callError;
+      }
 
       consecutivePriorityRef.current = newCounter;
       setCurrentTicket(next);
       setWaiting((prev) => prev.filter((t) => t.id !== next.id));
       toast.success(`Senha ${next.ticket_code} chamada para ${selectedWindow?.name}`);
-    } catch {
-      toast.error("Erro ao chamar próxima senha.");
+    } catch (e) {
+      const msg =
+        e instanceof Error ? e.message : "Erro ao chamar próxima senha.";
+      toast.error(msg.length > 180 ? `${msg.slice(0, 180)}…` : msg);
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.error("[callNext]", e);
+      }
     } finally {
       setCalling(false);
     }
@@ -259,14 +286,14 @@ export default function SenhasAtendenteClient({
         <>
           <PageHeroEyebrow />
           <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
-              <MonitorSpeaker className="h-5 w-5 text-amber-300" strokeWidth={1.75} />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted/80 ring-1 ring-border">
+              <MonitorSpeaker className="h-5 w-5 text-amber-600 dark:text-amber-300" strokeWidth={1.75} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl lg:text-4xl">
+              <h1 className="text-2xl font-bold tracking-tight text-hero-foreground md:text-3xl lg:text-4xl">
                 Painel do Atendente
               </h1>
-              <p className="mt-2 max-w-2xl text-slate-300">
+              <p className="mt-2 max-w-2xl text-base leading-relaxed text-hero-muted md:text-lg">
                 Chame senhas e gerencie o atendimento no seu guichê.
               </p>
             </div>

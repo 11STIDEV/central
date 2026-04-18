@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   INTRANET_NAV_SECTIONS,
   filterNavByAccess,
+  filterPainelSenhasAdminSector,
   mergeNavExtras,
 } from "@/navigation/intranetNavConfig";
 import { useNavExtras } from "@/navigation/useNavExtras";
@@ -21,7 +22,11 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const papeis = usuario?.papeis ?? [];
   const extras = useNavExtras();
   const navSections = useMemo(
-    () => filterNavByAccess(papeis, mergeNavExtras(INTRANET_NAV_SECTIONS, extras)),
+    () =>
+      filterPainelSenhasAdminSector(
+        papeis,
+        filterNavByAccess(papeis, mergeNavExtras(INTRANET_NAV_SECTIONS, extras)),
+      ),
     [papeis, extras],
   );
 

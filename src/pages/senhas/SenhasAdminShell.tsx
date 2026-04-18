@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { Link, Navigate, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
-import AdminSidebar from "@/painel/components/AdminSidebar";
 import { fetchMyProfile } from "@/painel/fetchMyProfile";
 import { getSchoolSlug } from "@/painel/painelEnv";
 import { alinharPapelPerfilOu, perfilPainelPorOu } from "@/painel/painelProfileOu";
@@ -17,6 +16,8 @@ export default function SenhasAdminShell() {
   const navigate = useNavigate();
   const { usuario, carregando: authCarregando } = useAuth();
   const painelAuth = usePainelSupabaseAuth();
+  const painelSessionUserId =
+    painelAuth.status === "ready" ? painelAuth.session?.user?.id : undefined;
   const [profile, setProfile] = useState<Profile | null>(null);
   const [school, setSchool] = useState<School | null>(null);
   const [dataLoading, setDataLoading] = useState(false);
@@ -111,7 +112,7 @@ export default function SenhasAdminShell() {
   }, [
     authCarregando,
     painelAuth.status,
-    painelAuth.session?.user?.id,
+    painelSessionUserId,
     navigate,
     usuario?.email,
     usuario?.nome,
@@ -184,11 +185,8 @@ export default function SenhasAdminShell() {
   const ctx: PainelAdminOutletContext = { profile, school };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <AdminSidebar school={school} profile={profile} />
-      <main className="flex-1 overflow-auto">
-        <Outlet context={ctx} />
-      </main>
+    <div className="min-h-screen w-full bg-slate-50">
+      <Outlet context={ctx} />
     </div>
   );
 }

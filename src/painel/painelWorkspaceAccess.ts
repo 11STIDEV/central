@@ -1,15 +1,23 @@
 import type { Papel } from "@/auth/AuthProvider";
 
-/** Atendente ou admin do painel (OU) ou admin global da Central. */
+/**
+ * Hub, atendente e demais rotas do painel (exceto admin): OU Secretaria ou Setape,
+ * ou papéis manuais / admin global.
+ */
 export function podePainelAtendente(papeis: Papel[]): boolean {
   return (
     papeis.includes("admin") ||
-    papeis.includes("painel_admin") ||
+    papeis.includes("secretaria") ||
+    papeis.includes("setape") ||
     papeis.includes("painel_atendente")
   );
 }
 
-/** Área de administração do painel de senhas. */
+/** Administração do painel: somente OU Setape (ou equivalentes manuais / admin global). */
 export function podePainelAdmin(papeis: Papel[]): boolean {
-  return papeis.includes("admin") || papeis.includes("painel_admin");
+  return (
+    papeis.includes("admin") ||
+    papeis.includes("setape") ||
+    papeis.includes("painel_admin")
+  );
 }

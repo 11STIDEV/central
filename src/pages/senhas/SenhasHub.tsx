@@ -1,37 +1,32 @@
 import { Link } from "react-router-dom";
-import { Hash, MonitorSpeaker, Ticket, Tv, LayoutDashboard } from "lucide-react";
+import { Hash, MonitorSpeaker, LayoutDashboard } from "lucide-react";
+import { useAuth } from "@/auth/AuthProvider";
 import { PageHero, PageHeroEyebrow } from "@/components/PageHero";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { podePainelAdmin } from "@/painel/painelWorkspaceAccess";
 import { isPainelSupabaseConfigured } from "@/painel/supabaseClient";
+import { cn } from "@/lib/utils";
 
-const links = [
-  {
-    to: "/senhas/totem",
-    title: "Totem",
-    description: "Emissão de senhas na entrada (tablet / quiosque).",
-    icon: Ticket,
-  },
-  {
-    to: "/senhas/painel",
-    title: "Painel TV",
-    description: "Chamadas em tela cheia com vídeo.",
-    icon: Tv,
-  },
-  {
-    to: "/senhas/atendente",
-    title: "Atendente",
-    description: "Chamar senhas e gerenciar o guichê.",
-    icon: MonitorSpeaker,
-  },
-  {
-    to: "/senhas/admin",
-    title: "Administração",
-    description: "Filas, guichês, atendentes e relatórios.",
-    icon: LayoutDashboard,
-  },
-];
+/** Totem e Painel TV não aparecem aqui — use a URL direta (favoritos / QR) nos equipamentos fixos. */
+const linkAtendente = {
+  to: "/senhas/atendente",
+  title: "Atendente",
+  description: "Chamar senhas e gerenciar o guichê.",
+  icon: MonitorSpeaker,
+};
+
+const linkAdmin = {
+  to: "/senhas/admin",
+  title: "Administração",
+  description: "Filas, guichês, atendentes e relatórios.",
+  icon: LayoutDashboard,
+};
 
 export default function SenhasHub() {
+  const { usuario } = useAuth();
+  const papeis = usuario?.papeis ?? [];
+  const mostrarAdmin = podePainelAdmin(papeis);
+  const links = mostrarAdmin ? [linkAtendente, linkAdmin] : [linkAtendente];
   const supabaseOk = isPainelSupabaseConfigured();
 
   return (
@@ -40,14 +35,16 @@ export default function SenhasHub() {
         <>
           <PageHeroEyebrow />
           <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
-              <Hash className="h-5 w-5 text-amber-300" strokeWidth={1.75} />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted/80 ring-1 ring-border">
+              <Hash className="h-5 w-5 text-amber-600 dark:text-amber-300" strokeWidth={1.75} />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl lg:text-4xl">
+              <h1 className="text-2xl font-bold tracking-tight text-hero-foreground md:text-3xl lg:text-4xl">
                 Painel de senhas
               </h1>
-              <p className="mt-2 max-w-2xl text-slate-300">Escolha o modo de uso</p>
+              <p className="mt-2 max-w-2xl text-base leading-relaxed text-hero-muted md:text-lg">
+                Escolha o modo de uso
+              </p>
             </div>
           </div>
         </>
@@ -66,9 +63,21 @@ export default function SenhasHub() {
           </div>
         )}
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div
+          className={cn(
+            "gap-4",
+            mostrarAdmin ? "grid sm:grid-cols-2" : "flex justify-center",
+          )}
+        >
           {links.map(({ to, title, description, icon: Icon }) => (
-            <Link key={to} to={to} className="block rounded-xl transition-shadow hover:shadow-md">
+            <Link
+              key={to}
+              to={to}
+              className={cn(
+                "block rounded-xl transition-shadow hover:shadow-md",
+                !mostrarAdmin && "w-full max-w-md",
+              )}
+            >
               <Card className="h-full border-slate-200">
                 <CardHeader className="pb-2">
                   <div className="flex items-center gap-3">

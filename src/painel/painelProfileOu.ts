@@ -25,7 +25,7 @@ export function perfilPainelPorOu(
   };
 }
 
-/** Alinha o papel ao que a OU permite (ex.: linha no Supabase como attendant, mas OU Setape/Direção = admin). */
+/** Alinha o papel ao que a OU permite (ex.: attendant no Supabase, mas OU Setape = admin). */
 export function alinharPapelPerfilOu(profile: Profile, papeis: Papel[]): Profile {
   const role = podePainelAdmin(papeis) ? "admin" : "attendant";
   if (profile.role === role) return profile;

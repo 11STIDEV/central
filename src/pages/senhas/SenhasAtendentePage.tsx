@@ -29,8 +29,10 @@ async function requestPainelSync(idToken: string) {
 }
 
 export default function SenhasAtendentePage() {
-  const { usuario, googleIdToken } = useAuth();
+  const { usuario, googleIdToken, carregando: authCarregando } = useAuth();
   const painelAuth = usePainelSupabaseAuth();
+  const painelSessionUserId =
+    painelAuth.status === "ready" ? painelAuth.session?.user?.id : undefined;
   const [state, setState] = useState<{
     profile: ProfileWithSw | null;
     school: School | null;
@@ -43,6 +45,9 @@ export default function SenhasAtendentePage() {
   const [accessDenied, setAccessDenied] = useState<string | null>(null);
 
   useEffect(() => {
+    if (authCarregando) {
+      return;
+    }
     if (painelAuth.status !== "ready" || !painelAuth.session?.user) {
       return;
     }
@@ -100,8 +105,8 @@ export default function SenhasAtendentePage() {
               pode
                 ? `Sua OU no Google já permite o painel, mas não foi possível montar o perfil. Confira se existe uma escola em painel_schools com slug "${getSchoolSlug()}" (mesmo valor que VITE_SCHOOL_SLUG). Se as filas/senhas não carregarem, pode ser política (RLS) no Supabase — aí use /api/painel/sync-profile com SUPABASE_SERVICE_ROLE_KEY ou ajuste as policies.`
                 : soUsuario
-                  ? "A Central não carregou sua OU nem papéis manuais (só aparece o papel \"usuario\"). Inicie a API em outro terminal: `npm run dev:server`. Se sua OU no Google não for Secretaria/Setape/Direção, em `server/.env` use PAINEL_LOCAL_ALLOW_EMAILS=seu@email.com (e o mesmo e-mail em `VITE_PAINEL_LOCAL_ALLOW_EMAILS` no `.env.local`) para testar."
-                  : "Sua conta não tem permissão para o atendente (OU Secretaria ou subpastas, ou Setape/Direção para admin; ou papel manual `painel_atendente` / lista local em `VITE_PAINEL_LOCAL_ALLOW_EMAILS`).",
+                  ? "A Central não carregou sua OU nem papéis manuais (só aparece o papel \"usuario\"). Inicie a API em outro terminal: `npm run dev:server`. Se sua OU no Google não for Secretaria ou Setape, em `server/.env` use PAINEL_LOCAL_ALLOW_EMAILS=seu@email.com (e o mesmo e-mail em `VITE_PAINEL_LOCAL_ALLOW_EMAILS` no `.env.local`) para testar."
+                  : "Sua conta não tem permissão para o atendente. O painel exige OU em Secretaria ou Setape (ou papel manual `painel_atendente` / lista local em `VITE_PAINEL_LOCAL_ALLOW_EMAILS`).",
             );
           }
           return;
@@ -174,13 +179,22 @@ export default function SenhasAtendentePage() {
       cancelled = true;
     };
   }, [
+    authCarregando,
     painelAuth.status,
-    painelAuth.session?.user?.id,
+    painelSessionUserId,
     googleIdToken,
     usuario?.email,
     usuario?.nome,
     usuario?.papeis,
   ]);
+
+  if (authCarregando) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      </div>
+    );
+  }
 
   if (painelAuth.status === "auth_loading" || painelAuth.status === "syncing") {
     return (
@@ -263,6 +277,7 @@ export default function SenhasAtendentePage() {
       queues={state.queues}
       serviceWindows={state.serviceWindows}
       initialWaiting={state.initialWaiting as never}
+      googleIdToken={googleIdToken}
     />
   );
 }

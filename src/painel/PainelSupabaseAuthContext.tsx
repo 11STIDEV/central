@@ -5,8 +5,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useLocation } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { useAuth } from "@/auth/AuthProvider";
+import { isPublicSenhasKioskPath } from "@/auth/routeAccess";
 import { getPainelSupabase, isPainelSupabaseConfigured } from "@/painel/supabaseClient";
 
 /**
@@ -23,12 +25,19 @@ export type PainelSupabaseAuthState =
 const PainelSupabaseAuthContext = createContext<PainelSupabaseAuthState | null>(null);
 
 export function PainelSupabaseAuthProvider({ children }: { children: ReactNode }) {
+  const location = useLocation();
   const { googleIdToken, usuario, carregando } = useAuth();
   const [state, setState] = useState<PainelSupabaseAuthState>({ status: "auth_loading" });
 
   useEffect(() => {
     if (!isPainelSupabaseConfigured()) {
       setState({ status: "no_config" });
+      return;
+    }
+
+    /** Totem / Painel TV: só leitura com anon key; não exige Google nem sessão Supabase por usuário. */
+    if (isPublicSenhasKioskPath(location.pathname)) {
+      setState({ status: "ready", session: null, syncError: null });
       return;
     }
 
@@ -153,7 +162,7 @@ export function PainelSupabaseAuthProvider({ children }: { children: ReactNode }
       cancelled = true;
       subscription.unsubscribe();
     };
-  }, [carregando, googleIdToken, usuario]);
+  }, [carregando, googleIdToken, usuario, location.pathname]);
 
   return (
     <PainelSupabaseAuthContext.Provider value={state}>{children}</PainelSupabaseAuthContext.Provider>

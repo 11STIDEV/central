@@ -17,10 +17,6 @@ export default function Login() {
     (location.state as { from?: string } | null)?.from,
   );
   const googleButtonRef = useRef<HTMLDivElement>(null);
-  const origemAtual =
-    typeof window !== "undefined" ? window.location.origin : "";
-  const urlAtual = typeof window !== "undefined" ? window.location.href : "";
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
 
   useEffect(() => {
     if (carregando || carregandoGoogle || !googleButtonRef.current) return;
@@ -68,13 +64,8 @@ export default function Login() {
       {/* Formulário */}
       <div className="flex flex-1 flex-col justify-center bg-background px-6 py-12 lg:px-12 lg:py-16">
         <div className="mx-auto w-full max-w-md">
-          <div className="mb-8 lg:hidden">
-            <h2 className="text-xl font-semibold text-foreground">Entrar</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Use sua conta Google institucional.</p>
-          </div>
-
           <div className="rounded-2xl border border-border/80 bg-card/80 p-8 shadow-xl shadow-slate-900/5 backdrop-blur-sm">
-            <div className="mb-6 hidden text-center lg:block">
+            <div className="mb-6 text-center">
               <h2 className="text-lg font-semibold text-card-foreground">Bem-vindo de volta</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Entre com conta Google{" "}
@@ -83,21 +74,6 @@ export default function Login() {
                 <strong className="font-medium text-foreground">@tecscci.com.br</strong>.
               </p>
             </div>
-
-            {import.meta.env.DEV && (
-              <div className="mb-4 rounded-lg border border-border bg-muted/40 p-3 text-[12px] text-muted-foreground">
-                <div>
-                  <strong className="text-foreground">Origem:</strong> {origemAtual}
-                </div>
-                <div className="mt-1">
-                  <strong className="text-foreground">URL:</strong> {urlAtual}
-                </div>
-                <div className="mt-1 break-all">
-                  <strong className="text-foreground">Client ID:</strong>{" "}
-                  {clientId ?? "(não configurado)"}
-                </div>
-              </div>
-            )}
 
             {erro && (
               <Alert variant="destructive" className="mb-4">
@@ -118,12 +94,6 @@ export default function Login() {
               </p>
             )}
           </div>
-
-          <p className="mt-6 text-center text-[11px] leading-relaxed text-muted-foreground">
-            Contas <strong>@portalcci.com.br</strong>, <strong>@faculdadecci.com.br</strong> e{" "}
-            <strong>@tecscci.com.br</strong> são aceitas. O acesso às telas segue a unidade
-            organizacional no Google Workspace.
-          </p>
         </div>
       </div>
     </div>

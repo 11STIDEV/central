@@ -70,10 +70,8 @@ function normalizarCaminhoOu(path) {
 }
 
 const PREFIXOS_PAINEL_ATENDENTE = [normalizarCaminhoOu("/Administrativo/Secretaria")];
-const PREFIXOS_PAINEL_ADMIN = [
-  normalizarCaminhoOu("/Administrativo/Setape"),
-  normalizarCaminhoOu("/Administrativo/Direção"),
-];
+/** Sincronização Supabase: admin do painel só OU Setape (e sub-OUs). */
+const PREFIXOS_PAINEL_ADMIN = [normalizarCaminhoOu("/Administrativo/Setape")];
 
 function ouCobrePrefixo(chave, prefixo) {
   return chave === prefixo || chave.startsWith(`${prefixo}/`);
@@ -783,6 +781,108 @@ app.post("/api/painel/sync-profile", async (req, res) => {
     }
 
     return res.json({ ok: true, synced: true, role });
+  } catch (e) {
+    const st = e.status || 500;
+    if (st === 401 && e.audDoToken) {
+      return res.status(st).json({
+        error: `${e.message} Use o mesmo valor de VITE_GOOGLE_CLIENT_ID no server/.env.`,
+        audDoToken: e.audDoToken,
+      });
+    }
+    return res.status(st).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/painel/call-ticket
+ * Body: { idToken, ticket_id, service_window_id }
+ * Chama a próxima senha (atualiza ticket + insere painel_calls) com service role — evita falha por RLS
+ * quando o totem criou a senha com a chave anon.
+ */
+app.post("/api/painel/call-ticket", async (req, res) => {
+  try {
+    const { idToken, ticket_id, service_window_id } = req.body || {};
+    if (!ticket_id || !service_window_id) {
+      return res.status(400).json({ error: "ticket_id e service_window_id são obrigatórios." });
+    }
+
+    const { email } = await verificarIdTokenUsuario(idToken);
+    const supabaseSrv = getSupabaseAdmin();
+    if (!supabaseSrv) {
+      return res.status(503).json({
+        error:
+          "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no server/.env para chamar senhas pela API.",
+      });
+    }
+
+    const authUser = await findAuthUserByEmail(supabaseSrv, email);
+    if (!authUser) {
+      return res.status(403).json({ error: "Usuário não encontrado no Supabase Auth." });
+    }
+
+    const { data: profile, error: pErr } = await supabaseSrv
+      .from("painel_profiles")
+      .select("id, school_id")
+      .eq("id", authUser.id)
+      .maybeSingle();
+    if (pErr || !profile) {
+      return res.status(403).json({ error: "Perfil do painel não encontrado. Sincronize em /api/painel/sync-profile." });
+    }
+
+    const { data: ticket, error: tErr } = await supabaseSrv
+      .from("painel_tickets")
+      .select("id, school_id, status")
+      .eq("id", ticket_id)
+      .maybeSingle();
+    if (tErr || !ticket) {
+      return res.status(404).json({ error: "Senha não encontrada." });
+    }
+    if (ticket.school_id !== profile.school_id) {
+      return res.status(403).json({ error: "Senha de outra escola." });
+    }
+    if (ticket.status !== "waiting") {
+      return res.status(409).json({ error: "Esta senha já não está na fila de espera." });
+    }
+
+    const { data: sw, error: swErr } = await supabaseSrv
+      .from("painel_service_windows")
+      .select("id")
+      .eq("id", service_window_id)
+      .eq("school_id", profile.school_id)
+      .maybeSingle();
+    if (swErr || !sw) {
+      return res.status(400).json({ error: "Guichê inválido para esta escola." });
+    }
+
+    const calledAt = new Date().toISOString();
+
+    const { data: updated, error: upErr } = await supabaseSrv
+      .from("painel_tickets")
+      .update({ status: "called", called_at: calledAt })
+      .eq("id", ticket_id)
+      .eq("status", "waiting")
+      .select("id");
+
+    if (upErr) {
+      return res.status(500).json({ error: upErr.message });
+    }
+    if (!updated || updated.length === 0) {
+      return res.status(409).json({ error: "Senha já foi chamada ou não está mais na fila." });
+    }
+
+    const { error: insErr } = await supabaseSrv.from("painel_calls").insert({
+      school_id: profile.school_id,
+      ticket_id,
+      service_window_id,
+      attendant_id: profile.id,
+      called_at: calledAt,
+    });
+
+    if (insErr) {
+      return res.status(500).json({ error: insErr.message });
+    }
+
+    return res.json({ ok: true });
   } catch (e) {
     const st = e.status || 500;
     if (st === 401 && e.audDoToken) {

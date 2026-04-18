@@ -80,11 +80,8 @@ const OU_PARA_PAPEL = new Map<string, Papel>([
 ]);
 
 /** Prefixos de OU (inclui sub-OUs) — alinhar ao servidor em `painelPermissoesDoOrgUnit`. */
-const PREFIXOS_PAINEL_ATENDENTE = [normalizarCaminhoOu("/Administrativo/Secretaria")];
-const PREFIXOS_PAINEL_ADMIN = [
-  normalizarCaminhoOu("/Administrativo/Setape"),
-  normalizarCaminhoOu("/Administrativo/Direção"),
-];
+const PREFIXO_OU_SECRETARIA = normalizarCaminhoOu("/Administrativo/Secretaria");
+const PREFIXO_OU_SETAPE = normalizarCaminhoOu("/Administrativo/Setape");
 
 function ouCobrePrefixoPainel(chave: string, prefixo: string): boolean {
   return chave === prefixo || chave.startsWith(`${prefixo}/`);
@@ -118,11 +115,11 @@ function mapearPapeis(tokenPayload: any): Papel[] {
     if (papelOu) {
       papeis.add(papelOu);
     }
-    if (PREFIXOS_PAINEL_ATENDENTE.some((p) => ouCobrePrefixoPainel(chave, p))) {
-      papeis.add("painel_atendente");
+    if (ouCobrePrefixoPainel(chave, PREFIXO_OU_SECRETARIA)) {
+      papeis.add("secretaria");
     }
-    if (PREFIXOS_PAINEL_ADMIN.some((p) => ouCobrePrefixoPainel(chave, p))) {
-      papeis.add("painel_admin");
+    if (ouCobrePrefixoPainel(chave, PREFIXO_OU_SETAPE)) {
+      papeis.add("setape");
     }
   }
 
@@ -303,9 +300,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .filter(Boolean);
       const em = String(payload.email || "").toLowerCase();
       if (allowLocal.length > 0 && em && allowLocal.includes(em)) {
-        papeis = Array.from(new Set([...papeis, "painel_atendente"]));
+        papeis = Array.from(new Set([...papeis, "secretaria", "painel_atendente"]));
         if (import.meta.env.VITE_PAINEL_LOCAL_ROLE === "admin") {
-          papeis = Array.from(new Set([...papeis, "painel_admin"]));
+          papeis = Array.from(new Set([...papeis, "setape", "painel_admin"]));
         }
       }
       setUsuario({

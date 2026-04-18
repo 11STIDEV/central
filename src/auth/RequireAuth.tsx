@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "./AuthProvider";
+import { isPublicSenhasKioskPath } from "./routeAccess";
 
 /** Evita open redirect: só caminhos relativos internos. */
 function destinoAposLogin(path: string | undefined): string {
@@ -12,12 +13,16 @@ function destinoAposLogin(path: string | undefined): string {
 type Props = { children: React.ReactNode };
 
 /**
- * Exige login Google para qualquer rota, exceto `/login`.
+ * Exige login Google para qualquer rota, exceto `/login` e os quiosques públicos do painel (`/senhas/totem`, `/senhas/painel`).
  * Enquanto a sessão é restaurada (localStorage), exibe estado de carregamento.
  */
 export function RequireAuth({ children }: Props) {
   const { usuario, carregando } = useAuth();
   const location = useLocation();
+
+  if (isPublicSenhasKioskPath(location.pathname)) {
+    return <>{children}</>;
+  }
 
   if (carregando) {
     return (
