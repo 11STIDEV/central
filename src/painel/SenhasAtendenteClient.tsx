@@ -22,6 +22,7 @@ import {
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { isPainelDbOnly } from "@/painel/painelEnv";
 import { useChimeSound } from "@/painel/hooks/useChimeSound";
 import { PageHero, PageHeroEyebrow } from "@/components/PageHero";
 
@@ -198,7 +199,8 @@ export default function SenhasAtendenteClient({
           school_id: profile.school_id,
           ticket_id: next.id,
           service_window_id: selectedWindowId,
-          attendant_id: profile.id,
+          /** Sem sessão `auth.users` no Supabase (VITE_PAINEL_DB_ONLY), FK de atendente fica nulo. */
+          attendant_id: isPainelDbOnly() ? null : profile.id,
         });
 
       if (callError) throw callError;
@@ -223,7 +225,7 @@ export default function SenhasAtendenteClient({
         school_id: profile.school_id,
         ticket_id: currentTicket.id,
         service_window_id: selectedWindowId,
-        attendant_id: profile.id,
+        attendant_id: isPainelDbOnly() ? null : profile.id,
       });
 
     toast.info(`Senha ${currentTicket.ticket_code} rechamada.`);

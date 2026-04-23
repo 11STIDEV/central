@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getSchoolSlug, isPainelDbOnly } from "@/painel/painelEnv";
 import { getPainelSupabase } from "@/painel/supabaseClient";
 import { fetchMyProfile } from "@/painel/fetchMyProfile";
 import { Button } from "@/components/ui/button";
@@ -24,14 +25,37 @@ export default function ConfiguracoesPage() {
 
   useEffect(() => {
     async function load() {
+      if (isPainelDbOnly()) {
+        const { data: school, error } = await supabase
+          .from("painel_schools")
+          .select("*")
+          .eq("slug", getSchoolSlug())
+          .maybeSingle();
+        if (!error && school) {
+          setSchoolId(school.id);
+          setForm({
+            name: schoolDisplayName(school.name) ?? school.name,
+            panel_message: school.panel_message ?? "",
+          });
+        }
+        setLoading(false);
+        return;
+      }
+
       const {
         data: { session },
       } = await supabase.auth.getSession();
       const user = session?.user ?? null;
-      if (!user) return;
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
       const profile = await fetchMyProfile();
-      if (!profile) return;
+      if (!profile) {
+        setLoading(false);
+        return;
+      }
       setSchoolId(profile.school_id);
 
       const { data: school } = await supabase

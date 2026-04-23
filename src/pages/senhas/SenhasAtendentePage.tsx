@@ -5,9 +5,13 @@ import { useAuth } from "@/auth/AuthProvider";
 import { getPainelSupabase, isPainelSupabaseConfigured } from "@/painel/supabaseClient";
 import { usePainelSupabaseAuth } from "@/painel/PainelSupabaseAuthContext";
 import { fetchMyProfile } from "@/painel/fetchMyProfile";
-import { getSchoolSlug } from "@/painel/painelEnv";
+import { getOrCreateLocalPainelAttendantId } from "@/painel/painelLocalIdentity";
+import { getSchoolSlug, isPainelDbOnly } from "@/painel/painelEnv";
 import { perfilPainelPorOu } from "@/painel/painelProfileOu";
-import { podePainelAtendente } from "@/painel/painelWorkspaceAccess";
+import {
+  papeisComFallbackListaLocal,
+  podePainelAtendente,
+} from "@/painel/painelWorkspaceAccess";
 import type { Profile, Queue, School, ServiceWindow } from "@/painel/types/database";
 import SenhasAtendenteClient from "@/painel/SenhasAtendenteClient";
 
@@ -43,7 +47,10 @@ export default function SenhasAtendentePage() {
   const [accessDenied, setAccessDenied] = useState<string | null>(null);
 
   useEffect(() => {
-    if (painelAuth.status !== "ready" || !painelAuth.session?.user) {
+    if (painelAuth.status !== "ready") {
+      return;
+    }
+    if (!isPainelDbOnly() && !painelAuth.session?.user) {
       return;
     }
     if (!isPainelSupabaseConfigured()) {
@@ -61,7 +68,7 @@ export default function SenhasAtendentePage() {
         const supabase = getPainelSupabase();
         const idToken = googleIdToken;
         let baseProfile = await fetchMyProfile();
-        if (!baseProfile && idToken) {
+        if (!isPainelDbOnly() && !baseProfile && idToken) {
           for (let i = 0; i < 5; i++) {
             await requestPainelSync(idToken);
             await new Promise((r) => setTimeout(r, 250));
@@ -70,10 +77,12 @@ export default function SenhasAtendentePage() {
             await new Promise((r) => setTimeout(r, 400));
           }
         }
-        const papeis = usuario?.papeis ?? [];
+        const email = usuario?.email ?? painelAuth.session?.user?.email ?? "";
+        const papeis = papeisComFallbackListaLocal(usuario?.papeis ?? [], email);
         const pode = podePainelAtendente(papeis);
-        const uid = painelAuth.session.user.id;
-        const email = usuario?.email ?? painelAuth.session.user.email ?? "";
+        const uid = isPainelDbOnly()
+          ? getOrCreateLocalPainelAttendantId()
+          : painelAuth.session!.user.id;
         const nome = usuario?.nome ?? "";
 
         if (!baseProfile && pode && email) {
@@ -98,10 +107,12 @@ export default function SenhasAtendentePage() {
               papeis.length === 1 && papeis[0] === "usuario";
             setAccessDenied(
               pode
-                ? `Sua OU no Google já permite o painel, mas não foi possível montar o perfil. Confira se existe uma escola em painel_schools com slug "${getSchoolSlug()}" (mesmo valor que VITE_SCHOOL_SLUG). Se as filas/senhas não carregarem, pode ser política (RLS) no Supabase — aí use /api/painel/sync-profile com SUPABASE_SERVICE_ROLE_KEY ou ajuste as policies.`
+                ? `Não foi possível montar o perfil. Confira se existe em painel_schools o slug "${getSchoolSlug()}" (igual a VITE_SCHOOL_SLUG) e o RLS no Supabase.`
                 : soUsuario
-                  ? "A Central não carregou sua OU nem papéis manuais (só aparece o papel \"usuario\"). Inicie a API em outro terminal: `npm run dev:server`. Se sua OU no Google não for Secretaria/Setape/Direção, em `server/.env` use PAINEL_LOCAL_ALLOW_EMAILS=seu@email.com (e o mesmo e-mail em `VITE_PAINEL_LOCAL_ALLOW_EMAILS` no `.env.local`) para testar."
-                  : "Sua conta não tem permissão para o atendente (OU Secretaria ou subpastas, ou Setape/Direção para admin; ou papel manual `painel_atendente` / lista local em `VITE_PAINEL_LOCAL_ALLOW_EMAILS`).",
+                  ? isPainelDbOnly()
+                    ? "Só o papel \"usuario\" no momento. Com a API desligada, adicione seu e-mail em VITE_PAINEL_LOCAL_ALLOW_EMAILS no .env.local (o mesmo e-mail com que fez login no Google), reinicie o npm run dev, e se for admin do painel use também VITE_PAINEL_LOCAL_ROLE=admin. Opcional: suba a API (npm run dev:server) para carregar a OU e papéis reais."
+                    : "A Central não carregou a OU (organização) nem papéis manuais. Rode `npm run dev:server` em paralelo, ou defina VITE_PAINEL_LOCAL_ALLOW_EMAILS=seu@email.com no .env.local (e, se a API estiver ativa, PAINEL_LOCAL_ALLOW_EMAILS no server/.env com o mesmo e-mail)."
+                  : "Sua conta não tem permissão para o atendente (OU Secretaria/Setape/Direção; ou painel_atendente; ou lista VITE_PAINEL_LOCAL_ALLOW_EMAILS com VITE_PAINEL_DB_ONLY).",
             );
           }
           return;
@@ -175,7 +186,7 @@ export default function SenhasAtendentePage() {
     };
   }, [
     painelAuth.status,
-    painelAuth.session?.user?.id,
+    painelAuth.session,
     googleIdToken,
     usuario?.email,
     usuario?.nome,
@@ -204,7 +215,7 @@ export default function SenhasAtendentePage() {
     return <Navigate to="/login" replace />;
   }
 
-  if (painelAuth.status === "ready" && !painelAuth.session?.user) {
+  if (painelAuth.status === "ready" && !isPainelDbOnly() && !painelAuth.session?.user) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 p-6 text-center">
         <p className="max-w-md text-sm text-slate-700">

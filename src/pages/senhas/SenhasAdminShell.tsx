@@ -4,11 +4,16 @@ import { Link, Navigate, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import AdminSidebar from "@/painel/components/AdminSidebar";
 import { fetchMyProfile } from "@/painel/fetchMyProfile";
-import { getSchoolSlug } from "@/painel/painelEnv";
+import { getOrCreateLocalPainelAttendantId } from "@/painel/painelLocalIdentity";
+import { getSchoolSlug, isPainelDbOnly } from "@/painel/painelEnv";
 import { alinharPapelPerfilOu, perfilPainelPorOu } from "@/painel/painelProfileOu";
 import { getPainelSupabase, isPainelSupabaseConfigured } from "@/painel/supabaseClient";
 import { usePainelSupabaseAuth } from "@/painel/PainelSupabaseAuthContext";
-import { podePainelAdmin, podePainelAtendente } from "@/painel/painelWorkspaceAccess";
+import {
+  papeisComFallbackListaLocal,
+  podePainelAdmin,
+  podePainelAtendente,
+} from "@/painel/painelWorkspaceAccess";
 import type { Profile, School } from "@/painel/types/database";
 
 export type PainelAdminOutletContext = { profile: Profile; school: School | null };
@@ -26,7 +31,10 @@ export default function SenhasAdminShell() {
     if (authCarregando) {
       return;
     }
-    if (painelAuth.status !== "ready" || !painelAuth.session?.user) {
+    if (painelAuth.status !== "ready") {
+      return;
+    }
+    if (!isPainelDbOnly() && !painelAuth.session?.user) {
       return;
     }
     if (!isPainelSupabaseConfigured()) {
@@ -42,7 +50,8 @@ export default function SenhasAdminShell() {
       let redirected = false;
       try {
         const supabase = getPainelSupabase();
-        const papeis = usuario?.papeis ?? [];
+        const email = usuario?.email ?? painelAuth.session?.user?.email ?? "";
+        const papeis = papeisComFallbackListaLocal(usuario?.papeis ?? [], email);
         if (!podePainelAdmin(papeis)) {
           if (!cancelled) {
             redirected = true;
@@ -55,8 +64,9 @@ export default function SenhasAdminShell() {
           return;
         }
 
-        const uid = painelAuth.session.user.id;
-        const email = usuario?.email ?? painelAuth.session.user.email ?? "";
+        const uid = isPainelDbOnly()
+          ? getOrCreateLocalPainelAttendantId()
+          : painelAuth.session!.user.id;
         const nome = usuario?.nome ?? "";
 
         let p = await fetchMyProfile();
@@ -111,7 +121,7 @@ export default function SenhasAdminShell() {
   }, [
     authCarregando,
     painelAuth.status,
-    painelAuth.session?.user?.id,
+    painelAuth.session,
     navigate,
     usuario?.email,
     usuario?.nome,
@@ -148,7 +158,7 @@ export default function SenhasAdminShell() {
     return <Navigate to="/login" replace />;
   }
 
-  if (painelAuth.status === "ready" && !painelAuth.session?.user) {
+  if (painelAuth.status === "ready" && !isPainelDbOnly() && !painelAuth.session?.user) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 p-6 text-center">
         <p className="max-w-md text-sm text-slate-700">

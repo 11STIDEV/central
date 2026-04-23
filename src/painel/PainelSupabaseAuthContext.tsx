@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { useAuth } from "@/auth/AuthProvider";
+import { isPainelDbOnly } from "@/painel/painelEnv";
 import { getPainelSupabase, isPainelSupabaseConfigured } from "@/painel/supabaseClient";
 
 /**
@@ -34,6 +35,21 @@ export function PainelSupabaseAuthProvider({ children }: { children: ReactNode }
 
     if (carregando) {
       setState({ status: "auth_loading" });
+      return;
+    }
+
+    /** Só tabelas `painel_*` com a chave anon; sem sessão no Auth do Supabase. */
+    if (isPainelDbOnly()) {
+      if (!usuario) {
+        void getPainelSupabase()
+          .auth.signOut()
+          .catch(() => {
+            /* ignore */
+          });
+        setState({ status: "no_token" });
+        return;
+      }
+      setState({ status: "ready", session: null, syncError: null });
       return;
     }
 
