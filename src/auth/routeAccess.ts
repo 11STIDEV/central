@@ -1,8 +1,11 @@
 import type { Papel } from "./AuthProvider";
 import { podePainelAdmin, podePainelAtendente } from "@/painel/painelWorkspaceAccess";
 
-/** Totem e Painel TV: acesso só por URL direta, sem login Google (quiosque / TV). */
-export const PUBLIC_SENHAS_KIOSK_PATHS = ["/senhas/totem", "/senhas/painel"] as const;
+/**
+ * Rotas do painel de senhas acessíveis **sem** login Google (URL direta):
+ * hub `/senhas`, quiosque totem, painel TV.
+ */
+export const PUBLIC_SENHAS_KIOSK_PATHS = ["/senhas", "/senhas/totem", "/senhas/painel"] as const;
 
 export function isPublicSenhasKioskPath(pathname: string): boolean {
   const p = pathname.replace(/\/+$/, "") || "/";
@@ -48,6 +51,7 @@ export function canAccessRoute(papeis: Papel[], pathname: string): boolean {
     return (
       path === "/login" ||
       path === "/" ||
+      path === "/senhas" ||
       path.startsWith("/senhas/totem") ||
       path.startsWith("/senhas/painel")
     );

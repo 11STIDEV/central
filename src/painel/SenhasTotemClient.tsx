@@ -18,6 +18,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
+import { getPainelBusinessDateIso } from "@/painel/painelBusinessDate";
 
 const QUEUE_ICONS: Record<string, React.ReactNode> = {
   Matrícula: <GraduationCap className="w-10 h-10" />,
@@ -67,6 +68,7 @@ export default function SenhasTotemClient({ school, queues }: TotemClientProps) 
           queue_id: selectedQueue.id,
           number: nextNumber,
           ticket_code: ticketCode,
+          ticket_date: getPainelBusinessDateIso(),
           type,
           status: "waiting",
         })
@@ -77,8 +79,20 @@ export default function SenhasTotemClient({ school, queues }: TotemClientProps) 
 
       setIssuedTicket(data);
       setStep("ticket-issued");
-    } catch {
-      toast.error("Erro ao gerar senha. Tente novamente.");
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error("[totem] issueTicket", e);
+      const msg =
+        e && typeof e === "object" && "message" in e && String((e as { message: string }).message).trim() !== ""
+          ? String((e as { message: string }).message)
+          : "Erro ao gerar senha. Tente novamente.";
+      const code =
+        e && typeof e === "object" && "code" in e
+          ? String((e as { code?: string }).code ?? "")
+          : "";
+      const hint = import.meta.env.DEV && code ? ` [${code}]` : "";
+      const display = msg.length > 220 ? `${msg.slice(0, 220)}…` : msg;
+      toast.error(`${display}${hint}`);
     } finally {
       setLoading(false);
     }

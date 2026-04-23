@@ -13,7 +13,7 @@ function destinoAposLogin(path: string | undefined): string {
 type Props = { children: React.ReactNode };
 
 /**
- * Exige login Google para qualquer rota, exceto `/login` e os quiosques públicos do painel (`/senhas/totem`, `/senhas/painel`).
+ * Exige login Google para qualquer rota, exceto `/login` e o painel de senhas público (`/senhas`, `/senhas/totem`, `/senhas/painel`).
  * Enquanto a sessão é restaurada (localStorage), exibe estado de carregamento.
  */
 export function RequireAuth({ children }: Props) {

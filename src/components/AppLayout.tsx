@@ -39,6 +39,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }
 
   if (
+    location.pathname === "/senhas" ||
     location.pathname === "/senhas/totem" ||
     location.pathname === "/senhas/painel"
   ) {

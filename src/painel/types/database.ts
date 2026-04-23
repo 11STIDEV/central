@@ -38,6 +38,8 @@ export interface Ticket {
   queue_id: string;
   number: number;
   ticket_code: string;
+  /** YYYY-MM-DD (America/Sao_Paulo) quando a tabela tiver a coluna pós-migration. */
+  ticket_date?: string;
   type: QueueType;
   status: TicketStatus;
   called_at: string | null;
