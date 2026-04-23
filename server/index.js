@@ -69,8 +69,12 @@ function normalizarCaminhoOu(path) {
     .toLowerCase();
 }
 
-const PREFIXOS_PAINEL_ATENDENTE = [normalizarCaminhoOu("/Administrativo/Secretaria")];
-/** Sincronização Supabase: admin do painel só OU Setape (e sub-OUs). */
+/** Secretaria e Setape podem atender; Setape também é admin do painel (abaixo). */
+const PREFIXOS_PAINEL_ATENDENTE = [
+  normalizarCaminhoOu("/Administrativo/Secretaria"),
+  normalizarCaminhoOu("/Administrativo/Setape"),
+];
+/** Sincronização Supabase: papel admin no painel = OU Setape (e sub-OUs). */
 const PREFIXOS_PAINEL_ADMIN = [normalizarCaminhoOu("/Administrativo/Setape")];
 
 function ouCobrePrefixo(chave, prefixo) {
@@ -738,11 +742,20 @@ app.post("/api/painel/sync-profile", async (req, res) => {
     }
 
     if (!eligible) {
-      await supabaseSrv.from("painel_profiles").delete().eq("id", authUser.id);
+      // Só remove perfil se a OU veio do Admin e o utilizador não qualifica. Se orgUnitPath
+      // for null/erro de rede, não apagar — senão utilizadores (ex. Setape) perdem acesso
+      // quando a API Google falha intermitentemente ou ainda não há credentials no deploy.
+      const orgConhecida =
+        orgUnitPath != null && String(orgUnitPath).trim() !== "";
+      if (orgConhecida) {
+        await supabaseSrv.from("painel_profiles").delete().eq("id", authUser.id);
+      }
       return res.json({
         ok: true,
         synced: false,
-        reason: "no_painel_workspace_permission",
+        reason: orgConhecida
+          ? "no_painel_workspace_permission"
+          : "org_unavailable_cannot_evaluate",
       });
     }
 

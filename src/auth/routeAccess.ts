@@ -23,6 +23,11 @@ function isSenhasAdminPath(path: string): boolean {
   return path === "/senhas/admin" || path.startsWith("/senhas/admin/");
 }
 
+/** Atendente: autorização detalhada (OU, perfil Supabase) fica no SenhasAtendentePage. */
+function isSenhasAtendentePath(path: string): boolean {
+  return path === "/senhas/atendente" || path.startsWith("/senhas/atendente/");
+}
+
 /**
  * Rotas restritas: só usuários com **pelo menos um** dos papéis listados acessam.
  * Rotas não listadas: qualquer usuário logado pode acessar (exceto regra `isSomenteAluno`).
@@ -59,6 +64,13 @@ export function canAccessRoute(papeis: Papel[], pathname: string): boolean {
   if (isSenhasAuthenticatedPath(path)) {
     if (isSenhasAdminPath(path)) {
       return podePainelAdmin(papeis);
+    }
+    if (isSenhasAtendentePath(path)) {
+      if (podePainelAtendente(papeis)) return true;
+      // Só "usuario" quando /api/organizacao falhou (ex.: service account no Coolify) —
+      // deixa a página carregar e mostrar a mensagem de acesso, em vez de bloquear a rota.
+      if (isSomenteAluno(papeis)) return false;
+      return true;
     }
     return podePainelAtendente(papeis);
   }

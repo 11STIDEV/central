@@ -105,7 +105,7 @@ export default function SenhasAtendentePage() {
               pode
                 ? `Sua OU no Google já permite o painel, mas não foi possível montar o perfil. Confira se existe uma escola em painel_schools com slug "${getSchoolSlug()}" (mesmo valor que VITE_SCHOOL_SLUG). Se as filas/senhas não carregarem, pode ser política (RLS) no Supabase — aí use /api/painel/sync-profile com SUPABASE_SERVICE_ROLE_KEY ou ajuste as policies.`
                 : soUsuario
-                  ? "A Central não carregou sua OU nem papéis manuais (só aparece o papel \"usuario\"). Inicie a API em outro terminal: `npm run dev:server`. Se sua OU no Google não for Secretaria ou Setape, em `server/.env` use PAINEL_LOCAL_ALLOW_EMAILS=seu@email.com (e o mesmo e-mail em `VITE_PAINEL_LOCAL_ALLOW_EMAILS` no `.env.local`) para testar."
+                  ? "A Central não carregou sua OU (só o papel \"usuario\"). Em produção (Coolify), confira: GOOGLE_CLIENT_ID = mesmo Client ID do front, GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_ADMIN_IMPERSONATE, SUPABASE_SERVICE_ROLE_KEY, e o escopo de delegação (Admin SDK). Em dev: rode `npm run dev:server` e teste com PAINEL_LOCAL_ALLOW_EMAILS / VITE_PAINEL_LOCAL_ALLOW_EMAILS se precisar."
                   : "Sua conta não tem permissão para o atendente. O painel exige OU em Secretaria ou Setape (ou papel manual `painel_atendente` / lista local em `VITE_PAINEL_LOCAL_ALLOW_EMAILS`).",
             );
           }

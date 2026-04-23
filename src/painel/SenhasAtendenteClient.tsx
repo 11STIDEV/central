@@ -24,6 +24,8 @@ import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useChimeSound } from "@/painel/hooks/useChimeSound";
 import { PageHero, PageHeroEyebrow } from "@/components/PageHero";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Link } from "react-router-dom";
 
 function labelGuiche(w: ServiceWindow) {
   return `${w.name} · Guichê ${w.number}`;
@@ -200,6 +202,8 @@ export default function SenhasAtendenteClient({
         });
         const data = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
         if (!res.ok) {
+          // eslint-disable-next-line no-console
+          console.error("[call-ticket]", res.status, data);
           throw new Error(data.error || `Erro ${res.status}`);
         }
       } else {
@@ -231,11 +235,9 @@ export default function SenhasAtendenteClient({
     } catch (e) {
       const msg =
         e instanceof Error ? e.message : "Erro ao chamar próxima senha.";
-      toast.error(msg.length > 180 ? `${msg.slice(0, 180)}…` : msg);
-      if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
-        console.error("[callNext]", e);
-      }
+      toast.error(msg.length > 200 ? `${msg.slice(0, 200)}…` : msg);
+      // eslint-disable-next-line no-console
+      console.error("[callNext]", e);
     } finally {
       setCalling(false);
     }
@@ -302,6 +304,16 @@ export default function SenhasAtendenteClient({
       </PageHero>
 
       <div className="mx-auto w-full max-w-5xl px-4 py-8 md:px-8">
+        {!googleIdToken ? (
+          <Alert className="mb-6 border-amber-200 bg-amber-50/90 text-amber-950">
+            <AlertTitle className="text-amber-900">Sessão Google incompleta</AlertTitle>
+            <AlertDescription className="text-amber-900/90">
+              Para chamar senhas em produção a API precisa do seu identificador Google. Saia e entre de novo
+              em <Link to="/login" className="font-medium underline">Login</Link>, depois abra o atendente
+              outra vez. Se o aviso continuar, limpe o armazenamento do site e faça login de novo.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left column: Controls */}
         <div className="lg:col-span-2 space-y-4">
