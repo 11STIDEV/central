@@ -1,7 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "./AuthProvider";
-import { isPublicSenhasKioskPath } from "./routeAccess";
+import { isDevOnlyPath, isPublicSenhasKioskPath } from "./routeAccess";
 
 /** Evita open redirect: só caminhos relativos internos. */
 function destinoAposLogin(path: string | undefined): string {
@@ -21,6 +21,10 @@ export function RequireAuth({ children }: Props) {
   const location = useLocation();
 
   if (isPublicSenhasKioskPath(location.pathname)) {
+    return <>{children}</>;
+  }
+
+  if (isDevOnlyPath(location.pathname)) {
     return <>{children}</>;
   }
 

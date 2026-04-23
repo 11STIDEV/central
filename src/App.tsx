@@ -25,6 +25,7 @@ import SenhasAdminGuiches from "./pages/senhas/SenhasAdminGuiches";
 import SenhasAdminAtendentes from "./pages/senhas/SenhasAdminAtendentes";
 import SenhasAdminRelatorios from "./pages/senhas/SenhasAdminRelatorios";
 import SenhasAdminConfiguracoes from "./pages/senhas/SenhasAdminConfiguracoes";
+import SupabaseTestPage from "./pages/dev/SupabaseTestPage";
 
 const queryClient = new QueryClient();
 
@@ -42,6 +43,9 @@ const App = () => (
                 <RouteGuard>
                   <Routes>
                     <Route path="/login" element={<Login />} />
+                    {import.meta.env.DEV && (
+                      <Route path="/dev/supabase" element={<SupabaseTestPage />} />
+                    )}
                     <Route path="/" element={<Index />} />
                     <Route
                       path="/admin/papeis-manuais"

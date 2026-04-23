@@ -12,6 +12,13 @@ export function isPublicSenhasKioskPath(pathname: string): boolean {
   return (PUBLIC_SENHAS_KIOSK_PATHS as readonly string[]).includes(p);
 }
 
+/** Rotas de ferramentas locais (só `npm run dev` — registo no App com `import.meta.env.DEV`). */
+export function isDevOnlyPath(pathname: string): boolean {
+  if (!import.meta.env.DEV) return false;
+  const p = pathname.replace(/\/+$/, "") || "/";
+  return p === "/dev" || p.startsWith("/dev/");
+}
+
 function isSenhasAuthenticatedPath(path: string): boolean {
   if (path === "/senhas" || path.startsWith("/senhas/")) {
     return !isPublicSenhasKioskPath(path);
@@ -51,6 +58,7 @@ function normalizarPath(pathname: string): string {
 /** Indica se o usuário (pelos papéis) pode acessar a rota. Rotas não restritas → true. */
 export function canAccessRoute(papeis: Papel[], pathname: string): boolean {
   const path = normalizarPath(pathname);
+  if (isDevOnlyPath(path)) return true;
   if (papeis.includes("admin")) return true;
   if (isSomenteAluno(papeis)) {
     return (

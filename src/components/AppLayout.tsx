@@ -38,6 +38,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     return <div className="min-h-screen w-full">{children}</div>;
   }
 
+  if (import.meta.env.DEV && (location.pathname === "/dev" || location.pathname.startsWith("/dev/"))) {
+    return <div className="min-h-screen w-full">{children}</div>;
+  }
+
   if (
     location.pathname === "/senhas" ||
     location.pathname === "/senhas/totem" ||
