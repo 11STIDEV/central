@@ -6,11 +6,13 @@ import { AppSidebarNav } from "@/components/AppSidebarNav";
 import { SidebarBrandLogo } from "@/components/SidebarBrandLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
+  INTRANET_NAV_ATENDENTE_APENAS,
   INTRANET_NAV_SECTIONS,
   filterNavByAccess,
   mergeNavExtras,
 } from "@/navigation/intranetNavConfig";
 import { useNavExtras } from "@/navigation/useNavExtras";
+import { isApenasAtendenteSecretaria } from "@/auth/routeAccess";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -20,10 +22,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const { usuario, logout } = useAuth();
   const papeis = usuario?.papeis ?? [];
   const extras = useNavExtras();
-  const navSections = useMemo(
-    () => filterNavByAccess(papeis, mergeNavExtras(INTRANET_NAV_SECTIONS, extras)),
-    [papeis, extras],
-  );
+  const navSections = useMemo(() => {
+    if (isApenasAtendenteSecretaria(papeis)) {
+      return INTRANET_NAV_ATENDENTE_APENAS;
+    }
+    return filterNavByAccess(papeis, mergeNavExtras(INTRANET_NAV_SECTIONS, extras));
+  }, [papeis, extras]);
 
   useEffect(() => {
     setMobileOpen(false);

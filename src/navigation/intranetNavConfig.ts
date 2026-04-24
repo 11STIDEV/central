@@ -12,6 +12,7 @@ import {
   Phone,
   Shield,
   ShieldCheck,
+  MonitorSpeaker,
   Ticket,
   UserCog,
   Wallet,
@@ -149,6 +150,22 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
       { title: "Financeiro — Vales", url: "/financeiro/vales-adiantamento", icon: CircleDollarSign },
       { title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog },
       { title: "Painel de senhas", url: "/senhas", icon: Hash },
+    ],
+  },
+];
+
+/** Menu mínimo: só atendente da secretaria (ver `isApenasAtendenteSecretaria` no routeAccess). */
+export const INTRANET_NAV_ATENDENTE_APENAS: NavSection[] = [
+  {
+    id: "painel-atendente",
+    label: "Painel de senhas",
+    type: "flat",
+    items: [
+      {
+        title: "Atendente — chamar senha",
+        url: "/senhas/atendente",
+        icon: MonitorSpeaker,
+      },
     ],
   },
 ];
