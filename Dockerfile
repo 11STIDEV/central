@@ -8,7 +8,9 @@ FROM node:20-bookworm-slim AS frontend-build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# postinstall = npm install --prefix server, mas ainda não existe ./server/ nesta camada.
+# O build do Vite não usa as deps do server (instaladas no estágio de runtime abaixo).
+RUN npm ci --ignore-scripts
 
 COPY . .
 

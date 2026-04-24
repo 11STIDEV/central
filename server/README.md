@@ -104,6 +104,10 @@ Use **um único** recurso a correr a imagem do **`Dockerfile` na raiz** do repos
 3. **Build Arguments** (só *frontend*, embutidos no `npm run build`): exatamente as `VITE_*` que o `Dockerfile` declara (`VITE_GOOGLE_CLIENT_ID`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SCHOOL_SLUG`, opcionais de playlist/overlay, `VITE_API_BASE_URL` só se necessário). Com um só serviço, **não** defina `VITE_API_BASE_URL` (o front usa a mesma origem). **Não** uses este painel para credenciais do **servidor** (ver caixa *Build que falha* abaixo).
 4. **Variáveis de ambiente** (runtime, **após** a imagem subir): as do `server/.env.example` — `GOOGLE_CLIENT_ID`, `GOOGLE_ADMIN_IMPERSONATE`, **`GOOGLE_SERVICE_ACCOUNT_JSON`** (JSON completo numa **linha**, num *secret* do Coolify) ou ficheiro + `GOOGLE_SERVICE_ACCOUNT_PATH`, `DOMINIOS_PERMITIDOS`, `PORT` se precisar, e se usar painel `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PAINEL_SCHOOL_SLUG`. Isto fica no separador de **ambiente** / **env** do serviço, **não** em “Build”.
 
+#### Build a falhar (`npm ci` / `ENOENT ... /app/server/package.json`)
+
+O `package.json` da raiz tem `postinstall` que instala `server/`. No Docker, o `npm ci` corre **antes** de `COPY . .`, por isso não existia `server/package.json`. A imagem usa `npm ci --ignore-scripts` no estágio do Vite; as dependências do `server/` instalam-se no **segundo** estágio do `Dockerfile`. Se fores à mão o `npm ci` sem `--ignore-scripts` no mesmo contexto, volta o mesmo erro.
+
 #### Build a falhar (Docker: `unexpected end of statement` / aspas a partir)
 
 O Coolify (ou o teu ficheiro local) fica com um `Dockerfile` enorme (dezenas de kB) **se** alguém colou o JSON da *service account* ou `GOOGLE_SERVICE_ACCOUNT_PATH={...` nas **Build arguments**. O motor do Docker lê o `ARG ...` **literal**; JSON tem `"` e `\\n` e **torna a sintaxe inválida**. O log pode mostrar ainda lixo como `ARG "private_key":` (nome de chave a ser tratado como instrução).
