@@ -2,6 +2,19 @@
 
 Esta API **não armazena dados**. Ela só consulta o **Google Admin SDK Directory** para obter a unidade organizacional (OU) do usuário logado e devolver ao frontend, que usa a OU para definir permissões (TI, Financeiro, Almoxarifado, etc.).
 
+## Checklist (resumo)
+
+| # | O quê | Onde |
+|---|--------|------|
+| 1 | **Admin SDK API** habilitada | Google Cloud → Library |
+| 2 | **Service account** + JSON de chave + **Domain-Wide Delegation** ligada | Google Cloud → Credentials |
+| 3 | No **Admin do Workspace**: Client ID **numérico da service account** (não o OAuth do app) + escopo `.../admin.directory.user.readonly` | [admin.google.com](https://admin.google.com) → Segurança / API controls |
+| 4 | `server/.env` com `GOOGLE_CLIENT_ID` (igual ao `VITE_GOOGLE_CLIENT_ID`), `GOOGLE_ADMIN_IMPERSONATE`, `GOOGLE_SERVICE_ACCOUNT_PATH` (ou `JSON`) | pasta `server/` |
+| 5 | `npm run dev` na **raiz** (Vite) e `npm run dev` em **`server/`** (porta 3001) | dois terminais, ou `npm run dev:all` na raiz |
+| 6 | No browser: login Google → a Central chama `POST /api/organizacao` → resposta com `orgUnitPath` | DevTools / rede |
+
+> **Atenção:** no passo 3, o “Client ID” colado no Admin é o da **service account** (só números, tela de detalhes da conta de serviço). **Não** use o `xxx.apps.googleusercontent.com` do login OAuth do front — esse outro ID só vai em `GOOGLE_CLIENT_ID` / `VITE_GOOGLE_CLIENT_ID` para validar o token do usuário.
+
 ## O que você precisa
 
 1. **Google Cloud** – mesmo projeto onde está o OAuth Client ID do frontend.
@@ -39,11 +52,11 @@ Na pasta `server/`, crie um arquivo `.env` (use o `.env.example` como base):
 
 | Variável | Descrição |
 |----------|-----------|
-| `GOOGLE_CLIENT_ID` | Mesmo Client ID OAuth do frontend (o que está no `.env.local` como `VITE_GOOGLE_CLIENT_ID`). |
+| `GOOGLE_CLIENT_ID` | O **Client ID** do **OAuth 2.0 (tipo Web app)** usado no login — o mesmo do `.env.local` da raiz (`VITE_GOOGLE_CLIENT_ID`). Não confundir com o ID numérico da service account. |
 | `GOOGLE_ADMIN_IMPERSONATE` | E-mail de um **admin** do Google Workspace (ex.: `admin@portalcci.com.br`). Será usado como “subject” nas chamadas ao Admin SDK. |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | Conteúdo **completo** do JSON da chave (uma linha). **Ou** use `GOOGLE_SERVICE_ACCOUNT_PATH` para apontar para um arquivo. |
 | `GOOGLE_SERVICE_ACCOUNT_PATH` | Caminho para o arquivo JSON da chave (ex.: `./service-account-key.json`). Não commite esse arquivo. |
-| `DOMINIO_PERMITIDO` | (Opcional) Domínio permitido; padrão: `@portalcci.com.br`. |
+| `DOMINIOS_PERMITIDOS` | E-mails cujo sufixo pode usar a API (vírgula). Alinhe aos domínios do Workspace (ex.: `@portalcci.com.br`). |
 | `PORT` | (Opcional) Porta da API; padrão: `3001`. |
 
 **Exemplo de `.env`** (usando arquivo da chave):
@@ -86,3 +99,8 @@ A API sobe em `http://localhost:3001`. O frontend (Vite) está configurado para 
 O mapeamento está em `src/auth/AuthProvider.tsx` (`OU_PARA_PAPEL` + `mapearPapeis`): cada caminho de OU do Workspace corresponde a um papel (ex.: `/Administrativo/DP` → `dp`, `/Administrativo/Almoxarifado` → `almoxarifado`). Ajuste a tabela se os caminhos no Admin forem diferentes.
 
 As **permissões por rota** (quem acessa TI, almox, financeiro de vales, etc.) ficam em `src/auth/routeAccess.ts` (`ROTAS_PAPEIS_OBRIGATORIOS` + `canAccessRoute`).
+
+## Depois que a OU estiver carregando
+
+- No `.env.local` da **raiz**, pode remover ou deixar em branco `VITE_PAINEL_LOCAL_ALLOW_EMAILS` se não precisar mais de “bypass” sem OU.
+- Se usava `VITE_PAINEL_DB_ONLY` só para pular o Auth do **Supabase** no painel, pode manter; isso **não** afeta a leitura da OU (ela vem da API + Google, não do Supabase).

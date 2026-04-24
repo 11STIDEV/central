@@ -36,6 +36,9 @@ npm i
 npm run dev
 ```
 
+**Google Workspace (OUs / papéis por unidade organizacional)**  
+Configure a API em `server/` (service account + Admin SDK) e rode `npm run dev` em `server` em paralelo ou use `npm run dev:all`. Passo a passo: [server/README.md](server/README.md).
+
 **Edit a file directly in GitHub**
 
 - Navigate to the desired file(s).
