@@ -255,7 +255,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const baseHint = getApiBaseUrl()
               ? ` API configurada: ${getApiBaseUrl()}.`
               : "";
-            msg = `HTTP 405 (Método não permitido). O pedido POST a /api/organizacao não chegou ao Node.${baseHint} Em Coolify, use um único serviço que corra a imagem Docker (API + ficheiros estáticos) ou reencaminhe /api com POST para a API. Se o front e a API tiverem URLs diferentes, defina VITE_API_BASE_URL no build e reconstrua. Se testou com \`vite preview\`, a API em :3001 tem de estar no ar.`;
+            msg = `HTTP 405 (Método não permitido). O pedido POST a /api/organizacao não chegou ao Node.${baseHint} Causa muito comum: no Coolify a aplicação está como *static site* (Nginx) — aí o POST a /api é bloqueado. Desative *Is it a static site?*, use *Dockerfile* na raiz, porta 3001, e confirme GET /api/health. Se a API for outro URL, use VITE_API_BASE_URL no build ou CENTRAL_API_BASE_URL (runtime) e reconstrua/reinicie.`;
           } else {
             msg =
               typeof data.error === "string"

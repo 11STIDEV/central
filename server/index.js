@@ -1097,18 +1097,56 @@ function shouldServeStatic() {
   return process.env.NODE_ENV === "production";
 }
 
+function escapeHtmlAttr(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;");
+}
+
+const INDEX_PATH = path.join(DIST_DIR, "index.html");
+
+/**
+ * Injete `CENTRAL_API_BASE_URL` (ou `PUBLIC_API_URL`) no meta `central-api-base` para o front
+ * fazer `fetch` na URL pública correta sem novo build (p.ex. API noutro subdomínio no Coolify).
+ * Não servir o index “cru” via express.static, senão a injeção nunca corria.
+ */
+function sendIndexHtml(res, next) {
+  if (!fs.existsSync(INDEX_PATH)) {
+    return res.status(500).type("text/plain").send("index.html em falta (dist/).");
+  }
+  try {
+    const apiBase = (
+      process.env.CENTRAL_API_BASE_URL ||
+      process.env.PUBLIC_API_URL ||
+      ""
+    ).trim();
+    const escaped = escapeHtmlAttr(apiBase);
+    let html = fs.readFileSync(INDEX_PATH, "utf8");
+    if (!/<meta\s+name="central-api-base"/i.test(html)) {
+      return res.type("text/html; charset=utf-8").send(html);
+    }
+    html = html.replace(
+      /(<meta\s+name="central-api-base"\s+content=")([^"]*)("\s*\/?>)/i,
+      `$1${escaped}$3`,
+    );
+    return res.type("text/html; charset=utf-8").send(html);
+  } catch (e) {
+    next(e);
+  }
+}
+
 if (shouldServeStatic() && fs.existsSync(DIST_DIR)) {
   if (process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production") {
     app.set("trust proxy", 1);
   }
-  app.use(express.static(DIST_DIR));
+  /* index: false — nunca servir dist/index.html “cru” a partir do static (precisamos injetar a meta) */
+  app.use(express.static(DIST_DIR, { index: false }));
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api")) {
       return res.status(404).json({ error: "Not found" });
     }
-    res.sendFile(path.join(DIST_DIR, "index.html"), (err) => {
-      if (err) next(err);
-    });
+    return sendIndexHtml(res, next);
   });
 } else if (shouldServeStatic() && !fs.existsSync(DIST_DIR)) {
   console.warn(`[static] Produção esperada mas dist/ ausente em ${DIST_DIR}. Rode npm run build na raiz ou defina SERVE_STATIC=0.`);

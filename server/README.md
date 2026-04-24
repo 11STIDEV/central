@@ -105,6 +105,12 @@ Use **um único** recurso a correr a imagem do **`Dockerfile` na raiz** do repos
 4. **Variáveis de ambiente** (runtime, servidor): as do `server/.env.example` — em especial `GOOGLE_CLIENT_ID` (igual ao `VITE_GOOGLE_CLIENT_ID`), `GOOGLE_ADMIN_IMPERSONATE`, `GOOGLE_SERVICE_ACCOUNT_JSON` (recomendado) ou ficheiro montado + `GOOGLE_SERVICE_ACCOUNT_PATH`, `DOMINIOS_PERMITIDOS`, e se usar painel, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PAINEL_SCHOOL_SLUG`.
 5. **Verificação** — no browser: `https://<seu-dominio>/api/health` deve responder `{"ok":true}`. Se obtiver 405 ou HTML de *fallback*, o tráfego ainda **não** está a bater no contentor Node.
 
+### Ainda vê 405 no POST /api/organizacao?
+
+- **A app está em modo *static*?** Nesse tipo de deploy o Coolify costuma pôr Nginx na frente; **POST** a `/api` dá **405** porque o Nginx trata a rota como ficheiro estático (só GET/HEAD). **Desative** *Is it a static site* e use **só** o **Dockerfile** (Node) com **um** serviço; não misture *static* com a mesma app se a API for no Node.
+- **Teste** no servidor ou no PC: `curl -sS "https://<domínio>/api/health"` — tem de sair `{"ok":true}`. Se for HTML ou 405, o tráfego **não** chega ao `node index.js` da imagem.
+- Se no Coolify tiveres **dois** recursos (estático + API) com **URLs distintas**, no build (ou com variável de runtime no servidor) define a base da API: **`VITE_API_BASE_URL`** no *build* ou **`CENTRAL_API_BASE_URL`** / **`PUBLIC_API_URL`** no *runtime* (o servidor injeta no `index.html` a meta `central-api-base`).
+
 ## Mapeamento OU → papéis (frontend)
 
 O mapeamento está em `src/auth/AuthProvider.tsx` (`OU_PARA_PAPEL` + `mapearPapeis`): cada caminho de OU do Workspace corresponde a um papel (ex.: `/Administrativo/DP` → `dp`, `/Administrativo/Almoxarifado` → `almoxarifado`). Ajuste a tabela se os caminhos no Admin forem diferentes.

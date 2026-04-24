@@ -13,6 +13,16 @@ export function getApiBaseUrl(): string {
   if (typeof raw === "string" && raw.trim() !== "") {
     return raw.trim().replace(/\/+$/, "");
   }
+  // Produção: o servidor Node pode injetar a base da API (sem rebuild) — ver CENTRAL_API_BASE_URL no .env
+  if (import.meta.env.PROD && typeof document !== "undefined") {
+    const m = document
+      .querySelector('meta[name="central-api-base"]')
+      ?.getAttribute("content")
+      ?.trim();
+    if (m) {
+      return m.replace(/\/+$/, "");
+    }
+  }
   if (import.meta.env.DEV) {
     if (typeof window === "undefined") {
       return "";
