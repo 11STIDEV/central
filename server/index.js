@@ -95,7 +95,7 @@ function painelPermissoesDoOrgUnit(orgUnitPath) {
   };
 }
 
-/** E-mails que podem usar o painel sem bater OU (dev/teste). Mesmo valor que VITE_PAINEL_LOCAL_ALLOW_EMAILS no front. */
+/** Legado: e-mails que podem passar no sync de perfil do painel sem critério de OU (dev/teste). Não usado no front. */
 const PAINEL_LOCAL_ALLOW_EMAILS = (process.env.PAINEL_LOCAL_ALLOW_EMAILS || "")
   .split(",")
   .map((s) => s.trim().toLowerCase())

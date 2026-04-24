@@ -4,6 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "postinstall": "npm install --prefix server",
     "dev": "vite",
     "dev:server": "cd server && npm run dev",
     "dev:all": "concurrently -n vite,api -c cyan,magenta \"npm run dev\" \"npm run dev:server\"",

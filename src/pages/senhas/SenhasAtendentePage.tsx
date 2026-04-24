@@ -8,10 +8,7 @@ import { fetchMyProfile } from "@/painel/fetchMyProfile";
 import { getOrCreateLocalPainelAttendantId } from "@/painel/painelLocalIdentity";
 import { getSchoolSlug, isPainelDbOnly } from "@/painel/painelEnv";
 import { perfilPainelPorOu } from "@/painel/painelProfileOu";
-import {
-  papeisComFallbackListaLocal,
-  podePainelAtendente,
-} from "@/painel/painelWorkspaceAccess";
+import { podePainelAtendente } from "@/painel/painelWorkspaceAccess";
 import type { Profile, Queue, School, ServiceWindow } from "@/painel/types/database";
 import SenhasAtendenteClient from "@/painel/SenhasAtendenteClient";
 
@@ -33,7 +30,7 @@ async function requestPainelSync(idToken: string) {
 }
 
 export default function SenhasAtendentePage() {
-  const { usuario, googleIdToken } = useAuth();
+  const { usuario, googleIdToken, organizacaoErro } = useAuth();
   const painelAuth = usePainelSupabaseAuth();
   const [state, setState] = useState<{
     profile: ProfileWithSw | null;
@@ -78,7 +75,7 @@ export default function SenhasAtendentePage() {
           }
         }
         const email = usuario?.email ?? painelAuth.session?.user?.email ?? "";
-        const papeis = papeisComFallbackListaLocal(usuario?.papeis ?? [], email);
+        const papeis = usuario?.papeis ?? [];
         const pode = podePainelAtendente(papeis);
         const uid = isPainelDbOnly()
           ? getOrCreateLocalPainelAttendantId()
@@ -109,10 +106,10 @@ export default function SenhasAtendentePage() {
               pode
                 ? `Não foi possível montar o perfil. Confira se existe em painel_schools o slug "${getSchoolSlug()}" (igual a VITE_SCHOOL_SLUG) e o RLS no Supabase.`
                 : soUsuario
-                  ? isPainelDbOnly()
-                    ? "Só o papel \"usuario\" no momento. Com a API desligada, adicione seu e-mail em VITE_PAINEL_LOCAL_ALLOW_EMAILS no .env.local (o mesmo e-mail com que fez login no Google), reinicie o npm run dev, e se for admin do painel use também VITE_PAINEL_LOCAL_ROLE=admin. Opcional: suba a API (npm run dev:server) para carregar a OU e papéis reais."
-                    : "A Central não carregou a OU (organização) nem papéis manuais. Rode `npm run dev:server` em paralelo, ou defina VITE_PAINEL_LOCAL_ALLOW_EMAILS=seu@email.com no .env.local (e, se a API estiver ativa, PAINEL_LOCAL_ALLOW_EMAILS no server/.env com o mesmo e-mail)."
-                  : "Sua conta não tem permissão para o atendente (OU Secretaria/Setape/Direção; ou painel_atendente; ou lista VITE_PAINEL_LOCAL_ALLOW_EMAILS com VITE_PAINEL_DB_ONLY).",
+                  ? organizacaoErro
+                    ? `Não foi possível obter a OU no Google. Detalhe: ${organizacaoErro} — Veja server/README.md (GOOGLE_SERVICE_ACCOUNT_PATH ou GOOGLE_SERVICE_ACCOUNT_JSON, GOOGLE_ADMIN_IMPERSONATE, mesmo VITE_GOOGLE_CLIENT_ID no server/.env).`
+                    : "A Central ainda não tem a unidade organizacional (OU) do Google: a API precisa responder em http://127.0.0.1:3001 e o Google Admin SDK deve estar configurado em `server/.env` conforme `server/README.md`. Sem a OU, não dá para aplicar as regras por secretaria / Setape / Direção."
+                  : "Sem permissão para o atendente do painel: no Google Admin, o seu utilizador tem de estar numa OU coberta pelas regras (ex.: Secretaria e subfilas para atendente; Setape ou Direção para admin do painel). Ver `PREFIXOS_PAINEL_*` em `src/auth/AuthProvider.tsx`.",
             );
           }
           return;
@@ -188,6 +185,7 @@ export default function SenhasAtendentePage() {
     painelAuth.status,
     painelAuth.session,
     googleIdToken,
+    organizacaoErro,
     usuario?.email,
     usuario?.nome,
     usuario?.papeis,

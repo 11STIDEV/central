@@ -9,11 +9,7 @@ import { getSchoolSlug, isPainelDbOnly } from "@/painel/painelEnv";
 import { alinharPapelPerfilOu, perfilPainelPorOu } from "@/painel/painelProfileOu";
 import { getPainelSupabase, isPainelSupabaseConfigured } from "@/painel/supabaseClient";
 import { usePainelSupabaseAuth } from "@/painel/PainelSupabaseAuthContext";
-import {
-  papeisComFallbackListaLocal,
-  podePainelAdmin,
-  podePainelAtendente,
-} from "@/painel/painelWorkspaceAccess";
+import { podePainelAdmin, podePainelAtendente } from "@/painel/painelWorkspaceAccess";
 import type { Profile, School } from "@/painel/types/database";
 
 export type PainelAdminOutletContext = { profile: Profile; school: School | null };
@@ -51,7 +47,7 @@ export default function SenhasAdminShell() {
       try {
         const supabase = getPainelSupabase();
         const email = usuario?.email ?? painelAuth.session?.user?.email ?? "";
-        const papeis = papeisComFallbackListaLocal(usuario?.papeis ?? [], email);
+        const papeis = usuario?.papeis ?? [];
         if (!podePainelAdmin(papeis)) {
           if (!cancelled) {
             redirected = true;

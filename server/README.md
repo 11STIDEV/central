@@ -102,5 +102,6 @@ As **permissões por rota** (quem acessa TI, almox, financeiro de vales, etc.) f
 
 ## Depois que a OU estiver carregando
 
-- No `.env.local` da **raiz**, pode remover ou deixar em branco `VITE_PAINEL_LOCAL_ALLOW_EMAILS` se não precisar mais de “bypass” sem OU.
-- Se usava `VITE_PAINEL_DB_ONLY` só para pular o Auth do **Supabase** no painel, pode manter; isso **não** afeta a leitura da OU (ela vem da API + Google, não do Supabase).
+- As rotas e o painel de senhas usam **OUs** mapeadas no frontend (ver seção “Mapeamento OU” acima). Não há mais bypass por e-mail no `.env.local` da raiz.
+- `VITE_PAINEL_DB_ONLY` continua a servir **só** para pular o Auth do Supabase no painel, se quiser; isso **não** afeta a leitura da OU (API + Google).
+- Opcional no **servidor** (`PAINEL_LOCAL_ALLOW_EMAILS`): só entra no fluxo de `POST /api/painel/sync-profile` (legado; prefira ajustar a OU no Google Admin).

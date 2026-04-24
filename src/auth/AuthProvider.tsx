@@ -32,6 +32,11 @@ type AuthContextType = {
   usuario: UsuarioLogado | null;
   /** ID token atual (mesmo da sessão) para `POST /api/*` autenticados; null se não logado. */
   googleIdToken: string | null;
+  /**
+   * Último erro de `POST /api/organizacao` (ex.: serviço sem service account) ou de rede;
+   * null se a resposta OK ou ainda não carregou.
+   */
+  organizacaoErro: string | null;
   /** True até terminar de tentar restaurar sessão (localStorage + validade do token). */
   carregando: boolean;
   /** True até o script `gsi/client` carregar (necessário só para o botão na página de login). */
@@ -169,6 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [carregando, setCarregando] = useState(true);
   const [carregandoGoogle, setCarregandoGoogle] = useState(true);
   const [erro, setErro] = useState<string | undefined>(undefined);
+  const [organizacaoErro, setOrganizacaoErro] = useState<string | null>(null);
   const inicializadoRef = useRef(false);
 
   useEffect(() => {
@@ -247,6 +253,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             typeof data.error === "string"
               ? data.error
               : `HTTP ${res.status}`;
+          const detalhe =
+            typeof data.detalhe === "string" && data.detalhe.trim() !== ""
+              ? ` ${data.detalhe}`
+              : "";
+          setOrganizacaoErro(`${msg}${detalhe}`);
           if (import.meta.env.DEV) {
             // eslint-disable-next-line no-console
             console.warn("[api/organizacao] erro:", msg, data);
@@ -258,12 +269,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
           }
         } else {
+          setOrganizacaoErro(null);
           const raw = data.orgUnitPath ?? data.org_unit_path;
           if (typeof raw === "string") {
             orgUnitPath = raw;
           }
         }
       } catch (e) {
+        setOrganizacaoErro(
+          "A API em http://127.0.0.1:3001 não respondeu. Confirme se a API arrancou (npm run dev:all ou cd server && npm run dev) e se já correu `npm install` em server/.",
+        );
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
           console.warn(
@@ -295,18 +310,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {
         /* papéis manuais opcionais se a API estiver indisponível */
-      }
-      const allowLocalRaw = import.meta.env.VITE_PAINEL_LOCAL_ALLOW_EMAILS || "";
-      const allowLocal = allowLocalRaw
-        .split(",")
-        .map((s) => s.trim().toLowerCase())
-        .filter(Boolean);
-      const em = String(payload.email || "").toLowerCase();
-      if (allowLocal.length > 0 && em && allowLocal.includes(em)) {
-        papeis = Array.from(new Set([...papeis, "painel_atendente"]));
-        if (import.meta.env.VITE_PAINEL_LOCAL_ROLE === "admin") {
-          papeis = Array.from(new Set([...papeis, "painel_admin"]));
-        }
       }
       setUsuario({
         nome: payload.name ?? payload.given_name ?? "Usuário",
@@ -410,6 +413,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     setUsuario(null);
     setGoogleIdToken(null);
+    setOrganizacaoErro(null);
   }, []);
 
   return (
@@ -417,6 +421,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         usuario,
         googleIdToken,
+        organizacaoErro,
         carregando,
         carregandoGoogle,
         erro,
