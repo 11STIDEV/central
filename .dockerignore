@@ -5,8 +5,12 @@ dist
 .gitignore
 .env
 .env.*
-.env.local
+**/.env
+**/.env.local
 server/data
+# Não incluir chaves da Google no contexto de build
+server/service-account-key.json
+**/service-account-key.json
 *.md
 .cursor
 coverage

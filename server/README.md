@@ -93,7 +93,17 @@ A API sobe em `http://localhost:3001`. O frontend (Vite) está configurado para 
 1. **API não está rodando** – Inicie `cd server && npm run dev` (porta **3001**). No navegador (modo dev), o console mostra `[api/organizacao] falha de rede ou servidor parado...` se a conexão cair.
 2. **`GOOGLE_CLIENT_ID` diferente do frontend** – O valor em `server/.env` deve ser **o mesmo** que `VITE_GOOGLE_CLIENT_ID` no `.env.local` da raiz (mesmo Client ID OAuth). Espaços extras no `.env` são ignorados; você pode listar mais de um ID separado por vírgula se precisar.
 3. **Erro 500 na API** – Veja o terminal do Node: falta service account, `GOOGLE_ADMIN_IMPERSONATE`, ou escopo/domain-wide delegation incorreto. O console do navegador mostra `[api/organizacao] erro: ...` com a mensagem retornada.
-4. **HTTP 405** em `POST /api/organizacao` – o pedido **não chegou** ao Node (Método não permitido noutro serviço). Causas típicas: **proxy do Vite em dev** (Windows / acesso por IP na LAN) a falhar; use o código atual que em desenvolvimento chama `http://<host>:3001` direto (API com CORS), ou defina `VITE_USE_VITE_PROXY=1` no `.env.local` só se quiser forçar o proxy `/api`. Também: `vite preview` com a API em :3001 parada; ou **deploy** só estático. **Coolify / Docker:** imagem do `Dockerfile` (API + `dist` na mesma origem) ou proxy com **POST** em `/api`. Origens diferentes no build: `VITE_API_BASE_URL`.
+4. **HTTP 405** em `POST /api/organizacao` – o pedido **não chegou** ao Node (Método não permitido noutro serviço). Causas típicas: **proxy do Vite em dev** (Windows / acesso por IP na LAN) a falhar; use o código atual que em desenvolvimento chama `http://<host>:3001` direto (API com CORS), ou defina `VITE_USE_VITE_PROXY=1` no `.env.local` só se quiser forçar o proxy `/api`. Também: `vite preview` com a API em :3001 parada; ou **deploy** só estático. **Coolify / Docker:** ver secção *Coolify* abaixo (um serviço) ou proxy com **POST** em `/api`. Origens diferentes no build: `VITE_API_BASE_URL`.
+
+## Coolify (recomendado: um serviço só)
+
+Use **um único** recurso a correr a imagem do **`Dockerfile` na raiz** do repositório. O Node serve **API** (`/api/...`) e ficheiros estáticos do Vite (`dist/`) no **mesmo** processo e porta, para o browser fazer `POST` relativo a `/api/organizacao` na mesma origem e deixar de receber 405 de um *static* à parte.
+
+1. **Novo serviço** → base **Dockerfile** (caminho: `Dockerfile` na raiz), **não** escolher só “ficheiros estáticos” / *static site* com o `dist` isolado.
+2. **Porta do contentor** exposta: **3001** (igual ao `EXPOSE` e ao `PORT` padrão da imagem). O domínio do Coolify deve reencaminhar o tráfego **HTTP** para essa porta do contentor, sem trocar o `POST` por servir ficheiro.
+3. **Build Arguments** (Vite, embutidos no *bundle*): `VITE_GOOGLE_CLIENT_ID`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SCHOOL_SLUG`, e opcionais do painel que estiverem no `Dockerfile`. Com um só serviço, **não** defina `VITE_API_BASE_URL` (o front usa a mesma origem).
+4. **Variáveis de ambiente** (runtime, servidor): as do `server/.env.example` — em especial `GOOGLE_CLIENT_ID` (igual ao `VITE_GOOGLE_CLIENT_ID`), `GOOGLE_ADMIN_IMPERSONATE`, `GOOGLE_SERVICE_ACCOUNT_JSON` (recomendado) ou ficheiro montado + `GOOGLE_SERVICE_ACCOUNT_PATH`, `DOMINIOS_PERMITIDOS`, e se usar painel, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PAINEL_SCHOOL_SLUG`.
+5. **Verificação** — no browser: `https://<seu-dominio>/api/health` deve responder `{"ok":true}`. Se obtiver 405 ou HTML de *fallback*, o tráfego ainda **não** está a bater no contentor Node.
 
 ## Mapeamento OU → papéis (frontend)
 
