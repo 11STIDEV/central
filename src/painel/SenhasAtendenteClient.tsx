@@ -261,14 +261,17 @@ export default function SenhasAtendenteClient({
         <>
           <PageHeroEyebrow />
           <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
-              <MonitorSpeaker className="h-5 w-5 text-amber-300" strokeWidth={1.75} />
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-border/50 bg-primary/5 dark:border-transparent dark:bg-white/10 dark:ring-1 dark:ring-white/15">
+              <MonitorSpeaker
+                className="h-5 w-5 text-amber-600 dark:text-amber-300"
+                strokeWidth={1.75}
+              />
             </div>
             <div>
-              <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl lg:text-4xl">
+              <h1 className="text-2xl font-bold tracking-tight text-hero-foreground md:text-3xl lg:text-4xl">
                 Painel do Atendente
               </h1>
-              <p className="mt-2 max-w-2xl text-slate-300">
+              <p className="mt-2 max-w-2xl text-base leading-relaxed text-hero-muted md:text-lg">
                 Chame senhas e gerencie o atendimento no seu guichê.
               </p>
             </div>
