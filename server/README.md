@@ -103,7 +103,14 @@ Use **um único** recurso a correr a imagem do **`Dockerfile` na raiz** do repos
 2. **Porta do contentor** exposta: **3001** (igual ao `EXPOSE` e ao `PORT` padrão da imagem). O domínio do Coolify deve reencaminhar o tráfego **HTTP** para essa porta do contentor, sem trocar o `POST` por servir ficheiro.
 3. **Build Arguments** (Vite, embutidos no *bundle*): `VITE_GOOGLE_CLIENT_ID`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SCHOOL_SLUG`, e opcionais do painel que estiverem no `Dockerfile`. Com um só serviço, **não** defina `VITE_API_BASE_URL` (o front usa a mesma origem).
 4. **Variáveis de ambiente** (runtime, servidor): as do `server/.env.example` — em especial `GOOGLE_CLIENT_ID` (igual ao `VITE_GOOGLE_CLIENT_ID`), `GOOGLE_ADMIN_IMPERSONATE`, `GOOGLE_SERVICE_ACCOUNT_JSON` (recomendado) ou ficheiro montado + `GOOGLE_SERVICE_ACCOUNT_PATH`, `DOMINIOS_PERMITIDOS`, e se usar painel, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PAINEL_SCHOOL_SLUG`.
-5. **Verificação** — no browser: `https://<seu-dominio>/api/health` deve responder `{"ok":true}`. Se obtiver 405 ou HTML de *fallback*, o tráfego ainda **não** está a bater no contentor Node.
+5. **Verificação** — use **`curl`**, não só o browser aberto na barra de endereço (ver ponto *404 com layout da aplicação* abaixo).
+
+#### “404 com menu lateral / layout da Central” em `/api/health`
+
+Isto **não** vem do Node. O servidor devolveu o **`index.html`** do React (Nginx, Caddy, Traefik ou *static* com regra *SPA* `try_files … /index.html` para **tudo**, incluindo `/api/...`), o React inicia, o router **não** tem rota para `/api/health` e mostra a tua *page* 404. Se o tráfego chegasse ao Express, veríamos JSON: `{"ok":true}`.
+
+- Confirma no terminal (no Windows PowerShell costuma ser `curl.exe -sI "https://<domínio>/api/health"`). A resposta tem de trazer `Content-Type: application/json` e o corpo `{"ok":true}`. Se for `text/html`, o *proxy* ainda manda tudo para o *fallback* do SPA, **não** para o `node index.js` na 3001.
+- **Correção:** no Coolify o domínio `central.portalcci.com.br` (ou o que uses) tem de apontar o **alvo** para **um** serviço Docker (imagem com `EXPOSE 3001`), **sem** *static* à frente, **e** o proxy não pode aplica a regra “qualquer 404 → `index.html`” a caminhos que comecem com `/api` — a prioridade de rota é `/api` → contentor, depois o resto.
 
 ### Ainda vê 405 no POST /api/organizacao?
 
