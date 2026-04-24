@@ -1,12 +1,26 @@
 /**
- * Em dev (Vite + proxy) use base vazia: pedidos a `/api/...` no mesmo host.
- * Se o front estiver noutro domínio que o Node (Coolify com dois serviços, CDN estático, etc.),
- * defina `VITE_API_BASE_URL=https://onde-esta-a-api` no build do front (sem barra no fim).
+ * - Produção (build): base vazia = mesmo origem (Docker `node` serve `dist` + API) ou
+ *   `VITE_API_BASE_URL` se front e API tiverem hosts diferentes.
+ * - Dev: por defeito a API fala direto com `http://<host>:3001` (contorna o proxy do Vite, que
+ *   nalguns ambientes devolve 405 a POST /api). Defina `VITE_USE_VITE_PROXY=1` no .env.local
+ *   se quiser voltar ao proxy relativo a `/api`.
  */
 export function getApiBaseUrl(): string {
+  if (import.meta.env.VITE_USE_VITE_PROXY === "1") {
+    return "";
+  }
   const raw = import.meta.env.VITE_API_BASE_URL as string | undefined;
   if (typeof raw === "string" && raw.trim() !== "") {
     return raw.trim().replace(/\/+$/, "");
+  }
+  if (import.meta.env.DEV) {
+    if (typeof window === "undefined") {
+      return "";
+    }
+    const h = window.location.hostname;
+    const host =
+      h === "localhost" || h === "127.0.0.1" || h === "[::1]" || h === "::1" ? "127.0.0.1" : h;
+    return `http://${host}:3001`;
   }
   return "";
 }
