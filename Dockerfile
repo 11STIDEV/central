@@ -1,4 +1,8 @@
 # --- Build frontend (Vite) ---
+# Coolify / CI: em "Build arguments" use APENAS as VITE_* abaixo (valores do front no bundle).
+# NUNCA adicionar aqui: GOOGLE_SERVICE_ACCOUNT_*, o JSON da chave, DOMINIO*, ou vares do servidor;
+# o Docker interpreta o Dockerfile e JSON com quebras de linha / aspas partem o build (erro: unexpected end of statement).
+# Credenciais Google: Environment / Secrets em RUNTIME no painel, não no build. Ver server/README.md (Coolify).
 FROM node:20-bookworm-slim AS frontend-build
 
 WORKDIR /app

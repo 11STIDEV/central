@@ -101,8 +101,17 @@ Use **um único** recurso a correr a imagem do **`Dockerfile` na raiz** do repos
 
 1. **Novo serviço** → base **Dockerfile** (caminho: `Dockerfile` na raiz), **não** escolher só “ficheiros estáticos” / *static site* com o `dist` isolado.
 2. **Porta do contentor** exposta: **3001** (igual ao `EXPOSE` e ao `PORT` padrão da imagem). O domínio do Coolify deve reencaminhar o tráfego **HTTP** para essa porta do contentor, sem trocar o `POST` por servir ficheiro.
-3. **Build Arguments** (Vite, embutidos no *bundle*): `VITE_GOOGLE_CLIENT_ID`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SCHOOL_SLUG`, e opcionais do painel que estiverem no `Dockerfile`. Com um só serviço, **não** defina `VITE_API_BASE_URL` (o front usa a mesma origem).
-4. **Variáveis de ambiente** (runtime, servidor): as do `server/.env.example` — em especial `GOOGLE_CLIENT_ID` (igual ao `VITE_GOOGLE_CLIENT_ID`), `GOOGLE_ADMIN_IMPERSONATE`, `GOOGLE_SERVICE_ACCOUNT_JSON` (recomendado) ou ficheiro montado + `GOOGLE_SERVICE_ACCOUNT_PATH`, `DOMINIOS_PERMITIDOS`, e se usar painel, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PAINEL_SCHOOL_SLUG`.
+3. **Build Arguments** (só *frontend*, embutidos no `npm run build`): exatamente as `VITE_*` que o `Dockerfile` declara (`VITE_GOOGLE_CLIENT_ID`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_SCHOOL_SLUG`, opcionais de playlist/overlay, `VITE_API_BASE_URL` só se necessário). Com um só serviço, **não** defina `VITE_API_BASE_URL` (o front usa a mesma origem). **Não** uses este painel para credenciais do **servidor** (ver caixa *Build que falha* abaixo).
+4. **Variáveis de ambiente** (runtime, **após** a imagem subir): as do `server/.env.example` — `GOOGLE_CLIENT_ID`, `GOOGLE_ADMIN_IMPERSONATE`, **`GOOGLE_SERVICE_ACCOUNT_JSON`** (JSON completo numa **linha**, num *secret* do Coolify) ou ficheiro + `GOOGLE_SERVICE_ACCOUNT_PATH`, `DOMINIOS_PERMITIDOS`, `PORT` se precisar, e se usar painel `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PAINEL_SCHOOL_SLUG`. Isto fica no separador de **ambiente** / **env** do serviço, **não** em “Build”.
+
+#### Build a falhar (Docker: `unexpected end of statement` / aspas a partir)
+
+O Coolify (ou o teu ficheiro local) fica com um `Dockerfile` enorme (dezenas de kB) **se** alguém colou o JSON da *service account* ou `GOOGLE_SERVICE_ACCOUNT_PATH={...` nas **Build arguments**. O motor do Docker lê o `ARG ...` **literal**; JSON tem `"` e `\\n` e **torna a sintaxe inválida**. O log pode mostrar ainda lixo como `ARG "private_key":` (nome de chave a ser tratado como instrução).
+
+- **Faz limpeza** nas Build arguments do serviço: deixa **só** as `VITE_*` que o `Dockerfile` precisa. Apaga tudo o que for `GOOGLE_*`, `GOOGLE_SERVICE_ACCOUNT_*`, domínios, chaves, ou qualquer `VITE_DISABLE_AUTH` se não estiver no nosso repositório.
+- Colocar `GOOGLE_SERVICE_ACCOUNT_JSON=...` em **Runtime environment** (ou *secrets* do Coolify), **não** no build. Se o valor for muito longo, usa o tipo *secret* / multiline se o teu painel suportar.
+- O `GOOGLE_SERVICE_ACCOUNT_PATH` no servidor significa **caminho de ficheiro** dentro do contentor (ex. `/run/secrets/sa.json`), **não** o conteúdo do JSON. Para colar o JSON, usa `GOOGLE_SERVICE_ACCOUNT_JSON` em *runtime*.
+
 5. **Verificação** — use **`curl`**, não só o browser aberto na barra de endereço (ver ponto *404 com layout da aplicação* abaixo).
 
 #### “404 com menu lateral / layout da Central” em `/api/health`
