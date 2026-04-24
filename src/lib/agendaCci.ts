@@ -1,3 +1,5 @@
+import { apiUrl } from "@/lib/apiBase";
+
 /** Modelo e persistência da Agenda CCI (reservas no navegador). */
 
 export type TipoReservaAgenda = "chromebook" | "equipamento" | "espaco" | "composta";
@@ -209,7 +211,7 @@ export async function enviarReservasParaServidor(
   idToken: string,
 ): Promise<boolean> {
   try {
-    const res = await fetch("/api/agenda-cci/reservas", {
+    const res = await fetch(apiUrl("/api/agenda-cci/reservas"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken, reservas: lista }),
@@ -225,7 +227,7 @@ export async function obterReservasDoServidor(
   idToken: string,
 ): Promise<ReservaAgendaCCI[] | null> {
   try {
-    const res = await fetch("/api/agenda-cci/reservas/obter", {
+    const res = await fetch(apiUrl("/api/agenda-cci/reservas/obter"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken }),

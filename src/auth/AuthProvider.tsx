@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { apiUrl, getApiBaseUrl } from "@/lib/apiBase";
 
 /** Papéis derivados da OU no Google Workspace (caminho exato configurado abaixo). */
 export type Papel =
@@ -218,7 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       let orgUnitPath: string | undefined;
       try {
-        const res = await fetch("/api/organizacao", {
+        const res = await fetch(apiUrl("/api/organizacao"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ idToken }),
@@ -249,10 +250,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         if (!res.ok) {
-          const msg =
-            typeof data.error === "string"
-              ? data.error
-              : `HTTP ${res.status}`;
+          let msg: string;
+          if (res.status === 405) {
+            const baseHint = getApiBaseUrl()
+              ? ` API configurada: ${getApiBaseUrl()}.`
+              : "";
+            msg = `HTTP 405 (Método não permitido). O pedido POST a /api/organizacao não chegou ao Node.${baseHint} Em Coolify, use um único serviço que corra a imagem Docker (API + ficheiros estáticos) ou reencaminhe /api com POST para a API. Se o front e a API tiverem URLs diferentes, defina VITE_API_BASE_URL no build e reconstrua. Se testou com \`vite preview\`, a API em :3001 tem de estar no ar.`;
+          } else {
+            msg =
+              typeof data.error === "string"
+                ? data.error
+                : `HTTP ${res.status}`;
+          }
           const detalhe =
             typeof data.detalhe === "string" && data.detalhe.trim() !== ""
               ? ` ${data.detalhe}`
@@ -292,7 +301,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         orgUnitPath !== undefined ? { ...payload, orgUnitPath } : payload;
       let papeis = mapearPapeis(payloadComOU);
       try {
-        const res = await fetch("/api/papeis-manuais/obter", {
+        const res = await fetch(apiUrl("/api/papeis-manuais/obter"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ idToken }),

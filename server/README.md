@@ -93,6 +93,7 @@ A API sobe em `http://localhost:3001`. O frontend (Vite) está configurado para 
 1. **API não está rodando** – Inicie `cd server && npm run dev` (porta **3001**). No navegador (modo dev), o console mostra `[api/organizacao] falha de rede ou servidor parado...` se a conexão cair.
 2. **`GOOGLE_CLIENT_ID` diferente do frontend** – O valor em `server/.env` deve ser **o mesmo** que `VITE_GOOGLE_CLIENT_ID` no `.env.local` da raiz (mesmo Client ID OAuth). Espaços extras no `.env` são ignorados; você pode listar mais de um ID separado por vírgula se precisar.
 3. **Erro 500 na API** – Veja o terminal do Node: falta service account, `GOOGLE_ADMIN_IMPERSONATE`, ou escopo/domain-wide delegation incorreto. O console do navegador mostra `[api/organizacao] erro: ...` com a mensagem retornada.
+4. **HTTP 405** em `POST /api/organizacao` – o pedido **não chegou** ao Node (Método não permitido noutro serviço). Causas típicas: `vite preview` com a API em :3001 parada (não há quem atenda o proxy a `/api`); ou **deploy** em que o browser fala só com um CDN/site estático e `POST /api/...` não é encaminhado para o processo da API. **Coolify / Docker:** use a imagem do `Dockerfile` (um `node` serve `dist` + API na mesma origem) ou configure o proxy a encaminhar **todos** os métodos em `/api` para o serviço correto. Se o front e a API tiverem **origens diferentes**, defina `VITE_API_BASE_URL` (URL pública do backend) no **build** do Vite.
 
 ## Mapeamento OU → papéis (frontend)
 

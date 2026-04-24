@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
+import { apiUrl } from "@/lib/apiBase";
 
 export default function AdminPapeisManuais() {
   const { googleIdToken } = useAuth();
@@ -32,7 +33,7 @@ export default function AdminPapeisManuais() {
     setErro(null);
     setCarregando(true);
     try {
-      const res = await fetch("/api/papeis-manuais/listar", {
+      const res = await fetch(apiUrl("/api/papeis-manuais/listar"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idToken: googleIdToken }),
@@ -68,7 +69,7 @@ export default function AdminPapeisManuais() {
     setMensagem(null);
     setErro(null);
     try {
-      const res = await fetch("/api/papeis-manuais/atualizar", {
+      const res = await fetch(apiUrl("/api/papeis-manuais/atualizar"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idToken: googleIdToken, emailAlvo, papeisManuais }),

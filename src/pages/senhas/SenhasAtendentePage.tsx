@@ -10,12 +10,13 @@ import { getSchoolSlug, isPainelDbOnly } from "@/painel/painelEnv";
 import { perfilPainelPorOu } from "@/painel/painelProfileOu";
 import { podePainelAtendente } from "@/painel/painelWorkspaceAccess";
 import type { Profile, Queue, School, ServiceWindow } from "@/painel/types/database";
+import { apiUrl } from "@/lib/apiBase";
 import SenhasAtendenteClient from "@/painel/SenhasAtendenteClient";
 
 type ProfileWithSw = Profile & { service_window: ServiceWindow | null };
 
 async function requestPainelSync(idToken: string) {
-  const res = await fetch("/api/painel/sync-profile", {
+  const res = await fetch(apiUrl("/api/painel/sync-profile"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken }),

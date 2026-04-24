@@ -31,6 +31,7 @@ import {
   toYmdLocal,
   rangesOverlap,
 } from "@/lib/agendaCci";
+import { apiUrl } from "@/lib/apiBase";
 
 export default function ReservaEspacosEquipamentos() {
   const location = useLocation();
@@ -82,7 +83,7 @@ export default function ReservaEspacosEquipamentos() {
     setAvisoChromebooks(null);
     (async () => {
       try {
-        const res = await fetch("/api/chromebooks", {
+        const res = await fetch(apiUrl("/api/chromebooks"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ idToken: googleIdToken }),

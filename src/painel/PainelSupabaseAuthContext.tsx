@@ -9,6 +9,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useAuth } from "@/auth/AuthProvider";
 import { isPainelDbOnly } from "@/painel/painelEnv";
 import { getPainelSupabase, isPainelSupabaseConfigured } from "@/painel/supabaseClient";
+import { apiUrl } from "@/lib/apiBase";
 
 /**
  * Estado da sincronização Google (Central) → sessão Supabase do painel.
@@ -68,7 +69,7 @@ export function PainelSupabaseAuthProvider({ children }: { children: ReactNode }
 
     const syncPainelProfile = async () => {
       const attempt = async () => {
-        const res = await fetch("/api/painel/sync-profile", {
+        const res = await fetch(apiUrl("/api/painel/sync-profile"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ idToken: googleIdToken }),
@@ -85,7 +86,7 @@ export function PainelSupabaseAuthProvider({ children }: { children: ReactNode }
         }
         if (res.ok && data.reason === "no_supabase_user") {
           await new Promise((r) => setTimeout(r, 600));
-          const res2 = await fetch("/api/painel/sync-profile", {
+          const res2 = await fetch(apiUrl("/api/painel/sync-profile"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ idToken: googleIdToken }),

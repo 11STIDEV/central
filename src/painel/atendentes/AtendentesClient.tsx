@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Plus, Pencil, Shield, User, KeyRound } from "lucide-react";
 import { toast } from "sonner";
+import { apiUrl } from "@/lib/apiBase";
 
 interface ProfileWithWindow extends Profile {
   service_window: { name: string; number: number } | null;
@@ -92,7 +93,7 @@ export default function AtendentesClient({ schoolId, attendants: initial, servic
         return;
       }
 
-      const res = await fetch("/api/painel/create-user", {
+      const res = await fetch(apiUrl("/api/painel/create-user"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
