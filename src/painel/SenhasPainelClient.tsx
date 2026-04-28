@@ -24,6 +24,50 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const YOUTUBE_EMBED_ID = "painel-youtube-embed";
+const VOICE_NAME_PRIORITY = [
+  "Microsoft Francisca Online",
+  "Google português do Brasil",
+  "Google português do Brasil feminino",
+  "Luciana",
+  "Francisca",
+  "Maria",
+];
+
+function getPreferredPtBrVoice() {
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return null;
+
+  const ptBrVoices = voices.filter((voice) => voice.lang?.toLowerCase().startsWith("pt-br"));
+  if (!ptBrVoices.length) return null;
+
+  for (const preferredName of VOICE_NAME_PRIORITY) {
+    const found = ptBrVoices.find((voice) =>
+      voice.name.toLowerCase().includes(preferredName.toLowerCase()),
+    );
+    if (found) return found;
+  }
+
+  return ptBrVoices[0];
+}
+
+function formatTicketCodeForSpeech(ticketCode: string) {
+  const clean = ticketCode.trim().toUpperCase();
+  const parts = clean.match(/^([A-Z]+)?(\d+)$/);
+  if (!parts) return clean.split("").join(" ");
+
+  const [, prefixRaw = "", numberRaw] = parts;
+  const prefixSpoken = prefixRaw ? prefixRaw.split("").join(" ") : "";
+  const numeric = Number.parseInt(numberRaw, 10);
+
+  if (!Number.isFinite(numeric)) {
+    return clean.split("").join(" ");
+  }
+
+  // Ex.: 010 -> "zero 10" (TTS PT-BR costuma falar "zero dez").
+  const numberSpoken = numberRaw.startsWith("0") ? `zero ${numeric}` : `${numeric}`;
+
+  return prefixSpoken ? `${prefixSpoken} ${numberSpoken}` : numberSpoken;
+}
 
 function CallHighlight({
   call,
@@ -74,6 +118,7 @@ export default function SenhasPainelClient({ school, initialCalls }: PainelClien
 
   const overlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedVideoTimeRef = useRef(0);
+  const preferredVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
 
   const supabase = getPainelSupabase();
   const { pauseAndGetTime, resumeAt } = useYoutubePainelPlayer(playlistId, YOUTUBE_EMBED_ID);
@@ -92,6 +137,21 @@ export default function SenhasPainelClient({ school, initialCalls }: PainelClien
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    function refreshPreferredVoice() {
+      preferredVoiceRef.current = getPreferredPtBrVoice();
+    }
+
+    refreshPreferredVoice();
+    window.speechSynthesis.onvoiceschanged = refreshPreferredVoice;
+
+    return () => {
+      if (window.speechSynthesis.onvoiceschanged === refreshPreferredVoice) {
+        window.speechSynthesis.onvoiceschanged = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -157,12 +217,14 @@ export default function SenhasPainelClient({ school, initialCalls }: PainelClien
   }, [school?.id, muted, playlistId, pauseAndGetTime, scheduleOverlayEnd]);
 
   function playCallSound(ticketCode: string, windowNumber: number) {
+    const readableTicket = formatTicketCodeForSpeech(ticketCode);
     const utterance = new SpeechSynthesisUtterance(
-      `Senha ${ticketCode.split("").join(" ")}, favor comparecer ao ${windowNumber === 1 ? "primeiro" : windowNumber === 2 ? "segundo" : windowNumber === 3 ? "terceiro" : `guichê ${windowNumber}`} guichê.`
+      `Senha ${readableTicket}, favor comparecer ao ${windowNumber === 1 ? "primeiro" : windowNumber === 2 ? "segundo" : windowNumber === 3 ? "terceiro" : `guichê ${windowNumber}`} guichê.`
     );
     utterance.lang = "pt-BR";
-    utterance.rate = 0.9;
+    utterance.rate = 0.88;
     utterance.pitch = 1.0;
+    utterance.voice = preferredVoiceRef.current;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(utterance);
   }

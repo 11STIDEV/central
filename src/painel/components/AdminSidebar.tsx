@@ -13,7 +13,7 @@ import {
   Settings,
   Ticket,
 } from "lucide-react";
-import { BrandLogo } from "@/painel/components/BrandLogo";
+import { SidebarBrandLogo } from "@/components/SidebarBrandLogo";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -43,15 +43,15 @@ export default function AdminSidebar({ school, profile }: AdminSidebarProps) {
   }
 
   return (
-    <aside className="w-64 bg-slate-900 min-h-screen flex flex-col shrink-0">
-      <div className="p-6 border-b border-white/10">
+    <aside className="w-64 min-h-screen shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground flex flex-col">
+      <div className="p-4 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
-          <BrandLogo height={32} className="shrink-0" />
+          <SidebarBrandLogo compact className="shrink-0" />
           <div className="overflow-hidden">
-            <p className="text-white font-bold text-sm truncate">
+            <p className="text-sidebar-foreground font-bold text-sm truncate">
               {schoolDisplayName(school?.name) ?? "—"}
             </p>
-            <p className="text-white/40 text-xs">Painel Admin</p>
+            <p className="text-sidebar-muted text-xs">Painel Admin</p>
           </div>
         </div>
       </div>
@@ -67,7 +67,9 @@ export default function AdminSidebar({ school, profile }: AdminSidebarProps) {
               to={href}
               className={cn(
                 "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors",
-                active ? "bg-blue-600 text-white" : "text-white/60 hover:text-white hover:bg-white/10",
+                active
+                  ? "bg-primary text-primary-foreground"
+                  : "text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent",
               )}
             >
               <Icon className="w-4 h-4 shrink-0" />
@@ -77,12 +79,12 @@ export default function AdminSidebar({ school, profile }: AdminSidebarProps) {
         })}
       </nav>
 
-      <div className="p-4 border-t border-white/10 space-y-1">
+      <div className="p-4 border-t border-sidebar-border space-y-1">
         <Link
           to="/senhas/totem"
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors"
+          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
         >
           <Ticket className="w-4 h-4" />
           Abrir Totem
@@ -91,22 +93,22 @@ export default function AdminSidebar({ school, profile }: AdminSidebarProps) {
           to="/senhas/painel"
           target="_blank"
           rel="noreferrer"
-          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-white/40 hover:text-white/70 hover:bg-white/5 transition-colors"
+          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
         >
           <GraduationCap className="w-4 h-4" />
           Abrir Painel TV
         </Link>
       </div>
 
-      <div className="p-4 border-t border-white/10">
+      <div className="p-4 border-t border-sidebar-border">
         <div className="flex items-center justify-between">
           <div className="overflow-hidden">
-            <p className="text-white text-sm font-medium truncate">{profile.full_name}</p>
-            <p className="text-white/40 text-xs">Administrador</p>
+            <p className="text-sidebar-foreground text-sm font-medium truncate">{profile.full_name}</p>
+            <p className="text-sidebar-muted text-xs">Administrador</p>
           </div>
           <button
             onClick={handleLogout}
-            className="text-white/40 hover:text-white/80 transition-colors p-1"
+            className="p-1 text-sidebar-muted hover:text-sidebar-foreground transition-colors"
             title="Sair do painel"
             type="button"
           >
