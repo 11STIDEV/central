@@ -94,7 +94,7 @@ export default function SenhasAdminDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-16">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -102,8 +102,8 @@ export default function SenhasAdminDashboard() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
-        <p className="text-slate-500 text-sm mt-1 capitalize">
+        <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-muted-foreground text-sm mt-1 capitalize">
           {format(new Date(), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
         </p>
       </div>
@@ -115,8 +115,8 @@ export default function SenhasAdminDashboard() {
               <Ticket className="w-8 h-8 text-blue-600" />
               <Badge variant="secondary">Hoje</Badge>
             </div>
-            <p className="text-3xl font-black text-slate-900">{totalToday}</p>
-            <p className="text-slate-500 text-sm mt-1">Senhas geradas</p>
+            <p className="text-3xl font-black text-foreground">{totalToday}</p>
+            <p className="text-muted-foreground text-sm mt-1">Senhas geradas</p>
           </CardContent>
         </Card>
 
@@ -126,8 +126,8 @@ export default function SenhasAdminDashboard() {
               <Clock className="w-8 h-8 text-amber-500" />
               <Badge variant="secondary">Agora</Badge>
             </div>
-            <p className="text-3xl font-black text-slate-900">{waitingCount}</p>
-            <p className="text-slate-500 text-sm mt-1">Aguardando</p>
+            <p className="text-3xl font-black text-foreground">{waitingCount}</p>
+            <p className="text-muted-foreground text-sm mt-1">Aguardando</p>
           </CardContent>
         </Card>
 
@@ -137,8 +137,8 @@ export default function SenhasAdminDashboard() {
               <CheckCircle2 className="w-8 h-8 text-emerald-500" />
               <Badge variant="secondary">Hoje</Badge>
             </div>
-            <p className="text-3xl font-black text-slate-900">{doneCount}</p>
-            <p className="text-slate-500 text-sm mt-1">Atendidos</p>
+            <p className="text-3xl font-black text-foreground">{doneCount}</p>
+            <p className="text-muted-foreground text-sm mt-1">Atendidos</p>
           </CardContent>
         </Card>
 
@@ -147,10 +147,10 @@ export default function SenhasAdminDashboard() {
             <div className="flex items-center justify-between mb-2">
               <CheckCircle2 className="w-8 h-8 text-violet-500" />
             </div>
-            <p className="text-3xl font-black text-slate-900">
+            <p className="text-3xl font-black text-foreground">
               {totalToday && doneCount ? Math.round((doneCount / totalToday) * 100) : 0}%
             </p>
-            <p className="text-slate-500 text-sm mt-1">Taxa de atendimento</p>
+            <p className="text-muted-foreground text-sm mt-1">Taxa de atendimento</p>
           </CardContent>
         </Card>
       </div>
@@ -167,10 +167,10 @@ export default function SenhasAdminDashboard() {
                 return (
                   <div key={queue.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <span className="text-blue-700 font-bold text-sm">{queue.prefix}</span>
+                      <div className="w-8 h-8 bg-primary/15 rounded-lg flex items-center justify-center">
+                        <span className="text-primary font-bold text-sm">{queue.prefix}</span>
                       </div>
-                      <span className="text-slate-700 font-medium">{queue.name}</span>
+                      <span className="text-foreground font-medium">{queue.name}</span>
                     </div>
                     <Badge variant="secondary">{count} em espera</Badge>
                   </div>
@@ -186,21 +186,21 @@ export default function SenhasAdminDashboard() {
           </CardHeader>
           <CardContent className="p-0">
             {!recentCalls?.length ? (
-              <div className="flex items-center gap-2 p-6 text-slate-400">
+              <div className="flex items-center gap-2 p-6 text-muted-foreground">
                 <AlertCircle className="w-4 h-4" />
                 <span className="text-sm">Nenhuma chamada hoje.</span>
               </div>
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-border">
                 {recentCalls.map((call) => (
                   <div key={call.id} className="flex items-center justify-between px-6 py-3">
                     <div className="flex items-center gap-3">
-                      <span className="font-bold text-slate-900">{call.ticket.ticket_code}</span>
-                      <span className="text-slate-400 text-sm">{call.ticket.queue.name}</span>
+                      <span className="font-bold text-foreground">{call.ticket.ticket_code}</span>
+                      <span className="text-muted-foreground text-sm">{call.ticket.queue.name}</span>
                     </div>
                     <div className="text-right">
-                      <p className="text-slate-600 text-sm">{call.service_window.name}</p>
-                      <p className="text-slate-400 text-xs">
+                      <p className="text-foreground/90 text-sm">{call.service_window.name}</p>
+                      <p className="text-muted-foreground text-xs">
                         {format(new Date(call.called_at), "HH:mm")}
                       </p>
                     </div>

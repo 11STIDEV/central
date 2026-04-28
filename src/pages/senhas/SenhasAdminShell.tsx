@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import { Link, Navigate, Outlet, useNavigate } from "react-router-dom";
+import { Link, NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
-import AdminSidebar from "@/painel/components/AdminSidebar";
 import { fetchMyProfile } from "@/painel/fetchMyProfile";
 import { getOrCreateLocalPainelAttendantId } from "@/painel/painelLocalIdentity";
 import { getSchoolSlug, isPainelDbOnly } from "@/painel/painelEnv";
@@ -11,8 +10,18 @@ import { getPainelSupabase, isPainelSupabaseConfigured } from "@/painel/supabase
 import { usePainelSupabaseAuth } from "@/painel/PainelSupabaseAuthContext";
 import { podePainelAdmin, podePainelAtendente } from "@/painel/painelWorkspaceAccess";
 import type { Profile, School } from "@/painel/types/database";
+import { cn } from "@/lib/utils";
 
 export type PainelAdminOutletContext = { profile: Profile; school: School | null };
+
+const ADMIN_NAV_ITEMS = [
+  { to: "/senhas/admin", label: "Dashboard", end: true },
+  { to: "/senhas/admin/filas", label: "Filas" },
+  { to: "/senhas/admin/guiches", label: "Guichês" },
+  { to: "/senhas/admin/atendentes", label: "Atendentes" },
+  { to: "/senhas/admin/relatorios", label: "Relatórios" },
+  { to: "/senhas/admin/configuracoes", label: "Configurações" },
+];
 
 export default function SenhasAdminShell() {
   const navigate = useNavigate();
@@ -126,24 +135,24 @@ export default function SenhasAdminShell() {
 
   if (authCarregando) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (painelAuth.status === "auth_loading" || painelAuth.status === "syncing") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (painelAuth.status === "no_config") {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-50 p-6 text-center">
-        <p className="max-w-md text-sm text-slate-700">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background p-6 text-center">
+        <p className="max-w-md text-sm text-muted-foreground">
           Configure VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env.local e reinicie o Vite.
         </p>
       </div>
@@ -156,8 +165,8 @@ export default function SenhasAdminShell() {
 
   if (painelAuth.status === "ready" && !isPainelDbOnly() && !painelAuth.session?.user) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 p-6 text-center">
-        <p className="max-w-md text-sm text-slate-700">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center">
+        <p className="max-w-md text-sm text-muted-foreground">
           {painelAuth.syncError ??
             "Não foi possível autenticar no painel com o Google. Confira o provedor Google no Supabase (mesmo Client ID da Central)."}
         </p>
@@ -170,16 +179,16 @@ export default function SenhasAdminShell() {
 
   if (dataLoading || !profile) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-slate-50 p-6 text-center">
-        <p className="max-w-md text-sm text-slate-700">{error}</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 bg-background p-6 text-center">
+        <p className="max-w-md text-sm text-muted-foreground">{error}</p>
         <Link to="/senhas" className="text-sm font-medium text-blue-600 hover:underline">
           Voltar ao hub
         </Link>
@@ -190,11 +199,29 @@ export default function SenhasAdminShell() {
   const ctx: PainelAdminOutletContext = { profile, school };
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <AdminSidebar school={school} profile={profile} />
-      <main className="flex-1 overflow-auto">
-        <Outlet context={ctx} />
-      </main>
+    <div className="min-h-screen bg-background text-foreground">
+      <div className="border-b bg-background/90 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:px-6">
+        <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto lg:justify-center">
+          {ADMIN_NAV_ITEMS.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                cn(
+                  "shrink-0 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
+                  isActive
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                )
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </div>
+      </div>
+      <Outlet context={ctx} />
     </div>
   );
 }

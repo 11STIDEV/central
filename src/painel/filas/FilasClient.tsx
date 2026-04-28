@@ -138,10 +138,10 @@ export default function FilasClient({ schoolId, queues: initialQueues }: FilasCl
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Filas de Atendimento</h1>
-          <p className="text-slate-500 text-sm mt-1">Gerencie os tipos de atendimento disponíveis</p>
+          <h1 className="text-2xl font-bold text-foreground">Filas de Atendimento</h1>
+          <p className="text-muted-foreground text-sm mt-1">Gerencie os tipos de atendimento disponíveis</p>
         </div>
-        <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-500">
+        <Button onClick={openNew}>
           <Plus className="w-4 h-4 mr-2" />
           Nova Fila
         </Button>
@@ -193,7 +193,7 @@ export default function FilasClient({ schoolId, queues: initialQueues }: FilasCl
                 <Button variant="outline" onClick={() => setOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-500">
+                <Button onClick={handleSave} disabled={saving}>
                   {saving ? "Salvando..." : "Salvar"}
                 </Button>
               </div>
@@ -208,8 +208,8 @@ export default function FilasClient({ schoolId, queues: initialQueues }: FilasCl
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
-                    <span className="text-blue-700 font-black text-lg">{queue.prefix}</span>
+                  <div className="w-10 h-10 bg-primary/15 rounded-xl flex items-center justify-center">
+                    <span className="text-primary font-black text-lg">{queue.prefix}</span>
                   </div>
                   <div>
                     <CardTitle className="text-base">{queue.name}</CardTitle>
@@ -221,7 +221,7 @@ export default function FilasClient({ schoolId, queues: initialQueues }: FilasCl
               </div>
             </CardHeader>
             <CardContent>
-              {queue.description && <p className="text-slate-500 text-sm mb-4">{queue.description}</p>}
+              {queue.description && <p className="text-muted-foreground text-sm mb-4">{queue.description}</p>}
               <div className="flex items-center gap-2">
                 <Button size="sm" variant="ghost" onClick={() => openEdit(queue)}>
                   <Pencil className="w-3 h-3 mr-1" /> Editar
@@ -251,7 +251,7 @@ export default function FilasClient({ schoolId, queues: initialQueues }: FilasCl
         ))}
 
         {queues.length === 0 && (
-          <div className="col-span-3 text-center py-12 text-slate-400">
+          <div className="col-span-3 text-center py-12 text-muted-foreground">
             <p>Nenhuma fila cadastrada. Clique em &quot;Nova Fila&quot; para começar.</p>
           </div>
         )}

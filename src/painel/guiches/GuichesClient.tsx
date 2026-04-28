@@ -87,10 +87,10 @@ export default function GuichesClient({ schoolId, serviceWindows: initial }: Gui
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Guichês</h1>
-          <p className="text-slate-500 text-sm mt-1">Gerencie as mesas e guichês de atendimento</p>
+          <h1 className="text-2xl font-bold text-foreground">Guichês</h1>
+          <p className="text-muted-foreground text-sm mt-1">Gerencie as mesas e guichês de atendimento</p>
         </div>
-        <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-500">
+        <Button onClick={openNew}>
           <Plus className="w-4 h-4 mr-2" />
           Novo Guichê
         </Button>
@@ -122,7 +122,7 @@ export default function GuichesClient({ schoolId, serviceWindows: initial }: Gui
               </div>
               <div className="flex gap-2 justify-end">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-500">
+                <Button onClick={handleSave} disabled={saving}>
                   {saving ? "Salvando..." : "Salvar"}
                 </Button>
               </div>
@@ -136,11 +136,11 @@ export default function GuichesClient({ schoolId, serviceWindows: initial }: Gui
           <Card key={w.id} className={w.is_active ? "" : "opacity-60"}>
             <CardContent className="pt-6">
               <div className="flex items-center gap-4 mb-4">
-                <div className="w-14 h-14 bg-blue-100 rounded-2xl flex items-center justify-center">
-                  <span className="text-blue-700 font-black text-2xl">{w.number}</span>
+                <div className="w-14 h-14 bg-primary/15 rounded-2xl flex items-center justify-center">
+                  <span className="text-primary font-black text-2xl">{w.number}</span>
                 </div>
                 <div>
-                  <p className="font-bold text-slate-900">{w.name}</p>
+                  <p className="font-bold text-foreground">{w.name}</p>
                   <Badge variant={w.is_active ? "default" : "secondary"} className="text-xs mt-1">
                     {w.is_active ? "Ativo" : "Inativo"}
                   </Badge>
@@ -161,7 +161,7 @@ export default function GuichesClient({ schoolId, serviceWindows: initial }: Gui
           </Card>
         ))}
         {windows.length === 0 && (
-          <div className="col-span-4 text-center py-12 text-slate-400">
+          <div className="col-span-4 text-center py-12 text-muted-foreground">
             Nenhum guichê cadastrado.
           </div>
         )}

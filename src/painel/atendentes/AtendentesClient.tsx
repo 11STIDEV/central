@@ -123,10 +123,10 @@ export default function AtendentesClient({ schoolId, attendants: initial, servic
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Atendentes</h1>
-          <p className="text-slate-500 text-sm mt-1">Gerencie os usuários do sistema</p>
+          <h1 className="text-2xl font-bold text-foreground">Atendentes</h1>
+          <p className="text-muted-foreground text-sm mt-1">Gerencie os usuários do sistema</p>
         </div>
-        <Button onClick={openNew} className="bg-blue-600 hover:bg-blue-500">
+        <Button onClick={openNew}>
           <Plus className="w-4 h-4 mr-2" />
           Novo Usuário
         </Button>
@@ -199,7 +199,7 @@ export default function AtendentesClient({ schoolId, attendants: initial, servic
               </div>
               <div className="flex gap-2 justify-end">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-                <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-500">
+                <Button onClick={handleSave} disabled={saving}>
                   {saving ? "Salvando..." : "Salvar"}
                 </Button>
               </div>
@@ -208,7 +208,7 @@ export default function AtendentesClient({ schoolId, attendants: initial, servic
         </Dialog>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -224,11 +224,11 @@ export default function AtendentesClient({ schoolId, attendants: initial, servic
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="w-8 h-8">
-                      <AvatarFallback className="bg-blue-100 text-blue-700 text-xs font-bold">
+                      <AvatarFallback className="bg-primary/15 text-primary text-xs font-bold">
                         {a.full_name.split(" ").map((n) => n[0]).slice(0, 2).join("")}
                       </AvatarFallback>
                     </Avatar>
-                    <span className="font-medium text-slate-900">{a.full_name}</span>
+                    <span className="font-medium text-foreground">{a.full_name}</span>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -237,7 +237,7 @@ export default function AtendentesClient({ schoolId, attendants: initial, servic
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <span className="text-slate-500 text-sm">
+                  <span className="text-muted-foreground text-sm">
                     {a.service_window ? `${a.service_window.name} (${a.service_window.number})` : "—"}
                   </span>
                 </TableCell>
@@ -250,7 +250,7 @@ export default function AtendentesClient({ schoolId, attendants: initial, servic
             ))}
             {attendants.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-slate-400 py-8">
+                <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                   Nenhum usuário cadastrado.
                 </TableCell>
               </TableRow>
@@ -259,7 +259,7 @@ export default function AtendentesClient({ schoolId, attendants: initial, servic
         </Table>
       </div>
 
-      <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+      <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 flex items-start gap-3">
         <KeyRound className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
         <p className="text-amber-700 text-sm">
           Para redefinir a senha de um usuário, acesse o painel do Supabase → Authentication → Users.

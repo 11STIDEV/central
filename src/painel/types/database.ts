@@ -52,6 +52,8 @@ export interface Call {
   ticket_id: string;
   service_window_id: string;
   attendant_id: string | null;
+  attendant_name_snapshot: string | null;
+  attendant_email_snapshot: string | null;
   called_at: string;
 }
 

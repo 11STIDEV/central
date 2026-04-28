@@ -53,6 +53,8 @@ create table if not exists public.painel_calls (
   ticket_id uuid not null references public.painel_tickets (id) on delete cascade,
   service_window_id uuid not null references public.painel_service_windows (id) on delete restrict,
   attendant_id uuid references auth.users (id) on delete set null,
+  attendant_name_snapshot text,
+  attendant_email_snapshot text,
   called_at timestamptz not null default now()
 );
 

@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { getPainelSupabase } from "@/painel/supabaseClient";
 import type { Profile, Queue, School, ServiceWindow, Ticket } from "@/painel/types/database";
+import { useAuth } from "@/auth/AuthProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,6 +111,7 @@ export default function SenhasAtendenteClient({
   const consecutivePriorityRef = useRef(0);
   const supabase = getPainelSupabase();
   const { playChime } = useChimeSound();
+  const { usuario } = useAuth();
 
   const selectedWindow = serviceWindows.find((w) => w.id === selectedWindowId);
 
@@ -179,6 +181,30 @@ export default function SenhasAtendenteClient({
 
   const nextPick = pickNextTicket(waiting, consecutivePriorityRef.current);
 
+  async function insertCallRecord(ticketId: string, windowId: string) {
+    const payloadWithSnapshot = {
+      school_id: profile.school_id,
+      ticket_id: ticketId,
+      service_window_id: windowId,
+      /** Sem sessão `auth.users` no Supabase (VITE_PAINEL_DB_ONLY), FK de atendente fica nulo. */
+      attendant_id: isPainelDbOnly() ? null : profile.id,
+      attendant_name_snapshot: usuario?.nome ?? profile.full_name ?? null,
+      attendant_email_snapshot: usuario?.email ?? null,
+    };
+
+    const withSnapshot = await supabase.from("painel_calls").insert(payloadWithSnapshot);
+    if (!withSnapshot.error) return;
+
+    // Compatibilidade: banco ainda sem colunas snapshot.
+    const fallback = await supabase.from("painel_calls").insert({
+      school_id: profile.school_id,
+      ticket_id: ticketId,
+      service_window_id: windowId,
+      attendant_id: isPainelDbOnly() ? null : profile.id,
+    });
+    if (fallback.error) throw fallback.error;
+  }
+
   async function callNext() {
     if (!selectedWindowId || !nextPick) return;
     setCalling(true);
@@ -193,17 +219,7 @@ export default function SenhasAtendenteClient({
 
       if (ticketError) throw ticketError;
 
-      const { error: callError } = await supabase
-        .from("painel_calls")
-        .insert({
-          school_id: profile.school_id,
-          ticket_id: next.id,
-          service_window_id: selectedWindowId,
-          /** Sem sessão `auth.users` no Supabase (VITE_PAINEL_DB_ONLY), FK de atendente fica nulo. */
-          attendant_id: isPainelDbOnly() ? null : profile.id,
-        });
-
-      if (callError) throw callError;
+      await insertCallRecord(next.id, selectedWindowId);
 
       consecutivePriorityRef.current = newCounter;
       setCurrentTicket(next);
@@ -219,14 +235,7 @@ export default function SenhasAtendenteClient({
   async function recallCurrent() {
     if (!currentTicket || !selectedWindowId) return;
 
-    await supabase
-      .from("painel_calls")
-      .insert({
-        school_id: profile.school_id,
-        ticket_id: currentTicket.id,
-        service_window_id: selectedWindowId,
-        attendant_id: isPainelDbOnly() ? null : profile.id,
-      });
+    await insertCallRecord(currentTicket.id, selectedWindowId);
 
     toast.info(`Senha ${currentTicket.ticket_code} rechamada.`);
   }
