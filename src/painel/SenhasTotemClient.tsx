@@ -14,6 +14,7 @@ import {
   Clock,
   Users,
   Loader2,
+  Printer,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -39,6 +40,127 @@ interface TotemClientProps {
 }
 
 type Step = "select-queue" | "select-type" | "ticket-issued";
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function printTicketReceipt(ticket: Ticket, queue: Queue) {
+  const printFrame = document.createElement("iframe");
+  printFrame.setAttribute("title", "ticket-print-frame");
+  printFrame.style.position = "fixed";
+  printFrame.style.right = "0";
+  printFrame.style.bottom = "0";
+  printFrame.style.width = "0";
+  printFrame.style.height = "0";
+  printFrame.style.border = "0";
+  printFrame.style.visibility = "hidden";
+  document.body.appendChild(printFrame);
+
+  const frameDoc = printFrame.contentWindow?.document;
+  if (!frameDoc) {
+    printFrame.remove();
+    throw new Error("Não foi possível abrir a impressão.");
+  }
+
+  const createdAt = format(new Date(ticket.created_at), "dd/MM/yyyy HH:mm", { locale: ptBR });
+  const ticketCode = escapeHtml(ticket.ticket_code);
+  const queueName = escapeHtml(queue.name);
+  const typeLabel = ticket.type === "priority" ? "Prioritário" : "Normal";
+
+  frameDoc.open();
+  frameDoc.write(`
+    <!doctype html>
+    <html lang="pt-BR">
+      <head>
+        <meta charset="utf-8" />
+        <title>Senha ${ticketCode}</title>
+        <style>
+          @page { margin: 8mm; }
+          body {
+            font-family: Arial, sans-serif;
+            color: #111827;
+            margin: 0;
+          }
+          .receipt {
+            width: 72mm;
+            margin: 0 auto;
+            text-align: center;
+          }
+          .title {
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0 0 10px 0;
+          }
+          .ticket {
+            font-size: 40px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            margin: 0 0 8px 0;
+          }
+          .line {
+            border-top: 1px dashed #9ca3af;
+            margin: 8px 0;
+          }
+          .meta {
+            font-size: 13px;
+            margin: 4px 0;
+          }
+          .footer {
+            font-size: 12px;
+            margin-top: 10px;
+          }
+        </style>
+      </head>
+      <body>
+        <main class="receipt">
+          <p class="title">Central de Atendimento</p>
+          <p class="ticket">${ticketCode}</p>
+          <div class="line"></div>
+          <p class="meta"><strong>Fila:</strong> ${queueName}</p>
+          <p class="meta"><strong>Tipo:</strong> ${typeLabel}</p>
+          <p class="meta"><strong>Emissão:</strong> ${createdAt}</p>
+          <div class="line"></div>
+          <p class="footer">Aguarde ser chamado no painel</p>
+        </main>
+      </body>
+    </html>
+  `);
+  frameDoc.close();
+
+  const doPrint = () => {
+    const frameWindow = printFrame.contentWindow;
+    if (!frameWindow) {
+      printFrame.remove();
+      return;
+    }
+
+    frameWindow.focus();
+    frameWindow.print();
+    window.setTimeout(() => printFrame.remove(), 1000);
+  };
+
+  const images = frameDoc.images;
+  if (images.length === 0) {
+    doPrint();
+    return;
+  }
+
+  let loadedCount = 0;
+  for (const image of images) {
+    const onDone = () => {
+      loadedCount += 1;
+      if (loadedCount === images.length) doPrint();
+    };
+    image.addEventListener("load", onDone, { once: true });
+    image.addEventListener("error", onDone, { once: true });
+  }
+}
 
 export default function SenhasTotemClient({ school, queues }: TotemClientProps) {
   const [step, setStep] = useState<Step>("select-queue");
@@ -213,6 +335,22 @@ function TicketIssuedScreen({
 }) {
   const [countdown, setCountdown] = useState(5);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const printedRef = useRef(false);
+
+  const handlePrint = () => {
+    try {
+      printTicketReceipt(ticket, queue);
+    } catch {
+      toast.error("Não foi possível imprimir a senha.");
+    }
+  };
+
+  useEffect(() => {
+    if (!printedRef.current) {
+      printedRef.current = true;
+      handlePrint();
+    }
+  }, []);
 
   useEffect(() => {
     timerRef.current = setInterval(() => {
@@ -265,6 +403,15 @@ function TicketIssuedScreen({
               Aguarde ser chamado. Fique atento ao painel.
             </p>
           </div>
+
+          <Button
+            variant="outline"
+            onClick={handlePrint}
+            className="w-full mb-3 border-white/40 bg-white text-slate-900 hover:bg-slate-100 rounded-xl py-4 text-lg font-semibold"
+          >
+            <Printer className="w-5 h-5 mr-2" />
+            Imprimir novamente
+          </Button>
 
           <Button
             onClick={onReset}
