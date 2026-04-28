@@ -325,22 +325,17 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
 
     for (const call of ticketLatestCall.values()) {
       if (!call.ticket) continue;
-      const fallbackKey = call.service_window_id ? `window:${call.service_window_id}` : "unassigned";
-      const attendantKey = call.attendant_id ?? fallbackKey;
-      const windowName = call.service_window?.name?.trim();
-      const windowNumber = call.service_window?.number;
-      const windowLabel =
-        windowName && windowNumber
-          ? `${windowName} (${windowNumber})`
-          : windowName
-            ? windowName
-            : windowNumber
-              ? `Guichê ${windowNumber}`
-              : "guichê não identificado";
+      const snapshotEmail = call.attendant_email_snapshot?.trim().toLowerCase() || null;
+      const snapshotName = call.attendant_name_snapshot?.trim() || null;
+      const attendantKey =
+        call.attendant_id ??
+        (snapshotEmail ? `email:${snapshotEmail}` : null) ??
+        (snapshotName ? `name:${snapshotName.toLowerCase()}` : null) ??
+        "unassigned";
       const name =
         call.attendant?.full_name?.trim() ||
-        call.attendant_name_snapshot?.trim() ||
-        `Sem atendente vinculado (${windowLabel})`;
+        snapshotName ||
+        "Sem atendente vinculado";
       const email = call.attendant?.email?.trim() || call.attendant_email_snapshot?.trim() || "-";
 
       if (!byAttendant.has(attendantKey)) {
@@ -368,7 +363,16 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
     // Aggregate times in a second pass to keep code simple.
     for (const [attendantKey, row] of byAttendant) {
       const related = Array.from(ticketLatestCall.values()).filter(
-        (call) => (call.attendant_id ?? (call.service_window_id ? `window:${call.service_window_id}` : "unassigned")) === attendantKey && call.ticket,
+        (call) => {
+          const snapshotEmail = call.attendant_email_snapshot?.trim().toLowerCase() || null;
+          const snapshotName = call.attendant_name_snapshot?.trim() || null;
+          const key =
+            call.attendant_id ??
+            (snapshotEmail ? `email:${snapshotEmail}` : null) ??
+            (snapshotName ? `name:${snapshotName.toLowerCase()}` : null) ??
+            "unassigned";
+          return key === attendantKey && call.ticket;
+        },
       );
 
       let waitSumMs = 0;
