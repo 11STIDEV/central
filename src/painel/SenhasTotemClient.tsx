@@ -81,52 +81,56 @@ function printTicketReceipt(ticket: Ticket, queue: Queue) {
         <meta charset="utf-8" />
         <title>Senha ${ticketCode}</title>
         <style>
-          @page { margin: 8mm; }
+          @page { margin: 2.5mm; }
           body {
             font-family: Arial, sans-serif;
             color: #111827;
             margin: 0;
           }
           .receipt {
-            width: 72mm;
+            width: 48mm;
             margin: 0 auto;
             text-align: center;
           }
           .title {
-            font-size: 18px;
+            font-size: 16px;
             font-weight: 700;
-            margin: 0 0 10px 0;
+            margin: 0 0 8px 0;
+          }
+          .logo {
+            display: block;
+            width: 10mm;
+            max-width: 100%;
+            margin: 0 auto 4px auto;
           }
           .ticket {
-            font-size: 40px;
+            font-size: 34px;
             font-weight: 900;
             letter-spacing: 2px;
-            margin: 0 0 8px 0;
+            margin: 0 0 6px 0;
           }
           .line {
             border-top: 1px dashed #9ca3af;
-            margin: 8px 0;
+            margin: 6px 0;
           }
           .meta {
-            font-size: 13px;
-            margin: 4px 0;
+            font-size: 12px;
+            margin: 3px 0;
           }
           .footer {
-            font-size: 12px;
-            margin-top: 10px;
+            font-size: 11px;
+            margin-top: 8px;
           }
         </style>
       </head>
       <body>
         <main class="receipt">
-          <p class="title">Central de Atendimento</p>
+          <img class="logo" src="/logo-cci-azul.png" alt="Logo CCI" />
           <p class="ticket">${ticketCode}</p>
           <div class="line"></div>
-          <p class="meta"><strong>Fila:</strong> ${queueName}</p>
           <p class="meta"><strong>Tipo:</strong> ${typeLabel}</p>
           <p class="meta"><strong>Emissão:</strong> ${createdAt}</p>
-          <div class="line"></div>
-          <p class="footer">Aguarde ser chamado no painel</p>
+          <p class="footer">${queueName}</p>
         </main>
       </body>
     </html>
