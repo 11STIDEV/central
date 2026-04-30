@@ -316,6 +316,70 @@ function ensureDataDir() {
   }
 }
 
+function sanitizeReservaPayload(payload) {
+  return typeof payload === "object" && payload !== null ? payload : null;
+}
+
+async function lerReservasSupabase() {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    throw new Error("Supabase não configurado (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).");
+  }
+  const { data, error } = await supabase
+    .from("agenda_cci_reservas")
+    .select("payload, created_at")
+    .order("created_at", { ascending: false });
+  if (error) {
+    throw new Error(`[agenda-cci/supabase] leitura: ${error.message}`);
+  }
+  const lista = (data || [])
+    .map((row) => sanitizeReservaPayload(row.payload))
+    .filter((x) => (Array.isArray(x) ? false : Boolean(x)));
+  return Array.isArray(lista) ? lista : [];
+}
+
+async function salvarReservasSupabase(lista) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) {
+    throw new Error("Supabase não configurado (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).");
+  }
+  const nowIso = new Date().toISOString();
+  const rows = lista.map((reserva) => ({
+    id: String(reserva.id),
+    payload: reserva,
+    created_at: reserva.criadoEm || nowIso,
+    updated_at: nowIso,
+  }));
+  const ids = new Set(rows.map((r) => r.id));
+
+  const { error: upsertError } = await supabase
+    .from("agenda_cci_reservas")
+    .upsert(rows, { onConflict: "id" });
+  if (upsertError) {
+    throw new Error(`[agenda-cci/supabase] escrita: ${upsertError.message}`);
+  }
+
+  const { data: existing, error: listError } = await supabase
+    .from("agenda_cci_reservas")
+    .select("id");
+  if (listError) {
+    throw new Error(`[agenda-cci/supabase] listagem pós-upsert: ${listError.message}`);
+  }
+  const removerIds = (existing || [])
+    .map((r) => String(r.id))
+    .filter((id) => !ids.has(id));
+  if (removerIds.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("agenda_cci_reservas")
+      .delete()
+      .in("id", removerIds);
+    if (deleteError) {
+      throw new Error(`[agenda-cci/supabase] remoção de órfãos: ${deleteError.message}`);
+    }
+  }
+  return true;
+}
+
 function lerReservasArquivo() {
   try {
     const raw = fs.readFileSync(ARQUIVO_RESERVAS_AGENDA, "utf8");
@@ -333,6 +397,22 @@ function salvarReservasArquivo(lista) {
     JSON.stringify(lista, null, 2),
     "utf8",
   );
+}
+
+async function lerReservasPersistidas() {
+  const supabase = getSupabaseAdmin();
+  if (supabase) return lerReservasSupabase();
+  return lerReservasArquivo();
+}
+
+async function salvarReservasPersistidas(lista) {
+  const supabase = getSupabaseAdmin();
+  if (supabase) {
+    await salvarReservasSupabase(lista);
+    return true;
+  }
+  salvarReservasArquivo(lista);
+  return true;
 }
 
 function normalizarEmailMapaPapeis(obj) {
@@ -450,7 +530,7 @@ async function aplicarPoliticaChromebooks() {
     return;
   }
 
-  const reservas = lerReservasArquivo();
+  const reservas = await lerReservasPersistidas();
   const { ymd, minutes } = agoraLocalParts(AGENDA_CCI_TIMEZONE);
 
   if (!reservas.length) {
@@ -720,7 +800,7 @@ app.post("/api/agenda-cci/reservas", async (req, res) => {
     if (!Array.isArray(reservas)) {
       return res.status(400).json({ error: "reservas deve ser um array." });
     }
-    salvarReservasArquivo(reservas);
+    await salvarReservasPersistidas(reservas);
     setImmediate(() =>
       aplicarPoliticaChromebooks().catch((e) => console.error(e)),
     );
@@ -751,7 +831,7 @@ app.post("/api/agenda-cci/reservas/obter", async (req, res) => {
       }
       return res.status(st).json({ error: e.message });
     }
-    return res.json({ reservas: lerReservasArquivo() });
+    return res.json({ reservas: await lerReservasPersistidas() });
   } catch (err) {
     const msg = mensagemErroGoogle(err);
     console.error("Erro /api/agenda-cci/reservas/obter:", msg);

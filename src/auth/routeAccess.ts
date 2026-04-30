@@ -64,7 +64,8 @@ export function canAccessRoute(papeis: Papel[], pathname: string): boolean {
     return (
       path === "/login" ||
       path === "/agenda-cci" ||
-      path === "/reserva-espacos-equipamentos"
+      path === "/reserva-espacos-equipamentos" ||
+      path === "/minhas-reservas"
     );
   }
   const obrigatorios = ROTAS_PAPEIS_OBRIGATORIOS[path];

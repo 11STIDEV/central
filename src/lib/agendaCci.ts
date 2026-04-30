@@ -5,6 +5,12 @@ import { apiUrl } from "@/lib/apiBase";
 export type TipoReservaAgenda = "chromebook" | "equipamento" | "espaco" | "composta";
 export type StatusReservaAgenda = "ativa" | "cancelada";
 
+/** Linha de equipamento em reservas compostas (vários tipos na mesma reserva). */
+export type ItemEquipamentoReserva = { nome: string; quantidade: number };
+
+/** Status derivado para exibição (agenda / admin), com base na data/hora local. */
+export type StatusExibicaoReserva = "pendente" | "ativa" | "concluída" | "cancelada";
+
 export type ReservaAgendaCCI = {
   id: string;
   tipo: TipoReservaAgenda;
@@ -16,6 +22,13 @@ export type ReservaAgendaCCI = {
   solicitanteEmail: string;
   solicitanteNome: string;
   chromebookIds?: string[];
+  /**
+   * Etiqueta do ativo no Admin (ex.: ID do campo personalizado / annotated asset id) + HDMI.
+   * Usado na tela admin para entrega; não exibir ao professor nas telas de reserva.
+   */
+  chromebooksEntrega?: { etiqueta: string; hasHdmi: boolean }[];
+  /** Vários equipamentos na mesma reserva (preferencial em reservas novas). */
+  equipamentos?: ItemEquipamentoReserva[];
   equipamentoNome?: string;
   equipamentoQuantidade?: number;
   espacoNome?: string;
@@ -39,16 +52,35 @@ export function reservaEspacoNome(r: ReservaAgendaCCI): string | undefined {
   return undefined;
 }
 
-/** Equipamento + quantidade quando aplicável. */
+/** Lista unificada de equipamentos (campo `equipamentos` ou legado nome/quantidade). */
+export function listaEquipamentosReserva(r: ReservaAgendaCCI): ItemEquipamentoReserva[] {
+  const arr = r.equipamentos;
+  if (Array.isArray(arr) && arr.length > 0) {
+    return arr
+      .filter((x) => x && typeof x.nome === "string" && Number(x.quantidade) > 0)
+      .map((x) => ({ nome: String(x.nome), quantidade: Number(x.quantidade) || 0 }));
+  }
+  if (r.equipamentoNome && (r.equipamentoQuantidade ?? 0) > 0) {
+    return [{ nome: r.equipamentoNome, quantidade: r.equipamentoQuantidade ?? 0 }];
+  }
+  return [];
+}
+
+export function quantidadeEquipamentoNaReserva(r: ReservaAgendaCCI, nomeEquip: string): number {
+  return listaEquipamentosReserva(r)
+    .filter((x) => x.nome === nomeEquip)
+    .reduce((acc, x) => acc + x.quantidade, 0);
+}
+
+/** Equipamento + quantidade quando aplicável (primeira linha; legado). */
 export function reservaEquipamentoInfo(
   r: ReservaAgendaCCI,
 ): { nome: string; quantidade: number } | undefined {
   if (r.tipo === "equipamento" && r.equipamentoNome) {
     return { nome: r.equipamentoNome, quantidade: r.equipamentoQuantidade ?? 0 };
   }
-  if (r.tipo === "composta" && r.equipamentoNome) {
-    return { nome: r.equipamentoNome, quantidade: r.equipamentoQuantidade ?? 0 };
-  }
+  const lista = listaEquipamentosReserva(r);
+  if (r.tipo === "composta" && lista.length > 0) return lista[0];
   return undefined;
 }
 
@@ -62,26 +94,106 @@ export function reservaIncluiEspacoNome(r: ReservaAgendaCCI, espaco: string): bo
 }
 
 export function reservaIncluiEquipamentoNome(r: ReservaAgendaCCI, nomeEquip: string): boolean {
-  const info = reservaEquipamentoInfo(r);
-  return info !== undefined && info.nome === nomeEquip;
+  return quantidadeEquipamentoNaReserva(r, nomeEquip) > 0;
+}
+
+/** Conta linhas `…: COM HDMI` / `…: SEM HDMI` no texto (bloco técnico gravado em `observacao`). */
+export function contagemHdmiDoBlocoTecnicoObservacao(obs: string): { com: number; sem: number } {
+  let com = 0;
+  let sem = 0;
+  for (const line of obs.split(/\r?\n/)) {
+    if (/:\s*COM\s*HDMI\s*$/i.test(line)) com += 1;
+    else if (/:\s*SEM\s*HDMI\s*$/i.test(line)) sem += 1;
+  }
+  return { com, sem };
+}
+
+/** Texto genérico para professor (sem IDs): quantidades com/sem HDMI. */
+export function textoChromebooksParaSolicitante(r: ReservaAgendaCCI): string | null {
+  const n = reservaChromebookIds(r).length;
+  if (n === 0) return null;
+  if (r.chromebooksEntrega?.length) {
+    const c = r.chromebooksEntrega.filter((x) => x.hasHdmi).length;
+    const s = r.chromebooksEntrega.length - c;
+    const parts: string[] = [];
+    if (c) parts.push(`${c} Chromebook${c !== 1 ? "s" : ""} com HDMI`);
+    if (s) parts.push(`${s} Chromebook${s !== 1 ? "s" : ""} sem HDMI`);
+    return parts.join(" · ");
+  }
+  const { com, sem } = contagemHdmiDoBlocoTecnicoObservacao(r.observacao ?? "");
+  if (com + sem > 0) {
+    const parts: string[] = [];
+    if (com) parts.push(`${com} Chromebook${com !== 1 ? "s" : ""} com HDMI`);
+    if (sem) parts.push(`${sem} Chromebook${sem !== 1 ? "s" : ""} sem HDMI`);
+    return parts.join(" · ");
+  }
+  return `${n} Chromebook${n !== 1 ? "s" : ""}`;
+}
+
+/** Lista para entrega (admin): etiqueta + HDMI; infere do bloco técnico em `observacao` se faltar campo. */
+export function chromebooksParaEntregaAdmin(r: ReservaAgendaCCI): { etiqueta: string; hasHdmi: boolean }[] {
+  if (r.chromebooksEntrega?.length) return r.chromebooksEntrega;
+  const out: { etiqueta: string; hasHdmi: boolean }[] = [];
+  const obs = r.observacao ?? "";
+  for (const line of obs.split(/\r?\n/)) {
+    const m = line.match(/^(.+?):\s*(COM HDMI|SEM HDMI)\s*$/i);
+    if (m) {
+      out.push({
+        etiqueta: m[1].trim(),
+        hasHdmi: /^COM\b/i.test(m[2]),
+      });
+    }
+  }
+  if (out.length) return out;
+  return (r.chromebookIds ?? []).map((id) => ({ etiqueta: id, hasHdmi: false }));
+}
+
+/** Remove do topo de `observacao` as linhas técnicas de HDMI (para exibir só texto livre ao solicitante). */
+export function observacaoSomenteTextoLivre(obs?: string): string | undefined {
+  if (!obs?.trim()) return undefined;
+  const lines = obs.split(/\r?\n/);
+  let i = 0;
+  while (i < lines.length && /^.+:\s*(COM HDMI|SEM HDMI)\s*$/i.test(lines[i].trim())) {
+    i += 1;
+  }
+  const t = lines.slice(i).join("\n").trim();
+  return t || undefined;
+}
+
+export function labelStatusExibicao(s: StatusExibicaoReserva): string {
+  if (s === "pendente") return "Pendente";
+  if (s === "ativa") return "Ativa";
+  if (s === "concluída") return "Concluída";
+  return "Cancelada";
+}
+
+export function classeBadgeStatusExibicao(s: StatusExibicaoReserva): string {
+  if (s === "cancelada") {
+    return "bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground rounded-full";
+  }
+  if (s === "concluída") {
+    return "bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground rounded-full";
+  }
+  if (s === "pendente") {
+    return "bg-amber-500/15 px-2 py-0.5 text-xs font-medium text-amber-950 dark:text-amber-100 rounded-full";
+  }
+  return "bg-success/15 px-2 py-0.5 text-xs font-medium text-success rounded-full";
 }
 
 /** Uma linha legível para agenda / listagens (inclui legado e composta). */
 export function textoResumoAgenda(r: ReservaAgendaCCI): string {
   if (r.tipo === "composta") {
     const p: string[] = [];
-    if ((r.chromebookIds?.length ?? 0) > 0) {
-      p.push(`${r.chromebookIds!.length} Chromebook(s)`);
-    }
-    if (r.equipamentoNome && (r.equipamentoQuantidade ?? 0) > 0) {
-      p.push(`${r.equipamentoNome} × ${r.equipamentoQuantidade}`);
+    const txCb = textoChromebooksParaSolicitante(r);
+    if (txCb) p.push(txCb);
+    for (const eq of listaEquipamentosReserva(r)) {
+      p.push(`${eq.nome} × ${eq.quantidade}`);
     }
     if (r.espacoNome) p.push(r.espacoNome);
     return p.length ? p.join(" · ") : "Reserva composta";
   }
   if (r.tipo === "chromebook") {
-    const n = r.chromebookIds?.length ?? 0;
-    return `${n} Chromebook${n !== 1 ? "s" : ""}`;
+    return textoChromebooksParaSolicitante(r) ?? "Chromebook";
   }
   if (r.tipo === "equipamento") {
     return `${r.equipamentoNome ?? "Equipamento"} · ${r.equipamentoQuantidade ?? 0} un.`;
@@ -181,6 +293,53 @@ export function dataReservaDentroDaSemanaPermitida(
   return dataYmd >= min && dataYmd <= max;
 }
 
+function parseReservaLocalDateTimes(
+  dataYmd: string,
+  inicioHhmm: string,
+  fimHhmm: string,
+): { inicio: Date; fim: Date } | null {
+  const [y, m, d] = dataYmd.split("-").map(Number);
+  const [hi, mi] = inicioHhmm.split(":").map(Number);
+  const [hf, mf] = fimHhmm.split(":").map(Number);
+  if (![y, m, d, hi, mi, hf, mf].every((n) => Number.isFinite(n))) return null;
+  return {
+    inicio: new Date(y, m - 1, d, hi, mi, 0, 0),
+    fim: new Date(y, m - 1, d, hf, mf, 0, 0),
+  };
+}
+
+/**
+ * Status para exibição: cancelada (persistido); senão, concluída / pendente / ativa pelo relógio local.
+ */
+export function statusExibicaoReserva(r: ReservaAgendaCCI, agora: Date = new Date()): StatusExibicaoReserva {
+  if (r.status === "cancelada") return "cancelada";
+  const parsed = parseReservaLocalDateTimes(r.data, r.inicio, r.fim);
+  if (!parsed) return "pendente";
+  const t = agora.getTime();
+  if (t >= parsed.fim.getTime()) return "concluída";
+  if (t < parsed.inicio.getTime()) return "pendente";
+  return "ativa";
+}
+
+/** Não permite agendar início no passado (data/hora local). */
+export function inicioReservaNaoEstaNoPassado(
+  dataYmd: string,
+  inicioHhmm: string,
+  agora: Date = new Date(),
+): boolean {
+  const [y, m, d] = dataYmd.split("-").map(Number);
+  const [hi, mi] = inicioHhmm.split(":").map(Number);
+  if (![y, m, d, hi, mi].every((n) => Number.isFinite(n))) return false;
+  const inicio = new Date(y, m - 1, d, hi, mi, 0, 0);
+  return inicio.getTime() >= agora.getTime();
+}
+
+/** `min` para `<input type="time">` quando a data selecionada é hoje (hora local). */
+export function horaMinimaInicioParaData(dataYmd: string, agora: Date = new Date()): string | undefined {
+  if (dataYmd !== toYmdLocal(agora)) return undefined;
+  return `${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
+}
+
 export function formatarYmdParaBR(ymd: string): string {
   const p = ymd.split("-").map(Number);
   if (p.length !== 3 || p.some((n) => !Number.isFinite(n))) return ymd;
@@ -199,11 +358,13 @@ export function carregarReservasAgenda(): ReservaAgendaCCI[] {
   }
 }
 
-export function salvarReservasAgenda(lista: ReservaAgendaCCI[], idToken?: string | null) {
+export async function salvarReservasAgenda(
+  lista: ReservaAgendaCCI[],
+  idToken?: string | null,
+): Promise<boolean> {
   localStorage.setItem(STORAGE_KEY_AGENDA_CCI, JSON.stringify(lista));
-  if (idToken) {
-    void enviarReservasParaServidor(lista, idToken);
-  }
+  if (idToken) return enviarReservasParaServidor(lista, idToken);
+  return true;
 }
 
 export async function enviarReservasParaServidor(

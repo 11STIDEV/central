@@ -14,11 +14,16 @@ import {
 } from "lucide-react";
 import {
   type ReservaAgendaCCI,
-  type StatusReservaAgenda,
+  type StatusExibicaoReserva,
   type TipoReservaAgenda,
   carregarReservasAgenda,
+  chromebooksParaEntregaAdmin,
+  classeBadgeStatusExibicao,
+  labelStatusExibicao,
+  listaEquipamentosReserva,
   obterReservasDoServidor,
   salvarReservasAgenda,
+  statusExibicaoReserva,
   STORAGE_KEY_AGENDA_CCI,
   textoResumoAgenda,
 } from "@/lib/agendaCci";
@@ -40,6 +45,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "@/components/ui/sonner";
 
 function labelTipo(t: TipoReservaAgenda): string {
   if (t === "composta") return "Composta";
@@ -56,12 +78,21 @@ function detalheReserva(r: ReservaAgendaCCI): string {
   return base;
 }
 
+type FiltroStatusAdmin = "todos" | StatusExibicaoReserva;
+
 export default function AgendaCCIAdmin() {
   const { googleIdToken, usuario } = useAuth();
   const [reservas, setReservas] = useState<ReservaAgendaCCI[]>(() => carregarReservasAgenda());
   const [busca, setBusca] = useState("");
   const [filtroTipo, setFiltroTipo] = useState<"todos" | TipoReservaAgenda>("todos");
-  const [filtroStatus, setFiltroStatus] = useState<"todos" | StatusReservaAgenda>("todos");
+  const [filtroStatus, setFiltroStatus] = useState<FiltroStatusAdmin>("todos");
+  const [agoraTick, setAgoraTick] = useState(() => Date.now());
+
+  const [detalheAberto, setDetalheAberto] = useState(false);
+  const [reservaDetalhe, setReservaDetalhe] = useState<ReservaAgendaCCI | null>(null);
+
+  const [cancelDialogAberto, setCancelDialogAberto] = useState(false);
+  const [idCancelar, setIdCancelar] = useState<string | null>(null);
 
   useEffect(() => {
     setReservas(carregarReservasAgenda());
@@ -85,18 +116,37 @@ export default function AgendaCCIAdmin() {
     };
   }, [googleIdToken, usuario]);
 
+  useEffect(() => {
+    const t = window.setInterval(() => setAgoraTick(Date.now()), 60_000);
+    return () => window.clearInterval(t);
+  }, []);
+
   const stats = useMemo(() => {
-    const ativas = reservas.filter((r) => r.status === "ativa").length;
-    const canceladas = reservas.filter((r) => r.status === "cancelada").length;
-    return { total: reservas.length, ativas, canceladas };
-  }, [reservas]);
+    const agora = new Date(agoraTick);
+    let canceladas = 0;
+    let pendentes = 0;
+    let ativas = 0;
+    let concluidas = 0;
+    for (const r of reservas) {
+      const sx = statusExibicaoReserva(r, agora);
+      if (sx === "cancelada") canceladas += 1;
+      else if (sx === "pendente") pendentes += 1;
+      else if (sx === "ativa") ativas += 1;
+      else concluidas += 1;
+    }
+    return { total: reservas.length, canceladas, pendentes, ativas, concluidas };
+  }, [reservas, agoraTick]);
 
   const filtradas = useMemo(() => {
+    const agora = new Date(agoraTick);
     const q = busca.trim().toLowerCase();
     return reservas
       .filter((r) => {
         if (filtroTipo !== "todos" && r.tipo !== filtroTipo) return false;
-        if (filtroStatus !== "todos" && r.status !== filtroStatus) return false;
+        if (filtroStatus !== "todos") {
+          const sx = statusExibicaoReserva(r, agora);
+          if (sx !== filtroStatus) return false;
+        }
         if (!q) return true;
         return (
           r.id.toLowerCase().includes(q) ||
@@ -107,24 +157,44 @@ export default function AgendaCCIAdmin() {
         );
       })
       .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
-  }, [busca, filtroStatus, filtroTipo, reservas]);
+  }, [agoraTick, busca, filtroStatus, filtroTipo, reservas]);
 
-  function persistir(lista: ReservaAgendaCCI[]) {
+  async function persistir(lista: ReservaAgendaCCI[]) {
     setReservas(lista);
-    salvarReservasAgenda(lista, googleIdToken);
+    const ok = await salvarReservasAgenda(lista, googleIdToken);
+    if (!ok) {
+      toast.warning(
+        "Alteração salva neste navegador, mas a sincronização com o servidor falhou. Tente novamente.",
+        { duration: 8000 },
+      );
+    }
   }
 
-  function cancelar(id: string) {
-    persistir(
-      reservas.map((r) => (r.id === id ? { ...r, status: "cancelada" as const } : r)),
+  function abrirCancelar(id: string) {
+    setIdCancelar(id);
+    setCancelDialogAberto(true);
+  }
+
+  async function confirmarCancelar() {
+    if (!idCancelar) return;
+    const lista = reservas.map((r) =>
+      r.id === idCancelar ? { ...r, status: "cancelada" as const } : r,
     );
+    await persistir(lista);
+    setCancelDialogAberto(false);
+    setIdCancelar(null);
+    toast.success("Reserva cancelada.");
+    if (reservaDetalhe?.id === idCancelar) {
+      setReservaDetalhe((prev) => (prev ? { ...prev, status: "cancelada" } : null));
+    }
   }
 
   function exportarCsv() {
     const headers = [
       "id",
       "tipo",
-      "status",
+      "statusPersistido",
+      "statusExibicao",
       "data",
       "inicio",
       "fim",
@@ -134,6 +204,7 @@ export default function AgendaCCIAdmin() {
       "observacao",
       "criadoEm",
     ];
+    const agora = new Date();
     const linhas = [headers.join(";")];
     for (const r of reservas) {
       linhas.push(
@@ -141,6 +212,7 @@ export default function AgendaCCIAdmin() {
           r.id,
           r.tipo,
           r.status,
+          statusExibicaoReserva(r, agora),
           r.data,
           r.inicio,
           r.fim,
@@ -161,6 +233,12 @@ export default function AgendaCCIAdmin() {
     URL.revokeObjectURL(url);
   }
 
+  function podeCancelar(r: ReservaAgendaCCI): boolean {
+    const agora = new Date(agoraTick);
+    const sx = statusExibicaoReserva(r, agora);
+    return r.status === "ativa" && sx !== "concluída";
+  }
+
   return (
     <div className="animate-fade-in">
       <PageHero>
@@ -176,8 +254,8 @@ export default function AgendaCCIAdmin() {
                 Admin — Agenda CCI
               </h1>
               <p className="mt-2 max-w-2xl text-slate-300">
-                Visualize e cancele reservas de Chromebooks, equipamentos e espaços. Os dados ficam no
-                navegador (mesmo armazenamento da Agenda CCI).
+                Visualize reservas de Chromebooks, equipamentos e espaços. Clique em uma linha para ver todos os
+                detalhes. Os dados são sincronizados com o servidor quando disponível.
               </p>
             </div>
             <Button
@@ -194,25 +272,125 @@ export default function AgendaCCIAdmin() {
         </>
       </PageHero>
 
+      <AlertDialog open={cancelDialogAberto} onOpenChange={setCancelDialogAberto}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancelar esta reserva?</AlertDialogTitle>
+            <AlertDialogDescription>
+              A reserva será marcada como cancelada e os recursos poderão ser liberados para outros usuários.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Voltar</AlertDialogCancel>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => void confirmarCancelar()}
+            >
+              Sim, cancelar
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={detalheAberto} onOpenChange={setDetalheAberto}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Detalhes da reserva</DialogTitle>
+            <DialogDescription>Informações completas registradas pelo solicitante.</DialogDescription>
+          </DialogHeader>
+          {reservaDetalhe && (
+            <div className="space-y-3 text-sm text-card-foreground">
+              <p>
+                <span className="font-medium">ID:</span>{" "}
+                <span className="font-mono text-xs">{reservaDetalhe.id}</span>
+              </p>
+              <p>
+                <span className="font-medium">Status (exibição):</span>{" "}
+                {labelStatusExibicao(statusExibicaoReserva(reservaDetalhe, new Date(agoraTick)))}
+              </p>
+              <p>
+                <span className="font-medium">Status no cadastro:</span> {reservaDetalhe.status}
+              </p>
+              <p>
+                <span className="font-medium">Tipo:</span> {labelTipo(reservaDetalhe.tipo)}
+              </p>
+              <p>
+                <span className="font-medium">Título:</span> {reservaDetalhe.titulo ?? "—"}
+              </p>
+              <p>
+                <span className="font-medium">Data / horário:</span> {reservaDetalhe.data} · {reservaDetalhe.inicio} —{" "}
+                {reservaDetalhe.fim}
+              </p>
+              <p>
+                <span className="font-medium">Solicitante:</span> {reservaDetalhe.solicitanteNome} (
+                {reservaDetalhe.solicitanteEmail})
+              </p>
+              {chromebooksParaEntregaAdmin(reservaDetalhe).length > 0 && (
+                <div>
+                  <span className="font-medium">Chromebooks (ID recurso / entrega):</span>
+                  <ul className="mt-1 list-disc pl-5 font-mono text-xs">
+                    {chromebooksParaEntregaAdmin(reservaDetalhe).map((c, i) => (
+                      <li key={`${c.etiqueta}-${i}`}>
+                        {c.etiqueta} · {c.hasHdmi ? "com HDMI" : "sem HDMI"}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {listaEquipamentosReserva(reservaDetalhe).length > 0 && (
+                <div>
+                  <span className="font-medium">Equipamentos:</span>
+                  <ul className="mt-1 list-disc pl-5">
+                    {listaEquipamentosReserva(reservaDetalhe).map((e) => (
+                      <li key={e.nome}>
+                        {e.nome} × {e.quantidade}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {reservaDetalhe.espacoNome ? (
+                <p>
+                  <span className="font-medium">Espaço:</span> {reservaDetalhe.espacoNome}
+                </p>
+              ) : null}
+              {reservaDetalhe.observacao ? (
+                <p className="whitespace-pre-wrap">
+                  <span className="font-medium">Observação:</span>
+                  <br />
+                  {reservaDetalhe.observacao}
+                </p>
+              ) : null}
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-card-foreground">Criado em:</span> {reservaDetalhe.criadoEm}
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-8">
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <div className="rounded-xl border border-border bg-card p-4 shadow-card">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Total de registros
-            </p>
-            <p className="mt-1 text-2xl font-bold text-card-foreground">{stats.total}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Total</p>
+            <p className="mt-1 text-xl font-bold text-card-foreground">{stats.total}</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-4 shadow-card">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Ativas
-            </p>
-            <p className="mt-1 text-2xl font-bold text-success">{stats.ativas}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Pendentes</p>
+            <p className="mt-1 text-xl font-bold text-amber-600 dark:text-amber-400">{stats.pendentes}</p>
           </div>
           <div className="rounded-xl border border-border bg-card p-4 shadow-card">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Canceladas
-            </p>
-            <p className="mt-1 text-2xl font-bold text-muted-foreground">{stats.canceladas}</p>
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Ativas (agora)</p>
+            <p className="mt-1 text-xl font-bold text-success">{stats.ativas}</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4 shadow-card">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Concluídas</p>
+            <p className="mt-1 text-xl font-bold text-muted-foreground">{stats.concluidas}</p>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4 shadow-card">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Canceladas</p>
+            <p className="mt-1 text-xl font-bold text-muted-foreground">{stats.canceladas}</p>
           </div>
         </div>
 
@@ -244,14 +422,16 @@ export default function AgendaCCIAdmin() {
             </Select>
             <Select
               value={filtroStatus}
-              onValueChange={(v) => setFiltroStatus(v as typeof filtroStatus)}
+              onValueChange={(v) => setFiltroStatus(v as FiltroStatusAdmin)}
             >
-              <SelectTrigger className="w-[160px]">
+              <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="Status" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="todos">Todos os status</SelectItem>
-                <SelectItem value="ativa">Ativa</SelectItem>
+                <SelectItem value="pendente">Pendente</SelectItem>
+                <SelectItem value="ativa">Ativa (em horário)</SelectItem>
+                <SelectItem value="concluída">Concluída</SelectItem>
                 <SelectItem value="cancelada">Cancelada</SelectItem>
               </SelectContent>
             </Select>
@@ -270,11 +450,9 @@ export default function AgendaCCIAdmin() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="whitespace-nowrap">ID</TableHead>
-                  <TableHead>Tipo</TableHead>
-                  <TableHead>Data / horário</TableHead>
                   <TableHead>Solicitante</TableHead>
-                  <TableHead>Detalhe</TableHead>
+                  <TableHead>Tipo</TableHead>
+                  <TableHead>Data</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
@@ -282,67 +460,62 @@ export default function AgendaCCIAdmin() {
               <TableBody>
                 {filtradas.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center text-muted-foreground">
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
                       Nenhuma reserva encontrada.
                     </TableCell>
                   </TableRow>
                 )}
-                {filtradas.map((r) => (
-                  <TableRow key={r.id}>
-                    <TableCell className="font-mono text-xs">{r.id}</TableCell>
-                    <TableCell>
-                      <span className="inline-flex items-center gap-1 text-sm">
-                        {r.tipo === "composta" && <Layers className="h-3.5 w-3.5 text-muted-foreground" />}
-                        {r.tipo === "chromebook" && <Laptop className="h-3.5 w-3.5 text-muted-foreground" />}
-                        {r.tipo === "equipamento" && <Package className="h-3.5 w-3.5 text-muted-foreground" />}
-                        {r.tipo === "espaco" && <MapPin className="h-3.5 w-3.5 text-muted-foreground" />}
-                        {labelTipo(r.tipo)}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {r.data}
-                      <br />
-                      <span className="text-muted-foreground">
-                        {r.inicio} — {r.fim}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm font-medium">{r.solicitanteNome}</div>
-                      <div className="text-xs text-muted-foreground">{r.solicitanteEmail}</div>
-                    </TableCell>
-                    <TableCell className="max-w-[220px] text-sm text-muted-foreground">
-                      {detalheReserva(r)}
-                      {r.observacao && (
-                        <span className="mt-1 block text-xs italic">Obs: {r.observacao}</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={
-                          r.status === "ativa"
-                            ? "rounded-full bg-success/15 px-2 py-0.5 text-xs font-medium text-success"
-                            : "rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                        }
-                      >
-                        {r.status}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {r.status === "ativa" ? (
-                        <button
-                          type="button"
-                          onClick={() => cancelar(r.id)}
-                          className="inline-flex items-center gap-1 text-sm font-medium text-destructive hover:underline"
-                        >
-                          <XCircle className="h-3.5 w-3.5" />
-                          Cancelar
-                        </button>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {filtradas.map((r) => {
+                  const sx = statusExibicaoReserva(r, new Date(agoraTick));
+                  return (
+                    <TableRow
+                      key={r.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => {
+                        setReservaDetalhe(r);
+                        setDetalheAberto(true);
+                      }}
+                    >
+                      <TableCell>
+                        <div className="text-sm font-medium">{r.solicitanteNome}</div>
+                        <div className="text-xs text-muted-foreground">{r.solicitanteEmail}</div>
+                      </TableCell>
+                      <TableCell>
+                        <span className="inline-flex items-center gap-1 text-sm">
+                          {r.tipo === "composta" && <Layers className="h-3.5 w-3.5 text-muted-foreground" />}
+                          {r.tipo === "chromebook" && <Laptop className="h-3.5 w-3.5 text-muted-foreground" />}
+                          {r.tipo === "equipamento" && <Package className="h-3.5 w-3.5 text-muted-foreground" />}
+                          {r.tipo === "espaco" && <MapPin className="h-3.5 w-3.5 text-muted-foreground" />}
+                          {labelTipo(r.tipo)}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {r.data}
+                        <br />
+                        <span className="text-muted-foreground">
+                          {r.inicio} — {r.fim}
+                        </span>
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <span className={classeBadgeStatusExibicao(sx)}>{labelStatusExibicao(sx)}</span>
+                      </TableCell>
+                      <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                        {podeCancelar(r) ? (
+                          <button
+                            type="button"
+                            onClick={() => abrirCancelar(r.id)}
+                            className="inline-flex items-center gap-1 text-sm font-medium text-destructive hover:underline"
+                          >
+                            <XCircle className="h-3.5 w-3.5" />
+                            Cancelar
+                          </button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

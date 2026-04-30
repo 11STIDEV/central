@@ -15,6 +15,7 @@ import {
   MonitorSpeaker,
   Ticket,
   UserCog,
+  UserRoundCheck,
   Wallet,
   Warehouse,
 } from "lucide-react";
@@ -100,6 +101,11 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
             title: "Reserva de Equipamentos e Espaços",
             url: "/reserva-espacos-equipamentos",
             icon: MapPin,
+          },
+          {
+            title: "Minhas Reservas",
+            url: "/minhas-reservas",
+            icon: UserRoundCheck,
           },
         ],
       },

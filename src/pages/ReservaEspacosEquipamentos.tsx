@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Calendar, Check, Clock3, Laptop, Package, MapPin, XCircle } from "lucide-react";
+import { Calendar, Check, Laptop, Package, MapPin, Plus, Trash2 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { useAuth } from "@/auth/AuthProvider";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   type ChromebookAgendaItem,
   type ReservaAgendaCCI,
@@ -19,8 +25,13 @@ import {
   carregarReservasAgenda,
   dataReservaDentroDaSemanaPermitida,
   formatarYmdParaBR,
+  horaMinimaInicioParaData,
+  inicioReservaNaoEstaNoPassado,
   limitesDatasReservaSemanaCorrente,
+  listaEquipamentosReserva,
+  observacaoSomenteTextoLivre,
   obterReservasDoServidor,
+  quantidadeEquipamentoNaReserva,
   reservaIncluiChromebookId,
   reservaIncluiEquipamentoNome,
   reservaIncluiEspacoNome,
@@ -28,15 +39,37 @@ import {
   salvarReservasAgenda,
   reservasChromebookConflitam,
   toMinutes,
+  textoChromebooksParaSolicitante,
   toYmdLocal,
   rangesOverlap,
 } from "@/lib/agendaCci";
 import { apiUrl } from "@/lib/apiBase";
+import { toast } from "@/components/ui/sonner";
+
+type LinhaEquipamento = { key: string; nome: string; quantidade: number };
+
+function novaLinhaEquipamento(): LinhaEquipamento {
+  return {
+    key: `eq-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+    nome: EQUIPAMENTOS_CATALOGO[0].nome,
+    quantidade: 0,
+  };
+}
+
+function consolidarEquipamentosLinhas(linhas: LinhaEquipamento[]): ItemEquipamentoReserva[] {
+  const map = new Map<string, number>();
+  for (const l of linhas) {
+    if (l.quantidade <= 0) continue;
+    map.set(l.nome, (map.get(l.nome) ?? 0) + l.quantidade);
+  }
+  return [...map.entries()].map(([nome, quantidade]) => ({ nome, quantidade }));
+}
+
+type Feedback = { tipo: "erro" | "sucesso"; texto: string } | null;
 
 export default function ReservaEspacosEquipamentos() {
   const location = useLocation();
   const { usuario, googleIdToken } = useAuth();
-  /** Papéis de faculdade/tecs: reserva de no máximo 1 Chromebook por vez. */
   const papelAluno = usuario?.papeis.includes("aluno") ?? false;
   const [titulo, setTitulo] = useState("");
   const [abaAtiva, setAbaAtiva] = useState<"chromebook" | "equipamento" | "espaco">("chromebook");
@@ -45,18 +78,20 @@ export default function ReservaEspacosEquipamentos() {
   const [fim, setFim] = useState("08:50");
   const [somenteHdmi, setSomenteHdmi] = useState(false);
   const [chromebooksSelecionados, setChromebooksSelecionados] = useState<string[]>([]);
-  const [equipamentoNome, setEquipamentoNome] = useState(EQUIPAMENTOS_CATALOGO[0].nome);
-  const [equipamentoQuantidade, setEquipamentoQuantidade] = useState(0);
+  const [equipamentoLinhas, setEquipamentoLinhas] = useState<LinhaEquipamento[]>(() => [
+    novaLinhaEquipamento(),
+  ]);
   const [espacoNome, setEspacoNome] = useState("");
   const [observacao, setObservacao] = useState("");
-  const [checklistEventoHabilitado, setChecklistEventoHabilitado] = useState(false);
-  const [mensagem, setMensagem] = useState<string | null>(null);
+  const [feedback, setFeedback] = useState<Feedback>(null);
   const [reservas, setReservas] = useState<ReservaAgendaCCI[]>(() => carregarReservasAgenda());
   const [chromebooksCatalogo, setChromebooksCatalogo] = useState<ChromebookAgendaItem[]>(
     CHROMEBOOKS_CATALOGO_FALLBACK,
   );
   const [carregandoChromebooks, setCarregandoChromebooks] = useState(false);
   const [avisoChromebooks, setAvisoChromebooks] = useState<string | null>(null);
+  const [dialogConfirmarAberto, setDialogConfirmarAberto] = useState(false);
+  const [reservaPendente, setReservaPendente] = useState<ReservaAgendaCCI | null>(null);
 
   useEffect(() => {
     if (!googleIdToken || !usuario || location.pathname !== "/reserva-espacos-equipamentos") return;
@@ -145,6 +180,14 @@ export default function ReservaEspacosEquipamentos() {
     setChromebooksSelecionados((prev) => prev.filter((id) => ids.has(id)));
   }, [chromebooksCatalogo]);
 
+  const minHoraInicio = useMemo(() => horaMinimaInicioParaData(data), [data]);
+
+  useEffect(() => {
+    const m = horaMinimaInicioParaData(data);
+    if (!m) return;
+    if (toMinutes(inicio) < toMinutes(m)) setInicio(m);
+  }, [data]);
+
   const reservasAtivas = useMemo(
     () => reservas.filter((r) => r.status === "ativa"),
     [reservas],
@@ -162,35 +205,33 @@ export default function ReservaEspacosEquipamentos() {
     });
   }, [chromebooksCatalogo, data, fim, inicio, reservasAtivas, somenteHdmi]);
 
-  const maxEquipamentoDisponivel = useMemo(() => {
-    const def = EQUIPAMENTOS_CATALOGO.find((e) => e.nome === equipamentoNome);
-    if (!def) return 1;
-    const reservadoNoHorario = reservasAtivas
-      .filter((r) => r.data === data && reservaIncluiEquipamentoNome(r, equipamentoNome))
-      .filter((r) => rangesOverlap(inicio, fim, r.inicio, r.fim))
-      .reduce((acc, r) => acc + (r.equipamentoQuantidade ?? 0), 0);
-    return Math.max(0, def.total - reservadoNoHorario);
-  }, [data, equipamentoNome, fim, inicio, reservasAtivas]);
+  const maxDisponivelEquip = useCallback(
+    (nome: string, rowKey: string) => {
+      const def = EQUIPAMENTOS_CATALOGO.find((e) => e.nome === nome);
+      if (!def) return 0;
+      const outrasLinhas = equipamentoLinhas
+        .filter((l) => l.key !== rowKey && l.nome === nome)
+        .reduce((a, l) => a + l.quantidade, 0);
+      const reservado = reservasAtivas
+        .filter((r) => r.data === data && reservaIncluiEquipamentoNome(r, nome))
+        .filter((r) => rangesOverlap(inicio, fim, r.inicio, r.fim))
+        .reduce((acc, r) => acc + quantidadeEquipamentoNaReserva(r, nome), 0);
+      return Math.max(0, def.total - reservado - outrasLinhas);
+    },
+    [data, equipamentoLinhas, fim, inicio, reservasAtivas],
+  );
 
   const espacosDisponiveis = useMemo(() => {
     return ESPACOS_CATALOGO.filter((esp) => {
       const conflita = reservasAtivas.some((r) => {
         if (r.data !== data) return false;
         if (!reservaIncluiEspacoNome(r, esp)) return false;
-        return rangesOverlap(inicio, fim, r.inicio, r.fim);
+        return reservasChromebookConflitam(inicio, fim, r.inicio, r.fim);
       });
       return !conflita;
     });
   }, [data, fim, inicio, reservasAtivas]);
 
-  const minhasReservas = useMemo(() => {
-    if (!usuario) return [];
-    return reservas
-      .filter((r) => r.solicitanteEmail === usuario.email)
-      .sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
-  }, [reservas, usuario]);
-
-  /** Aluno: no máximo uma reserva ativa de Chromebook no total (não só por agendamento). */
   const alunoJaTemReservaAtivaChromebook = useMemo(() => {
     if (!usuario || !papelAluno) return false;
     return reservas.some(
@@ -208,58 +249,53 @@ export default function ReservaEspacosEquipamentos() {
     setData((d) => (d < min || d > max ? min : d));
   }, []);
 
-  /** Papel aluno: só aba Chromebooks. */
   useEffect(() => {
     if (!usuario?.papeis.includes("aluno")) return;
     setAbaAtiva("chromebook");
     setEspacoNome("");
-    setMensagem(null);
+    setFeedback(null);
   }, [usuario]);
 
   function resetAposSucesso() {
     setTitulo("");
     setChromebooksSelecionados([]);
-    setEquipamentoQuantidade(0);
+    setEquipamentoLinhas([novaLinhaEquipamento()]);
     setEspacoNome("");
     setObservacao("");
-    setChecklistEventoHabilitado(false);
   }
 
-  function criarReserva() {
-    setMensagem(null);
-    if (!usuario) {
-      setMensagem("Faça login para reservar.");
-      return;
-    }
+  function mostrarErro(texto: string) {
+    setFeedback({ tipo: "erro", texto });
+    toast.error(texto, { duration: 6000 });
+  }
+
+  function montarReservaOuErro(): ReservaAgendaCCI | string {
+    if (!usuario) return "Faça login para reservar.";
     const tituloLimpo = titulo.trim();
-    if (!tituloLimpo) {
-      setMensagem("Informe um título para a reserva.");
-      return;
-    }
+    if (!tituloLimpo) return "Informe um título para a reserva.";
     if (!data || !inicio || !fim || toMinutes(fim) <= toMinutes(inicio)) {
-      setMensagem("Informe data e horário válidos.");
-      return;
+      return "Informe data e horário válidos (o fim deve ser depois do início).";
+    }
+
+    if (!inicioReservaNaoEstaNoPassado(data, inicio)) {
+      return "Não é possível reservar um horário de início que já passou. Ajuste a data ou o horário de início.";
     }
 
     if (!dataReservaDentroDaSemanaPermitida(data)) {
-      setMensagem(
-        "Só é possível reservar até o sábado da semana corrente. A próxima semana (domingo a sábado) fica disponível a partir do próximo domingo.",
-      );
-      return;
+      return "Só é possível reservar até o sábado da semana corrente. A próxima semana (domingo a sábado) fica disponível a partir do próximo domingo.";
     }
 
     const temChromebooks = chromebooksSelecionados.length > 0;
+    const equipamentosConsolidados = consolidarEquipamentosLinhas(equipamentoLinhas);
+    const temEquipamento = equipamentosConsolidados.length > 0;
     const temEspaco = Boolean(espacoNome.trim());
-    const temEquipamento = equipamentoQuantidade > 0;
 
     if (papelAluno && (temEspaco || temEquipamento)) {
-      setMensagem("Contas com papel aluno só podem reservar Chromebooks.");
-      return;
+      return "Contas com papel aluno só podem reservar Chromebooks.";
     }
 
     if (!temChromebooks && !temEspaco && !temEquipamento) {
-      setMensagem("Inclua ao menos um Chromebook, um equipamento ou um espaço (use as abas).");
-      return;
+      return "Inclua ao menos um Chromebook, um equipamento ou um espaço (use as abas).";
     }
 
     if (papelAluno) {
@@ -270,28 +306,26 @@ export default function ReservaEspacosEquipamentos() {
           reservaChromebookIds(r).length > 0,
       );
       if (jaTemOutraAtiva) {
-        setMensagem(
-          "Você já possui uma reserva ativa de Chromebook. Cancele-a em Minhas reservas antes de criar outra.",
-        );
-        return;
+        return "Você já possui uma reserva ativa de Chromebook. Cancele-a em Minhas reservas antes de criar outra.";
       }
     }
 
     if (temChromebooks && papelAluno && chromebooksSelecionados.length > 1) {
-      setMensagem(
-        "Contas de aluno podem reservar apenas um Chromebook (e uma reserva ativa por vez).",
-      );
-      return;
+      return "Contas de aluno podem reservar apenas um Chromebook (e uma reserva ativa por vez).";
     }
+
     if (temEquipamento) {
-      if (equipamentoQuantidade > maxEquipamentoDisponivel) {
-        setMensagem(`Só há ${maxEquipamentoDisponivel} unidade(s) disponível(is) nesse horário.`);
-        return;
+      for (const linha of equipamentoLinhas) {
+        if (linha.quantidade <= 0) continue;
+        const max = maxDisponivelEquip(linha.nome, linha.key);
+        if (linha.quantidade > max) {
+          return `Quantidade indisponível para “${linha.nome}”: no máximo ${max} unidade(s) neste horário.`;
+        }
       }
     }
-    if (temEspaco && !espacosDisponiveis.includes(espacoNome)) {
-      setMensagem("Este espaço não está disponível nesse horário.");
-      return;
+
+    if (temEspaco && !espacosDisponiveis.includes(espacoNome.trim())) {
+      return "Este espaço não está disponível nesse horário (já existe reserva sobreposta, incluindo tolerância após o término).";
     }
 
     const linhasHdmi = chromebooksSelecionados
@@ -302,10 +336,22 @@ export default function ReservaEspacosEquipamentos() {
       })
       .filter((s): s is string => Boolean(s));
 
+    const chromebooksEntrega = temChromebooks
+      ? chromebooksSelecionados.map((deviceId) => {
+          const cb = chromebooksCatalogo.find((x) => x.id === deviceId);
+          return {
+            etiqueta: String(cb?.annotatedAssetId ?? cb?.id ?? deviceId),
+            hasHdmi: Boolean(cb?.hasHdmi),
+          };
+        })
+      : undefined;
+
     const partesObs = [linhasHdmi.length ? linhasHdmi.join("\n") : undefined, observacao.trim() || undefined].filter(
       Boolean,
     ) as string[];
     const observacaoFinal = partesObs.length ? partesObs.join("\n\n") : undefined;
+
+    const primeiroEq = equipamentosConsolidados[0];
 
     const nova: ReservaAgendaCCI = {
       id: `RSV-${Date.now()}`,
@@ -317,52 +363,75 @@ export default function ReservaEspacosEquipamentos() {
       solicitanteEmail: usuario.email,
       solicitanteNome: usuario.nome,
       chromebookIds: temChromebooks ? chromebooksSelecionados : undefined,
-      equipamentoNome: temEquipamento ? equipamentoNome : undefined,
-      equipamentoQuantidade: temEquipamento ? equipamentoQuantidade : undefined,
+      chromebooksEntrega,
+      equipamentos: temEquipamento ? equipamentosConsolidados : undefined,
+      equipamentoNome: primeiroEq?.nome,
+      equipamentoQuantidade: primeiroEq?.quantidade,
       espacoNome: temEspaco ? espacoNome.trim() : undefined,
       observacao: observacaoFinal,
-      checklistEventoHabilitado,
       status: "ativa",
       criadoEm: new Date().toISOString(),
     };
 
-    const next = [nova, ...reservas];
-    setReservas(next);
-    salvarReservasAgenda(next, googleIdToken);
-    setMensagem("Reserva criada com sucesso.");
-    resetAposSucesso();
+    return nova;
   }
 
-  function cancelarReserva(id: string) {
-    const next = reservas.map((r) => (r.id === id ? { ...r, status: "cancelada" as const } : r));
+  function abrirConfirmacaoReserva() {
+    setFeedback(null);
+    const resultado = montarReservaOuErro();
+    if (typeof resultado === "string") {
+      mostrarErro(resultado);
+      return;
+    }
+    setReservaPendente(resultado);
+    setDialogConfirmarAberto(true);
+  }
+
+  async function confirmarReservaNoDialog() {
+    if (!reservaPendente) return;
+    const next = [reservaPendente, ...reservas];
     setReservas(next);
-    salvarReservasAgenda(next, googleIdToken);
+    const ok = await salvarReservasAgenda(next, googleIdToken);
+    setDialogConfirmarAberto(false);
+    setReservaPendente(null);
+    resetAposSucesso();
+    const msgOk =
+      "Reserva registrada com sucesso. Você pode acompanhar em Minhas reservas.";
+    setFeedback({ tipo: "sucesso", texto: msgOk });
+    toast.success(msgOk);
+    if (!ok) {
+      toast.warning(
+        "A reserva foi salva neste navegador, mas não foi possível sincronizar com o servidor. Verifique a conexão ou tente novamente.",
+        { duration: 8000 },
+      );
+    }
   }
 
   const resumoLinhas = useMemo(() => {
     const lines: string[] = [];
     if (titulo.trim()) lines.push(`Título: ${titulo.trim()}`);
     if (chromebooksSelecionados.length > 0) {
-      lines.push(`Chromebooks: ${chromebooksSelecionados.length} selecionado(s)`);
+      let com = 0;
+      let sem = 0;
+      for (const id of chromebooksSelecionados) {
+        const cb = chromebooksCatalogo.find((x) => x.id === id);
+        if (cb?.hasHdmi) com += 1;
+        else sem += 1;
+      }
+      const partes: string[] = [];
+      if (com) partes.push(`${com} Chromebook${com !== 1 ? "s" : ""} com HDMI`);
+      if (sem) partes.push(`${sem} Chromebook${sem !== 1 ? "s" : ""} sem HDMI`);
+      lines.push(partes.join(" · "));
     }
-    if (equipamentoQuantidade > 0) {
-      lines.push(`Equipamento: ${equipamentoNome} × ${equipamentoQuantidade}`);
+    const eqs = consolidarEquipamentosLinhas(equipamentoLinhas);
+    for (const e of eqs) {
+      lines.push(`Equipamento: ${e.nome} × ${e.quantidade}`);
     }
     if (espacoNome.trim()) {
       lines.push(`Espaço: ${espacoNome.trim()}`);
     }
-    if (checklistEventoHabilitado) {
-      lines.push("Checklist para o evento: sim — Em desenvolvimento");
-    }
     return lines;
-  }, [
-    titulo,
-    chromebooksSelecionados.length,
-    equipamentoNome,
-    equipamentoQuantidade,
-    espacoNome,
-    checklistEventoHabilitado,
-  ]);
+  }, [titulo, chromebooksSelecionados, chromebooksCatalogo, equipamentoLinhas, espacoNome]);
 
   return (
     <div className="animate-fade-in">
@@ -375,8 +444,63 @@ export default function ReservaEspacosEquipamentos() {
         }
       />
 
-      <div className="mx-auto grid max-w-6xl grid-cols-1 gap-6 px-4 py-8 md:px-8 xl:grid-cols-3">
-        <section className="rounded-xl border border-border bg-card p-6 shadow-card xl:col-span-2">
+      <Dialog open={dialogConfirmarAberto} onOpenChange={setDialogConfirmarAberto}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Confirmar reserva</DialogTitle>
+            <DialogDescription>
+              Revise os dados abaixo. Após confirmar, a reserva será registrada e ficará visível para o setor
+              responsável.
+            </DialogDescription>
+          </DialogHeader>
+          {reservaPendente && (
+            <ul className="space-y-2 rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-card-foreground">
+              <li>
+                <span className="font-medium">Título:</span> {reservaPendente.titulo}
+              </li>
+              <li>
+                <span className="font-medium">Data:</span> {formatarYmdParaBR(reservaPendente.data)} ·{" "}
+                {reservaPendente.inicio} — {reservaPendente.fim}
+              </li>
+              {(() => {
+                const tx = textoChromebooksParaSolicitante(reservaPendente);
+                return tx ? (
+                  <li>
+                    <span className="font-medium">Chromebooks:</span> {tx}
+                  </li>
+                ) : null;
+              })()}
+              {listaEquipamentosReserva(reservaPendente).map((e) => (
+                <li key={e.nome}>
+                  <span className="font-medium">Equipamento:</span> {e.nome} × {e.quantidade}
+                </li>
+              ))}
+              {reservaPendente.espacoNome ? (
+                <li>
+                  <span className="font-medium">Espaço:</span> {reservaPendente.espacoNome}
+                </li>
+              ) : null}
+              {observacaoSomenteTextoLivre(reservaPendente.observacao) ? (
+                <li className="whitespace-pre-wrap text-muted-foreground">
+                  <span className="font-medium text-card-foreground">Observação:</span>{" "}
+                  {observacaoSomenteTextoLivre(reservaPendente.observacao)}
+                </li>
+              ) : null}
+            </ul>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={() => setDialogConfirmarAberto(false)}>
+              Voltar
+            </Button>
+            <Button type="button" onClick={() => void confirmarReservaNoDialog()}>
+              Confirmar e salvar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
+        <section className="rounded-xl border border-border bg-card p-6 shadow-card">
           <div className="mb-4 flex items-center gap-2">
             <Calendar className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold text-card-foreground">Nova Reserva</h2>
@@ -418,6 +542,7 @@ export default function ReservaEspacosEquipamentos() {
               <input
                 type="time"
                 value={inicio}
+                min={minHoraInicio}
                 onChange={(e) => setInicio(e.target.value)}
                 className="w-full rounded-lg border border-input bg-background px-3 py-2"
               />
@@ -438,32 +563,14 @@ export default function ReservaEspacosEquipamentos() {
               {formatarYmdParaBR(dataMin)} a {formatarYmdParaBR(dataMax)}
             </strong>{" "}
             (semana domingo a sábado; no próximo domingo abre a próxima semana).
+            {minHoraInicio ? (
+              <>
+                {" "}
+                Para <strong>hoje</strong>, o início não pode ser anterior a{" "}
+                <strong>{minHoraInicio}</strong>.
+              </>
+            ) : null}
           </p>
-
-          <div className="mt-4 flex flex-col gap-2 rounded-lg border border-border bg-muted/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-2">
-              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                <Switch
-                  id="checklist-evento"
-                  checked={checklistEventoHabilitado}
-                  onCheckedChange={setChecklistEventoHabilitado}
-                />
-                <Label htmlFor="checklist-evento" className="cursor-pointer text-sm font-medium text-card-foreground">
-                  Checklist para o Evento
-                </Label>
-                <Badge
-                  className="shrink-0 border-amber-500/60 bg-amber-500/20 text-[11px] font-bold uppercase tracking-wide text-amber-950 shadow-sm dark:border-amber-400/50 dark:bg-amber-500/25 dark:text-amber-100"
-                  aria-label="Funcionalidade em desenvolvimento"
-                >
-                  Em desenvolvimento
-                </Badge>
-              </div>
-              <p className="text-xs text-muted-foreground sm:pl-11">
-                Marque se este evento deve ter um checklist de tarefas para a equipe. A preferência fica salva na
-                reserva.
-              </p>
-            </div>
-          </div>
 
           <Tabs
             value={papelAluno ? "chromebook" : abaAtiva}
@@ -542,7 +649,7 @@ export default function ReservaEspacosEquipamentos() {
                             setChromebooksSelecionados((prev) => [...prev, cb.id]);
                           }
                         }}
-                        className={`relative flex min-h-[3.5rem] flex-col items-start gap-1 rounded-lg border-2 px-3 py-2.5 pr-10 text-left text-xs font-medium transition-shadow ${
+                        className={`relative flex min-h-[3.5rem] flex-col items-start justify-center gap-2 rounded-lg border-2 px-3 py-2.5 pr-10 text-left text-xs font-medium transition-shadow ${
                           checked
                             ? "border-primary bg-primary/15 text-foreground shadow-md ring-2 ring-primary/40"
                             : "border-border text-foreground hover:border-primary/40 hover:bg-muted/30"
@@ -553,18 +660,15 @@ export default function ReservaEspacosEquipamentos() {
                             <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden />
                           </span>
                         )}
-                        <span className="font-mono text-[11px] text-muted-foreground">
-                          {cb.annotatedAssetId ?? cb.id}
-                        </span>
-
+                        <span className="text-sm font-semibold text-card-foreground">Chromebook</span>
                         <span
-                          className={`mt-1 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold ${
+                          className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                             cb.hasHdmi
                               ? "bg-success/15 text-success"
                               : "bg-muted text-muted-foreground"
                           }`}
                         >
-                          {cb.hasHdmi ? "COM HDMI" : "SEM HDMI"}
+                          {cb.hasHdmi ? "Com HDMI" : "Sem HDMI"}
                         </span>
                       </button>
                     </div>
@@ -580,41 +684,92 @@ export default function ReservaEspacosEquipamentos() {
 
             {!papelAluno && (
               <>
-                <TabsContent value="equipamento" className="mt-4">
-                  <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <label className="text-sm">
-                      <span className="mb-1 block text-muted-foreground">Equipamento</span>
-                      <select
-                        value={equipamentoNome}
-                        onChange={(e) => setEquipamentoNome(e.target.value)}
-                        className="w-full rounded-lg border border-input bg-background px-3 py-2"
-                      >
-                        {EQUIPAMENTOS_CATALOGO.map((e) => (
-                          <option key={e.nome} value={e.nome}>
-                            {e.nome}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="text-sm">
-                      <span className="mb-1 block text-muted-foreground">
-                        Quantidade (disponível: {maxEquipamentoDisponivel})
-                      </span>
-                      <input
-                        type="number"
-                        min={0}
-                        value={equipamentoQuantidade}
-                        onChange={(e) => setEquipamentoQuantidade(Number(e.target.value || "0"))}
-                        className="w-full rounded-lg border border-input bg-background px-3 py-2"
-                      />
-                    </label>
-                  </div>
-                  <p className="mt-2 text-xs text-muted-foreground">
-                    Use quantidade 0 se não quiser incluir equipamento nesta reserva.
+                <TabsContent value="equipamento" className="mt-4 space-y-4">
+                  <p className="text-xs text-muted-foreground">
+                    Adicione quantas linhas precisar para incluir <strong>vários equipamentos</strong> na mesma
+                    reserva. A disponibilidade considera outras reservas no mesmo horário.
                   </p>
+                  {equipamentoLinhas.map((linha) => {
+                    const max = maxDisponivelEquip(linha.nome, linha.key);
+                    return (
+                      <div
+                        key={linha.key}
+                        className="flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-4 md:flex-row md:items-end"
+                      >
+                        <label className="text-sm md:flex-1">
+                          <span className="mb-1 block text-muted-foreground">Equipamento</span>
+                          <select
+                            value={linha.nome}
+                            onChange={(e) => {
+                              const v = e.target.value;
+                              setEquipamentoLinhas((prev) =>
+                                prev.map((l) => (l.key === linha.key ? { ...l, nome: v } : l)),
+                              );
+                            }}
+                            className="w-full rounded-lg border border-input bg-background px-3 py-2"
+                          >
+                            {EQUIPAMENTOS_CATALOGO.map((e) => (
+                              <option key={e.nome} value={e.nome}>
+                                {e.nome}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="text-sm md:w-48">
+                          <span className="mb-1 block text-muted-foreground">
+                            Quantidade (máx. {max} neste horário)
+                          </span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={max}
+                            value={linha.quantidade}
+                            onChange={(e) => {
+                              const n = Number(e.target.value || "0");
+                              setEquipamentoLinhas((prev) =>
+                                prev.map((l) =>
+                                  l.key === linha.key ? { ...l, quantidade: Math.max(0, n) } : l,
+                                ),
+                              );
+                            }}
+                            className="w-full rounded-lg border border-input bg-background px-3 py-2"
+                          />
+                        </label>
+                        <div className="flex gap-2 md:pb-0.5">
+                          {equipamentoLinhas.length > 1 ? (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              className="shrink-0"
+                              onClick={() =>
+                                setEquipamentoLinhas((prev) => prev.filter((l) => l.key !== linha.key))
+                              }
+                              aria-label="Remover linha de equipamento"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="gap-2"
+                    onClick={() => setEquipamentoLinhas((prev) => [...prev, novaLinhaEquipamento()])}
+                  >
+                    <Plus className="h-4 w-4" />
+                    Adicionar equipamento
+                  </Button>
                 </TabsContent>
 
                 <TabsContent value="espaco" className="mt-4">
+                  <p className="mb-2 text-xs text-muted-foreground">
+                    Espaços ocupados no mesmo horário ficam indisponíveis (mesma regra de sobreposição dos
+                    Chromebooks, incluindo tolerância após o término).
+                  </p>
                   <label className="text-sm">
                     <span className="mb-1 block text-muted-foreground">Espaço</span>
                     <select
@@ -661,114 +816,28 @@ export default function ReservaEspacosEquipamentos() {
             </label>
           </div>
 
-          {mensagem && (
-            <div className="mt-4 rounded-lg border border-border bg-muted/30 px-4 py-2 text-sm text-card-foreground">
-              {mensagem}
+          {feedback && (
+            <div
+              role="alert"
+              className={`mt-4 rounded-lg border px-4 py-3 text-sm ${
+                feedback.tipo === "erro"
+                  ? "border-destructive/50 bg-destructive/10 text-destructive"
+                  : "border-success/50 bg-success/10 text-green-900 dark:text-green-100"
+              }`}
+            >
+              {feedback.texto}
             </div>
           )}
 
           <div className="mt-4 flex items-center justify-end">
             <button
               type="button"
-              onClick={criarReserva}
+              onClick={abrirConfirmacaoReserva}
               disabled={!usuario || alunoJaTemReservaAtivaChromebook}
               className="rounded-lg gradient-primary px-5 py-2 text-sm font-semibold text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Confirmar reserva
+              Revisar e confirmar reserva
             </button>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-border bg-card p-6 shadow-card">
-          <div className="mb-4 flex items-center gap-2">
-            <Clock3 className="h-5 w-5 text-primary" />
-            <h2 className="text-lg font-semibold text-card-foreground">Minhas Reservas</h2>
-          </div>
-          <div className="space-y-3">
-            {minhasReservas.length === 0 && (
-              <div className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                Você ainda não possui reservas.
-              </div>
-            )}
-            {minhasReservas.map((r) => (
-              <div key={r.id} className="rounded-lg border border-border bg-background p-3">
-                <div className="mb-1 flex items-center justify-between gap-3">
-                  <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    {r.tipo === "composta"
-                      ? "Reserva composta"
-                      : r.tipo === "chromebook"
-                        ? "Chromebooks"
-                        : r.tipo === "equipamento"
-                          ? "Equipamento"
-                          : "Espaço"}
-                  </span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                      r.status === "ativa"
-                        ? "bg-success/15 text-success"
-                        : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {r.status}
-                  </span>
-                </div>
-                {r.titulo && (
-                  <p className="text-sm font-medium text-card-foreground">{r.titulo}</p>
-                )}
-                <p className="text-sm text-card-foreground">
-                  {r.data} • {r.inicio} às {r.fim}
-                </p>
-                {r.tipo === "composta" && (
-                  <div className="space-y-0.5 text-xs text-muted-foreground">
-                    {(r.chromebookIds?.length ?? 0) > 0 && (
-                      <p>
-                        Chromebooks ({r.chromebookIds?.length}): {(r.chromebookIds ?? []).join(", ")}
-                      </p>
-                    )}
-                    {r.equipamentoNome && r.equipamentoQuantidade ? (
-                      <p>
-                        {r.equipamentoNome} × {r.equipamentoQuantidade}
-                      </p>
-                    ) : null}
-                    {r.espacoNome ? <p>Espaço: {r.espacoNome}</p> : null}
-                    {r.checklistEventoHabilitado ? (
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Checklist para o evento: habilitado</span>
-                        <Badge
-                          className="border-amber-500/60 bg-amber-500/20 text-[10px] font-bold uppercase tracking-wide text-amber-950 dark:border-amber-400/50 dark:bg-amber-500/25 dark:text-amber-100"
-                          aria-hidden
-                        >
-                          Em desenvolvimento
-                        </Badge>
-                      </div>
-                    ) : null}
-                  </div>
-                )}
-                {r.tipo === "chromebook" && (
-                  <p className="text-xs text-muted-foreground">
-                    {r.chromebookIds?.length ?? 0} unidade(s): {(r.chromebookIds ?? []).join(", ")}
-                  </p>
-                )}
-                {r.tipo === "equipamento" && (
-                  <p className="text-xs text-muted-foreground">
-                    {r.equipamentoNome} • {r.equipamentoQuantidade} unidade(s)
-                  </p>
-                )}
-                {r.tipo === "espaco" && (
-                  <p className="text-xs text-muted-foreground">{r.espacoNome}</p>
-                )}
-                {r.status === "ativa" && (
-                  <button
-                    type="button"
-                    onClick={() => cancelarReserva(r.id)}
-                    className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-destructive hover:underline"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                    Cancelar reserva
-                  </button>
-                )}
-              </div>
-            ))}
           </div>
         </section>
       </div>

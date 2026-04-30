@@ -20,6 +20,7 @@ import Documentos from "./pages/Documentos";
 import AgendaCCI from "./pages/AgendaCCI";
 import AgendaCCIAdmin from "./pages/AgendaCCIAdmin";
 import ReservaEspacosEquipamentos from "./pages/ReservaEspacosEquipamentos";
+import MinhasReservas from "./pages/MinhasReservas";
 import ControleMateriaisTI from "./pages/ControleMateriaisTI";
 import ControleMateriaisAlmoxarifado from "./pages/ControleMateriaisAlmoxarifado";
 import ValeAdiantamento from "./pages/ValeAdiantamento";
@@ -78,6 +79,7 @@ const App = () => (
               <Route path="/documentos" element={<Documentos />} />
               <Route path="/agenda-cci" element={<AgendaCCI />} />
               <Route path="/reserva-espacos-equipamentos" element={<ReservaEspacosEquipamentos />} />
+              <Route path="/minhas-reservas" element={<MinhasReservas />} />
               <Route
                 path="/agenda-cci/admin"
                 element={
