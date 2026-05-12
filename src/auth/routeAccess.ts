@@ -8,7 +8,10 @@ import type { Papel } from "./AuthProvider";
  * - TI interno / Controle materiais TI → setape
  * - Almoxarifado → almoxarifado (OU /Administrativo/Almoxarifado)
  * - Financeiro vales → dp
+ * - Páginas de links dos setores → papel do respectivo setor
  */
+const PAPEIS_PROFESSORES: Papel[] = ["professorfac", "professortecs", "professorregular"];
+
 export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/admin/papeis-manuais": ["admin"],
   "/ti-interno": ["setape"],
@@ -16,6 +19,15 @@ export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/controle-materiais-almoxarifado": ["almoxarifado"],
   "/financeiro/vales-adiantamento": ["dp"],
   "/agenda-cci/admin": ["setape"],
+  "/setores/professores": PAPEIS_PROFESSORES,
+  "/setores/disciplinar": ["disciplinar"],
+  "/setores/secretaria": ["secretaria"],
+  "/setores/servicos-gerais": ["servicosgerais"],
+  "/setores/publicidade": ["publicidade"],
+  "/setores/dp-financeiro": ["dp", "financeiro"],
+  "/setores/primeiros-socorros": ["primeirossocorros"],
+  "/setores/direcao": ["direcao"],
+  "/setores/clat": ["clat"],
 };
 
 /** Usuário só com papel `aluno` (além de `usuario`): acesso exclusivo à Agenda CCI. */
@@ -58,6 +70,7 @@ export function canAccessRoute(papeis: Papel[], pathname: string): boolean {
   if (papeis.includes("admin")) return true;
   if (isApenasAtendenteSecretaria(papeis)) {
     if (path === "/login") return true;
+    if (path === "/setores/secretaria" && papeis.includes("secretaria")) return true;
     return path === "/senhas/atendente" || path.startsWith("/senhas/atendente/");
   }
   if (isSomenteAluno(papeis)) {

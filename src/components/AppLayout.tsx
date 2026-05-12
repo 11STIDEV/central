@@ -20,14 +20,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { usuario, logout } = useAuth();
-  const papeis = usuario?.papeis ?? [];
   const extras = useNavExtras();
   const navSections = useMemo(() => {
+    const papeis = usuario?.papeis ?? [];
     if (isApenasAtendenteSecretaria(papeis)) {
-      return INTRANET_NAV_ATENDENTE_APENAS;
+      return filterNavByAccess(papeis, INTRANET_NAV_ATENDENTE_APENAS);
     }
     return filterNavByAccess(papeis, mergeNavExtras(INTRANET_NAV_SECTIONS, extras));
-  }, [papeis, extras]);
+  }, [usuario?.papeis, extras]);
 
   useEffect(() => {
     setMobileOpen(false);

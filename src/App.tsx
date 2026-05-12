@@ -25,6 +25,7 @@ import ControleMateriaisTI from "./pages/ControleMateriaisTI";
 import ControleMateriaisAlmoxarifado from "./pages/ControleMateriaisAlmoxarifado";
 import ValeAdiantamento from "./pages/ValeAdiantamento";
 import FinanceiroValesAdiantamento from "./pages/FinanceiroValesAdiantamento";
+import { SetorLinksPage } from "./pages/SetorLinksPage";
 import AdminPapeisManuais from "./pages/AdminPapeisManuais";
 import NotFound from "./pages/NotFound";
 import PainelSenhasLayout from "./pages/senhas/PainelSenhasLayout";
@@ -110,6 +111,78 @@ const App = () => (
                 element={
                   <RequireRouteAccess>
                     <FinanceiroValesAdiantamento />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/setores/professores"
+                element={
+                  <RequireRouteAccess>
+                    <SetorLinksPage setor="professores" />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/setores/disciplinar"
+                element={
+                  <RequireRouteAccess>
+                    <SetorLinksPage setor="disciplinar" />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/setores/secretaria"
+                element={
+                  <RequireRouteAccess>
+                    <SetorLinksPage setor="secretaria" />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/setores/servicos-gerais"
+                element={
+                  <RequireRouteAccess>
+                    <SetorLinksPage setor="servicos-gerais" />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/setores/publicidade"
+                element={
+                  <RequireRouteAccess>
+                    <SetorLinksPage setor="publicidade" />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/setores/dp-financeiro"
+                element={
+                  <RequireRouteAccess>
+                    <SetorLinksPage setor="dp-financeiro" />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/setores/primeiros-socorros"
+                element={
+                  <RequireRouteAccess>
+                    <SetorLinksPage setor="primeiros-socorros" />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/setores/direcao"
+                element={
+                  <RequireRouteAccess>
+                    <SetorLinksPage setor="direcao" />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/setores/clat"
+                element={
+                  <RequireRouteAccess>
+                    <SetorLinksPage setor="clat" />
                   </RequireRouteAccess>
                 }
               />

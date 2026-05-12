@@ -10,12 +10,16 @@ export type Papel =
   | "disciplinar"
   | "dp"
   | "faculdade"
+  | "financeiro"
   | "publicidade"
   | "secretaria"
+  | "servicosgerais"
   | "setape"
   | "professorfac"
   | "professortecs"
   | "professorregular"
+  | "primeirossocorros"
+  | "clat"
   | "almoxarifado"
   | "aluno"
   /** Painel de senhas — alinhado a `OU_PAINEL_*` e ao `POST /api/painel/sync-profile`. */
@@ -74,10 +78,14 @@ const OU_PARA_PAPEL = new Map<string, Papel>([
   [normalizarCaminhoOu("/Administrativo/Disciplinar"), "disciplinar"],
   [normalizarCaminhoOu("/Administrativo/DP"), "dp"],
   [normalizarCaminhoOu("/Administrativo/Faculdade"), "faculdade"],
+  [normalizarCaminhoOu("/Administrativo/Financeiro"), "financeiro"],
   [normalizarCaminhoOu("/Administrativo/Publicidade"), "publicidade"],
   [normalizarCaminhoOu("/Administrativo/Secretaria"), "secretaria"],
+  [normalizarCaminhoOu("/Administrativo/Serviços Gerais"), "servicosgerais"],
   [normalizarCaminhoOu("/Administrativo/Setape"), "setape"],
   [normalizarCaminhoOu("/Administrativo/Almoxarifado"), "almoxarifado"],
+  [normalizarCaminhoOu("/Administrativo/Primeiros Socorros"), "primeirossocorros"],
+  [normalizarCaminhoOu("/Administrativo/CLAT"), "clat"],
   [normalizarCaminhoOu("/Professores FAC"), "professorfac"],
   [normalizarCaminhoOu("/Professores TECS"), "professortecs"],
   [normalizarCaminhoOu("/Professores REGULAR"), "professorregular"],

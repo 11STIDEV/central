@@ -2,14 +2,19 @@ import type { LucideIcon } from "lucide-react";
 import {
   BookOpen,
   Boxes,
+  Briefcase,
   CalendarDays,
   CircleDollarSign,
   ClipboardList,
   FileText,
+  GraduationCap,
   Hash,
+  HeartPulse,
   Home,
   MapPin,
+  Megaphone,
   Phone,
+  School,
   Shield,
   ShieldCheck,
   MonitorSpeaker,
@@ -18,6 +23,7 @@ import {
   UserRoundCheck,
   Wallet,
   Warehouse,
+  Wrench,
 } from "lucide-react";
 import type { Papel } from "@/auth/AuthProvider";
 import { canAccessRoute } from "@/auth/routeAccess";
@@ -65,55 +71,38 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     items: [{ title: "Central de Informações", url: "/", icon: Home }],
   },
   {
-    id: "suporte",
-    label: "Suporte & conhecimento",
-    type: "nested",
-    sectors: [
-      {
-        id: "suporte-chamados",
-        label: "Chamados",
-        items: [
-          { title: "Abrir Chamado", url: "/chamados/novo", icon: Ticket },
-          { title: "Gestão de Chamados", url: "/chamados/gestao", icon: ClipboardList },
-        ],
-      },
-      {
-        id: "suporte-conhecimento",
-        label: "Conhecimento & TI",
-        items: [
-          { title: "Base de Conhecimento", url: "/base-conhecimento", icon: BookOpen },
-          { title: "Área Interna TI", url: "/ti-interno", icon: ShieldCheck },
-        ],
-      },
+    id: "atendimento",
+    label: "Atendimento",
+    type: "flat",
+    items: [
+      { title: "Abrir Chamado", url: "/chamados/novo", icon: Ticket },
+      { title: "Gestão de Chamados", url: "/chamados/gestao", icon: ClipboardList },
+      { title: "Painel de senhas", url: "/senhas", icon: Hash },
     ],
   },
   {
     id: "agenda",
-    label: "Agenda & espaços",
-    type: "nested",
-    sectors: [
+    label: "Agenda",
+    type: "flat",
+    items: [
+      { title: "Agenda CCI", url: "/agenda-cci", icon: CalendarDays },
       {
-        id: "agenda-calendario-reservas",
-        label: "Calendário & reservas",
-        items: [
-          { title: "Agenda CCI", url: "/agenda-cci", icon: CalendarDays },
-          {
-            title: "Reserva de Equipamentos e Espaços",
-            url: "/reserva-espacos-equipamentos",
-            icon: MapPin,
-          },
-          {
-            title: "Minhas Reservas",
-            url: "/minhas-reservas",
-            icon: UserRoundCheck,
-          },
-        ],
+        title: "Reserva de Equipamentos e Espaços",
+        url: "/reserva-espacos-equipamentos",
+        icon: MapPin,
       },
-      {
-        id: "agenda-administracao",
-        label: "Administração",
-        items: [{ title: "Agenda CCI — Admin", url: "/agenda-cci/admin", icon: Shield }],
-      },
+      { title: "Minhas Reservas", url: "/minhas-reservas", icon: UserRoundCheck },
+      { title: "Agenda CCI — Admin", url: "/agenda-cci/admin", icon: Shield },
+    ],
+  },
+  {
+    id: "operacao-interna",
+    label: "Operação interna",
+    type: "flat",
+    items: [
+      { title: "Base de Conhecimento", url: "/base-conhecimento", icon: BookOpen },
+      { title: "Documentos", url: "/documentos", icon: FileText },
+      { title: "Ramais", url: "/ramais", icon: Phone },
     ],
   },
   {
@@ -122,18 +111,64 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     type: "nested",
     sectors: [
       {
-        id: "secretaria-comunicacao",
-        label: "Secretaria & comunicação",
+        id: "setores-professores",
+        label: "Professores",
+        items: [{ title: "Links dos Professores", url: "/setores/professores", icon: GraduationCap }],
+      },
+      {
+        id: "setores-disciplinar",
+        label: "Disciplinar",
+        items: [{ title: "Links do Disciplinar", url: "/setores/disciplinar", icon: ClipboardList }],
+      },
+      {
+        id: "setores-secretaria",
+        label: "Secretaria",
+        items: [{ title: "Links da Secretaria", url: "/setores/secretaria", icon: FileText }],
+      },
+      {
+        id: "setores-servicos-gerais",
+        label: "Serviços Gerais",
+        items: [{ title: "Links de Serviços Gerais", url: "/setores/servicos-gerais", icon: Wrench }],
+      },
+      {
+        id: "setores-publicidade",
+        label: "Publicidade",
+        items: [{ title: "Links da Publicidade", url: "/setores/publicidade", icon: Megaphone }],
+      },
+      {
+        id: "setores-dp-financeiro",
+        label: "DP e Financeiro",
+        items: [{ title: "Links DP e Financeiro", url: "/setores/dp-financeiro", icon: Briefcase }],
+      },
+      {
+        id: "setores-primeiros-socorros",
+        label: "Primeiros Socorros",
         items: [
-          { title: "Ramais", url: "/ramais", icon: Phone },
-          { title: "Documentos", url: "/documentos", icon: FileText },
+          { title: "Links de Primeiros Socorros", url: "/setores/primeiros-socorros", icon: HeartPulse },
         ],
       },
       {
-        id: "materiais-patrimonio",
-        label: "Materiais & patrimônio",
+        id: "setores-direcao",
+        label: "Direção",
+        items: [{ title: "Links da Direção", url: "/setores/direcao", icon: School }],
+      },
+      {
+        id: "setores-clat",
+        label: "CLAT",
+        items: [{ title: "Links do CLAT", url: "/setores/clat", icon: ClipboardList }],
+      },
+      {
+        id: "setores-ti",
+        label: "TI",
         items: [
+          { title: "Área Interna TI", url: "/ti-interno", icon: ShieldCheck },
           { title: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes },
+        ],
+      },
+      {
+        id: "setores-almoxarifado",
+        label: "Almoxarifado",
+        items: [
           {
             title: "Almoxarifado (Entrada/Saída)",
             url: "/controle-materiais-almoxarifado",
@@ -144,7 +179,14 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
       {
         id: "financeiro-setor",
         label: "Financeiro",
-        items: [{ title: "Vale Adiantamento", url: "/vale-adiantamento", icon: Wallet }],
+        items: [
+          { title: "Vale Adiantamento", url: "/vale-adiantamento", icon: Wallet },
+          {
+            title: "Financeiro — Vales",
+            url: "/financeiro/vales-adiantamento",
+            icon: CircleDollarSign,
+          },
+        ],
       },
     ],
   },
@@ -152,11 +194,7 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     id: "admin",
     label: "Administração",
     type: "flat",
-    items: [
-      { title: "Financeiro — Vales", url: "/financeiro/vales-adiantamento", icon: CircleDollarSign },
-      { title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog },
-      { title: "Painel de senhas", url: "/senhas", icon: Hash },
-    ],
+    items: [{ title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog }],
   },
 ];
 
@@ -171,6 +209,18 @@ export const INTRANET_NAV_ATENDENTE_APENAS: NavSection[] = [
         title: "Atendente — chamar senha",
         url: "/senhas/atendente",
         icon: MonitorSpeaker,
+      },
+    ],
+  },
+  {
+    id: "setor-secretaria-atendente",
+    label: "Setor",
+    type: "flat",
+    items: [
+      {
+        title: "Secretaria",
+        url: "/setores/secretaria",
+        icon: FileText,
       },
     ],
   },
