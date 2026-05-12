@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getPainelSupabase } from "@/painel/supabaseClient";
-import { getOverlayDurationMs, getYoutubePlaylistId } from "@/painel/painelEnv";
+import { getOverlayDurationMs, getPainelVoiceName, getYoutubePlaylistId } from "@/painel/painelEnv";
 import { CciLogoBranca } from "@/painel/components/CciLogoBranca";
 import type { CallWithDetails, School } from "@/painel/types/database";
 import { GraduationCap, Volume2, VolumeX } from "lucide-react";
@@ -24,9 +24,15 @@ const TYPE_LABEL: Record<string, string> = {
 };
 
 const YOUTUBE_EMBED_ID = "painel-youtube-embed";
-const VOICE_NAME_PRIORITY = [
-  "Microsoft Francisca Online",
+const DEFAULT_VOICE_NAME_PRIORITY = [
+  "Microsoft Antonio",
+  "Antonio",
+  "Microsoft Daniel",
+  "Daniel",
+  "Felipe",
+  "Ricardo",
   "Google português do Brasil",
+  "Microsoft Francisca Online",
   "Google português do Brasil feminino",
   "Luciana",
   "Francisca",
@@ -40,7 +46,12 @@ function getPreferredPtBrVoice() {
   const ptBrVoices = voices.filter((voice) => voice.lang?.toLowerCase().startsWith("pt-br"));
   if (!ptBrVoices.length) return null;
 
-  for (const preferredName of VOICE_NAME_PRIORITY) {
+  const configuredVoiceName = getPainelVoiceName();
+  const voicePriority = configuredVoiceName
+    ? [configuredVoiceName, ...DEFAULT_VOICE_NAME_PRIORITY]
+    : DEFAULT_VOICE_NAME_PRIORITY;
+
+  for (const preferredName of voicePriority) {
     const found = ptBrVoices.find((voice) =>
       voice.name.toLowerCase().includes(preferredName.toLowerCase()),
     );
@@ -334,7 +345,7 @@ export default function SenhasPainelClient({ school, initialCalls }: PainelClien
   function playCallSound(ticketCode: string, windowNumber: number) {
     const readableTicket = formatTicketCodeForSpeech(ticketCode);
     const utterance = new SpeechSynthesisUtterance(
-      `Senha ${readableTicket}, favor comparecer ao ${windowNumber === 1 ? "primeiro" : windowNumber === 2 ? "segundo" : windowNumber === 3 ? "terceiro" : `guichê ${windowNumber}`} guichê.`
+      `Senha ${readableTicket}, favor comparecer ao guichê ${windowNumber}.`
     );
     utterance.lang = "pt-BR";
     utterance.rate = 0.88;

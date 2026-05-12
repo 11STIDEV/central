@@ -33,6 +33,11 @@ export function getYoutubePlaylistId(): string | null {
   return id || null;
 }
 
+export function getPainelVoiceName(): string | null {
+  const name = import.meta.env.VITE_PAINEL_VOICE_NAME?.trim();
+  return name || null;
+}
+
 export function getOverlayDurationMs(): number {
   const raw = import.meta.env.VITE_PAINEL_OVERLAY_SECONDS?.trim();
   const n = raw ? parseInt(raw, 10) : 10;

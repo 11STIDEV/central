@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_USE_VITE_PROXY?: string;
   /** Lista CSV de e-mails com acesso à Administração do painel de senhas. */
   readonly VITE_PAINEL_ADMIN_EMAILS?: string;
+  /** Nome parcial/exato da voz usada nas chamadas do painel de senhas. */
+  readonly VITE_PAINEL_VOICE_NAME?: string;
 }
 
 interface ImportMeta {

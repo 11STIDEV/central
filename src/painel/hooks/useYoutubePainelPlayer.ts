@@ -5,11 +5,14 @@ const YT_SCRIPT_SRC = "https://www.youtube.com/iframe_api";
 type YTPlayer = {
   pauseVideo(): void;
   playVideo(): void;
+  playVideoAt?(index: number): void;
   getCurrentTime(): number;
   seekTo(seconds: number, allowSeekAhead: boolean): void;
   destroy(): void;
   mute(): void;
 };
+
+const YT_PLAYER_STATE_ENDED = 0;
 
 type YTNamespace = {
   Player: new (elementId: string, options: unknown) => YTPlayer;
@@ -35,12 +38,27 @@ export function useYoutubePainelPlayer(playlistId: string | null, elementId: str
       const el = document.getElementById(elementId);
       if (!el) return;
 
+      const restartPlaylist = (player: YTPlayer) => {
+        try {
+          if (typeof player.playVideoAt === "function") {
+            player.playVideoAt(0);
+            return;
+          }
+          player.seekTo(0, true);
+          player.playVideo();
+        } catch {
+          /* ignore */
+        }
+      };
+
       const playerOptions = {
         height: "100%",
         width: "100%",
         playerVars: {
           listType: "playlist",
           list: playlistId,
+          loop: 1,
+          playlist: playlistId,
           autoplay: 1,
           mute: 1,
           playsinline: 1,
@@ -53,6 +71,11 @@ export function useYoutubePainelPlayer(playlistId: string | null, elementId: str
               e.target.mute();
             } catch {
               /* ignore */
+            }
+          },
+          onStateChange: (e: { target: YTPlayer; data: number }) => {
+            if (e.data === YT_PLAYER_STATE_ENDED) {
+              restartPlaylist(e.target);
             }
           },
         },
