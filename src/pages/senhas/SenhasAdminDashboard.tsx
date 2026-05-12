@@ -16,7 +16,7 @@ export default function SenhasAdminDashboard() {
   const [waitingCount, setWaitingCount] = useState(0);
   const [doneCount, setDoneCount] = useState(0);
   const [queuesWithCount, setQueuesWithCount] = useState<
-    (Queue & { tickets: { count: number }[] })[]
+    (Queue & { waitingCount: number })[]
   >([]);
   const [recentCalls, setRecentCalls] = useState<
     {
@@ -32,12 +32,31 @@ export default function SenhasAdminDashboard() {
     (async () => {
       const supabase = getPainelSupabase();
       const today = startOfDay(new Date()).toISOString();
+      const { data: latestResetRaw } = await supabase
+        .from("painel_ticket_resets")
+        .select("reset_at")
+        .eq("school_id", profile.school_id)
+        .order("reset_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const lastResetAt = (latestResetRaw as { reset_at?: string } | null)?.reset_at ?? null;
+
+      let recentCallsQuery = supabase
+        .from("painel_calls")
+        .select(
+          `*, ticket:painel_tickets(ticket_code, type, queue:painel_queues(name)), service_window:painel_service_windows(name, number)`,
+        )
+        .eq("school_id", profile.school_id);
+      if (lastResetAt) {
+        recentCallsQuery = recentCallsQuery.gt("called_at", lastResetAt);
+      }
 
       const [
         { count: t1 },
         { count: t2 },
         { count: t3 },
         { data: queuesRaw },
+        { data: waitingByQueueRaw },
         { data: recentCallsRaw },
       ] = await Promise.all([
         supabase
@@ -58,15 +77,15 @@ export default function SenhasAdminDashboard() {
           .gte("created_at", today),
         supabase
           .from("painel_queues")
-          .select(`*, tickets:painel_tickets(count)`)
+          .select("*")
           .eq("school_id", profile.school_id)
           .eq("is_active", true),
         supabase
-          .from("painel_calls")
-          .select(
-            `*, ticket:painel_tickets(ticket_code, type, queue:painel_queues(name)), service_window:painel_service_windows(name, number)`,
-          )
+          .from("painel_tickets")
+          .select("queue_id")
           .eq("school_id", profile.school_id)
+          .eq("status", "waiting"),
+        recentCallsQuery
           .order("called_at", { ascending: false })
           .limit(10),
       ]);
@@ -75,7 +94,18 @@ export default function SenhasAdminDashboard() {
       setTotalToday(t1 ?? 0);
       setWaitingCount(t2 ?? 0);
       setDoneCount(t3 ?? 0);
-      setQueuesWithCount((queuesRaw as (Queue & { tickets: { count: number }[] })[]) ?? []);
+      const waitingByQueue = ((waitingByQueueRaw as { queue_id: string }[] | null) ?? []).reduce<
+        Record<string, number>
+      >((acc, ticket) => {
+        acc[ticket.queue_id] = (acc[ticket.queue_id] ?? 0) + 1;
+        return acc;
+      }, {});
+      setQueuesWithCount(
+        ((queuesRaw as Queue[] | null) ?? []).map((queue) => ({
+          ...queue,
+          waitingCount: waitingByQueue[queue.id] ?? 0,
+        })),
+      );
       setRecentCalls(
         (recentCallsRaw as {
           id: string;
@@ -163,7 +193,6 @@ export default function SenhasAdminDashboard() {
           <CardContent>
             <div className="space-y-3">
               {queuesWithCount?.map((queue) => {
-                const count = queue.tickets?.[0]?.count ?? 0;
                 return (
                   <div key={queue.id} className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -172,7 +201,7 @@ export default function SenhasAdminDashboard() {
                       </div>
                       <span className="text-foreground font-medium">{queue.name}</span>
                     </div>
-                    <Badge variant="secondary">{count} em espera</Badge>
+                    <Badge variant="secondary">{queue.waitingCount} em espera</Badge>
                   </div>
                 );
               })}

@@ -57,7 +57,7 @@ export default function SenhasAdminShell() {
         const supabase = getPainelSupabase();
         const email = usuario?.email ?? painelAuth.session?.user?.email ?? "";
         const papeis = usuario?.papeis ?? [];
-        if (!podePainelAdmin(papeis)) {
+        if (!podePainelAdmin(papeis, email)) {
           if (!cancelled) {
             redirected = true;
             if (podePainelAtendente(papeis)) {
@@ -86,7 +86,7 @@ export default function SenhasAdminShell() {
             p = perfilPainelPorOu(uid, schoolBySlug as School, nome, email, papeis);
           }
         } else if (p) {
-          p = alinharPapelPerfilOu(p, papeis);
+          p = alinharPapelPerfilOu(p, papeis, email);
         }
 
         if (!p) {

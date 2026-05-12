@@ -6,13 +6,12 @@ import { AppSidebarNav } from "@/components/AppSidebarNav";
 import { SidebarBrandLogo } from "@/components/SidebarBrandLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
-  INTRANET_NAV_ATENDENTE_APENAS,
   INTRANET_NAV_SECTIONS,
   filterNavByAccess,
+  markNavByAccess,
   mergeNavExtras,
 } from "@/navigation/intranetNavConfig";
 import { useNavExtras } from "@/navigation/useNavExtras";
-import { isApenasAtendenteSecretaria } from "@/auth/routeAccess";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -23,10 +22,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const extras = useNavExtras();
   const navSections = useMemo(() => {
     const papeis = usuario?.papeis ?? [];
-    if (isApenasAtendenteSecretaria(papeis)) {
-      return filterNavByAccess(papeis, INTRANET_NAV_ATENDENTE_APENAS);
+    const fullSections = mergeNavExtras(INTRANET_NAV_SECTIONS, extras);
+    const deveMostrarBloqueados = !papeis.includes("admin") && !papeis.includes("setape");
+    if (deveMostrarBloqueados) {
+      return markNavByAccess(papeis, fullSections);
     }
-    return filterNavByAccess(papeis, mergeNavExtras(INTRANET_NAV_SECTIONS, extras));
+    return filterNavByAccess(papeis, fullSections);
   }, [usuario?.papeis, extras]);
 
   useEffect(() => {

@@ -143,6 +143,7 @@ export default function SenhasAtendenteClient({
 
           if (data) {
             const newTicket = data as unknown as TicketWithQueue;
+            if (newTicket.status !== "waiting") return;
             setWaiting((prev) => {
               const updated = [...prev, newTicket].sort((a, b) => {
                 const typeOrder = { priority: 0, normal: 1 };
@@ -170,6 +171,16 @@ export default function SenhasAtendenteClient({
         (payload) => {
           if (payload.new.status !== "waiting") {
             setWaiting((prev) => prev.filter((t) => t.id !== payload.new.id));
+          }
+          if (payload.new.status === "reset") {
+            consecutivePriorityRef.current = 0;
+            setCurrentTicket((current) => {
+              if (current?.id === payload.new.id) {
+                toast.info("A senha atual foi encerrada por um reset da fila.");
+                return null;
+              }
+              return current;
+            });
           }
         }
       )

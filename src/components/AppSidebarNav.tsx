@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { CalendarDays, ChevronDown, ChevronRight, Headphones, Layers, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronRight, Headphones, Layers, Lock, type LucideIcon } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import {
@@ -141,7 +141,28 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
     `mt-0.5 h-[1.125rem] w-[1.125rem] shrink-0 ${active ? "text-amber-500 dark:text-amber-300/95" : "text-sidebar-muted group-hover:text-sidebar-foreground"}`;
 
   function renderLeaf(item: NavLeaf, opts: { collapsed: boolean }) {
-    const active = isNavActive(pathname, item.url);
+    const locked = Boolean(item.locked);
+    const active = !locked && isNavActive(pathname, item.url);
+    if (locked) {
+      return (
+        <li key={item.url}>
+          <button
+            type="button"
+            aria-disabled="true"
+            title={opts.collapsed ? `${item.title} (bloqueado)` : "Acesso bloqueado para seu perfil"}
+            className={`${linkClass(false)} w-full cursor-not-allowed opacity-60 hover:opacity-100`}
+          >
+            <item.icon className={iconClass(false)} strokeWidth={1.75} />
+            {!opts.collapsed && (
+              <>
+                <span className="min-w-0 flex-1 leading-snug">{item.title}</span>
+                <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-70 group-hover:text-amber-400" />
+              </>
+            )}
+          </button>
+        </li>
+      );
+    }
     return (
       <li key={item.url}>
         <NavLink
@@ -208,6 +229,18 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
                   <DropdownMenuSubContent className="w-52">
                     {sector.items.map((item) => {
                       const active = isNavActive(pathname, item.url);
+                      if (item.locked) {
+                        return (
+                          <DropdownMenuItem
+                            key={item.url}
+                            disabled
+                            className="flex items-center justify-between gap-2"
+                          >
+                            <span>{item.title}</span>
+                            <Lock className="h-3.5 w-3.5" />
+                          </DropdownMenuItem>
+                        );
+                      }
                       return (
                         <DropdownMenuItem key={item.url} asChild>
                           <Link to={item.url} className={active ? "bg-accent font-medium" : undefined}>

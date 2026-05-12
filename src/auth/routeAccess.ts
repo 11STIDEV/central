@@ -45,7 +45,7 @@ const PAPEIS_IGNORAR_PARA_ACESSO_MINIMO: Papel[] = [
 
 /**
  * Funcionário da Secretaria (OU com prefixo em `PREFIXOS_PAINEL_ATENDENTE` no AuthProvider) que **só** deve
- * usar a fila de atendimento — sem ver o resto da intranet. Só têm (além de `usuario`) `painel_atendente` e
+ * usar o painel de senhas — sem navegar pelo resto da intranet. Só têm (além de `usuario`) `painel_atendente` e
  * opcionalmente `secretaria` (caminho exato da OU mapeada). Se tiverem outro papel (DP, Setape, etc.),
  * voltam ao menu completo.
  */
@@ -70,8 +70,7 @@ export function canAccessRoute(papeis: Papel[], pathname: string): boolean {
   if (papeis.includes("admin")) return true;
   if (isApenasAtendenteSecretaria(papeis)) {
     if (path === "/login") return true;
-    if (path === "/setores/secretaria" && papeis.includes("secretaria")) return true;
-    return path === "/senhas/atendente" || path.startsWith("/senhas/atendente/");
+    return path === "/senhas" || path.startsWith("/senhas/");
   }
   if (isSomenteAluno(papeis)) {
     return (

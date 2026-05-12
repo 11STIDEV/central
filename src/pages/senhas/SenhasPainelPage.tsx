@@ -33,7 +33,16 @@ export default function SenhasPainelPage() {
           setError("Escola não encontrada.");
           return;
         }
-        const { data: recentCalls, error: e2 } = await supabase
+        const { data: latestReset } = await supabase
+          .from("painel_ticket_resets")
+          .select("reset_at")
+          .eq("school_id", sch.id)
+          .order("reset_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const lastResetAt = (latestReset as { reset_at?: string } | null)?.reset_at ?? null;
+
+        let recentCallsQuery = supabase
           .from("painel_calls")
           .select(
             `
@@ -42,7 +51,11 @@ export default function SenhasPainelPage() {
       service_window:painel_service_windows(*)
     `,
           )
-          .eq("school_id", sch.id)
+          .eq("school_id", sch.id);
+        if (lastResetAt) {
+          recentCallsQuery = recentCallsQuery.gt("called_at", lastResetAt);
+        }
+        const { data: recentCalls, error: e2 } = await recentCallsQuery
           .order("called_at", { ascending: false })
           .limit(6);
         if (cancelled) return;

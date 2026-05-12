@@ -1,4 +1,4 @@
-export type TicketStatus = "waiting" | "called" | "attending" | "done" | "skipped";
+export type TicketStatus = "waiting" | "called" | "attending" | "done" | "skipped" | "reset";
 export type QueueType = "normal" | "priority";
 export type UserRole = "admin" | "attendant";
 
@@ -66,6 +66,14 @@ export interface Profile {
   created_at: string;
 }
 
+export interface TicketReset {
+  id: string;
+  school_id: string;
+  reset_at: string;
+  reset_by_name: string | null;
+  reset_by_email: string | null;
+}
+
 // Insert types
 export type SchoolInsert = Omit<School, "id" | "created_at">;
 export type QueueInsert = Omit<Queue, "id" | "created_at">;
@@ -73,6 +81,7 @@ export type ServiceWindowInsert = Omit<ServiceWindow, "id" | "created_at">;
 export type TicketInsert = Omit<Ticket, "id" | "created_at">;
 export type CallInsert = Omit<Call, "id">;
 export type ProfileInsert = Omit<Profile, "created_at">;
+export type TicketResetInsert = Omit<TicketReset, "id" | "reset_at">;
 
 // Supabase Database type — requires Relationships on each table
 export interface Database {
@@ -114,12 +123,26 @@ export interface Database {
         Update: Partial<ProfileInsert>;
         Relationships: [];
       };
+      ticket_resets: {
+        Row: TicketReset;
+        Insert: TicketResetInsert;
+        Update: Partial<TicketResetInsert>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
       get_next_ticket_number: {
         Args: { p_queue_id: string };
         Returns: number;
+      };
+      reset_painel_tickets: {
+        Args: {
+          p_school_id: string;
+          p_reset_by_name?: string | null;
+          p_reset_by_email?: string | null;
+        };
+        Returns: string;
       };
     };
     Enums: Record<string, never>;

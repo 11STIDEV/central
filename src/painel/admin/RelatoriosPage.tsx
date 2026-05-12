@@ -10,7 +10,7 @@ interface RelatoriosPageProps {
   schoolId: string;
 }
 
-type RangePreset = "today" | "7d" | "30d" | "custom";
+type RangePreset = "today" | "7d" | "15d" | "30d" | "all" | "custom";
 
 type RawAttendantCallRow = {
   attendant_id: string | null;
@@ -46,6 +46,7 @@ type AttendantSummary = {
   calledCount: number;
   completedCount: number;
   skippedCount: number;
+  resetCount: number;
   avgWaitMinutes: number | null;
   avgServiceMinutes: number | null;
   completionRate: number;
@@ -57,11 +58,11 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
   const [customStartDate, setCustomStartDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [customEndDate, setCustomEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [queueMap, setQueueMap] = useState<
-    Record<string, { name: string; prefix: string; total: number; done: number; waiting: number }>
+    Record<string, { name: string; prefix: string; total: number; done: number; waiting: number; reset: number }>
   >({});
-  const [typeMap, setTypeMap] = useState<Record<string, { total: number; done: number }>>({
-    normal: { total: 0, done: 0 },
-    priority: { total: 0, done: 0 },
+  const [typeMap, setTypeMap] = useState<Record<string, { total: number; done: number; reset: number }>>({
+    normal: { total: 0, done: 0, reset: 0 },
+    priority: { total: 0, done: 0, reset: 0 },
   });
   const [dayEntries, setDayEntries] = useState<[string, { total: number; done: number }][]>([]);
   const [maxDayTotal, setMaxDayTotal] = useState(1);
@@ -76,9 +77,16 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
       const start = startOfDay(now).toISOString();
       return { start, end: null as string | null, label: "Hoje" };
     }
+    if (rangePreset === "15d") {
+      const start = startOfDay(subDays(now, 15)).toISOString();
+      return { start, end: null as string | null, label: "Últimos 15 dias" };
+    }
     if (rangePreset === "30d") {
       const start = startOfDay(subDays(now, 30)).toISOString();
       return { start, end: null as string | null, label: "Últimos 30 dias" };
+    }
+    if (rangePreset === "all") {
+      return { start: null as string | null, end: null as string | null, label: "Total" };
     }
     if (rangePreset === "custom") {
       const safeStart = customStartDate || format(now, "yyyy-MM-dd");
@@ -97,46 +105,45 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
       const supabase = getPainelSupabase();
       setLoading(true);
 
-      const ticketsByQueueQuery = supabase
+      let ticketsByQueueQuery = supabase
         .from("painel_tickets")
         .select("queue_id, status, queue:painel_queues(name, prefix)")
-        .eq("school_id", schoolId)
-        .gte("created_at", period.start);
+        .eq("school_id", schoolId);
+      if (period.start) ticketsByQueueQuery = ticketsByQueueQuery.gte("created_at", period.start);
       if (period.end) ticketsByQueueQuery.lte("created_at", period.end);
 
-      const ticketsByTypeQuery = supabase
+      let ticketsByTypeQuery = supabase
         .from("painel_tickets")
         .select("type, status")
-        .eq("school_id", schoolId)
-        .gte("created_at", period.start);
+        .eq("school_id", schoolId);
+      if (period.start) ticketsByTypeQuery = ticketsByTypeQuery.gte("created_at", period.start);
       if (period.end) ticketsByTypeQuery.lte("created_at", period.end);
 
-      const ticketsByDayQuery = supabase
+      let ticketsByDayQuery = supabase
         .from("painel_tickets")
         .select("created_at, status")
-        .eq("school_id", schoolId)
-        .gte("created_at", period.start)
-        .order("created_at");
+        .eq("school_id", schoolId);
+      if (period.start) ticketsByDayQuery = ticketsByDayQuery.gte("created_at", period.start);
+      ticketsByDayQuery = ticketsByDayQuery.order("created_at");
       if (period.end) ticketsByDayQuery.lte("created_at", period.end);
 
-      const skippedQuery = supabase
+      let skippedQuery = supabase
         .from("painel_tickets")
         .select("ticket_code, queue:painel_queues(name), created_at")
         .eq("school_id", schoolId)
-        .eq("status", "skipped")
-        .gte("created_at", period.start)
-        .order("created_at", { ascending: false })
-        .limit(10);
+        .eq("status", "skipped");
+      if (period.start) skippedQuery = skippedQuery.gte("created_at", period.start);
+      skippedQuery = skippedQuery.order("created_at", { ascending: false }).limit(10);
       if (period.end) skippedQuery.lte("created_at", period.end);
 
-      const callsQueryNew = supabase
+      let callsQueryNew = supabase
         .from("painel_calls")
         .select(
           "attendant_id, service_window_id, ticket_id, called_at, attendant_name_snapshot, attendant_email_snapshot",
         )
-        .eq("school_id", schoolId)
-        .gte("called_at", period.start)
-        .order("called_at", { ascending: false });
+        .eq("school_id", schoolId);
+      if (period.start) callsQueryNew = callsQueryNew.gte("called_at", period.start);
+      callsQueryNew = callsQueryNew.order("called_at", { ascending: false });
       if (period.end) callsQueryNew.lte("called_at", period.end);
 
       const [
@@ -156,12 +163,12 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
       let callsRaw = (callsRespNew as { data?: RawAttendantCallRow[]; error?: unknown }).data ?? null;
       if ((callsRespNew as { error?: unknown }).error) {
         // Compatibilidade: banco ainda sem colunas snapshot.
-        const callsQueryLegacy = supabase
+        let callsQueryLegacy = supabase
           .from("painel_calls")
           .select("attendant_id, service_window_id, ticket_id, called_at")
-          .eq("school_id", schoolId)
-          .gte("called_at", period.start)
-          .order("called_at", { ascending: false });
+          .eq("school_id", schoolId);
+        if (period.start) callsQueryLegacy = callsQueryLegacy.gte("called_at", period.start);
+        callsQueryLegacy = callsQueryLegacy.order("called_at", { ascending: false });
         if (period.end) callsQueryLegacy.lte("called_at", period.end);
         const { data: legacyCallsRaw } = await callsQueryLegacy;
         callsRaw = ((legacyCallsRaw ?? []) as RawAttendantCallRow[]).map((row) => ({
@@ -173,28 +180,30 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
 
       if (cancelled) return;
 
-      const qMap: Record<string, { name: string; prefix: string; total: number; done: number; waiting: number }> =
+      const qMap: Record<string, { name: string; prefix: string; total: number; done: number; waiting: number; reset: number }> =
         {};
       ticketsByQueue?.forEach((t: { queue_id: string; status: string; queue: unknown }) => {
         const queue = t.queue as { name: string; prefix: string } | null;
         if (!queue) return;
         if (!qMap[t.queue_id]) {
-          qMap[t.queue_id] = { name: queue.name, prefix: queue.prefix, total: 0, done: 0, waiting: 0 };
+          qMap[t.queue_id] = { name: queue.name, prefix: queue.prefix, total: 0, done: 0, waiting: 0, reset: 0 };
         }
         qMap[t.queue_id].total++;
         if (t.status === "done") qMap[t.queue_id].done++;
         if (t.status === "waiting") qMap[t.queue_id].waiting++;
+        if (t.status === "reset") qMap[t.queue_id].reset++;
       });
       setQueueMap(qMap);
 
-      const tyMap: Record<string, { total: number; done: number }> = {
-        normal: { total: 0, done: 0 },
-        priority: { total: 0, done: 0 },
+      const tyMap: Record<string, { total: number; done: number; reset: number }> = {
+        normal: { total: 0, done: 0, reset: 0 },
+        priority: { total: 0, done: 0, reset: 0 },
       };
       ticketsByType?.forEach((t: { type: string; status: string }) => {
         if (!tyMap[t.type]) return;
         tyMap[t.type].total++;
         if (t.status === "done") tyMap[t.type].done++;
+        if (t.status === "reset") tyMap[t.type].reset++;
       });
       setTypeMap(tyMap);
 
@@ -346,6 +355,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
           calledCount: 0,
           completedCount: 0,
           skippedCount: 0,
+          resetCount: 0,
           avgWaitMinutes: null,
           avgServiceMinutes: null,
           completionRate: 0,
@@ -358,6 +368,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
       const ticket = call.ticket;
       if (ticket.status === "done") row.completedCount += 1;
       if (ticket.status === "skipped") row.skippedCount += 1;
+      if (ticket.status === "reset") row.resetCount += 1;
     }
 
     // Aggregate times in a second pass to keep code simple.
@@ -398,7 +409,8 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
 
       row.avgWaitMinutes = waitCount ? waitSumMs / waitCount / 60000 : null;
       row.avgServiceMinutes = serviceCount ? serviceSumMs / serviceCount / 60000 : null;
-      row.completionRate = row.calledCount ? (row.completedCount / row.calledCount) * 100 : 0;
+      const accountableCalls = row.calledCount - row.resetCount;
+      row.completionRate = accountableCalls > 0 ? (row.completedCount / accountableCalls) * 100 : 0;
     }
 
     return Array.from(byAttendant.values()).sort((a, b) => {
@@ -422,6 +434,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
         "Chamadas",
         "Concluidas",
         "Ausentes",
+        "Encerradas por reset",
         "Tempo medio espera (min)",
         "Tempo medio atendimento (min)",
         "Taxa conclusao (%)",
@@ -432,6 +445,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
         String(item.calledCount),
         String(item.completedCount),
         String(item.skippedCount),
+        String(item.resetCount),
         item.avgWaitMinutes == null ? "" : item.avgWaitMinutes.toFixed(2),
         item.avgServiceMinutes == null ? "" : item.avgServiceMinutes.toFixed(2),
         item.completionRate.toFixed(2),
@@ -482,7 +496,9 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
                 >
                   <option value="today">Hoje</option>
                   <option value="7d">Últimos 7 dias</option>
+                  <option value="15d">Últimos 15 dias</option>
                   <option value="30d">Últimos 30 dias</option>
+                  <option value="all">Total</option>
                   <option value="custom">Personalizado</option>
                 </select>
               </label>
@@ -573,6 +589,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
                       <div className="flex gap-2 text-xs">
                         <Badge variant="secondary">{q.total} total</Badge>
                         <Badge variant="default">{q.done} atendidos</Badge>
+                        {q.reset > 0 ? <Badge variant="secondary">{q.reset} resetadas</Badge> : null}
                       </div>
                     </div>
                     <div className="h-2 bg-muted rounded-full overflow-hidden">
@@ -594,29 +611,33 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {Object.entries(typeMap).map(([type, data]) => (
-                <div key={type} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-3 h-3 rounded-full ${
-                        type === "normal" ? "bg-blue-500" : type === "priority" ? "bg-amber-500" : "bg-emerald-500"
-                      }`}
-                    />
-                    <span className="text-foreground text-sm">{TYPE_LABELS[type]}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-500" />
-                      {data.done}
+              {Object.entries(typeMap).map(([type, data]) => {
+                const pending = Math.max(data.total - data.done - data.reset, 0);
+                return (
+                  <div key={type} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`w-3 h-3 rounded-full ${
+                          type === "normal" ? "bg-blue-500" : type === "priority" ? "bg-amber-500" : "bg-emerald-500"
+                        }`}
+                      />
+                      <span className="text-foreground text-sm">{TYPE_LABELS[type]}</span>
                     </div>
-                    <div className="flex items-center gap-1 text-muted-foreground text-sm">
-                      <Clock className="w-3 h-3 text-amber-500" />
-                      {data.total - data.done}
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                        <CheckCircle2 className="w-3 h-3 text-emerald-500" />
+                        {data.done}
+                      </div>
+                      <div className="flex items-center gap-1 text-muted-foreground text-sm">
+                        <Clock className="w-3 h-3 text-amber-500" />
+                        {pending}
+                      </div>
+                      {data.reset > 0 ? <Badge variant="secondary">{data.reset} reset</Badge> : null}
+                      <Badge variant="secondary">{data.total}</Badge>
                     </div>
-                    <Badge variant="secondary">{data.total}</Badge>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </CardContent>
         </Card>
@@ -626,7 +647,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <UserRound className="w-4 h-4" />
-            Produtividade por atendente (últimos 7 dias)
+            Produtividade por atendente ({period.label})
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -663,6 +684,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
                       <th className="px-2 py-2 font-medium">Chamadas</th>
                       <th className="px-2 py-2 font-medium">Concluídas</th>
                       <th className="px-2 py-2 font-medium">Ausentes</th>
+                      <th className="px-2 py-2 font-medium">Reset</th>
                       <th className="px-2 py-2 font-medium">Tempo médio de espera</th>
                       <th className="px-2 py-2 font-medium">Tempo médio de atendimento</th>
                       <th className="px-2 py-2 font-medium">Taxa de conclusão</th>
@@ -676,6 +698,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
                         <td className="px-2 py-2">{item.calledCount}</td>
                         <td className="px-2 py-2 text-emerald-700">{item.completedCount}</td>
                         <td className="px-2 py-2 text-amber-700">{item.skippedCount}</td>
+                        <td className="px-2 py-2 text-muted-foreground">{item.resetCount}</td>
                         <td className="px-2 py-2">
                           {item.avgWaitMinutes == null ? "-" : `${item.avgWaitMinutes.toFixed(1)} min`}
                         </td>
@@ -708,7 +731,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
               {recentSkipped.map((t) => {
                 return (
                   <div
-                    key={String(t.ticket_code)}
+                    key={`${t.ticket_code}-${t.created_at}`}
                     className="flex items-center gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2"
                   >
                     <span className="font-bold text-amber-700">{t.ticket_code}</span>

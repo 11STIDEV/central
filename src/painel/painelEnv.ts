@@ -13,6 +13,21 @@ export function isPainelDbOnly(): boolean {
   return v === "1" || v?.toLowerCase() === "true";
 }
 
+export function getPainelAdminEmails(): string[] {
+  const raw = import.meta.env.VITE_PAINEL_ADMIN_EMAILS?.trim();
+  if (!raw) return [];
+  return raw
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter(Boolean);
+}
+
+export function isPainelAdminEmail(email: string | null | undefined): boolean {
+  const normalized = email?.trim().toLowerCase();
+  if (!normalized) return false;
+  return getPainelAdminEmails().includes(normalized);
+}
+
 export function getYoutubePlaylistId(): string | null {
   const id = import.meta.env.VITE_PAINEL_YOUTUBE_PLAYLIST_ID?.trim();
   return id || null;

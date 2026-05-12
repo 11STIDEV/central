@@ -119,6 +119,7 @@ export default function SenhasPainelClient({ school, initialCalls }: PainelClien
   const overlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savedVideoTimeRef = useRef(0);
   const preferredVoiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const latestCallIdRef = useRef(initialCalls[0]?.id ?? null);
 
   const supabase = getPainelSupabase();
   const { pauseAndGetTime, resumeAt } = useYoutubePainelPlayer(playlistId, YOUTUBE_EMBED_ID);
@@ -133,6 +134,114 @@ export default function SenhasPainelClient({ school, initialCalls }: PainelClien
       overlayTimerRef.current = null;
     }, overlayDurationMs);
   }, [overlayDurationMs, playlistId, resumeAt]);
+
+  const clearVisibleCall = useCallback(() => {
+    setCalls([]);
+    setLatestCall(null);
+    setOverlayCall(null);
+    latestCallIdRef.current = null;
+    window.speechSynthesis.cancel();
+    if (overlayTimerRef.current) {
+      clearTimeout(overlayTimerRef.current);
+      overlayTimerRef.current = null;
+    }
+    if (playlistId) {
+      resumeAt(savedVideoTimeRef.current);
+    }
+  }, [playlistId, resumeAt]);
+
+  const showCall = useCallback(
+    (newCall: CallWithDetails, announce: boolean) => {
+      latestCallIdRef.current = newCall.id;
+      setCalls((prev) => [newCall, ...prev.filter((call) => call.id !== newCall.id)].slice(0, 6));
+      setLatestCall(newCall);
+      setIsAnimating(false);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setIsAnimating(true));
+      });
+
+      if (playlistId) {
+        setOverlayCall((prev) => {
+          if (prev === null) {
+            savedVideoTimeRef.current = pauseAndGetTime();
+          }
+          return newCall;
+        });
+        scheduleOverlayEnd();
+      }
+
+      if (announce && !muted) {
+        playCallSound(newCall.ticket.ticket_code, newCall.service_window.number);
+      }
+    },
+    [muted, pauseAndGetTime, playlistId, scheduleOverlayEnd],
+  );
+
+  const loadRecentCalls = useCallback(async () => {
+    if (!school?.id) return [];
+
+    const { data: latestReset } = await supabase
+      .from("painel_ticket_resets")
+      .select("reset_at")
+      .eq("school_id", school.id)
+      .order("reset_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const lastResetAt = (latestReset as { reset_at?: string } | null)?.reset_at ?? null;
+
+    let recentCallsQuery = supabase
+      .from("painel_calls")
+      .select(`
+        *,
+        ticket:painel_tickets(*, queue:painel_queues(*)),
+        service_window:painel_service_windows(*)
+      `)
+      .eq("school_id", school.id);
+
+    if (lastResetAt) {
+      recentCallsQuery = recentCallsQuery.gt("called_at", lastResetAt);
+    }
+
+    const { data, error } = await recentCallsQuery
+      .order("called_at", { ascending: false })
+      .limit(6);
+
+    if (error) {
+      if (import.meta.env.DEV) {
+        console.warn("[painel] erro ao atualizar chamadas:", error.message);
+      }
+      return [];
+    }
+
+    return ((data as unknown as CallWithDetails[]) ?? []).filter(
+      (call) => call.ticket?.status !== "reset",
+    );
+  }, [school?.id, supabase]);
+
+  const refreshRecentCalls = useCallback(
+    async (announceNew: boolean) => {
+      const recent = await loadRecentCalls();
+      const latest = recent[0] ?? null;
+
+      if (!latest) {
+        if (latestCallIdRef.current) {
+          clearVisibleCall();
+        } else {
+          setCalls([]);
+        }
+        return;
+      }
+
+      setCalls(recent);
+      if (latest.id !== latestCallIdRef.current) {
+        showCall(latest, announceNew);
+        return;
+      }
+
+      setLatestCall(latest);
+    },
+    [clearVisibleCall, loadRecentCalls, showCall],
+  );
 
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -161,8 +270,8 @@ export default function SenhasPainelClient({ school, initialCalls }: PainelClien
   }, []);
 
   useEffect(() => {
-    const channel = supabase
-      .channel("painel-calls")
+    const callsChannel = supabase
+      .channel(`painel-calls-${school?.id}`)
       .on(
         "postgres_changes",
         {
@@ -185,36 +294,42 @@ export default function SenhasPainelClient({ school, initialCalls }: PainelClien
           if (!data) return;
 
           const newCall = data as unknown as CallWithDetails;
-
-          setCalls((prev) => [newCall, ...prev].slice(0, 6));
-          setLatestCall(newCall);
-          setIsAnimating(false);
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => setIsAnimating(true));
-          });
-
-          if (playlistId) {
-            setOverlayCall((prev) => {
-              if (prev === null) {
-                savedVideoTimeRef.current = pauseAndGetTime();
-              }
-              return newCall;
-            });
-            scheduleOverlayEnd();
-          }
-
-          if (!muted) {
-            playCallSound(newCall.ticket.ticket_code, newCall.service_window.number);
-          }
+          if (newCall.ticket?.status === "reset") return;
+          showCall(newCall, true);
         }
       )
       .subscribe();
 
+    const resetsChannel = supabase
+      .channel(`painel-resets-${school?.id}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "painel_ticket_resets",
+          filter: `school_id=eq.${school?.id}`,
+        },
+        () => {
+          void refreshRecentCalls(false);
+        },
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(callsChannel);
+      supabase.removeChannel(resetsChannel);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps -- supabase client is stable via useMemo
-  }, [school?.id, muted, playlistId, pauseAndGetTime, scheduleOverlayEnd]);
+  }, [refreshRecentCalls, school?.id, showCall]);
+
+  useEffect(() => {
+    void refreshRecentCalls(false);
+    const timer = window.setInterval(() => {
+      void refreshRecentCalls(true);
+    }, 2500);
+    return () => window.clearInterval(timer);
+  }, [refreshRecentCalls]);
 
   function playCallSound(ticketCode: string, windowNumber: number) {
     const readableTicket = formatTicketCodeForSpeech(ticketCode);

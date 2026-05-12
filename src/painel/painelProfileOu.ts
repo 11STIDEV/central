@@ -13,7 +13,7 @@ export function perfilPainelPorOu(
   email: string,
   papeis: Papel[],
 ): Profile {
-  const role = podePainelAdmin(papeis) ? "admin" : "attendant";
+  const role = podePainelAdmin(papeis, email) ? "admin" : "attendant";
   const fullName = nome.trim() || email.split("@")[0] || email;
   return {
     id: userId,
@@ -25,9 +25,9 @@ export function perfilPainelPorOu(
   };
 }
 
-/** Alinha o papel ao que a OU permite (ex.: linha no Supabase como attendant, mas OU Setape/Direção = admin). */
-export function alinharPapelPerfilOu(profile: Profile, papeis: Papel[]): Profile {
-  const role = podePainelAdmin(papeis) ? "admin" : "attendant";
+/** Alinha o papel ao que as regras atuais permitem (admin global ou e-mail autorizado). */
+export function alinharPapelPerfilOu(profile: Profile, papeis: Papel[], email?: string | null): Profile {
+  const role = podePainelAdmin(papeis, email) ? "admin" : "attendant";
   if (profile.role === role) return profile;
   return { ...profile, role };
 }

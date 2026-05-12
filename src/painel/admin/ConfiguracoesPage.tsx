@@ -2,19 +2,21 @@ import { useEffect, useState } from "react";
 import { getSchoolSlug, isPainelDbOnly } from "@/painel/painelEnv";
 import { getPainelSupabase } from "@/painel/supabaseClient";
 import { fetchMyProfile } from "@/painel/fetchMyProfile";
+import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Settings, Save, Monitor, Link, Loader2 } from "lucide-react";
+import { AlertTriangle, Settings, Save, Monitor, Link, Loader2, RotateCcw } from "lucide-react";
 import { schoolDisplayName } from "@/painel/schoolDisplayName";
 import { toast } from "sonner";
 
 export default function ConfiguracoesPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [schoolId, setSchoolId] = useState("");
   const [form, setForm] = useState({
     name: "",
@@ -22,6 +24,7 @@ export default function ConfiguracoesPage() {
   });
 
   const supabase = getPainelSupabase();
+  const { usuario } = useAuth();
 
   useEffect(() => {
     async function load() {
@@ -91,6 +94,35 @@ export default function ConfiguracoesPage() {
     setSaving(false);
   }
 
+  async function handleResetTickets() {
+    if (!schoolId) {
+      toast.error("Escola não encontrada para resetar as senhas.");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Resetar a fila ativa agora? As senhas em espera ou chamadas serão encerradas, o histórico será preservado e a próxima senha emitida voltará para 001.",
+    );
+    if (!confirmed) return;
+
+    setResetting(true);
+    try {
+      const { error } = await supabase.rpc("reset_painel_tickets", {
+        p_school_id: schoolId,
+        p_reset_by_name: usuario?.nome ?? null,
+        p_reset_by_email: usuario?.email ?? null,
+      });
+
+      if (error) throw error;
+
+      toast.success("Fila resetada. A próxima senha emitida começará em 001.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao resetar as senhas.");
+    } finally {
+      setResetting(false);
+    }
+  }
+
   const origin = typeof window !== "undefined" ? window.location.origin : "";
 
   if (loading) {
@@ -147,6 +179,36 @@ export default function ConfiguracoesPage() {
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Salvando...</>
               ) : (
                 <><Save className="w-4 h-4 mr-2" />Salvar alterações</>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Separator />
+
+        <Card className="border-amber-200 bg-amber-50/60">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2 text-amber-900">
+              <AlertTriangle className="w-4 h-4" />
+              Reset de senhas
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-amber-900/80">
+              Encerra as senhas em espera ou chamadas e faz a próxima senha emitida voltar para
+              001. O histórico continua salvo para os relatórios.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleResetTickets}
+              disabled={resetting || !schoolId}
+              className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100"
+            >
+              {resetting ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Resetando...</>
+              ) : (
+                <><RotateCcw className="w-4 h-4 mr-2" />Resetar fila ativa</>
               )}
             </Button>
           </CardContent>

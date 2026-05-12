@@ -33,6 +33,7 @@ export type NavLeaf = {
   title: string;
   url: string;
   icon: LucideIcon;
+  locked?: boolean;
 };
 
 /** Subgrupo dentro de uma seção `nested` (Setores, Suporte, Agenda, etc.). */
@@ -281,4 +282,29 @@ export function filterNavByAccess(papeis: Papel[], sections: NavSection[]): NavS
     }
   }
   return out;
+}
+
+/** Mantém a árvore completa, mas marca itens sem permissão como bloqueados. */
+export function markNavByAccess(papeis: Papel[], sections: NavSection[]): NavSection[] {
+  return sections.map((sec) => {
+    if (sec.type === "flat") {
+      return {
+        ...sec,
+        items: sec.items.map((item) => ({
+          ...item,
+          locked: !canAccessRoute(papeis, item.url),
+        })),
+      };
+    }
+    return {
+      ...sec,
+      sectors: sec.sectors.map((sector) => ({
+        ...sector,
+        items: sector.items.map((item) => ({
+          ...item,
+          locked: !canAccessRoute(papeis, item.url),
+        })),
+      })),
+    };
+  });
 }

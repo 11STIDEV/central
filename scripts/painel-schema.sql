@@ -40,12 +40,19 @@ create table if not exists public.painel_tickets (
   number int not null,
   ticket_code text not null,
   type text not null check (type in ('normal', 'priority')),
-  status text not null check (status in ('waiting', 'called', 'attending', 'done', 'skipped')),
+  status text not null check (status in ('waiting', 'called', 'attending', 'done', 'skipped', 'reset')),
   called_at timestamptz,
   attended_at timestamptz,
   done_at timestamptz,
   created_at timestamptz not null default now()
 );
+
+alter table public.painel_tickets
+  drop constraint if exists painel_tickets_status_check;
+
+alter table public.painel_tickets
+  add constraint painel_tickets_status_check
+  check (status in ('waiting', 'called', 'attending', 'done', 'skipped', 'reset'));
 
 create table if not exists public.painel_calls (
   id uuid primary key default gen_random_uuid(),
@@ -67,12 +74,22 @@ create table if not exists public.painel_profiles (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.painel_ticket_resets (
+  id uuid primary key default gen_random_uuid(),
+  school_id uuid not null references public.painel_schools (id) on delete cascade,
+  reset_at timestamptz not null default now(),
+  reset_by_name text,
+  reset_by_email text
+);
+
 create index if not exists idx_painel_queues_school on public.painel_queues (school_id);
 create index if not exists idx_painel_sw_school on public.painel_service_windows (school_id);
 create index if not exists idx_painel_tickets_school on public.painel_tickets (school_id);
 create index if not exists idx_painel_tickets_queue on public.painel_tickets (queue_id);
 create index if not exists idx_painel_calls_school on public.painel_calls (school_id);
 create index if not exists idx_painel_profiles_school on public.painel_profiles (school_id);
+create index if not exists idx_painel_ticket_resets_school_reset_at
+  on public.painel_ticket_resets (school_id, reset_at desc);
 
 create or replace function public.get_next_ticket_number (p_queue_id uuid)
 returns integer
@@ -82,12 +99,57 @@ set search_path = public
 as $$
 declare
   n int;
+  queue_school_id uuid;
+  last_reset_at timestamptz;
 begin
+  select q.school_id
+    into queue_school_id
+  from public.painel_queues q
+  where q.id = p_queue_id;
+
+  if queue_school_id is null then
+    raise exception 'Fila não encontrada: %', p_queue_id;
+  end if;
+
+  select max(r.reset_at)
+    into last_reset_at
+  from public.painel_ticket_resets r
+  where r.school_id = queue_school_id;
+
   select coalesce(max(number), 0) + 1
     into n
   from public.painel_tickets
-  where queue_id = p_queue_id;
+  where queue_id = p_queue_id
+    and (last_reset_at is null or created_at > last_reset_at);
+
   return n;
+end;
+$$;
+
+create or replace function public.reset_painel_tickets (
+  p_school_id uuid,
+  p_reset_by_name text default null,
+  p_reset_by_email text default null
+)
+returns timestamptz
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  reset_timestamp timestamptz;
+begin
+  insert into public.painel_ticket_resets (school_id, reset_by_name, reset_by_email)
+  values (p_school_id, p_reset_by_name, p_reset_by_email)
+  returning reset_at into reset_timestamp;
+
+  update public.painel_tickets
+     set status = 'reset'
+   where school_id = p_school_id
+     and status in ('waiting', 'called', 'attending')
+     and created_at <= reset_timestamp;
+
+  return reset_timestamp;
 end;
 $$;
 
@@ -102,6 +164,7 @@ as $$
 $$;
 
 grant execute on function public.get_next_ticket_number (uuid) to anon, authenticated;
+grant execute on function public.reset_painel_tickets (uuid, text, text) to anon, authenticated;
 grant execute on function public.painel_my_profile () to authenticated;
 
 alter table public.painel_schools enable row level security;
@@ -110,6 +173,7 @@ alter table public.painel_service_windows enable row level security;
 alter table public.painel_tickets enable row level security;
 alter table public.painel_calls enable row level security;
 alter table public.painel_profiles enable row level security;
+alter table public.painel_ticket_resets enable row level security;
 
 drop policy if exists "painel_schools_all" on public.painel_schools;
 drop policy if exists "painel_queues_all" on public.painel_queues;
@@ -117,6 +181,7 @@ drop policy if exists "painel_service_windows_all" on public.painel_service_wind
 drop policy if exists "painel_tickets_all" on public.painel_tickets;
 drop policy if exists "painel_calls_all" on public.painel_calls;
 drop policy if exists "painel_profiles_all" on public.painel_profiles;
+drop policy if exists "painel_ticket_resets_all" on public.painel_ticket_resets;
 
 create policy "painel_schools_all" on public.painel_schools for all to anon, authenticated using (true) with check (true);
 create policy "painel_queues_all" on public.painel_queues for all to anon, authenticated using (true) with check (true);
@@ -124,6 +189,7 @@ create policy "painel_service_windows_all" on public.painel_service_windows for 
 create policy "painel_tickets_all" on public.painel_tickets for all to anon, authenticated using (true) with check (true);
 create policy "painel_calls_all" on public.painel_calls for all to anon, authenticated using (true) with check (true);
 create policy "painel_profiles_all" on public.painel_profiles for all to authenticated using (true) with check (true);
+create policy "painel_ticket_resets_all" on public.painel_ticket_resets for all to anon, authenticated using (true) with check (true);
 
 grant usage on schema public to anon, authenticated;
 grant select, insert, update, delete on public.painel_schools to anon, authenticated;
@@ -132,6 +198,7 @@ grant select, insert, update, delete on public.painel_service_windows to anon, a
 grant select, insert, update, delete on public.painel_tickets to anon, authenticated;
 grant select, insert, update, delete on public.painel_calls to anon, authenticated;
 grant select, insert, update, delete on public.painel_profiles to authenticated;
+grant select, insert, update, delete on public.painel_ticket_resets to anon, authenticated;
 
 do $$
 begin
@@ -143,6 +210,13 @@ $$;
 do $$
 begin
   alter publication supabase_realtime add table public.painel_calls;
+exception
+  when duplicate_object then null;
+end;
+$$;
+do $$
+begin
+  alter publication supabase_realtime add table public.painel_ticket_resets;
 exception
   when duplicate_object then null;
 end;
