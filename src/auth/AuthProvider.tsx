@@ -1,5 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { apiUrl, getApiBaseUrl } from "@/lib/apiBase";
+import {
+  ouPainelAdminPeloCaminho,
+  ouPainelAtendentePeloCaminho,
+} from "@/painel/painelOuPaths";
 
 /** Papéis derivados da OU no Google Workspace (caminho exato configurado abaixo). */
 export type Papel =
@@ -58,14 +62,40 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const STORAGE_KEY_GOOGLE_ID_TOKEN = "central_connect_google_id_token";
 const STORAGE_KEY_ID_TOKEN = STORAGE_KEY_GOOGLE_ID_TOKEN;
 
-/** Normaliza caminho de OU para comparação (trim, sem barra final, sem acentos, minúsculas). */
+/**
+ * Normaliza caminho de OU para comparação (trim, barra inicial, barras duplicadas,
+ * espaços unicode → espaço normal, sem barra final, sem acentos, minúsculas).
+ */
 function normalizarCaminhoOu(path: string): string {
-  return path
+  let s = path
     .trim()
-    .replace(/\/+$/, "")
+    .replace(/[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]/g, " ")
+    .replace(/\s+/g, " ");
+  if (!s.startsWith("/")) s = `/${s}`;
+  s = s.replace(/\/+/g, "/").replace(/\/+$/, "");
+  return s
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .toLowerCase();
+}
+
+/**
+ * No Admin, "Alunos FACULDADE" e "Alunos TECSCCI" ficam sob a OU raiz do domínio (ex.: `/Portalcci.com.br/...`),
+ * não necessariamente como `/Alunos FACULDADE` na raiz. Após `normalizarCaminhoOu`, reconhecemos o **segmento**
+ * exato `alunos faculdade` ou `alunos teccscci` em qualquer profundidade (inclui sub-OUs).
+ * Extra: `VITE_GOOGLE_ORGUNIT_ALUNO_PREFIXES` — prefixos normalizados adicionais (vírgula).
+ */
+const RE_SEG_OU_ALUNO = /(^|\/)(alunos faculdade|alunos teccscci)(\/|$)/;
+
+function ouAlunoPeloCaminhoWorkspace(chaveNormalizada: string): boolean {
+  if (RE_SEG_OU_ALUNO.test(chaveNormalizada)) return true;
+  const raw = (import.meta.env.VITE_GOOGLE_ORGUNIT_ALUNO_PREFIXES as string | undefined)?.trim();
+  if (!raw) return false;
+  for (const part of raw.split(",")) {
+    const p = normalizarCaminhoOu(part);
+    if (p && (chaveNormalizada === p || chaveNormalizada.startsWith(`${p}/`))) return true;
+  }
+  return false;
 }
 
 /**
@@ -91,18 +121,11 @@ const OU_PARA_PAPEL = new Map<string, Papel>([
   [normalizarCaminhoOu("/Professores REGULAR"), "professorregular"],
   [normalizarCaminhoOu("/Alunos FACULDADE"), "aluno"],
   [normalizarCaminhoOu("/Alunos TECSCCI"), "aluno"],
+  [normalizarCaminhoOu("/Portalcci.com.br/Alunos FACULDADE"), "aluno"],
+  [normalizarCaminhoOu("/Portalcci.com.br/Alunos TECSCCI"), "aluno"],
+  [normalizarCaminhoOu("/portalcci.com.br/Alunos FACULDADE"), "aluno"],
+  [normalizarCaminhoOu("/portalcci.com.br/Alunos TECSCCI"), "aluno"],
 ]);
-
-/** Prefixos de OU (inclui sub-OUs) — alinhar ao servidor em `painelPermissoesDoOrgUnit`. */
-const PREFIXOS_PAINEL_ATENDENTE = [normalizarCaminhoOu("/Administrativo/Secretaria")];
-const PREFIXOS_PAINEL_ADMIN = [
-  normalizarCaminhoOu("/Administrativo/Setape"),
-  normalizarCaminhoOu("/Administrativo/Direção"),
-];
-
-function ouCobrePrefixoPainel(chave: string, prefixo: string): boolean {
-  return chave === prefixo || chave.startsWith(`${prefixo}/`);
-}
 
 /** Domínios Google permitidos a entrar na Central (OAuth). */
 const DOMINIOS_PERMITIDOS = [
@@ -113,7 +136,7 @@ const DOMINIOS_PERMITIDOS = [
 
 function emailDominioPermitido(email: string): boolean {
   const e = email.toLowerCase();
-  return DOMINIOS_PERMITIDOS.some((d) => e.endsWith(d));
+  return DOMINIOS_PERMITIDOS.some((d) => e.endsWith(d.toLowerCase()));
 }
 
 function mapearPapeis(tokenPayload: any): Papel[] {
@@ -123,19 +146,24 @@ function mapearPapeis(tokenPayload: any): Papel[] {
   const orgUnit: string | undefined =
     (tokenPayload as any)?.orgUnitPath ||
     (tokenPayload as any)?.org_unit_path ||
+    (tokenPayload as any)?.organizationUnitPath ||
     (tokenPayload as any)?.ou ||
     (tokenPayload as any)?.orgUnit;
 
   if (orgUnit && orgUnit.trim() !== "") {
     const chave = normalizarCaminhoOu(orgUnit);
-    const papelOu = OU_PARA_PAPEL.get(chave);
+    let papelOu = OU_PARA_PAPEL.get(chave);
+    if (!papelOu && ouAlunoPeloCaminhoWorkspace(chave)) {
+      papelOu = "aluno";
+    }
     if (papelOu) {
       papeis.add(papelOu);
     }
-    if (PREFIXOS_PAINEL_ATENDENTE.some((p) => ouCobrePrefixoPainel(chave, p))) {
+    if (ouPainelAtendentePeloCaminho(chave)) {
       papeis.add("painel_atendente");
+      papeis.add("secretaria");
     }
-    if (PREFIXOS_PAINEL_ADMIN.some((p) => ouCobrePrefixoPainel(chave, p))) {
+    if (ouPainelAdminPeloCaminho(chave)) {
       papeis.add("painel_admin");
     }
   }
@@ -287,10 +315,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         } else {
           setOrganizacaoErro(null);
-          const raw = data.orgUnitPath ?? data.org_unit_path;
-          if (typeof raw === "string") {
-            orgUnitPath = raw;
-          }
+          const raw =
+            data.orgUnitPath ??
+            data.org_unit_path ??
+            (typeof (data as Record<string, unknown>).organizationUnitPath === "string"
+              ? (data as Record<string, unknown>).organizationUnitPath
+              : undefined);
+          const trimmed = raw != null && String(raw).trim() !== "" ? String(raw).trim() : "";
+          orgUnitPath = trimmed === "" ? undefined : trimmed;
         }
       } catch (e) {
         setOrganizacaoErro(
@@ -305,8 +337,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
+      const ouParaMapear = orgUnitPath;
       const payloadComOU =
-        orgUnitPath !== undefined ? { ...payload, orgUnitPath } : payload;
+        ouParaMapear !== undefined
+          ? {
+              ...payload,
+              orgUnitPath: ouParaMapear,
+              org_unit_path: ouParaMapear,
+              organizationUnitPath: ouParaMapear,
+              orgUnit: ouParaMapear,
+              ou: ouParaMapear,
+            }
+          : payload;
       let papeis = mapearPapeis(payloadComOU);
       try {
         const res = await fetch(apiUrl("/api/papeis-manuais/obter"), {

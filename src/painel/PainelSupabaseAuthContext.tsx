@@ -7,6 +7,7 @@ import {
 } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { useAuth } from "@/auth/AuthProvider";
+import { isGoogleAuthProviderDisabledError } from "@/painel/painelAuthMode";
 import { isPainelDbOnly } from "@/painel/painelEnv";
 import { getPainelSupabase, isPainelSupabaseConfigured } from "@/painel/supabaseClient";
 import { apiUrl } from "@/lib/apiBase";
@@ -20,7 +21,13 @@ export type PainelSupabaseAuthState =
   | { status: "no_config" }
   | { status: "no_token" }
   | { status: "syncing" }
-  | { status: "ready"; session: Session | null; syncError: string | null };
+  | {
+      status: "ready";
+      session: Session | null;
+      syncError: string | null;
+      /** Sem sessão Supabase Auth; perfil montado pela Central + RLS (Google desligado no Supabase). */
+      useDbOnly?: boolean;
+    };
 
 const PainelSupabaseAuthContext = createContext<PainelSupabaseAuthState | null>(null);
 
@@ -50,7 +57,7 @@ export function PainelSupabaseAuthProvider({ children }: { children: ReactNode }
         setState({ status: "no_token" });
         return;
       }
-      setState({ status: "ready", session: null, syncError: null });
+      setState({ status: "ready", session: null, syncError: null, useDbOnly: true });
       return;
     }
 
@@ -116,6 +123,27 @@ export function PainelSupabaseAuthProvider({ children }: { children: ReactNode }
           token: googleIdToken,
         });
         if (cancelled) return;
+
+        const googleProviderOff = isGoogleAuthProviderDisabledError(signErr?.message);
+        if (googleProviderOff) {
+          if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
+            console.warn(
+              "[painel] Google Auth desativado no Supabase — modo banco apenas (sem signInWithIdToken).",
+              "Ative o provedor Google no Supabase ou defina VITE_PAINEL_DB_ONLY=true.",
+            );
+          }
+          await syncPainelProfile();
+          if (cancelled) return;
+          setState({
+            status: "ready",
+            session: null,
+            syncError: null,
+            useDbOnly: true,
+          });
+          return;
+        }
+
         if (signErr && import.meta.env.DEV) {
           // eslint-disable-next-line no-console
           console.warn(
@@ -141,14 +169,27 @@ export function PainelSupabaseAuthProvider({ children }: { children: ReactNode }
           syncError: sessionAfter?.user
             ? null
             : signErr?.message ?? "Sem sessão no Supabase após o login com Google.",
+          useDbOnly: false,
         });
       } catch (e) {
         if (!cancelled) {
-          setState({
-            status: "ready",
-            session: null,
-            syncError: e instanceof Error ? e.message : "Erro ao sincronizar com o Supabase.",
-          });
+          const msg = e instanceof Error ? e.message : "Erro ao sincronizar com o Supabase.";
+          if (isGoogleAuthProviderDisabledError(msg)) {
+            await syncPainelProfile();
+            setState({
+              status: "ready",
+              session: null,
+              syncError: null,
+              useDbOnly: true,
+            });
+          } else {
+            setState({
+              status: "ready",
+              session: null,
+              syncError: msg,
+              useDbOnly: false,
+            });
+          }
         }
       }
     };
@@ -159,10 +200,15 @@ export function PainelSupabaseAuthProvider({ children }: { children: ReactNode }
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (cancelled) return;
-      setState({
-        status: "ready",
-        session,
-        syncError: session?.user ? null : "Sessão do painel inativa.",
+      setState((prev) => {
+        if (prev.status === "syncing" || prev.status === "auth_loading") return prev;
+        if (prev.status === "ready" && prev.useDbOnly) return prev;
+        return {
+          status: "ready",
+          session,
+          syncError: session?.user ? null : "Sessão do painel inativa.",
+          useDbOnly: false,
+        };
       });
     });
 

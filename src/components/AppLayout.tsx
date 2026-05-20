@@ -7,8 +7,9 @@ import { SidebarBrandLogo } from "@/components/SidebarBrandLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   INTRANET_NAV_SECTIONS,
+  adjustNavSenhasLeafUrls,
   filterNavByAccess,
-  markNavByAccess,
+  markNavTemporaryBlocks,
   mergeNavExtras,
 } from "@/navigation/intranetNavConfig";
 import { useNavExtras } from "@/navigation/useNavExtras";
@@ -22,13 +23,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const extras = useNavExtras();
   const navSections = useMemo(() => {
     const papeis = usuario?.papeis ?? [];
+    const email = usuario?.email;
     const fullSections = mergeNavExtras(INTRANET_NAV_SECTIONS, extras);
-    const deveMostrarBloqueados = !papeis.includes("admin") && !papeis.includes("setape");
-    if (deveMostrarBloqueados) {
-      return markNavByAccess(papeis, fullSections);
-    }
-    return filterNavByAccess(papeis, fullSections);
-  }, [usuario?.papeis, extras]);
+    const filtered = filterNavByAccess(papeis, fullSections, email);
+    const withBlocks = markNavTemporaryBlocks(papeis, filtered);
+    return adjustNavSenhasLeafUrls(papeis, email, withBlocks);
+  }, [usuario?.papeis, usuario?.email, extras]);
 
   useEffect(() => {
     setMobileOpen(false);

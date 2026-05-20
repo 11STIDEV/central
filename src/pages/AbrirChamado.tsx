@@ -3,8 +3,7 @@ import { Send, AlertCircle, CheckCircle, LogIn } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageHero } from "@/components/PageHero";
 import { useAuth } from "@/auth/AuthProvider";
-import { adicionarChamado, papelPrincipalUsuario } from "@/lib/chamados";
-import type { Chamado } from "@/lib/chamados";
+import { criarChamado } from "@/lib/chamados";
 
 const categories = [
   "Hardware",
@@ -24,8 +23,10 @@ const priorities = [
 ];
 
 export default function AbrirChamado() {
-  const { usuario } = useAuth();
+  const { usuario, googleIdToken } = useAuth();
   const [submitted, setSubmitted] = useState(false);
+  const [enviando, setEnviando] = useState(false);
+  const [erroEnvio, setErroEnvio] = useState<string | null>(null);
   const [form, setForm] = useState({
     titulo: "",
     categoria: "",
@@ -33,31 +34,29 @@ export default function AbrirChamado() {
     descricao: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!usuario) return;
+    if (!usuario || !googleIdToken || enviando) return;
 
-    const novo: Chamado = {
-      id: `CHM-${Date.now()}`,
-      titulo: form.titulo.trim(),
-      solicitante: usuario.nome,
-      solicitanteEmail: usuario.email,
-      papelAbertura: papelPrincipalUsuario(usuario.papeis),
-      categoria: form.categoria,
-      prioridade: form.prioridade,
-      status: "aberto",
-      data: new Date().toLocaleDateString("pt-BR"),
-      descricao: form.descricao.trim(),
-      acompanhamentos: [],
-      tarefas: [],
-    };
-    adicionarChamado(novo);
-
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setForm({ titulo: "", categoria: "", prioridade: "media", descricao: "" });
-    }, 3000);
+    setEnviando(true);
+    setErroEnvio(null);
+    try {
+      await criarChamado(googleIdToken, {
+        titulo: form.titulo.trim(),
+        categoria: form.categoria,
+        prioridade: form.prioridade,
+        descricao: form.descricao.trim(),
+      });
+      setSubmitted(true);
+      setTimeout(() => {
+        setSubmitted(false);
+        setForm({ titulo: "", categoria: "", prioridade: "media", descricao: "" });
+      }, 3000);
+    } catch (err) {
+      setErroEnvio(err instanceof Error ? err.message : "Não foi possível abrir o chamado.");
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -66,7 +65,7 @@ export default function AbrirChamado() {
 
       <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
         {!usuario ? (
-          <div className="rounded-2xl border border-slate-200/80 bg-white/90 p-8 text-center shadow-xl shadow-slate-900/5 backdrop-blur-sm">
+          <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-lg backdrop-blur-sm">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted">
               <LogIn className="h-7 w-7 text-muted-foreground" />
             </div>
@@ -82,7 +81,7 @@ export default function AbrirChamado() {
             </Link>
           </div>
         ) : submitted ? (
-          <div className="animate-fade-in rounded-2xl border border-slate-200/80 bg-white/90 p-12 text-center shadow-xl shadow-slate-900/5 backdrop-blur-sm">
+          <div className="animate-fade-in rounded-2xl border border-border bg-card p-12 text-center shadow-lg backdrop-blur-sm">
             <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-success/10">
               <CheckCircle className="h-8 w-8 text-success" />
             </div>
@@ -92,11 +91,18 @@ export default function AbrirChamado() {
         ) : (
           <form
             onSubmit={handleSubmit}
-            className="space-y-6 rounded-2xl border border-slate-200/80 bg-white/90 p-8 shadow-xl shadow-slate-900/5 backdrop-blur-sm"
+            className="space-y-6 rounded-2xl border border-border bg-card p-8 shadow-lg backdrop-blur-sm"
           >
-            <div className="flex items-center gap-2 rounded-xl border border-sky-200/60 bg-sky-50/80 px-4 py-3 text-sky-900">
-              <AlertCircle className="h-4 w-4 shrink-0 text-sky-600" />
-              <p className="text-sm">Preencha todos os campos para abrir seu chamado.</p>
+            {erroEnvio && (
+              <div className="flex items-center gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" aria-hidden />
+                <p>{erroEnvio}</p>
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 rounded-xl border border-primary/25 bg-primary/5 px-4 py-3 text-sm text-foreground">
+              <AlertCircle className="h-4 w-4 shrink-0 text-primary" aria-hidden />
+              <p>Preencha todos os campos para abrir seu chamado.</p>
             </div>
 
             <div>
@@ -107,7 +113,7 @@ export default function AbrirChamado() {
                 value={form.titulo}
                 onChange={(e) => setForm({ ...form, titulo: e.target.value })}
                 placeholder="Descreva brevemente o problema"
-                className="w-full rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                className="w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground transition-shadow focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
             </div>
 
@@ -118,7 +124,7 @@ export default function AbrirChamado() {
                   required
                   value={form.categoria}
                   onChange={(e) => setForm({ ...form, categoria: e.target.value })}
-                  className="w-full rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                  className="w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground ring-offset-background focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 >
                   <option value="">Selecione...</option>
                   {categories.map((c) => (
@@ -137,8 +143,8 @@ export default function AbrirChamado() {
                       onClick={() => setForm({ ...form, prioridade: p.value })}
                       className={`flex-1 rounded-xl border-2 px-3 py-2 text-sm font-medium transition-all ${
                         form.prioridade === p.value
-                          ? "border-primary bg-primary/5 text-primary shadow-sm"
-                          : "border-slate-200/90 text-muted-foreground hover:border-primary/25"
+                          ? "border-primary bg-primary/10 text-primary shadow-sm"
+                          : "border-border bg-background/50 text-muted-foreground hover:border-primary/40 hover:bg-muted/40"
                       }`}
                     >
                       <div className={`mx-auto mb-1 h-2 w-2 rounded-full ${p.color}`} />
@@ -157,17 +163,17 @@ export default function AbrirChamado() {
                 value={form.descricao}
                 onChange={(e) => setForm({ ...form, descricao: e.target.value })}
                 placeholder="Descreva o problema com o máximo de detalhes possível..."
-                className="w-full rounded-xl border border-slate-200/90 bg-white px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                className="w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
               />
             </div>
 
             <button
               type="submit"
-              disabled={!usuario}
+              disabled={!usuario || !googleIdToken || enviando}
               className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-primary to-blue-600 px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/20 transition-all hover:opacity-95 disabled:opacity-50"
             >
               <Send className="h-4 w-4" />
-              Enviar Chamado
+              {enviando ? "Enviando..." : "Enviar Chamado"}
             </button>
           </form>
         )}

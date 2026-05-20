@@ -1,12 +1,11 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthProvider";
-import { canAccessRoute, isApenasAtendenteSecretaria, isSomenteAluno } from "./routeAccess";
+import { canAccessRoute, destinoPadraoAposLogin, isSomenteAluno } from "./routeAccess";
 
 type Props = { children: React.ReactNode };
 
 /**
- * Redireciona para a rota “home” permitida se o path atual não puder ser acedido:
- * atendente só secretaria → `/senhas/atendente`; aluno → `/agenda-cci`; resto (legado) → `/agenda-cci`.
+ * Redireciona para uma rota permitida se o caminho atual não for acessível para os papéis do utilizador.
  */
 export function RouteGuard({ children }: Props) {
   const { usuario } = useAuth();
@@ -16,14 +15,11 @@ export function RouteGuard({ children }: Props) {
     return <>{children}</>;
   }
 
-  if (!canAccessRoute(usuario.papeis, location.pathname)) {
-    if (isApenasAtendenteSecretaria(usuario.papeis)) {
-      return <Navigate to="/senhas/atendente" replace />;
-    }
+  if (!canAccessRoute(usuario.papeis, location.pathname, usuario.email)) {
     if (isSomenteAluno(usuario.papeis)) {
-      return <Navigate to="/agenda-cci" replace />;
+      return <Navigate to="/reserva-espacos-equipamentos" replace />;
     }
-    return <Navigate to="/agenda-cci" replace />;
+    return <Navigate to={destinoPadraoAposLogin(usuario.papeis, usuario.email)} replace />;
   }
 
   return <>{children}</>;

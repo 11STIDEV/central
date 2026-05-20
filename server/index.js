@@ -12,6 +12,18 @@ import {
   estaEmJanelaReservaAtiva,
   dispositivoEstaDisabled,
 } from "./agendaCciLogic.js";
+import {
+  mapearPapeisDoOrgUnit,
+  mesclarPapeisManuais,
+  papelPrincipalUsuario,
+  podeVerChamado,
+} from "./chamadosAccess.js";
+import {
+  listarTodosChamados,
+  obterChamadoPorId,
+  inserirChamado,
+  atualizarChamado,
+} from "./chamadosStore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -22,10 +34,12 @@ const HOST = process.env.HOST || "0.0.0.0";
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: "2mb" }));
 
-/** Um ou mais sufixos permitidos, separados por vírgula (ex.: @portalcci.com.br,@faculdadecci.com.br). */
+/** Um ou mais sufixos permitidos, separados por vírgula. Alinhar ao front (`AuthProvider`) e ao `server/.env.example`. */
 function parseDominiosPermitidos() {
   const raw =
-    process.env.DOMINIOS_PERMITIDOS || process.env.DOMINIO_PERMITIDO || "@portalcci.com.br";
+    process.env.DOMINIOS_PERMITIDOS ||
+    process.env.DOMINIO_PERMITIDO ||
+    "@portalcci.com.br,@faculdadecci.com.br,@tecscci.com.br";
   return raw
     .split(",")
     .map((s) => s.trim())
@@ -36,6 +50,20 @@ const DOMINIOS_PERMITIDOS = parseDominiosPermitidos();
 const SUPABASE_URL =
   process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+function papelDaChaveSupabase(jwt) {
+  try {
+    const part = String(jwt).split(".")[1];
+    if (!part) return null;
+    const json = Buffer.from(part.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString(
+      "utf8",
+    );
+    const payload = JSON.parse(json);
+    return typeof payload?.role === "string" ? payload.role : null;
+  } catch {
+    return null;
+  }
+}
 
 function getSupabaseAdmin() {
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
@@ -66,22 +94,35 @@ function emailDominioPermitido(email) {
 const PAINEL_SCHOOL_SLUG = (process.env.PAINEL_SCHOOL_SLUG || process.env.VITE_SCHOOL_SLUG || "demo").trim();
 
 function normalizarCaminhoOu(path) {
-  return String(path)
+  let s = String(path)
     .trim()
-    .replace(/\/+$/, "")
+    .replace(/[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]/g, " ")
+    .replace(/\s+/g, " ");
+  if (!s.startsWith("/")) s = `/${s}`;
+  s = s.replace(/\/+/g, "/").replace(/\/+$/, "");
+  return s
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .toLowerCase();
 }
 
-const PREFIXOS_PAINEL_ATENDENTE = [normalizarCaminhoOu("/Administrativo/Secretaria")];
-const PREFIXOS_PAINEL_ADMIN = [
-  normalizarCaminhoOu("/Administrativo/Setape"),
-  normalizarCaminhoOu("/Administrativo/Direção"),
-];
+const RE_OU_PAINEL_SECRETARIA = /(^|\/)administrativo\/secretaria(\/|$)/;
+const RE_OU_PAINEL_ADMIN = /(^|\/)administrativo\/(setape|direcao)(\/|$)/;
 
-function ouCobrePrefixo(chave, prefixo) {
+function ouPainelAtendentePeloCaminho(chave) {
+  if (RE_OU_PAINEL_SECRETARIA.test(chave)) return true;
+  const prefixo = normalizarCaminhoOu("/Administrativo/Secretaria");
   return chave === prefixo || chave.startsWith(`${prefixo}/`);
+}
+
+function ouPainelAdminPeloCaminho(chave) {
+  if (RE_OU_PAINEL_ADMIN.test(chave)) return true;
+  for (const segmento of ["setape", "direcao"]) {
+    const label = segmento === "direcao" ? "Direção" : "Setape";
+    const prefixo = normalizarCaminhoOu(`/Administrativo/${label}`);
+    if (chave === prefixo || chave.startsWith(`${prefixo}/`)) return true;
+  }
+  return false;
 }
 
 function painelPermissoesDoOrgUnit(orgUnitPath) {
@@ -90,8 +131,8 @@ function painelPermissoesDoOrgUnit(orgUnitPath) {
   }
   const chave = normalizarCaminhoOu(orgUnitPath);
   return {
-    atendente: PREFIXOS_PAINEL_ATENDENTE.some((p) => ouCobrePrefixo(chave, p)),
-    admin: PREFIXOS_PAINEL_ADMIN.some((p) => ouCobrePrefixo(chave, p)),
+    atendente: ouPainelAtendentePeloCaminho(chave),
+    admin: ouPainelAdminPeloCaminho(chave),
   };
 }
 
@@ -677,11 +718,22 @@ app.post("/api/organizacao", async (req, res) => {
     }
 
     const admin = google.admin({ version: "directory_v1", auth });
-    const user = await admin.users.get({ userKey: email });
+    const user = await admin.users.get({
+      userKey: email,
+      /** BASIC por vezes omite campos; FULL garante `orgUnitPath` (ex.: OUs na raiz como /Alunos FACULDADE). */
+      projection: "full",
+    });
+    const rawOu = user.data?.orgUnitPath ?? user.data?.org_unit_path;
     const orgUnitPath =
-      user.data?.orgUnitPath != null && user.data.orgUnitPath !== ""
-        ? String(user.data.orgUnitPath)
-        : null;
+      rawOu != null && String(rawOu).trim() !== "" ? String(rawOu).trim() : null;
+
+    if (!orgUnitPath && process.env.NODE_ENV !== "production") {
+      // eslint-disable-next-line no-console
+      console.warn(
+        "[api/organizacao] users.get sem orgUnitPath; projection=full. Chaves em data:",
+        user.data ? Object.keys(user.data).filter((k) => /org|unit|path/i.test(k)) : [],
+      );
+    }
 
     return res.json({ orgUnitPath, email });
   } catch (err) {
@@ -839,6 +891,186 @@ app.post("/api/agenda-cci/reservas/obter", async (req, res) => {
   }
 });
 
+function respostaErroIdToken(res, e) {
+  const st = e.status || 500;
+  if (st === 401 && e.audDoToken) {
+    return res.status(st).json({
+      error: `${e.message} Use o mesmo valor de VITE_GOOGLE_CLIENT_ID no server/.env.`,
+      audDoToken: e.audDoToken,
+    });
+  }
+  return res.status(st).json({ error: e.message });
+}
+
+async function resolverContextoChamados(idToken) {
+  const { email } = await verificarIdTokenUsuario(idToken);
+  const payload = decodeJwtPayloadUnsafe(idToken);
+  const nome =
+    (typeof payload?.name === "string" && payload.name) ||
+    (typeof payload?.given_name === "string" && payload.given_name) ||
+    String(email).split("@")[0];
+  const orgUnitPath = await obterOrgUnitPathUsuario(email);
+  const manual = lerPapeisManuaisArquivo()[email.toLowerCase()] || [];
+  const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+  return {
+    email,
+    nome,
+    papeis,
+    viewer: { email, papeis },
+  };
+}
+
+function sanitizarListaEntradas(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter(
+      (x) =>
+        x &&
+        typeof x === "object" &&
+        typeof x.autor === "string" &&
+        typeof x.texto === "string" &&
+        typeof x.data === "string",
+    )
+    .map((x) => ({
+      autor: x.autor,
+      texto: x.texto,
+      data: x.data,
+    }));
+}
+
+function sanitizarSolucao(sol) {
+  if (!sol || typeof sol !== "object") return undefined;
+  if (typeof sol.autor !== "string" || typeof sol.texto !== "string" || typeof sol.data !== "string") {
+    return undefined;
+  }
+  return { autor: sol.autor, texto: sol.texto, data: sol.data };
+}
+
+/**
+ * POST /api/chamados/listar
+ * Body: { idToken }
+ */
+app.post("/api/chamados/listar", async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    const ctx = await resolverContextoChamados(idToken);
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return res.status(503).json({
+        error: "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no servidor.",
+      });
+    }
+    const todos = await listarTodosChamados(supabase);
+    const chamados = todos.filter((c) => podeVerChamado(ctx.viewer, c));
+    return res.json({ chamados });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("Erro /api/chamados/listar:", msg);
+    return res.status(500).json({ error: msg || "Erro ao listar chamados." });
+  }
+});
+
+/**
+ * POST /api/chamados/criar
+ * Body: { idToken, titulo, categoria, prioridade, descricao }
+ */
+app.post("/api/chamados/criar", async (req, res) => {
+  try {
+    const { idToken, titulo, categoria, prioridade, descricao } = req.body || {};
+    const ctx = await resolverContextoChamados(idToken);
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return res.status(503).json({
+        error: "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no servidor.",
+      });
+    }
+
+    const tituloLimpo = typeof titulo === "string" ? titulo.trim() : "";
+    const categoriaLimpa = typeof categoria === "string" ? categoria.trim() : "";
+    const descricaoLimpa = typeof descricao === "string" ? descricao.trim() : "";
+    if (!tituloLimpo || !categoriaLimpa || !descricaoLimpa) {
+      return res.status(400).json({ error: "titulo, categoria e descricao são obrigatórios." });
+    }
+    const prioridades = ["baixa", "media", "alta"];
+    const prioridadeFinal = prioridades.includes(prioridade) ? prioridade : "media";
+
+    const chamado = {
+      id: `CHM-${Date.now()}`,
+      titulo: tituloLimpo,
+      solicitante: ctx.nome,
+      solicitanteEmail: ctx.email,
+      papelAbertura: papelPrincipalUsuario(ctx.papeis),
+      categoria: categoriaLimpa,
+      prioridade: prioridadeFinal,
+      status: "aberto",
+      data: new Date().toLocaleDateString("pt-BR"),
+      descricao: descricaoLimpa,
+      acompanhamentos: [],
+      tarefas: [],
+    };
+
+    await inserirChamado(supabase, chamado);
+    return res.json({ ok: true, chamado });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("Erro /api/chamados/criar:", msg);
+    return res.status(500).json({ error: msg || "Erro ao criar chamado." });
+  }
+});
+
+/**
+ * POST /api/chamados/atualizar
+ * Body: { idToken, chamado }
+ */
+app.post("/api/chamados/atualizar", async (req, res) => {
+  try {
+    const { idToken, chamado } = req.body || {};
+    const ctx = await resolverContextoChamados(idToken);
+    if (!chamado || typeof chamado !== "object" || typeof chamado.id !== "string") {
+      return res.status(400).json({ error: "chamado.id é obrigatório." });
+    }
+
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return res.status(503).json({
+        error: "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no servidor.",
+      });
+    }
+
+    const existente = await obterChamadoPorId(supabase, chamado.id);
+    if (!existente) {
+      return res.status(404).json({ error: "Chamado não encontrado." });
+    }
+    if (!podeVerChamado(ctx.viewer, existente)) {
+      return res.status(403).json({ error: "Sem permissão para editar este chamado." });
+    }
+
+    const isSetape = ctx.papeis.includes("setape");
+    const atualizado = {
+      ...existente,
+      acompanhamentos: sanitizarListaEntradas(chamado.acompanhamentos),
+    };
+
+    if (isSetape) {
+      const statusOk = chamado.status === "resolvido" ? "resolvido" : "aberto";
+      atualizado.status = statusOk;
+      atualizado.tarefas = sanitizarListaEntradas(chamado.tarefas);
+      atualizado.solucao =
+        statusOk === "resolvido" ? sanitizarSolucao(chamado.solucao) : undefined;
+    }
+
+    await atualizarChamado(supabase, atualizado);
+    return res.json({ ok: true, chamado: atualizado });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("Erro /api/chamados/atualizar:", msg);
+    return res.status(500).json({ error: msg || "Erro ao atualizar chamado." });
+  }
+});
+
 /**
  * POST /api/papeis-manuais/obter
  * Body: { idToken } — papéis manuais do usuário (ex.: admin).
@@ -944,9 +1176,13 @@ async function obterOrgUnitPathUsuario(email) {
   try {
     await auth.authorize();
     const directory = google.admin({ version: "directory_v1", auth });
-    const user = await directory.users.get({ userKey: email });
-    if (user.data?.orgUnitPath != null && user.data.orgUnitPath !== "") {
-      return String(user.data.orgUnitPath);
+    const user = await directory.users.get({
+      userKey: email,
+      projection: "full",
+    });
+    const rawOu = user.data?.orgUnitPath ?? user.data?.org_unit_path;
+    if (rawOu != null && String(rawOu).trim() !== "") {
+      return String(rawOu).trim();
     }
     return null;
   } catch (e) {
@@ -1255,8 +1491,17 @@ app.listen(PORT, HOST, () => {
   }
   if (SUPABASE_URL && !SUPABASE_SERVICE_ROLE_KEY) {
     console.warn(
-      "Aviso: defina SUPABASE_SERVICE_ROLE_KEY no server/.env (chave service_role do Supabase) para o painel de senhas e /api/painel/sync-profile.",
+      "Aviso: defina SUPABASE_SERVICE_ROLE_KEY no server/.env (chave service_role do Supabase) para painel, agenda e chamados.",
     );
+  } else if (SUPABASE_SERVICE_ROLE_KEY) {
+    const papel = papelDaChaveSupabase(SUPABASE_SERVICE_ROLE_KEY);
+    if (papel && papel !== "service_role") {
+      console.warn(
+        `[supabase] SUPABASE_SERVICE_ROLE_KEY tem role "${papel}" (esperado "service_role"). ` +
+          "Use a chave service_role em Project Settings → API, não a anon/public. " +
+          "Chamados com RLS ativo falham com a chave anon.",
+      );
+    }
   }
   if (AGENDA_CCI_ENFORCE_DISABLE) {
     console.log(

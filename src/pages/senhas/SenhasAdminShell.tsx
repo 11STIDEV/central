@@ -4,7 +4,8 @@ import { Link, NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { fetchMyProfile } from "@/painel/fetchMyProfile";
 import { getOrCreateLocalPainelAttendantId } from "@/painel/painelLocalIdentity";
-import { getSchoolSlug, isPainelDbOnly } from "@/painel/painelEnv";
+import { painelUsesDbOnlyMode } from "@/painel/painelAuthMode";
+import { getSchoolSlug } from "@/painel/painelEnv";
 import { alinharPapelPerfilOu, perfilPainelPorOu } from "@/painel/painelProfileOu";
 import { getPainelSupabase, isPainelSupabaseConfigured } from "@/painel/supabaseClient";
 import { usePainelSupabaseAuth } from "@/painel/PainelSupabaseAuthContext";
@@ -39,7 +40,7 @@ export default function SenhasAdminShell() {
     if (painelAuth.status !== "ready") {
       return;
     }
-    if (!isPainelDbOnly() && !painelAuth.session?.user) {
+    if (!painelUsesDbOnlyMode(painelAuth) && !painelAuth.session?.user) {
       return;
     }
     if (!isPainelSupabaseConfigured()) {
@@ -69,7 +70,7 @@ export default function SenhasAdminShell() {
           return;
         }
 
-        const uid = isPainelDbOnly()
+        const uid = painelUsesDbOnlyMode(painelAuth)
           ? getOrCreateLocalPainelAttendantId()
           : painelAuth.session!.user.id;
         const nome = usuario?.nome ?? "";
@@ -163,7 +164,7 @@ export default function SenhasAdminShell() {
     return <Navigate to="/login" replace />;
   }
 
-  if (painelAuth.status === "ready" && !isPainelDbOnly() && !painelAuth.session?.user) {
+  if (painelAuth.status === "ready" && !painelUsesDbOnlyMode(painelAuth) && !painelAuth.session?.user) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background p-6 text-center">
         <p className="max-w-md text-sm text-muted-foreground">

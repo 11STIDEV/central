@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { getSchoolSlug, isPainelDbOnly } from "@/painel/painelEnv";
+import { usePainelSupabaseAuth } from "@/painel/PainelSupabaseAuthContext";
+import { painelUsesDbOnlyMode } from "@/painel/painelAuthMode";
+import { getSchoolSlug } from "@/painel/painelEnv";
 import { getPainelSupabase } from "@/painel/supabaseClient";
 import { fetchMyProfile } from "@/painel/fetchMyProfile";
 import { useAuth } from "@/auth/AuthProvider";
@@ -25,10 +27,11 @@ export default function ConfiguracoesPage() {
 
   const supabase = getPainelSupabase();
   const { usuario } = useAuth();
+  const painelAuth = usePainelSupabaseAuth();
 
   useEffect(() => {
     async function load() {
-      if (isPainelDbOnly()) {
+      if (painelUsesDbOnlyMode(painelAuth)) {
         const { data: school, error } = await supabase
           .from("painel_schools")
           .select("*")

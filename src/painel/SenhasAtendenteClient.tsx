@@ -23,7 +23,8 @@ import {
 import { toast } from "sonner";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { isPainelDbOnly } from "@/painel/painelEnv";
+import { usePainelSupabaseAuth } from "@/painel/PainelSupabaseAuthContext";
+import { painelUsesDbOnlyMode } from "@/painel/painelAuthMode";
 import { useChimeSound } from "@/painel/hooks/useChimeSound";
 import { PageHero, PageHeroEyebrow } from "@/components/PageHero";
 
@@ -110,6 +111,8 @@ export default function SenhasAtendenteClient({
   const [showAllQueue, setShowAllQueue] = useState(false);
   const consecutivePriorityRef = useRef(0);
   const supabase = getPainelSupabase();
+  const painelAuth = usePainelSupabaseAuth();
+  const dbOnly = painelUsesDbOnlyMode(painelAuth);
   const { playChime } = useChimeSound();
   const { usuario } = useAuth();
 
@@ -198,7 +201,7 @@ export default function SenhasAtendenteClient({
       ticket_id: ticketId,
       service_window_id: windowId,
       /** Sem sessão `auth.users` no Supabase (VITE_PAINEL_DB_ONLY), FK de atendente fica nulo. */
-      attendant_id: isPainelDbOnly() ? null : profile.id,
+      attendant_id: dbOnly ? null : profile.id,
       attendant_name_snapshot: usuario?.nome ?? profile.full_name ?? null,
       attendant_email_snapshot: usuario?.email ?? null,
     };
@@ -211,7 +214,7 @@ export default function SenhasAtendenteClient({
       school_id: profile.school_id,
       ticket_id: ticketId,
       service_window_id: windowId,
-      attendant_id: isPainelDbOnly() ? null : profile.id,
+      attendant_id: dbOnly ? null : profile.id,
     });
     if (fallback.error) throw fallback.error;
   }

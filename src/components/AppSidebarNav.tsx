@@ -149,8 +149,10 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
           <button
             type="button"
             aria-disabled="true"
-            title={opts.collapsed ? `${item.title} (bloqueado)` : "Acesso bloqueado para seu perfil"}
-            className={`${linkClass(false)} w-full cursor-not-allowed opacity-60 hover:opacity-100`}
+            title={
+              opts.collapsed ? `${item.title} (bloqueado)` : "Em breve — funcionalidade em revisão"
+            }
+            className={`${linkClass(false)} w-full cursor-not-allowed justify-start text-left opacity-60 hover:opacity-100`}
           >
             <item.icon className={iconClass(false)} strokeWidth={1.75} />
             {!opts.collapsed && (
@@ -234,6 +236,7 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
                           <DropdownMenuItem
                             key={item.url}
                             disabled
+                            title="Em breve — funcionalidade em revisão"
                             className="flex items-center justify-between gap-2"
                           >
                             <span>{item.title}</span>

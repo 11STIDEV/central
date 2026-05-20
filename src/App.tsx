@@ -26,6 +26,7 @@ import ControleMateriaisAlmoxarifado from "./pages/ControleMateriaisAlmoxarifado
 import ValeAdiantamento from "./pages/ValeAdiantamento";
 import FinanceiroValesAdiantamento from "./pages/FinanceiroValesAdiantamento";
 import { SetorLinksPage } from "./pages/SetorLinksPage";
+import PortalDoFuncionario from "./pages/PortalDoFuncionario";
 import AdminPapeisManuais from "./pages/AdminPapeisManuais";
 import NotFound from "./pages/NotFound";
 import PainelSenhasLayout from "./pages/senhas/PainelSenhasLayout";
@@ -57,6 +58,7 @@ const App = () => (
                   <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<Index />} />
+              <Route path="/portal-do-funcionario" element={<PortalDoFuncionario />} />
               <Route
                 path="/admin/papeis-manuais"
                 element={

@@ -17,8 +17,8 @@ import { useAuth } from "@/auth/AuthProvider";
 import {
   type Chamado,
   podeVerChamado,
-  salvarChamados,
-  obterChamadosParaExibir,
+  listarChamados,
+  atualizarChamadoRemoto,
 } from "@/lib/chamados";
 
 const prioridadeConfig = {
@@ -46,15 +46,37 @@ function agoraLegivel(): string {
 }
 
 export default function GestaoChamados() {
-  const { usuario } = useAuth();
+  const { usuario, googleIdToken } = useAuth();
   const location = useLocation();
-  const [chamados, setChamados] = useState<Chamado[]>(() => obterChamadosParaExibir());
+  const [chamados, setChamados] = useState<Chamado[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erroCarregar, setErroCarregar] = useState<string | null>(null);
+  const [salvandoId, setSalvandoId] = useState<string | null>(null);
+
+  const recarregar = useCallback(async () => {
+    if (!googleIdToken) {
+      setChamados([]);
+      setCarregando(false);
+      return;
+    }
+    setCarregando(true);
+    setErroCarregar(null);
+    try {
+      const lista = await listarChamados(googleIdToken);
+      setChamados(lista);
+    } catch (e) {
+      setErroCarregar(e instanceof Error ? e.message : "Erro ao carregar chamados.");
+      setChamados([]);
+    } finally {
+      setCarregando(false);
+    }
+  }, [googleIdToken]);
 
   useEffect(() => {
     if (location.pathname === "/chamados/gestao") {
-      setChamados(obterChamadosParaExibir());
+      void recarregar();
     }
-  }, [location.pathname]);
+  }, [location.pathname, recarregar]);
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Record<string, TabKey>>({});
@@ -64,10 +86,26 @@ export default function GestaoChamados() {
   const [tarefaDraft, setTarefaDraft] = useState<Record<string, string>>({});
   const [solucaoDraft, setSolucaoDraft] = useState<Record<string, string>>({});
 
-  const persistir = useCallback((lista: Chamado[]) => {
-    setChamados(lista);
-    salvarChamados(lista);
-  }, []);
+  const persistir = useCallback(
+    async (lista: Chamado[], idAlterado: string) => {
+      if (!googleIdToken) return;
+      const chamado = lista.find((c) => c.id === idAlterado);
+      if (!chamado) return;
+
+      setChamados(lista);
+      setSalvandoId(idAlterado);
+      try {
+        const atualizado = await atualizarChamadoRemoto(googleIdToken, chamado);
+        setChamados((prev) => prev.map((c) => (c.id === idAlterado ? atualizado : c)));
+      } catch (e) {
+        void recarregar();
+        setErroCarregar(e instanceof Error ? e.message : "Erro ao salvar alterações.");
+      } finally {
+        setSalvandoId(null);
+      }
+    },
+    [googleIdToken, recarregar],
+  );
 
   const isSetape = usuario?.papeis.includes("setape") ?? false;
 
@@ -94,7 +132,8 @@ export default function GestaoChamados() {
   };
 
   const atualizarChamado = (id: string, fn: (c: Chamado) => Chamado) => {
-    persistir(chamados.map((c) => (c.id === id ? fn(c) : c)));
+    const lista = chamados.map((c) => (c.id === id ? fn(c) : c));
+    void persistir(lista, id);
   };
 
   const adicionarAcompanhamento = (id: string) => {
@@ -146,6 +185,16 @@ export default function GestaoChamados() {
       />
 
       <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
+        {erroCarregar && (
+          <div className="mb-6 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+            {erroCarregar}
+          </div>
+        )}
+
+        {carregando ? (
+          <div className="py-16 text-center text-sm text-muted-foreground">Carregando chamados...</div>
+        ) : (
+          <>
         {/* Stats */}
         <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
           {(["aberto", "resolvido"] as const).map((s) => {
@@ -378,6 +427,8 @@ export default function GestaoChamados() {
           <div className="py-12 text-center text-sm text-muted-foreground">
             Nenhum chamado encontrado para o seu perfil ou para os filtros selecionados.
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

@@ -6,7 +6,8 @@ import { getPainelSupabase, isPainelSupabaseConfigured } from "@/painel/supabase
 import { usePainelSupabaseAuth } from "@/painel/PainelSupabaseAuthContext";
 import { fetchMyProfile } from "@/painel/fetchMyProfile";
 import { getOrCreateLocalPainelAttendantId } from "@/painel/painelLocalIdentity";
-import { getSchoolSlug, isPainelDbOnly } from "@/painel/painelEnv";
+import { painelUsesDbOnlyMode } from "@/painel/painelAuthMode";
+import { getSchoolSlug } from "@/painel/painelEnv";
 import { perfilPainelPorOu } from "@/painel/painelProfileOu";
 import { podePainelAtendente } from "@/painel/painelWorkspaceAccess";
 import type { Profile, Queue, School, ServiceWindow } from "@/painel/types/database";
@@ -48,7 +49,7 @@ export default function SenhasAtendentePage() {
     if (painelAuth.status !== "ready") {
       return;
     }
-    if (!isPainelDbOnly() && !painelAuth.session?.user) {
+    if (!painelUsesDbOnlyMode(painelAuth) && !painelAuth.session?.user) {
       return;
     }
     if (!isPainelSupabaseConfigured()) {
@@ -66,7 +67,7 @@ export default function SenhasAtendentePage() {
         const supabase = getPainelSupabase();
         const idToken = googleIdToken;
         let baseProfile = await fetchMyProfile();
-        if (!isPainelDbOnly() && !baseProfile && idToken) {
+        if (!painelUsesDbOnlyMode(painelAuth) && !baseProfile && idToken) {
           for (let i = 0; i < 5; i++) {
             await requestPainelSync(idToken);
             await new Promise((r) => setTimeout(r, 250));
@@ -78,7 +79,7 @@ export default function SenhasAtendentePage() {
         const email = usuario?.email ?? painelAuth.session?.user?.email ?? "";
         const papeis = usuario?.papeis ?? [];
         const pode = podePainelAtendente(papeis);
-        const uid = isPainelDbOnly()
+        const uid = painelUsesDbOnlyMode(painelAuth)
           ? getOrCreateLocalPainelAttendantId()
           : painelAuth.session!.user.id;
         const nome = usuario?.nome ?? "";
@@ -214,7 +215,7 @@ export default function SenhasAtendentePage() {
     return <Navigate to="/login" replace />;
   }
 
-  if (painelAuth.status === "ready" && !isPainelDbOnly() && !painelAuth.session?.user) {
+  if (painelAuth.status === "ready" && !painelUsesDbOnlyMode(painelAuth) && !painelAuth.session?.user) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-50 p-6 text-center">
         <p className="max-w-md text-sm text-slate-700">

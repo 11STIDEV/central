@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { destinoAposLogin } from "@/auth/RequireAuth";
-import { canAccessRoute } from "@/auth/routeAccess";
+import { canAccessRoute, destinoPadraoAposLogin } from "@/auth/routeAccess";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { CciLogoBranca } from "@/painel/components/CciLogoBranca";
@@ -30,8 +30,8 @@ export default function Login() {
   useEffect(() => {
     if (!usuario) return;
     let to = redirectBruto;
-    if (!canAccessRoute(usuario.papeis, to)) {
-      to = "/agenda-cci";
+    if (!canAccessRoute(usuario.papeis, to, usuario.email)) {
+      to = destinoPadraoAposLogin(usuario.papeis, usuario.email);
     }
     navigate(to, { replace: true });
   }, [usuario, navigate, redirectBruto]);

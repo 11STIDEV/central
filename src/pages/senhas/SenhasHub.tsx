@@ -3,7 +3,7 @@ import { Hash, Lock, MonitorSpeaker, Ticket, Tv, LayoutDashboard } from "lucide-
 import { PageHero, PageHeroEyebrow } from "@/components/PageHero";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/auth/AuthProvider";
-import { podePainelAdmin } from "@/painel/painelWorkspaceAccess";
+import { podePainelAdmin, podePainelAtendente } from "@/painel/painelWorkspaceAccess";
 import { isPainelSupabaseConfigured } from "@/painel/supabaseClient";
 
 const links = [
@@ -12,31 +12,39 @@ const links = [
     title: "Totem",
     description: "Emissão de senhas na entrada (tablet / quiosque).",
     icon: Ticket,
+    requerAdminPainel: true as const,
   },
   {
     to: "/senhas/painel",
     title: "Painel TV",
     description: "Chamadas em tela cheia com vídeo.",
     icon: Tv,
+    requerAdminPainel: true as const,
   },
   {
     to: "/senhas/atendente",
     title: "Atendente",
     description: "Chamar senhas e gerenciar o guichê.",
     icon: MonitorSpeaker,
+    requerAdminPainel: false as const,
   },
   {
     to: "/senhas/admin",
     title: "Administração",
     description: "Filas, guichês, atendentes e relatórios.",
     icon: LayoutDashboard,
+    requerAdminPainel: true as const,
   },
 ];
 
 export default function SenhasHub() {
   const supabaseOk = isPainelSupabaseConfigured();
   const { usuario } = useAuth();
-  const podeAbrirAdmin = podePainelAdmin(usuario?.papeis ?? [], usuario?.email);
+  const papeis = usuario?.papeis ?? [];
+  const podeAbrirAdmin = podePainelAdmin(papeis, usuario?.email);
+  const linksVisiveis = links.filter((link) =>
+    link.requerAdminPainel ? podeAbrirAdmin : podeAbrirAdmin || podePainelAtendente(papeis),
+  );
 
   return (
     <div className="animate-fade-in">
@@ -71,7 +79,7 @@ export default function SenhasHub() {
         )}
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {links.map(({ to, title, description, icon: Icon }) => {
+          {linksVisiveis.map(({ to, title, description, icon: Icon }) => {
             const locked = to === "/senhas/admin" && !podeAbrirAdmin;
             const card = (
               <Card

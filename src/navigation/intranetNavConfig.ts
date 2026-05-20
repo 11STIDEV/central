@@ -17,16 +17,16 @@ import {
   School,
   Shield,
   ShieldCheck,
-  MonitorSpeaker,
   Ticket,
   UserCog,
   UserRoundCheck,
-  Wallet,
+  Users,
   Warehouse,
   Wrench,
 } from "lucide-react";
 import type { Papel } from "@/auth/AuthProvider";
-import { canAccessRoute } from "@/auth/routeAccess";
+import { hasRoleAccessToRoute, podePainelSenhasAdministracao } from "@/auth/routeAccess";
+import { isRotaBloqueadaParaUsuario } from "@/auth/routesTemporarilyBlocked";
 
 /** Item de menu que aponta para uma rota da intranet. */
 export type NavLeaf = {
@@ -69,7 +69,10 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     id: "portal",
     label: "Portal",
     type: "flat",
-    items: [{ title: "Central de Informações", url: "/", icon: Home }],
+    items: [
+      { title: "Central de Informações", url: "/", icon: Home },
+      { title: "Portal do Funcionário", url: "/portal-do-funcionario", icon: Users },
+    ],
   },
   {
     id: "atendimento",
@@ -139,7 +142,14 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
       {
         id: "setores-dp-financeiro",
         label: "DP e Financeiro",
-        items: [{ title: "Links DP e Financeiro", url: "/setores/dp-financeiro", icon: Briefcase }],
+        items: [
+          { title: "Links DP e Financeiro", url: "/setores/dp-financeiro", icon: Briefcase },
+          {
+            title: "Financeiro — Vales",
+            url: "/financeiro/vales-adiantamento",
+            icon: CircleDollarSign,
+          },
+        ],
       },
       {
         id: "setores-primeiros-socorros",
@@ -177,18 +187,6 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
           },
         ],
       },
-      {
-        id: "financeiro-setor",
-        label: "Financeiro",
-        items: [
-          { title: "Vale Adiantamento", url: "/vale-adiantamento", icon: Wallet },
-          {
-            title: "Financeiro — Vales",
-            url: "/financeiro/vales-adiantamento",
-            icon: CircleDollarSign,
-          },
-        ],
-      },
     ],
   },
   {
@@ -199,39 +197,75 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-/** Menu mínimo: só atendente da secretaria (ver `isApenasAtendenteSecretaria` no routeAccess). */
-export const INTRANET_NAV_ATENDENTE_APENAS: NavSection[] = [
-  {
-    id: "painel-atendente",
-    label: "Painel de senhas",
-    type: "flat",
-    items: [
-      {
-        title: "Atendente — chamar senha",
-        url: "/senhas/atendente",
-        icon: MonitorSpeaker,
-      },
-    ],
-  },
-  {
-    id: "setor-secretaria-atendente",
-    label: "Setor",
-    type: "flat",
-    items: [
-      {
-        title: "Secretaria",
-        url: "/setores/secretaria",
-        icon: FileText,
-      },
-    ],
-  },
-];
+/** Quem só tem atendente do painel (sem admin do painel) vê o link direto para `/senhas/atendente`. */
+export function adjustNavSenhasLeafUrls(
+  papeis: Papel[],
+  email: string | null | undefined,
+  sections: NavSection[],
+): NavSection[] {
+  const adminPainel = podePainelSenhasAdministracao(papeis, email);
+  const onlyAttendant =
+    (papeis.includes("painel_atendente") || papeis.includes("secretaria")) && !adminPainel;
 
-/** Link extra associado a um setor (futuro: linhas em Supabase). */
+  return sections.map((sec) => {
+    if (sec.type !== "flat") return sec;
+    const items = sec.items.map((item) => {
+      if (item.url !== "/senhas" || !onlyAttendant) return item;
+      return { ...item, title: "Painel de senhas — Atendente", url: "/senhas/atendente" };
+    });
+    return { ...sec, items };
+  });
+}
+
+/** Remove itens/setores/seções que o utilizador não pode ver. */
+export function filterNavByAccess(
+  papeis: Papel[],
+  sections: NavSection[],
+  email?: string | null,
+): NavSection[] {
+  const out: NavSection[] = [];
+  for (const sec of sections) {
+    if (sec.type === "flat") {
+      const items = sec.items.filter((i) => hasRoleAccessToRoute(papeis, i.url, email));
+      if (items.length) out.push({ ...sec, items });
+    } else {
+      const sectors = sec.sectors
+        .map((s) => ({
+          ...s,
+          items: s.items.filter((i) => hasRoleAccessToRoute(papeis, i.url, email)),
+        }))
+        .filter((s) => s.items.length > 0);
+      if (sectors.length) out.push({ ...sec, sectors });
+    }
+  }
+  return out;
+}
+
+/** Marca itens em revisão com cadeado (exceto setape e painel_admin). */
+export function markNavTemporaryBlocks(papeis: Papel[], sections: NavSection[]): NavSection[] {
+  const lockItem = (item: NavLeaf): NavLeaf =>
+    isRotaBloqueadaParaUsuario(papeis, item.url) ? { ...item, locked: true } : item;
+
+  return sections.map((sec) => {
+    if (sec.type === "flat") {
+      return { ...sec, items: sec.items.map(lockItem) };
+    }
+    return {
+      ...sec,
+      sectors: sec.sectors.map((sector) => ({
+        ...sector,
+        items: sector.items.map(lockItem),
+      })),
+    };
+  });
+}
+
 export type NavExtraLink = NavLeaf & { sectorId: string };
 
 export function isNavActive(pathname: string, itemUrl: string): boolean {
-  if (itemUrl === "/senhas") return pathname.startsWith("/senhas");
+  if (itemUrl.startsWith("/senhas")) {
+    return pathname === itemUrl || pathname.startsWith(`${itemUrl}/`);
+  }
   return pathname === itemUrl;
 }
 
@@ -261,50 +295,5 @@ export function mergeNavExtras(sections: NavSection[], extras: NavExtraLink[]): 
       return { ...sector, items: [...sector.items, ...more] };
     });
     return { ...sec, sectors };
-  });
-}
-
-/** Remove itens/setores/seções que o usuário não pode ver (mesma regra que o menu plano anterior). */
-export function filterNavByAccess(papeis: Papel[], sections: NavSection[]): NavSection[] {
-  const out: NavSection[] = [];
-  for (const sec of sections) {
-    if (sec.type === "flat") {
-      const items = sec.items.filter((i) => canAccessRoute(papeis, i.url));
-      if (items.length) out.push({ ...sec, items });
-    } else {
-      const sectors = sec.sectors
-        .map((s) => ({
-          ...s,
-          items: s.items.filter((i) => canAccessRoute(papeis, i.url)),
-        }))
-        .filter((s) => s.items.length > 0);
-      if (sectors.length) out.push({ ...sec, sectors });
-    }
-  }
-  return out;
-}
-
-/** Mantém a árvore completa, mas marca itens sem permissão como bloqueados. */
-export function markNavByAccess(papeis: Papel[], sections: NavSection[]): NavSection[] {
-  return sections.map((sec) => {
-    if (sec.type === "flat") {
-      return {
-        ...sec,
-        items: sec.items.map((item) => ({
-          ...item,
-          locked: !canAccessRoute(papeis, item.url),
-        })),
-      };
-    }
-    return {
-      ...sec,
-      sectors: sec.sectors.map((sector) => ({
-        ...sector,
-        items: sector.items.map((item) => ({
-          ...item,
-          locked: !canAccessRoute(papeis, item.url),
-        })),
-      })),
-    };
   });
 }

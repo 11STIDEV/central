@@ -16,7 +16,7 @@ export function RequireRouteAccess({ children }: Props) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  if (!canAccessRoute(usuario.papeis, location.pathname)) {
+  if (!canAccessRoute(usuario.papeis, location.pathname, usuario.email)) {
     return <Navigate to="/" replace />;
   }
 

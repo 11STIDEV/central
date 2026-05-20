@@ -1,4 +1,5 @@
 import type { Papel, UsuarioLogado } from "@/auth/AuthProvider";
+import { apiUrl } from "@/lib/apiBase";
 
 export type ChamadoStatus = "aberto" | "resolvido";
 
@@ -19,8 +20,6 @@ export type Chamado = {
   solucao?: { autor: string; texto: string; data: string };
 };
 
-const STORAGE_KEY = "central-connect-chamados-v1";
-
 /** Papel “de equipe” para filtro de visibilidade (exclui `usuario` genérico). */
 export function papelPrincipalUsuario(papeis: Papel[]): Papel {
   const semUsuario = papeis.filter((p) => p !== "usuario");
@@ -34,172 +33,80 @@ export function podeVerChamado(usuario: UsuarioLogado, chamado: Chamado): boolea
   return chamado.papelAbertura === papelPrincipalUsuario(usuario.papeis);
 }
 
-function migrarItem(raw: unknown): Chamado | null {
-  if (!raw || typeof raw !== "object") return null;
-  const c = raw as Record<string, unknown>;
-  if (typeof c.id !== "string" || typeof c.titulo !== "string") return null;
-
-  let status = c.status;
-  if (status === "em_andamento") status = "aberto";
-  if (status !== "aberto" && status !== "resolvido") status = "aberto";
-
-  const solicitanteEmail =
-    typeof c.solicitanteEmail === "string"
-      ? c.solicitanteEmail
-      : typeof c.solicitante === "string"
-        ? `${c.solicitante.toLowerCase().replace(/\s+/g, ".")}@portalcci.com.br`
-        : "desconhecido@portalcci.com.br";
-
-  const papelAbertura =
-    typeof c.papelAbertura === "string" && c.papelAbertura
-      ? (c.papelAbertura as Papel)
-      : "usuario";
-
-  const prioridade =
-    c.prioridade === "baixa" || c.prioridade === "media" || c.prioridade === "alta"
-      ? c.prioridade
-      : "media";
-
-  const sol = c.solucao;
-  const solucao =
-    sol && typeof sol === "object" && sol !== null && "texto" in sol
-      ? (sol as Chamado["solucao"])
-      : undefined;
-
-  return {
-    id: c.id as string,
-    titulo: c.titulo as string,
-    solicitante: typeof c.solicitante === "string" ? c.solicitante : "Usuário",
-    solicitanteEmail,
-    papelAbertura,
-    categoria: typeof c.categoria === "string" ? c.categoria : "Outro",
-    prioridade,
-    status: status as ChamadoStatus,
-    data: typeof c.data === "string" ? c.data : "",
-    descricao: typeof c.descricao === "string" ? c.descricao : "",
-    acompanhamentos: Array.isArray(c.acompanhamentos)
-      ? (c.acompanhamentos as Chamado["acompanhamentos"])
-      : [],
-    tarefas: Array.isArray(c.tarefas) ? (c.tarefas as Chamado["tarefas"]) : [],
-    solucao,
-  };
-}
-
-export function carregarChamados(): Chamado[] {
+async function parseJsonResponse(res: Response): Promise<Record<string, unknown>> {
+  const text = await res.text();
+  if (!text) return {};
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map(migrarItem).filter((x): x is Chamado => x != null);
+    return JSON.parse(text) as Record<string, unknown>;
   } catch {
-    return [];
+    return {};
   }
 }
 
-export function salvarChamados(lista: Chamado[]): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(lista));
-  } catch {
-    /* ignore */
-  }
+function erroDaResposta(data: Record<string, unknown>, fallback: string): string {
+  return typeof data.error === "string" ? data.error : fallback;
 }
 
-/** Dados iniciais (primeira visita ou storage vazio). */
-export const CHAMADOS_INICIAIS: Chamado[] = [
-  {
-    id: "CHM-001",
-    titulo: "Computador não liga",
-    solicitante: "Ana Costa",
-    solicitanteEmail: "ana.costa@portalcci.com.br",
-    papelAbertura: "secretaria",
-    categoria: "Hardware",
-    prioridade: "alta",
-    status: "aberto",
-    data: "25/02/2026",
-    descricao:
-      "O computador da sala 102 não liga desde ontem. Já verifiquei os cabos e está tudo conectado.",
-    acompanhamentos: [
-      {
-        autor: "João Santos",
-        texto: "Vamos verificar a fonte de alimentação.",
-        data: "25/02/2026 10:30",
-      },
-    ],
-    tarefas: [
-      {
-        autor: "João Santos",
-        texto: "Testar fonte com multímetro",
-        data: "25/02/2026 10:35",
-      },
-    ],
-  },
-  {
-    id: "CHM-002",
-    titulo: "Sem acesso ao sistema ERP",
-    solicitante: "Pedro Lima",
-    solicitanteEmail: "pedro.lima@portalcci.com.br",
-    papelAbertura: "dp",
-    categoria: "Acesso / Permissão",
-    prioridade: "media",
-    status: "aberto",
-    data: "24/02/2026",
-    descricao: "Preciso de acesso ao módulo de compras no ERP. Meu usuário é pedro.lima.",
-    acompanhamentos: [
-      {
-        autor: "João Santos",
-        texto: "Solicitação de acesso encaminhada ao administrador do ERP.",
-        data: "24/02/2026 14:00",
-      },
-    ],
-    tarefas: [],
-  },
-  {
-    id: "CHM-003",
-    titulo: "Impressora travando",
-    solicitante: "Juliana Rocha",
-    solicitanteEmail: "juliana.rocha@portalcci.com.br",
-    papelAbertura: "setape",
-    categoria: "Impressora",
-    prioridade: "baixa",
-    status: "resolvido",
-    data: "23/02/2026",
-    descricao: "A impressora do 2º andar trava constantemente ao imprimir PDF.",
-    acompanhamentos: [
-      {
-        autor: "João Santos",
-        texto: "Driver atualizado e impressora reiniciada.",
-        data: "23/02/2026 16:00",
-      },
-    ],
-    tarefas: [
-      {
-        autor: "João Santos",
-        texto: "Verificar driver e firmware",
-        data: "23/02/2026 15:00",
-      },
-    ],
-    solucao: {
-      autor: "João Santos",
-      texto:
-        "Driver desatualizado causava o travamento. Atualizado para versão 5.2.1 e testado com sucesso.",
-      data: "23/02/2026 16:30",
-    },
-  },
-];
-
-export function obterChamadosParaExibir(): Chamado[] {
-  const salvos = carregarChamados();
-  if (salvos.length > 0) return salvos;
-  salvarChamados(CHAMADOS_INICIAIS);
-  return [...CHAMADOS_INICIAIS];
+/** Lista chamados visíveis para o usuário (Supabase via API). */
+export async function listarChamados(idToken: string): Promise<Chamado[]> {
+  const res = await fetch(apiUrl("/api/chamados/listar"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken }),
+  });
+  const data = await parseJsonResponse(res);
+  if (!res.ok) {
+    throw new Error(erroDaResposta(data, `Erro ao listar chamados (HTTP ${res.status}).`));
+  }
+  const lista = data.chamados;
+  return Array.isArray(lista) ? (lista as Chamado[]) : [];
 }
 
-/** Inclui na lista (se o storage estiver vazio, preserva os chamados de exemplo antes de gravar). */
-export function adicionarChamado(novo: Chamado): void {
-  let lista = carregarChamados();
-  if (lista.length === 0) {
-    lista = [...CHAMADOS_INICIAIS];
+export type CriarChamadoInput = {
+  titulo: string;
+  categoria: string;
+  prioridade: "baixa" | "media" | "alta";
+  descricao: string;
+};
+
+/** Registra um novo chamado no Supabase. */
+export async function criarChamado(
+  idToken: string,
+  input: CriarChamadoInput,
+): Promise<Chamado> {
+  const res = await fetch(apiUrl("/api/chamados/criar"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken, ...input }),
+  });
+  const data = await parseJsonResponse(res);
+  if (!res.ok) {
+    throw new Error(erroDaResposta(data, `Erro ao abrir chamado (HTTP ${res.status}).`));
   }
-  salvarChamados([...lista, novo]);
+  const chamado = data.chamado;
+  if (!chamado || typeof chamado !== "object") {
+    throw new Error("Resposta inválida ao criar chamado.");
+  }
+  return chamado as Chamado;
+}
+
+/** Atualiza acompanhamentos, tarefas e solução no Supabase. */
+export async function atualizarChamadoRemoto(
+  idToken: string,
+  chamado: Chamado,
+): Promise<Chamado> {
+  const res = await fetch(apiUrl("/api/chamados/atualizar"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ idToken, chamado }),
+  });
+  const data = await parseJsonResponse(res);
+  if (!res.ok) {
+    throw new Error(erroDaResposta(data, `Erro ao salvar chamado (HTTP ${res.status}).`));
+  }
+  const atualizado = data.chamado;
+  if (!atualizado || typeof atualizado !== "object") {
+    throw new Error("Resposta inválida ao atualizar chamado.");
+  }
+  return atualizado as Chamado;
 }

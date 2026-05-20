@@ -1,5 +1,5 @@
 import type { Papel } from "@/auth/AuthProvider";
-import { isPainelAdminEmail } from "@/painel/painelEnv";
+import { podePainelSenhasAdministracao } from "@/auth/routeAccess";
 
 /**
  * Atendente ou admin do painel: vem das OUs mapeadas em `mapearPapeis` (AuthProvider)
@@ -10,11 +10,12 @@ export function podePainelAtendente(papeis: Papel[]): boolean {
   return (
     papeis.includes("admin") ||
     papeis.includes("painel_admin") ||
-    papeis.includes("painel_atendente")
+    papeis.includes("painel_atendente") ||
+    papeis.includes("secretaria")
   );
 }
 
-/** Área de administração do painel de senhas: admin global ou e-mail autorizado no `.env.local`. */
+/** Totem, painel TV, `/senhas/admin`: papel `painel_admin`, `admin` global ou e-mail em `VITE_PAINEL_ADMIN_EMAILS`. */
 export function podePainelAdmin(papeis: Papel[], email?: string | null): boolean {
-  return papeis.includes("admin") || isPainelAdminEmail(email);
+  return podePainelSenhasAdministracao(papeis, email);
 }
