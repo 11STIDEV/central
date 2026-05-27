@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { format, subDays, startOfDay } from "date-fns";
+import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Loader2, BarChart3, TrendingUp, Clock, CheckCircle2, XCircle, UserRound, Download, Trophy } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getPainelSupabase } from "@/painel/supabaseClient";
+import { fetchAllRows, fetchByInChunks } from "@/painel/supabaseFetchAll";
 
 interface RelatoriosPageProps {
   schoolId: string;
@@ -70,20 +72,22 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
     { ticket_code: string; created_at: string; queue: { name: string } | null }[]
   >([]);
   const [attendantCalls, setAttendantCalls] = useState<AttendantCallRow[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const period = useMemo(() => {
     const now = new Date();
+    const end = endOfDay(now).toISOString();
     if (rangePreset === "today") {
       const start = startOfDay(now).toISOString();
-      return { start, end: null as string | null, label: "Hoje" };
+      return { start, end, label: "Hoje" };
     }
     if (rangePreset === "15d") {
       const start = startOfDay(subDays(now, 15)).toISOString();
-      return { start, end: null as string | null, label: "Últimos 15 dias" };
+      return { start, end, label: "Últimos 15 dias" };
     }
     if (rangePreset === "30d") {
       const start = startOfDay(subDays(now, 30)).toISOString();
-      return { start, end: null as string | null, label: "Últimos 30 dias" };
+      return { start, end, label: "Últimos 30 dias" };
     }
     if (rangePreset === "all") {
       return { start: null as string | null, end: null as string | null, label: "Total" };
@@ -96,7 +100,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
       return { start, end: endIso, label: `${safeStart} a ${safeEnd}` };
     }
     const start = startOfDay(subDays(now, 7)).toISOString();
-    return { start, end: null as string | null, label: "Últimos 7 dias" };
+    return { start, end, label: "Últimos 7 dias" };
   }, [customEndDate, customStartDate, rangePreset]);
 
   useEffect(() => {
@@ -104,85 +108,121 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
     (async () => {
       const supabase = getPainelSupabase();
       setLoading(true);
+      setLoadError(null);
 
-      let ticketsByQueueQuery = supabase
-        .from("painel_tickets")
-        .select("queue_id, status, queue:painel_queues(name, prefix)")
-        .eq("school_id", schoolId);
-      if (period.start) ticketsByQueueQuery = ticketsByQueueQuery.gte("created_at", period.start);
-      if (period.end) ticketsByQueueQuery.lte("created_at", period.end);
+      const applyTicketPeriod = <Q extends { gte: (col: string, val: string) => Q; lte: (col: string, val: string) => Q }>(
+        query: Q,
+      ) => {
+        let q = query;
+        if (period.start) q = q.gte("created_at", period.start);
+        if (period.end) q = q.lte("created_at", period.end);
+        return q;
+      };
 
-      let ticketsByTypeQuery = supabase
-        .from("painel_tickets")
-        .select("type, status")
-        .eq("school_id", schoolId);
-      if (period.start) ticketsByTypeQuery = ticketsByTypeQuery.gte("created_at", period.start);
-      if (period.end) ticketsByTypeQuery.lte("created_at", period.end);
+      const applyCallPeriod = <Q extends { gte: (col: string, val: string) => Q; lte: (col: string, val: string) => Q }>(
+        query: Q,
+      ) => {
+        let q = query;
+        if (period.start) q = q.gte("called_at", period.start);
+        if (period.end) q = q.lte("called_at", period.end);
+        return q;
+      };
 
-      let ticketsByDayQuery = supabase
-        .from("painel_tickets")
-        .select("created_at, status")
-        .eq("school_id", schoolId);
-      if (period.start) ticketsByDayQuery = ticketsByDayQuery.gte("created_at", period.start);
-      ticketsByDayQuery = ticketsByDayQuery.order("created_at");
-      if (period.end) ticketsByDayQuery.lte("created_at", period.end);
-
-      let skippedQuery = supabase
-        .from("painel_tickets")
-        .select("ticket_code, queue:painel_queues(name), created_at")
-        .eq("school_id", schoolId)
-        .eq("status", "skipped");
-      if (period.start) skippedQuery = skippedQuery.gte("created_at", period.start);
-      skippedQuery = skippedQuery.order("created_at", { ascending: false }).limit(10);
-      if (period.end) skippedQuery.lte("created_at", period.end);
-
-      let callsQueryNew = supabase
-        .from("painel_calls")
-        .select(
-          "attendant_id, service_window_id, ticket_id, called_at, attendant_name_snapshot, attendant_email_snapshot",
-        )
-        .eq("school_id", schoolId);
-      if (period.start) callsQueryNew = callsQueryNew.gte("called_at", period.start);
-      callsQueryNew = callsQueryNew.order("called_at", { ascending: false });
-      if (period.end) callsQueryNew.lte("called_at", period.end);
-
-      const [
-        { data: ticketsByQueue },
-        { data: ticketsByType },
-        { data: ticketsByDay },
-        { data: skippedRaw },
-        callsRespNew,
-      ] = await Promise.all([
-        ticketsByQueueQuery,
-        ticketsByTypeQuery,
-        ticketsByDayQuery,
-        skippedQuery,
-        callsQueryNew,
+      const [ticketsByQueueRes, ticketsByTypeRes, ticketsByDayRes, skippedRes] = await Promise.all([
+        fetchAllRows(() =>
+          applyTicketPeriod(
+            supabase
+              .from("painel_tickets")
+              .select("queue_id, status, queue:painel_queues(name, prefix)")
+              .eq("school_id", schoolId),
+          ),
+        ),
+        fetchAllRows(() =>
+          applyTicketPeriod(
+            supabase.from("painel_tickets").select("type, status").eq("school_id", schoolId),
+          ),
+        ),
+        fetchAllRows(() =>
+          applyTicketPeriod(
+            supabase.from("painel_tickets").select("created_at, status").eq("school_id", schoolId).order("created_at"),
+          ),
+        ),
+        (async () => {
+          let skippedQuery = supabase
+            .from("painel_tickets")
+            .select("ticket_code, queue:painel_queues(name), created_at")
+            .eq("school_id", schoolId)
+            .eq("status", "skipped");
+          skippedQuery = applyTicketPeriod(skippedQuery);
+          return skippedQuery.order("created_at", { ascending: false }).limit(10);
+        })(),
       ]);
 
-      let callsRaw = (callsRespNew as { data?: RawAttendantCallRow[]; error?: unknown }).data ?? null;
-      if ((callsRespNew as { error?: unknown }).error) {
+      const firstError =
+        ticketsByQueueRes.error ?? ticketsByTypeRes.error ?? ticketsByDayRes.error ?? skippedRes.error;
+
+      if (firstError) {
+        if (!cancelled) {
+          const message = firstError.message || "Não foi possível carregar os relatórios.";
+          setLoadError(message);
+          toast.error(message);
+          setLoading(false);
+        }
+        return;
+      }
+
+      const ticketsByQueue = ticketsByQueueRes.data;
+      const ticketsByType = ticketsByTypeRes.data;
+      const ticketsByDay = ticketsByDayRes.data;
+      const skippedRaw = skippedRes.data;
+
+      const callsRespNew = await fetchAllRows(() =>
+        applyCallPeriod(
+          supabase
+            .from("painel_calls")
+            .select(
+              "attendant_id, service_window_id, ticket_id, called_at, attendant_name_snapshot, attendant_email_snapshot",
+            )
+            .eq("school_id", schoolId)
+            .order("called_at", { ascending: false }),
+        ),
+      );
+
+      let callsRaw: RawAttendantCallRow[];
+      if (callsRespNew.error) {
         // Compatibilidade: banco ainda sem colunas snapshot.
-        let callsQueryLegacy = supabase
-          .from("painel_calls")
-          .select("attendant_id, service_window_id, ticket_id, called_at")
-          .eq("school_id", schoolId);
-        if (period.start) callsQueryLegacy = callsQueryLegacy.gte("called_at", period.start);
-        callsQueryLegacy = callsQueryLegacy.order("called_at", { ascending: false });
-        if (period.end) callsQueryLegacy.lte("called_at", period.end);
-        const { data: legacyCallsRaw } = await callsQueryLegacy;
-        callsRaw = ((legacyCallsRaw ?? []) as RawAttendantCallRow[]).map((row) => ({
+        const callsLegacyRes = await fetchAllRows(() =>
+          applyCallPeriod(
+            supabase
+              .from("painel_calls")
+              .select("attendant_id, service_window_id, ticket_id, called_at")
+              .eq("school_id", schoolId)
+              .order("called_at", { ascending: false }),
+          ),
+        );
+        if (callsLegacyRes.error) {
+          if (!cancelled) {
+            const message = callsLegacyRes.error.message || "Não foi possível carregar chamadas dos atendentes.";
+            setLoadError(message);
+            toast.error(message);
+            setLoading(false);
+          }
+          return;
+        }
+        callsRaw = callsLegacyRes.data.map((row) => ({
           ...row,
           attendant_name_snapshot: null,
           attendant_email_snapshot: null,
         }));
+      } else {
+        callsRaw = callsRespNew.data;
       }
 
       if (cancelled) return;
 
       const qMap: Record<string, { name: string; prefix: string; total: number; done: number; waiting: number; reset: number }> =
         {};
-      ticketsByQueue?.forEach((t: { queue_id: string; status: string; queue: unknown }) => {
+      ticketsByQueue.forEach((t: { queue_id: string; status: string; queue: unknown }) => {
         const queue = t.queue as { name: string; prefix: string } | null;
         if (!queue) return;
         if (!qMap[t.queue_id]) {
@@ -199,7 +239,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
         normal: { total: 0, done: 0, reset: 0 },
         priority: { total: 0, done: 0, reset: 0 },
       };
-      ticketsByType?.forEach((t: { type: string; status: string }) => {
+      ticketsByType.forEach((t: { type: string; status: string }) => {
         if (!tyMap[t.type]) return;
         tyMap[t.type].total++;
         if (t.status === "done") tyMap[t.type].done++;
@@ -208,7 +248,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
       setTypeMap(tyMap);
 
       const dayMap: Record<string, { total: number; done: number }> = {};
-      ticketsByDay?.forEach((t: { created_at: string; status: string }) => {
+      ticketsByDay.forEach((t: { created_at: string; status: string }) => {
         const day = format(new Date(t.created_at), "dd/MM", { locale: ptBR });
         if (!dayMap[day]) dayMap[day] = { total: 0, done: 0 };
         dayMap[day].total++;
@@ -233,22 +273,32 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
 
       const [profilesRes, windowsRes, ticketsRes] = await Promise.all([
         attendantIds.length
-          ? supabase
-              .from("painel_profiles")
-              .select("id, full_name, email")
-              .in("id", attendantIds)
-          : Promise.resolve({ data: [] as { id: string; full_name: string | null; email: string | null }[] }),
+          ? fetchByInChunks(
+              (ids) => supabase.from("painel_profiles").select("id, full_name, email").in("id", ids),
+              attendantIds,
+            )
+          : Promise.resolve({
+              data: [] as { id: string; full_name: string | null; email: string | null }[],
+              error: null,
+            }),
         serviceWindowIds.length
-          ? supabase
-              .from("painel_service_windows")
-              .select("id, name, number")
-              .in("id", serviceWindowIds)
-          : Promise.resolve({ data: [] as { id: string; name: string | null; number: number | null }[] }),
+          ? fetchByInChunks(
+              (ids) => supabase.from("painel_service_windows").select("id, name, number").in("id", ids),
+              serviceWindowIds,
+            )
+          : Promise.resolve({
+              data: [] as { id: string; name: string | null; number: number | null }[],
+              error: null,
+            }),
         ticketIds.length
-          ? supabase
-              .from("painel_tickets")
-              .select("id, ticket_code, created_at, called_at, done_at, status")
-              .in("id", ticketIds)
+          ? fetchByInChunks(
+              (ids) =>
+                supabase
+                  .from("painel_tickets")
+                  .select("id, ticket_code, created_at, called_at, done_at, status")
+                  .in("id", ids),
+              ticketIds,
+            )
           : Promise.resolve({
               data: [] as {
                 id: string;
@@ -258,32 +308,29 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
                 done_at: string | null;
                 status: string;
               }[],
+              error: null,
             }),
       ]);
 
+      const relatedError = profilesRes.error ?? windowsRes.error ?? ticketsRes.error;
+      if (relatedError) {
+        if (!cancelled) {
+          const message = relatedError.message || "Não foi possível carregar dados dos atendentes.";
+          setLoadError(message);
+          toast.error(message);
+          setLoading(false);
+        }
+        return;
+      }
+
       const profileMap = new Map(
-        (((profilesRes as { data?: { id: string; full_name: string | null; email: string | null }[] }).data ?? []).map((p) => [
-          p.id,
-          { full_name: p.full_name, email: p.email },
-        ])),
+        profilesRes.data.map((p) => [p.id, { full_name: p.full_name, email: p.email }]),
       );
       const windowMap = new Map(
-        (((windowsRes as { data?: { id: string; name: string | null; number: number | null }[] }).data ?? []).map((w) => [
-          w.id,
-          { name: w.name, number: w.number },
-        ])),
+        windowsRes.data.map((w) => [w.id, { name: w.name, number: w.number }]),
       );
       const ticketMap = new Map(
-        (((ticketsRes as {
-          data?: {
-            id: string;
-            ticket_code: string;
-            created_at: string;
-            called_at: string | null;
-            done_at: string | null;
-            status: string;
-          }[];
-        }).data ?? []).map((t) => [
+        ticketsRes.data.map((t) => [
           t.id,
           {
             id: t.id,
@@ -293,7 +340,7 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
             done_at: t.done_at,
             status: t.status,
           },
-        ])),
+        ]),
       );
 
       const normalizedCalls: AttendantCallRow[] = callsBase.map((row) => ({
@@ -482,6 +529,12 @@ export default function RelatoriosPage({ schoolId }: RelatoriosPageProps) {
         </h1>
         <p className="text-muted-foreground text-sm mt-1">Período selecionado: {period.label}</p>
       </div>
+
+      {loadError ? (
+        <div className="mb-6 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
 
       <Card className="mb-6">
         <CardContent className="pt-6">
