@@ -1,4 +1,4 @@
-import "dotenv/config";
+import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -26,6 +26,9 @@ import {
 } from "./chamadosStore.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/** Dev local: lê `server/.env`. Produção (Docker/Coolify): variáveis vêm do runtime — o `.env` não vai na imagem. */
+dotenv.config({ path: path.join(__dirname, ".env") });
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 /** Endereço de bind (Docker/rede: use 0.0.0.0 para aceitar conexões externas ao container). */
@@ -47,9 +50,34 @@ function parseDominiosPermitidos() {
 }
 const DOMINIOS_PERMITIDOS = parseDominiosPermitidos();
 
-const SUPABASE_URL =
-  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+/** Lê env em runtime (Coolify injeta no processo; nomes alternativos comuns). */
+function lerSupabaseConfig() {
+  const url = (
+    process.env.SUPABASE_URL ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL ||
+    process.env.VITE_SUPABASE_URL ||
+    ""
+  ).trim();
+  const serviceKey = (
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SERVICE_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE ||
+    ""
+  ).trim();
+  return { url, serviceKey };
+}
+
+function statusSupabaseEnv() {
+  const { url, serviceKey } = lerSupabaseConfig();
+  const keyRole = serviceKey ? papelDaChaveSupabase(serviceKey) : null;
+  return {
+    urlSet: Boolean(url),
+    serviceRoleKeySet: Boolean(serviceKey),
+    keyRole,
+    configured: Boolean(url && serviceKey),
+    keyLooksAnon: keyRole === "anon",
+  };
+}
 
 function papelDaChaveSupabase(jwt) {
   try {
@@ -66,10 +94,22 @@ function papelDaChaveSupabase(jwt) {
 }
 
 function getSupabaseAdmin() {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) return null;
-  return createSupabaseClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+  const { url, serviceKey } = lerSupabaseConfig();
+  if (!url || !serviceKey) return null;
+  return createSupabaseClient(url, serviceKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+function mensagemSupabaseNaoConfigurado() {
+  if (process.env.NODE_ENV === "production") {
+    return (
+      "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY nas variáveis de ambiente do container " +
+      "(Coolify → Environment / Secrets, em runtime — não em Build Arguments). " +
+      "O arquivo server/.env do seu PC não é copiado para a imagem Docker."
+    );
+  }
+  return "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no server/.env (chave service_role do Supabase).";
 }
 
 async function findAuthUserByEmail(admin, email) {
@@ -957,7 +997,7 @@ app.post("/api/chamados/listar", async (req, res) => {
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return res.status(503).json({
-        error: "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no servidor.",
+        error: mensagemSupabaseNaoConfigurado(),
       });
     }
     const todos = await listarTodosChamados(supabase);
@@ -982,7 +1022,7 @@ app.post("/api/chamados/criar", async (req, res) => {
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return res.status(503).json({
-        error: "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no servidor.",
+        error: mensagemSupabaseNaoConfigurado(),
       });
     }
 
@@ -1035,7 +1075,7 @@ app.post("/api/chamados/atualizar", async (req, res) => {
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return res.status(503).json({
-        error: "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no servidor.",
+        error: mensagemSupabaseNaoConfigurado(),
       });
     }
 
@@ -1209,7 +1249,7 @@ app.post("/api/painel/sync-profile", async (req, res) => {
     const supabaseSrv = getSupabaseAdmin();
     if (!supabaseSrv) {
       return res.status(503).json({
-        error: "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no servidor.",
+        error: mensagemSupabaseNaoConfigurado(),
       });
     }
 
@@ -1333,7 +1373,7 @@ app.post("/api/painel/create-user", async (req, res) => {
     const admin = getSupabaseAdmin();
     if (!admin) {
       return res.status(500).json({
-        error: "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no servidor.",
+        error: mensagemSupabaseNaoConfigurado(),
       });
     }
 
@@ -1401,7 +1441,14 @@ app.post("/api/painel/create-user", async (req, res) => {
 });
 
 app.get("/api/health", (_, res) => {
-  res.json({ ok: true });
+  const supabase = statusSupabaseEnv();
+  res.json({
+    ok: true,
+    version: "2026-03-20-supabase-diag",
+    nodeEnv: process.env.NODE_ENV || "development",
+    supabaseConfigured: supabase.configured && !supabase.keyLooksAnon,
+    supabase,
+  });
 });
 
 /** Build Vite (`dist/`) ao lado de `server/` — produção e Docker. */
@@ -1489,19 +1536,21 @@ app.listen(PORT, HOST, () => {
       setupErr ? `— ${setupErr}` : "",
     );
   }
-  if (SUPABASE_URL && !SUPABASE_SERVICE_ROLE_KEY) {
+  const supabase = statusSupabaseEnv();
+  if (supabase.urlSet && !supabase.serviceRoleKeySet) {
     console.warn(
-      "Aviso: defina SUPABASE_SERVICE_ROLE_KEY no server/.env (chave service_role do Supabase) para painel, agenda e chamados.",
+      "Aviso: SUPABASE_URL definida mas falta SUPABASE_SERVICE_ROLE_KEY (runtime no Coolify ou server/.env).",
     );
-  } else if (SUPABASE_SERVICE_ROLE_KEY) {
-    const papel = papelDaChaveSupabase(SUPABASE_SERVICE_ROLE_KEY);
-    if (papel && papel !== "service_role") {
-      console.warn(
-        `[supabase] SUPABASE_SERVICE_ROLE_KEY tem role "${papel}" (esperado "service_role"). ` +
-          "Use a chave service_role em Project Settings → API, não a anon/public. " +
-          "Chamados com RLS ativo falham com a chave anon.",
-      );
-    }
+  } else if (!supabase.configured) {
+    console.warn(
+      "[supabase] SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY ausentes — chamados, agenda e sync do painel não funcionam.",
+    );
+  } else if (supabase.keyLooksAnon) {
+    console.warn(
+      '[supabase] A chave configurada é "anon", não "service_role". Use a secret service_role do Supabase.',
+    );
+  } else if (supabase.configured) {
+    console.log("[supabase] OK (URL + service_role configurados).");
   }
   if (AGENDA_CCI_ENFORCE_DISABLE) {
     console.log(

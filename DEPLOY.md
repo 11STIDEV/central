@@ -59,7 +59,7 @@ Definir **no build** da imagem (Build Arguments no Coolify):
 | `DOMINIOS_PERMITIDOS` | Domínios de e-mail permitidos (lista separada por vírgula) |
 | `GOOGLE_ADMIN_IMPERSONATE` | Service account / Admin SDK |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` ou `GOOGLE_SERVICE_ACCOUNT_PATH` | Credenciais Google |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Se usar endpoints admin no servidor |
+| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | **Runtime obrigatório** para chamados, agenda e painel (service_role do Supabase — não copiar `server/.env` para a imagem). Após alterar, **reinicie** o container. Confira `GET /api/health` → `supabaseConfigured: true`. |
 | `AGENDA_CCI_*` | Opcionais — ver [`server/.env.example`](server/.env.example) |
 
 ## Health check
