@@ -7,6 +7,8 @@ import { isRotaBloqueadaParaUsuario } from "./routesTemporarilyBlocked";
  * Alunos em `/Alunos FACULDADE` ou `/Alunos TECSCCI` têm conjunto próprio em `isSomenteAluno`.
  */
 const ROTAS_INTRANET_COMUM = new Set([
+  "/achados-e-perdidos",
+  "/achados-e-perdidos/publico",
   "/",
   "/portal-do-funcionario",
   "/chamados/novo",
@@ -34,6 +36,7 @@ export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/financeiro/vales-adiantamento": ["dp", "financeiro"],
   "/vale-adiantamento": ["dp", "financeiro"],
   "/agenda-cci/admin": ["setape"],
+  "/achados-e-perdidos/admin": ["secretaria", "painel_admin"],
   "/setores/professores": PAPEIS_PROFESSORES,
   "/setores/disciplinar": ["disciplinar"],
   "/setores/secretaria": ["secretaria"],

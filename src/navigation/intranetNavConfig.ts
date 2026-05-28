@@ -17,6 +17,7 @@ import {
   School,
   Shield,
   ShieldCheck,
+  Search,
   Ticket,
   UserCog,
   UserRoundCheck,
@@ -77,11 +78,28 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
   {
     id: "atendimento",
     label: "Atendimento",
-    type: "flat",
-    items: [
-      { title: "Abrir Chamado", url: "/chamados/novo", icon: Ticket },
-      { title: "Gestão de Chamados", url: "/chamados/gestao", icon: ClipboardList },
-      { title: "Painel de senhas", url: "/senhas", icon: Hash },
+    type: "nested",
+    sectors: [
+      {
+        id: "atendimento-chamados",
+        label: "Chamados",
+        items: [
+          { title: "Abrir Chamado", url: "/chamados/novo", icon: Ticket },
+          { title: "Gestão de Chamados", url: "/chamados/gestao", icon: ClipboardList },
+        ],
+      },
+      {
+        id: "atendimento-senhas",
+        label: "Painel de senhas",
+        items: [{ title: "Painel de senhas", url: "/senhas", icon: Hash }],
+      },
+      {
+        id: "atendimento-achados-perdidos",
+        label: "Achados e Perdidos",
+        items: [
+          { title: "Achados e Perdidos — Hub", url: "/achados-e-perdidos", icon: Search },
+        ],
+      },
     ],
   },
   {

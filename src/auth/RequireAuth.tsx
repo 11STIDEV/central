@@ -10,6 +10,7 @@ function destinoAposLogin(path: string | undefined): string {
 }
 
 type Props = { children: React.ReactNode };
+const PUBLIC_PATHS = new Set(["/login", "/achados-e-perdidos/publico"]);
 
 /**
  * Exige login Google para qualquer rota, exceto `/login`.
@@ -28,7 +29,7 @@ export function RequireAuth({ children }: Props) {
     );
   }
 
-  if (!usuario && location.pathname !== "/login") {
+  if (!usuario && !PUBLIC_PATHS.has(location.pathname)) {
     return (
       <Navigate
         to="/login"

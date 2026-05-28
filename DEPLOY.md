@@ -39,6 +39,10 @@ Definir **no build** da imagem (Build Arguments no Coolify):
 | `VITE_SUPABASE_URL` | Painel de senhas |
 | `VITE_SUPABASE_ANON_KEY` | Painel de senhas |
 | `VITE_SCHOOL_SLUG` | Slug da escola no painel |
+| `VITE_LF_SUPABASE_URL` | URL do Supabase do módulo Achados e Perdidos |
+| `VITE_LF_SUPABASE_ANON_KEY` | Chave anon/public do Supabase de Achados e Perdidos |
+| `VITE_LF_SCHOOL_ID` | Identificador textual da escola para filtrar itens no admin de Achados e Perdidos |
+| `VITE_LF_PUBLIC_HOSTS` | Hostname(s) da vitrine pública, separados por vírgula (ex.: `achadoseperdidos.portalcci.com.br`). O mesmo build atende Central e subdomínio. |
 | `VITE_PAINEL_YOUTUBE_PLAYLIST_ID` | Opcional — painel TV |
 | `VITE_PAINEL_OVERLAY_SECONDS` | Opcional — overlay |
 
@@ -68,7 +72,11 @@ HTTP `GET /api/health` → `{ "ok": true }` na porta da aplicação (ex.: 3001).
 2. **Build Arguments:** preencher os `VITE_*` necessários (mesmos nomes do Dockerfile).
 3. **Runtime / Secrets:** `GOOGLE_CLIENT_ID`, domínios, service account, etc.
 4. **Volume persistente:** montar em `/app/server/data`.
-5. **Domínio + SSL:** configurar no Coolify; apontar DNS para o servidor.
+5. **Domínios + SSL** no **mesmo** serviço Coolify (mesmo container):
+   - `central.portalcci.com.br` — intranet (login Google).
+   - `achadoseperdidos.portalcci.com.br` — vitrine pública na **raiz** (`/`), sem login.
+   - **DNS:** registro `A` ou `CNAME` de `achadoseperdidos` para o mesmo destino do `central`.
+   - **Build:** incluir `VITE_LF_PUBLIC_HOSTS=achadoseperdidos.portalcci.com.br` (ou deixar vazio — o código já usa esse host como padrão).
 6. **Porta:** publicar a porta exposta (3001 ou a que o Coolify definir); health check em `/api/health`.
 7. **Google OAuth:** no Google Cloud Console, adicionar URIs de redirecionamento com a **URL pública** exata (HTTPS).
 8. **Supabase:** em Authentication / URL configuration, incluir a URL de produção se o painel usar redirect.
@@ -87,8 +95,17 @@ docker build -t central-connect:latest \
   .
 ```
 
+## URLs de produção (Achados e Perdidos)
+
+| Uso | URL |
+|-----|-----|
+| Vitrine pública (pais/alunos) | `https://achadoseperdidos.portalcci.com.br/` |
+| Administração (secretaria) | `https://central.portalcci.com.br/achados-e-perdidos/admin` |
+| Link legado na Central | `https://central.portalcci.com.br/achados-e-perdidos/publico` |
+
 ## Desenvolvimento local (sem Docker)
 
 - Frontend: `npm run dev` (Vite, proxy `/api` → 3001).
 - API: `cd server && npm run dev`.
+- Simular subdomínio: em `.env.local`, `VITE_LF_PUBLIC_HOSTS=localhost` e abrir `http://localhost:8080/`, ou usar `?publicHost=1` na URL.
 - Não é necessário `NODE_ENV=production` para desenvolver; o servidor não serve `dist/` até existir build de produção.

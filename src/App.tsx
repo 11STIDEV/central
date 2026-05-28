@@ -41,15 +41,16 @@ import SenhasAdminGuiches from "./pages/senhas/SenhasAdminGuiches";
 import SenhasAdminAtendentes from "./pages/senhas/SenhasAdminAtendentes";
 import SenhasAdminRelatorios from "./pages/senhas/SenhasAdminRelatorios";
 import SenhasAdminConfiguracoes from "./pages/senhas/SenhasAdminConfiguracoes";
+import AchadosPerdidosPublicPage from "./pages/AchadosPerdidosPublicPage";
+import AchadosPerdidosHubPage from "./pages/achadosperdidos/AchadosPerdidosHubPage";
+import AchadosPerdidosAdminPage from "./pages/achadosperdidos/AchadosPerdidosAdminPage";
+import { isLostFoundPublicHost } from "@/achadosperdidos/publicHost";
+import { LostFoundPublicHostApp } from "@/achadosperdidos/public/LostFoundPublicHostApp";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <ThemeProvider>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
+function CentralIntranetApp() {
+  return (
         <BrowserRouter>
           <AuthProvider>
             <RequireAuth>
@@ -68,6 +69,16 @@ const App = () => (
                 }
               />
               <Route path="/ramais" element={<Ramais />} />
+              <Route path="/achados-e-perdidos" element={<AchadosPerdidosHubPage />} />
+              <Route path="/achados-e-perdidos/publico" element={<AchadosPerdidosPublicPage />} />
+              <Route
+                path="/achados-e-perdidos/admin"
+                element={
+                  <RequireRouteAccess>
+                    <AchadosPerdidosAdminPage />
+                  </RequireRouteAccess>
+                }
+              />
               <Route path="/chamados/novo" element={<AbrirChamado />} />
               <Route path="/chamados/gestao" element={<GestaoChamados />} />
               <Route path="/base-conhecimento" element={<BaseConhecimento />} />
@@ -209,9 +220,37 @@ const App = () => (
             </RequireAuth>
           </AuthProvider>
         </BrowserRouter>
-      </TooltipProvider>
-    </ThemeProvider>
-  </QueryClientProvider>
-);
+  );
+}
+
+const App = () => {
+  if (isLostFoundPublicHost()) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <LostFoundPublicHostApp />
+            </BrowserRouter>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <CentralIntranetApp />
+        </TooltipProvider>
+      </ThemeProvider>
+    </QueryClientProvider>
+  );
+};
 
 export default App;

@@ -34,7 +34,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setMobileOpen(false);
   }, [location.pathname]);
 
-  if (location.pathname === "/login") {
+  if (location.pathname === "/login" || location.pathname === "/achados-e-perdidos/publico") {
     return <div className="min-h-screen w-full">{children}</div>;
   }
 
