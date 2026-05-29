@@ -1,5 +1,7 @@
+import { useEffect } from "react";
 import { Ticket, MapPin, ArrowUpRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
 import { canAccessRoute } from "@/auth/routeAccess";
 import { IntranetHero } from "@/components/IntranetHero";
@@ -30,7 +32,17 @@ function primeiroNome(nome: string | undefined): string {
 
 export default function Index() {
   const { usuario } = useAuth();
+  const location = useLocation();
+  const navigate = useNavigate();
   const papeis = usuario?.papeis ?? [];
+
+  useEffect(() => {
+    const state = location.state as { accessDeniedHint?: string } | null;
+    if (state?.accessDeniedHint) {
+      toast.error("Acesso negado", { description: state.accessDeniedHint, duration: 12_000 });
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.pathname, location.state, navigate]);
   const visiveis = highlightedShortcuts.filter((a) =>
     canAccessRoute(papeis, a.url, usuario?.email),
   );

@@ -8,7 +8,7 @@ A API Express serve o frontend de produção (`dist/`) quando `NODE_ENV=producti
 |----------------------|----------|
 | `/app/server` | Código da API (`index.js`, `package.json`, …) |
 | `/app/dist` | Build do Vite (`npm run build` na raiz do repositório) |
-| `/app/server/data` | **Persistir com volume** — JSON da Agenda CCI, papéis manuais, etc. |
+| `/app/server/data` | **Persistir com volume** — JSON da Agenda CCI, papéis manuais, atalhos por setor, etc. |
 
 ### Volume Coolify / Docker Compose
 
@@ -45,6 +45,7 @@ Definir **no build** da imagem (Build Arguments no Coolify):
 | `VITE_LF_PUBLIC_HOSTS` | Hostname(s) da vitrine pública, separados por vírgula (ex.: `achadoseperdidos.portalcci.com.br`). O mesmo build atende Central e subdomínio. |
 | `VITE_PAINEL_YOUTUBE_PLAYLIST_ID` | Opcional — painel TV |
 | `VITE_PAINEL_OVERLAY_SECONDS` | Opcional — overlay |
+| `VITE_CENTRAL_ADMIN_EMAILS` | Opcional — CSV de e-mails com papel `admin` na intranet (ver tudo). Complementa `papeis-manuais.json`. |
 
 ### Runtime (container — `server/index.js`)
 
@@ -102,6 +103,58 @@ docker build -t central-connect:latest \
 | Vitrine pública (pais/alunos) | `https://achadoseperdidos.portalcci.com.br/` |
 | Administração (secretaria) | `https://central.portalcci.com.br/achados-e-perdidos/admin` |
 | Link legado na Central | `https://central.portalcci.com.br/achados-e-perdidos/publico` |
+
+## Administrador global (“ver tudo”)
+
+A intranet usa papéis derivados da **OU do Google Workspace** (Secretaria, Setape, DP, etc.). O papel **`admin`** ignora essas restrições e pode abrir **todas** as rotas e menus (TI, financeiro, setores, achados admin, agenda admin, painel de senhas completo).
+
+| Item | Valor |
+|------|--------|
+| **Tela de gestão** | `https://central.portalcci.com.br/admin/papeis-manuais` |
+| **Menu** | Sidebar → **Administração** → **Admin — Papéis manuais** |
+| **Quem acessa a tela** | Só quem **já** tem `admin` (manual ou arquivo abaixo) |
+
+### Dar `admin` a alguém
+
+1. **Pela tela** (se você já é admin): informe o e-mail, marque **Administrador**, salve.
+2. **Pelo servidor** (primeiro admin ou sem acesso à tela): edite no volume persistente o arquivo abaixo.
+
+```text
+/app/server/data/papeis-manuais.json
+```
+
+Exemplo (copie de [`server/data/papeis-manuais.example.json`](server/data/papeis-manuais.example.json)):
+
+```json
+{
+  "ti@portalcci.com.br": ["admin"]
+}
+```
+
+- O volume em `/app/server/data` **precisa estar montado** (ver secção acima); senão o arquivo some ao recriar o container.
+- Na **primeira criação** do arquivo vazio, a API grava um seed inicial (ver `PAPEIS_MANUAIS_SEED` em [`server/index.js`](server/index.js)).
+- Papéis manuais válidos no servidor: `admin`, `painel_admin`, `painel_atendente`.
+
+### Depois de atribuir
+
+O utilizador deve **sair e entrar de novo** na Central para o papel manual aplicar (a sessão guarda os papéis no login).
+
+### Não confundir com painel de senhas
+
+- **Setape / Direção** na OU → `painel_admin` (administração do **painel de senhas**), não “ver tudo” na intranet.
+- **`VITE_PAINEL_ADMIN_EMAILS`** no build → mesmo efeito limitado ao painel.
+
+Detalhes da API e do ficheiro: [`server/README.md`](server/README.md#papéis-manuais-admin-global).
+
+## Atalhos por setor (`/setores/*`)
+
+Os links das páginas de setor (ex.: `/setores/secretaria`) vêm do código por defeito. Depois que um **admin** grava alterações na página (**Gerenciar atalhos**), passam a ser lidos de:
+
+```text
+/app/server/data/setor-links.json
+```
+
+Modelo: [`server/data/setor-links.example.json`](server/data/setor-links.example.json). Sem entrada no ficheiro para um setor, a Central usa os atalhos embutidos no código.
 
 ## Desenvolvimento local (sem Docker)
 

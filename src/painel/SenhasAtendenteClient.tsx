@@ -26,6 +26,10 @@ import { ptBR } from "date-fns/locale";
 import { usePainelSupabaseAuth } from "@/painel/PainelSupabaseAuthContext";
 import { painelUsesDbOnlyMode } from "@/painel/painelAuthMode";
 import { useChimeSound } from "@/painel/hooks/useChimeSound";
+import {
+  resolveInitialServiceWindowId,
+  storeServiceWindowId,
+} from "@/painel/attendantSelectedWindow";
 import { PageHero, PageHeroEyebrow } from "@/components/PageHero";
 
 function labelGuiche(w: ServiceWindow) {
@@ -104,8 +108,13 @@ export default function SenhasAtendenteClient({
 }: AtendenteClientProps) {
   const [waiting, setWaiting] = useState<TicketWithQueue[]>(initialWaiting);
   const [currentTicket, setCurrentTicket] = useState<TicketWithQueue | null>(null);
-  const [selectedWindowId, setSelectedWindowId] = useState<string>(
-    profile.service_window_id ?? serviceWindows[0]?.id ?? ""
+  const [selectedWindowId, setSelectedWindowId] = useState(() =>
+    resolveInitialServiceWindowId(
+      profile.school_id,
+      profile.id,
+      serviceWindows,
+      profile.service_window_id,
+    ),
   );
   const [calling, setCalling] = useState(false);
   const [showAllQueue, setShowAllQueue] = useState(false);
@@ -121,9 +130,16 @@ export default function SenhasAtendenteClient({
   useEffect(() => {
     if (serviceWindows.length === 0) return;
     if (!serviceWindows.some((w) => w.id === selectedWindowId)) {
-      setSelectedWindowId(serviceWindows[0].id);
+      const fallback = serviceWindows[0].id;
+      setSelectedWindowId(fallback);
+      storeServiceWindowId(profile.school_id, profile.id, fallback);
     }
-  }, [serviceWindows, selectedWindowId]);
+  }, [serviceWindows, selectedWindowId, profile.school_id, profile.id]);
+
+  function selectServiceWindow(windowId: string) {
+    setSelectedWindowId(windowId);
+    storeServiceWindowId(profile.school_id, profile.id, windowId);
+  }
 
   // Realtime subscription for new tickets
   useEffect(() => {
@@ -315,7 +331,7 @@ export default function SenhasAtendenteClient({
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Select value={selectedWindowId} onValueChange={(v) => setSelectedWindowId(v ?? "")}>
+              <Select value={selectedWindowId} onValueChange={(v) => v && selectServiceWindow(v)}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="Selecione um guichê">
                     {selectedWindow

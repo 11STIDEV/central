@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { apiUrl, getApiBaseUrl } from "@/lib/apiBase";
+import { isCentralAdminEmail } from "@/auth/centralAdminEnv";
 import {
   ouPainelAdminPeloCaminho,
   ouPainelAtendentePeloCaminho,
@@ -369,6 +370,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } catch {
         /* papéis manuais opcionais se a API estiver indisponível */
+      }
+      if (isCentralAdminEmail(payload.email)) {
+        papeis = Array.from(new Set([...papeis, "admin"]));
       }
       setUsuario({
         nome: payload.name ?? payload.given_name ?? "Usuário",

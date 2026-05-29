@@ -1,0 +1,19 @@
+{
+  "secretaria": {
+    "groups": [
+      {
+        "title": "Sistemas e atendimentos",
+        "links": [
+          {
+            "title": "Plurall",
+            "url": "https://login.plurall.net/"
+          },
+          {
+            "title": "iScholar",
+            "url": "https://cci.ischolar.com.br/default.php?tipo=unidade"
+          }
+        ]
+      }
+    ]
+  }
+}

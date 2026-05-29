@@ -1,35 +1,17 @@
-import { ExternalLink, Link2, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ArrowUpDown, Link2, Pencil, ShieldCheck } from "lucide-react";
+import { toast } from "sonner";
 import { PageHero } from "@/components/PageHero";
+import { SetorLinksManageDialog } from "@/components/setores/SetorLinksManageDialog";
+import { SetorLinksSortableGrid } from "@/components/setores/SetorLinksSortableGrid";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/auth/AuthProvider";
+import { fetchSetorLinks, saveSetorLinks } from "@/lib/setorLinksApi";
+import type { SectorLinkGroup, SectorPageKey, SectorPageMeta } from "@/types/setorLinks";
 
-type SectorLink = {
-  title: string;
-  url: string;
-};
+export type { SectorPageKey } from "@/types/setorLinks";
 
-type SectorLinkGroup = {
-  title: string;
-  links: SectorLink[];
-};
-
-type SectorPage = {
-  title: string;
-  subtitle: string;
-  restrictedLabel: string;
-  groups: SectorLinkGroup[];
-};
-
-export type SectorPageKey =
-  | "professores"
-  | "disciplinar"
-  | "secretaria"
-  | "servicos-gerais"
-  | "publicidade"
-  | "dp-financeiro"
-  | "primeiros-socorros"
-  | "direcao"
-  | "clat";
-
-const SECTOR_PAGES: Record<SectorPageKey, SectorPage> = {
+const SECTOR_PAGES: Record<SectorPageKey, SectorPageMeta> = {
   professores: {
     title: "Professores",
     subtitle: "Acesso rápido ao planejamento semanal, lançamento de notas e faltas.",
@@ -257,17 +239,101 @@ const SECTOR_PAGES: Record<SectorPageKey, SectorPage> = {
   },
 };
 
-function countLinks(page: SectorPage): number {
-  return page.groups.reduce((total, group) => total + group.links.length, 0);
+function cloneGroups(groups: SectorLinkGroup[]): SectorLinkGroup[] {
+  return groups.map((g) => ({
+    title: g.title,
+    links: g.links.map((l) => ({ ...l })),
+  }));
+}
+
+function countLinks(groups: SectorLinkGroup[]): number {
+  return groups.reduce((total, group) => total + group.links.length, 0);
 }
 
 export function SetorLinksPage({ setor }: { setor: SectorPageKey }) {
-  const page = SECTOR_PAGES[setor];
-  const totalLinks = countLinks(page);
+  const meta = SECTOR_PAGES[setor];
+  const { usuario, googleIdToken } = useAuth();
+  const isAdmin = usuario?.papeis.includes("admin") ?? false;
+
+  const [groups, setGroups] = useState<SectorLinkGroup[]>(meta.groups);
+  const [loading, setLoading] = useState(true);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [arrangeMode, setArrangeMode] = useState(false);
+  const [groupsBeforeArrange, setGroupsBeforeArrange] = useState<SectorLinkGroup[] | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const loadLinks = useCallback(async () => {
+    setLoading(true);
+    const result = await fetchSetorLinks(setor);
+    const defaults = SECTOR_PAGES[setor].groups;
+    if (result.ok && result.groups) {
+      setGroups(result.groups);
+    } else {
+      setGroups(defaults);
+    }
+    setLoading(false);
+  }, [setor]);
+
+  useEffect(() => {
+    void loadLinks();
+  }, [loadLinks]);
+
+  async function persistGroups(
+    nextGroups: SectorLinkGroup[],
+    opts?: { closeManage?: boolean; exitArrange?: boolean },
+  ) {
+    if (!googleIdToken) {
+      toast.error("Faça login novamente para salvar.");
+      return;
+    }
+    setSaving(true);
+    const result = await saveSetorLinks(setor, googleIdToken, nextGroups);
+    setSaving(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    setGroups(result.groups);
+    if (opts?.closeManage) setManageOpen(false);
+    if (opts?.exitArrange) {
+      setArrangeMode(false);
+      setGroupsBeforeArrange(null);
+    }
+    toast.success("Atalhos atualizados para todos os utilizadores desta página.");
+  }
+
+  function handleSaveFromDialog(nextGroups: SectorLinkGroup[]) {
+    void persistGroups(nextGroups, { closeManage: true });
+  }
+
+  function startArrangeMode() {
+    setGroupsBeforeArrange(cloneGroups(groups));
+    setArrangeMode(true);
+  }
+
+  function cancelArrangeMode() {
+    if (groupsBeforeArrange) {
+      setGroups(groupsBeforeArrange);
+    }
+    setGroupsBeforeArrange(null);
+    setArrangeMode(false);
+  }
+
+  function saveArrangeOrder() {
+    void persistGroups(groups, { exitArrange: true });
+  }
+
+  function reorderGroupLinks(groupIndex: number, links: SectorLinkGroup["links"]) {
+    setGroups((prev) =>
+      prev.map((g, i) => (i === groupIndex ? { ...g, links } : g)),
+    );
+  }
+
+  const totalLinks = countLinks(groups);
 
   return (
     <div className="animate-fade-in">
-      <PageHero title={page.title} subtitle={page.subtitle} />
+      <PageHero title={meta.title} subtitle={meta.subtitle} />
 
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-8">
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/80 px-4 py-4 shadow-card sm:flex-row sm:items-center sm:justify-between">
@@ -276,52 +342,88 @@ export function SetorLinksPage({ setor }: { setor: SectorPageKey }) {
               <ShieldCheck className="h-5 w-5 text-primary" aria-hidden />
             </div>
             <div>
-              <p className="text-sm font-medium text-card-foreground">{page.restrictedLabel}</p>
+              <p className="text-sm font-medium text-card-foreground">{meta.restrictedLabel}</p>
               <p className="text-xs text-muted-foreground">
                 Os links abrem os sistemas oficiais em uma nova aba.
+                {loading ? " Carregando atalhos…" : null}
               </p>
             </div>
           </div>
-          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
-            <Link2 className="h-3.5 w-3.5" aria-hidden />
-            {totalLinks} {totalLinks === 1 ? "link" : "links"}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && !arrangeMode && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setManageOpen(true)}
+                  disabled={loading}
+                >
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Gerenciar atalhos
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={startArrangeMode}
+                  disabled={loading}
+                >
+                  <ArrowUpDown className="mr-2 h-4 w-4" />
+                  Organizar ordem
+                </Button>
+              </>
+            )}
+            <span className="inline-flex w-fit items-center gap-2 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+              <Link2 className="h-3.5 w-3.5" aria-hidden />
+              {totalLinks} {totalLinks === 1 ? "link" : "links"}
+            </span>
+          </div>
         </div>
 
+        <SetorLinksManageDialog
+          open={manageOpen}
+          onOpenChange={setManageOpen}
+          groups={groups}
+          saving={saving}
+          onSave={(g) => void handleSaveFromDialog(g)}
+        />
+
+        {arrangeMode && (
+          <div className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-foreground">
+              Arraste pelo ícone <span className="font-medium">≡</span> para definir a prioridade (esquerda
+              → direita, cima → baixo).
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={cancelArrangeMode} disabled={saving}>
+                Cancelar
+              </Button>
+              <Button type="button" size="sm" onClick={saveArrangeOrder} disabled={saving}>
+                {saving ? "Salvando…" : "Salvar ordem"}
+              </Button>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-8">
-          {page.groups.map((group) => (
+          {groups.map((group, groupIndex) => (
             <section key={group.title} className="space-y-4">
               <div>
                 <h2 className="text-xl font-semibold tracking-tight text-foreground">{group.title}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Escolha uma opção para acessar o recurso externo.
+                  {arrangeMode
+                    ? "Modo organização — a ordem dos cards define a prioridade na página."
+                    : "Escolha uma opção para acessar o recurso externo."}
                 </p>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                {group.links.map((link) => (
-                  <a
-                    key={`${group.title}-${link.title}`}
-                    href={link.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="group flex min-h-[132px] flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/15">
-                        <ExternalLink className="h-5 w-5 text-primary" aria-hidden />
-                      </div>
-                      <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
-                    </div>
-                    <div className="mt-5">
-                      <h3 className="text-base font-semibold leading-snug text-card-foreground">
-                        {link.title}
-                      </h3>
-                      <p className="mt-2 line-clamp-1 text-xs text-muted-foreground">{link.url}</p>
-                    </div>
-                  </a>
-                ))}
-              </div>
+              <SetorLinksSortableGrid
+                groupTitle={group.title}
+                links={group.links}
+                arrangeMode={arrangeMode}
+                onReorder={(links) => reorderGroupLinks(groupIndex, links)}
+              />
             </section>
           ))}
         </div>

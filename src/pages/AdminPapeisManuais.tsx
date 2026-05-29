@@ -16,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { apiUrl } from "@/lib/apiBase";
 
 export default function AdminPapeisManuais() {
@@ -130,8 +131,9 @@ export default function AdminPapeisManuais() {
                 Papéis manuais
               </h1>
               <p className="mt-2 max-w-2xl text-slate-300">
-                Atribua papéis que não vêm da unidade organizacional do Google Workspace. Apenas o
-                papel <strong className="text-white">admin</strong> existe por enquanto; outros serão adicionados depois.
+                Atribua o papel <strong className="text-white">Administrador</strong> a contas que
+                precisam ver <strong className="text-white">toda</strong> a Central (além do que a OU
+                do Google já libera). Outros papéis manuais podem ser adicionados depois.
               </p>
             </div>
             <Button
@@ -149,6 +151,25 @@ export default function AdminPapeisManuais() {
       </PageHero>
 
       <div className="mx-auto max-w-4xl space-y-8 px-4 py-8 md:px-8">
+        <Alert>
+          <Shield className="h-4 w-4" />
+          <AlertTitle>Como funciona</AlertTitle>
+          <AlertDescription className="space-y-2">
+            <p>
+              <strong>Administrador</strong> = acesso a todas as páginas e menus (TI, setores,
+              achados, agenda admin, painel de senhas, etc.), independentemente da OU no Google.
+            </p>
+            <p>
+              URL desta tela:{" "}
+              <code className="rounded bg-muted px-1 py-0.5 text-xs">/admin/papeis-manuais</code>
+            </p>
+            <p>
+              Depois de salvar, a pessoa precisa <strong>sair e entrar de novo</strong> na Central
+              para o novo papel valer.
+            </p>
+          </AlertDescription>
+        </Alert>
+
         <section className="rounded-xl border border-border bg-card p-6 shadow-card">
           <div className="mb-4 flex items-center gap-2">
             <UserCog className="h-5 w-5 text-primary" />

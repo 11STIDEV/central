@@ -1,0 +1,5 @@
+{
+  "exemplo.admin@portalcci.com.br": ["admin"],
+  "exemplo.painel@portalcci.com.br": ["painel_admin"],
+  "exemplo.atendente@portalcci.com.br": ["painel_atendente"]
+}

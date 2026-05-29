@@ -18,6 +18,7 @@ server/*-key.json
 server/service-account*.json
 server/data/agenda-cci-reservas.json
 server/data/papeis-manuais.json
+server/data/setor-links.json
 
 # Editor directories and files
 .vscode/*

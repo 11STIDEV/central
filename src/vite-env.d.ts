@@ -7,6 +7,8 @@ interface ImportMetaEnv {
   readonly VITE_USE_VITE_PROXY?: string;
   /** Lista CSV de e-mails com acesso à Administração do painel de senhas. */
   readonly VITE_PAINEL_ADMIN_EMAILS?: string;
+  /** Lista CSV de e-mails com papel admin na intranet (ver todas as rotas). Dev/local ou bootstrap. */
+  readonly VITE_CENTRAL_ADMIN_EMAILS?: string;
   /** Nome parcial/exato da voz usada nas chamadas do painel de senhas. */
   readonly VITE_PAINEL_VOICE_NAME?: string;
   /** Supabase dedicado ao módulo Achados e Perdidos. */

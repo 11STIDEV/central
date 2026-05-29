@@ -18,6 +18,7 @@ import {
   papelPrincipalUsuario,
   podeVerChamado,
 } from "./chamadosAccess.js";
+import { registerSetorLinksRoutes } from "./setorLinks.js";
 import {
   listarTodosChamados,
   obterChamadoPorId,
@@ -201,6 +202,7 @@ const GOOGLE_CHROMEBOOK_ORG_UNIT = process.env.GOOGLE_CHROMEBOOK_ORG_UNIT?.trim(
 const DATA_DIR = path.join(__dirname, "data");
 const ARQUIVO_RESERVAS_AGENDA = path.join(DATA_DIR, "agenda-cci-reservas.json");
 const ARQUIVO_PAPEIS_MANUAIS = path.join(DATA_DIR, "papeis-manuais.json");
+const ARQUIVO_SETOR_LINKS = path.join(DATA_DIR, "setor-links.json");
 
 /** Papéis atribuíveis apenas via API admin (extensível). */
 const PAPEIS_MANUAIS_PERMITIDOS = ["admin", "painel_admin", "painel_atendente"];
@@ -1204,6 +1206,13 @@ app.post("/api/papeis-manuais/atualizar", async (req, res) => {
     }
     return res.status(st).json({ error: e.message });
   }
+});
+
+registerSetorLinksRoutes(app, {
+  arquivo: ARQUIVO_SETOR_LINKS,
+  ensureDataDir,
+  verificarIdTokenUsuario,
+  emailTemPapelAdminNoArquivo,
 });
 
 /**

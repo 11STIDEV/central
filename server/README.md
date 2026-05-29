@@ -137,6 +137,57 @@ O mapeamento está em `src/auth/AuthProvider.tsx` (`OU_PARA_PAPEL` + `mapearPape
 
 As **permissões por rota** (quem acessa TI, almox, financeiro de vales, etc.) ficam em `src/auth/routeAccess.ts` (`ROTAS_PAPEIS_OBRIGATORIOS` + `canAccessRoute`).
 
+## Papéis manuais (admin global)
+
+Alguns papéis **não** vêm da OU — ficam num JSON no servidor e são mesclados no login (`POST /api/papeis-manuais/obter`).
+
+| Papel manual | Efeito |
+|--------------|--------|
+| `admin` | Acesso a **todas** as rotas da intranet + tela `/admin/papeis-manuais` + painel de senhas completo |
+| `painel_admin` | Administração do painel de senhas (sem abrir o resto da intranet por si só) |
+| `painel_atendente` | Atendente do painel mesmo fora da OU Secretaria |
+
+### Ficheiro de dados
+
+| Ambiente | Caminho |
+|----------|---------|
+| Local (`npm run dev` em `server/`) | `server/data/papeis-manuais.json` (não commitado; ver exemplo) |
+| Docker / Coolify | `/app/server/data/papeis-manuais.json` (volume em `/app/server/data`) |
+
+Modelo: [`data/papeis-manuais.example.json`](data/papeis-manuais.example.json).
+
+Na primeira criação do ficheiro, o servidor pode gravar um **seed** (`PAPEIS_MANUAIS_SEED` em `index.js`). Para produção, copie o exemplo para `papeis-manuais.json` no volume ou use a tela **Admin — Papéis manuais** depois do primeiro `admin` existir.
+
+### Tela na Central
+
+- URL: `/admin/papeis-manuais` (produção: `https://central.portalcci.com.br/admin/papeis-manuais`)
+- Menu: **Administração** → **Admin — Papéis manuais**
+- APIs (com ID token Google): `obter` (qualquer utilizador lê os seus), `listar` / `atualizar` (só quem tem `admin` no ficheiro)
+
+**Importante:** após alterar papéis, o utilizador deve **terminar sessão e voltar a entrar** para os papéis atualizarem.
+
+### Desenvolvimento local
+
+```bash
+cp server/data/papeis-manuais.example.json server/data/papeis-manuais.json
+# Edite os e-mails em server/data/papeis-manuais.json
+```
+
+Reinicie a API se já estiver a correr; faça login de novo no browser.
+
+## Links por setor (atalhos editáveis)
+
+Administradores (`admin` em `papeis-manuais.json`) podem alterar os atalhos em qualquer página `/setores/*` pelo botão **Gerenciar atalhos**.
+
+| API | Uso |
+|-----|-----|
+| `GET /api/setor-links/:setor` | Lê atalhos gravados (`404` = usar defaults do frontend) |
+| `POST /api/setor-links/:setor` | Grava `{ idToken, groups }` — só admin |
+
+Ficheiro: `server/data/setor-links.json` (produção: volume `/app/server/data`). Exemplo: [`data/setor-links.example.json`](data/setor-links.example.json).
+
+Setores válidos: `professores`, `disciplinar`, `secretaria`, `servicos-gerais`, `publicidade`, `dp-financeiro`, `primeiros-socorros`, `direcao`, `clat`.
+
 ## Depois que a OU estiver carregando
 
 - As rotas e o painel de senhas usam **OUs** mapeadas no frontend (ver seção “Mapeamento OU” acima). Não há mais bypass por e-mail no `.env.local` da raiz.
