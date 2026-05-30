@@ -1,0 +1,460 @@
+<script>
+// =====================================================
+// Estado global
+// =====================================================
+const state = {
+  data: null,        // { columns, students, stats }
+  view: 'overview',  // overview | students | alerts | stages
+  filter: 'all',     // all | crit | warn | ok
+  search: '',
+  selected: null,    // student
+};
+
+// =====================================================
+// Bootstrap
+// =====================================================
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('user').textContent = '<?= user ?>' || '—';
+  bindUI();
+  loadData();
+});
+
+function bindUI() {
+  document.querySelectorAll('.nav-item').forEach((el) => {
+    el.addEventListener('click', () => {
+      const v = el.dataset.view;
+      switchView(v);
+    });
+  });
+  document.getElementById('btn-refresh').addEventListener('click', refresh);
+  document.getElementById('search').addEventListener('input', (e) => {
+    state.search = e.target.value.trim().toLowerCase();
+    if (state.view === 'overview' && state.search) switchView('students');
+    else render();
+  });
+  document.getElementById('drawer-backdrop').addEventListener('click', closeDrawer);
+}
+
+// =====================================================
+// Data loading
+// =====================================================
+function loadData() {
+  setLoading();
+  google.script.run
+    .withSuccessHandler((data) => {
+      state.data = data;
+      render();
+    })
+    .withFailureHandler((err) => {
+      setHtml('<div class="panel"><h2>Erro ao carregar</h2><pre style="white-space:pre-wrap;color:#ff8aa0">' + escapeHtml(err.message || String(err)) + '</pre></div>');
+    })
+    .api_getDashboardData();
+}
+
+function refresh() {
+  toast('Recarregando dados…');
+  google.script.run
+    .withSuccessHandler((data) => {
+      state.data = data;
+      render();
+      toast('Atualizado!', 'ok');
+    })
+    .withFailureHandler((err) => toast('Erro: ' + (err.message || err), 'err'))
+    .api_refresh();
+}
+
+// =====================================================
+// Router
+// =====================================================
+function switchView(v) {
+  state.view = v;
+  document.querySelectorAll('.nav-item').forEach((el) => {
+    el.classList.toggle('active', el.dataset.view === v);
+  });
+  render();
+}
+
+function render() {
+  if (!state.data) return setLoading();
+  const titles = {
+    overview: ['Visão geral', 'Acompanhe o andamento das matrículas'],
+    students: ['Alunos', 'Lista completa com busca e filtros'],
+    alerts: ['Alertas', 'Alunos em situação crítica ou de atenção'],
+    stages: ['Etapas', 'Progresso de cada etapa do checklist'],
+  };
+  const [t, s] = titles[state.view] || titles.overview;
+  document.getElementById('page-title').textContent = t;
+  document.getElementById('page-sub').textContent = s;
+
+  document.getElementById('badge-alerts').textContent =
+    (state.data.stats.bySituacao['Crítica'] || 0) + (state.data.stats.bySituacao['Atenção'] || 0);
+
+  if (state.view === 'overview') return renderOverview();
+  if (state.view === 'students') return renderStudents();
+  if (state.view === 'alerts') return renderAlerts();
+  if (state.view === 'stages') return renderStages();
+}
+
+function setLoading() {
+  setHtml('<div class="loading">Carregando…</div>');
+}
+function setHtml(html) {
+  document.getElementById('view').innerHTML = html;
+}
+
+// =====================================================
+// Views
+// =====================================================
+function renderOverview() {
+  const { stats, students, columns } = state.data;
+  const totalEtapas = columns.length;
+  const totalConcluidas = students.reduce((sum, s) => sum + (s.totals['Concluído'] || 0), 0);
+  const totalEtapasAlunos = students.length * totalEtapas;
+  const pctConcluidas = totalEtapasAlunos ? Math.round((totalConcluidas / totalEtapasAlunos) * 100) : 0;
+
+  const kpis = [
+    { cls: 'info', label: 'Total de alunos', val: stats.totalAlunos, sub: '&nbsp;' },
+    { cls: 'ok', label: 'Progresso médio', val: stats.progressoMedio + '%', sub: pctConcluidas + '% das etapas concluídas' },
+    { cls: 'warn', label: 'Em atenção', val: stats.bySituacao['Atenção'] || 0, sub: 'precisam de acompanhamento' },
+    { cls: 'crit', label: 'Situação crítica', val: stats.bySituacao['Crítica'] || 0, sub: 'requerem ação imediata' },
+  ];
+
+  const top = `
+    <div class="kpi-grid">
+      ${kpis.map((k) => `
+        <div class="kpi ${k.cls}">
+          <h3>${k.label}</h3>
+          <div class="val">${k.val}</div>
+          <div class="sub">${k.sub}</div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+
+  const sitPie = renderSituacaoChart(stats.bySituacao, students.length);
+
+  const recentes = [...students]
+    .filter((s) => s.situacao === 'Crítica' || s.situacao === 'Atenção')
+    .sort((a, b) => a.progresso - b.progresso)
+    .slice(0, 8);
+
+  const tableRows = recentes.map(rowHtml).join('') || `<tr><td colspan="4" class="muted" style="padding:18px">Nenhum aluno em alerta. 🎉</td></tr>`;
+
+  const html = `
+    ${top}
+    <div class="grid-2">
+      <div class="panel">
+        <h2>Distribuição por situação</h2>
+        ${sitPie}
+      </div>
+      <div class="panel">
+        <h2>Atenção imediata</h2>
+        <div class="table-wrap">
+          <table class="tbl">
+            <thead><tr><th>Aluno</th><th>Código</th><th>Situação</th><th>Progresso</th></tr></thead>
+            <tbody>${tableRows}</tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Progresso por etapa</h2>
+      ${renderStagesList(stats.porEtapa, stats.totalAlunos, 6)}
+      <div style="margin-top:10px"><button class="btn-ghost" onclick="switchView('stages')">Ver todas as etapas →</button></div>
+    </div>
+  `;
+  setHtml(html);
+  document.querySelectorAll('#view tr[data-row]').forEach((tr) => {
+    tr.addEventListener('click', () => openStudent(Number(tr.dataset.row)));
+  });
+}
+
+function renderStudents() {
+  const { students } = state.data;
+  const list = applyFilters(students);
+
+  const filters = `
+    <div class="filters">
+      <button class="chip ${state.filter === 'all' ? 'active' : ''}" data-f="all">Todos (${students.length})</button>
+      <button class="chip ${state.filter === 'crit' ? 'active' : ''}" data-f="crit">Crítica (${countBy(students, 'Crítica')})</button>
+      <button class="chip ${state.filter === 'warn' ? 'active' : ''}" data-f="warn">Atenção (${countBy(students, 'Atenção')})</button>
+      <button class="chip ${state.filter === 'ok' ? 'active' : ''}" data-f="ok">Regular (${countBy(students, 'Regular')})</button>
+    </div>
+  `;
+
+  const rows = list.map(rowHtml).join('') || `<tr><td colspan="4" class="muted" style="padding:18px">Nenhum aluno encontrado.</td></tr>`;
+
+  const html = `
+    ${filters}
+    <div class="panel" style="padding:0">
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead><tr><th>Aluno</th><th>Código</th><th>Situação</th><th>Progresso</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  setHtml(html);
+
+  document.querySelectorAll('.chip').forEach((c) => {
+    c.addEventListener('click', () => { state.filter = c.dataset.f; render(); });
+  });
+  document.querySelectorAll('#view tr[data-row]').forEach((tr) => {
+    tr.addEventListener('click', () => openStudent(Number(tr.dataset.row)));
+  });
+}
+
+function renderAlerts() {
+  const { students } = state.data;
+  const list = students
+    .filter((s) => s.situacao === 'Crítica' || s.situacao === 'Atenção')
+    .sort((a, b) => {
+      if (a.situacao !== b.situacao) return a.situacao === 'Crítica' ? -1 : 1;
+      return a.progresso - b.progresso;
+    });
+
+  const rows = list.map(rowHtml).join('') || `<tr><td colspan="4" class="muted" style="padding:18px">Nenhum aluno em alerta. 🎉</td></tr>`;
+  const html = `
+    <div class="panel" style="padding:0">
+      <div class="table-wrap">
+        <table class="tbl">
+          <thead><tr><th>Aluno</th><th>Código</th><th>Situação</th><th>Progresso</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+  setHtml(html);
+  document.querySelectorAll('#view tr[data-row]').forEach((tr) => {
+    tr.addEventListener('click', () => openStudent(Number(tr.dataset.row)));
+  });
+}
+
+function renderStages() {
+  const { stats } = state.data;
+  const html = `
+    <div class="panel">
+      <h2>Progresso por etapa (${stats.porEtapa.length})</h2>
+      ${renderStagesList(stats.porEtapa, stats.totalAlunos)}
+    </div>
+  `;
+  setHtml(html);
+}
+
+// =====================================================
+// Pieces
+// =====================================================
+function renderSituacaoChart(by, total) {
+  const items = [
+    { key: 'Regular', cls: 'ok', n: by['Regular'] || 0 },
+    { key: 'Atenção', cls: 'warn', n: by['Atenção'] || 0 },
+    { key: 'Crítica', cls: 'crit', n: by['Crítica'] || 0 },
+  ];
+  if (!total) return '<div class="muted">Sem dados.</div>';
+  const segs = items.map((it) => {
+    const pct = total ? Math.round((it.n / total) * 100) : 0;
+    return `<span class="s-${it.cls === 'ok' ? 'ok' : it.cls === 'warn' ? 'warn' : 'crit'}" style="flex:${it.n}" title="${it.key}: ${it.n} (${pct}%)"></span>`;
+  }).join('');
+  const legend = items.map((it) => {
+    const pct = total ? Math.round((it.n / total) * 100) : 0;
+    return `
+      <div style="display:flex;align-items:center;gap:8px;justify-content:space-between;padding:6px 0;border-bottom:1px dashed var(--border)">
+        <span><span class="pill ${it.cls}">${it.key}</span></span>
+        <span class="muted">${it.n} aluno(s) — ${pct}%</span>
+      </div>`;
+  }).join('');
+  return `
+    <div class="stack-bar" style="height:14px;margin-bottom:14px">${segs}</div>
+    ${legend}
+  `;
+}
+
+function renderStagesList(porEtapa, total, limit) {
+  if (!porEtapa || !porEtapa.length) return '<div class="muted">Sem etapas configuradas.</div>';
+  const list = limit ? porEtapa.slice(0, limit) : porEtapa;
+  return list.map((e) => {
+    const c = e['Concluído'] || 0;
+    const a = e['Em andamento'] || 0;
+    const p = e['Pendente'] || 0;
+    const tot = c + a + p || 1;
+    const pct = Math.round((c / tot) * 100);
+    return `
+      <div class="stage-row">
+        <div>
+          <div class="name">${escapeHtml(e.title)}</div>
+          <div class="section">${escapeHtml(e.section || '')}</div>
+        </div>
+        <div class="stack-bar" title="Concluído ${c} · Em andamento ${a} · Pendente ${p}">
+          <span class="s-ok" style="flex:${c}"></span>
+          <span class="s-warn" style="flex:${a}"></span>
+          <span class="s-crit" style="flex:${p}"></span>
+        </div>
+        <div class="pct">${pct}%</div>
+      </div>
+    `;
+  }).join('');
+}
+
+function rowHtml(s) {
+  return `
+    <tr data-row="${s.rowNumber}">
+      <td>${escapeHtml(s.nome || '—')}</td>
+      <td class="muted">${escapeHtml(s.codigo || '')}</td>
+      <td>${situacaoPill(s.situacao)}</td>
+      <td class="col-prog">
+        <span class="pbar"><span style="width:${s.progresso}%"></span></span>
+        <span class="muted">${s.progresso}%</span>
+      </td>
+    </tr>
+  `;
+}
+
+function situacaoPill(sit) {
+  const map = { 'Regular': 'ok', 'Atenção': 'warn', 'Crítica': 'crit' };
+  return `<span class="pill ${map[sit] || 'muted'}">${escapeHtml(sit)}</span>`;
+}
+
+function statusPill(st) {
+  const map = { 'Concluído': 'ok', 'Em andamento': 'warn', 'Pendente': 'crit' };
+  return `<span class="pill ${map[st] || 'muted'}">${escapeHtml(st)}</span>`;
+}
+
+// =====================================================
+// Filters
+// =====================================================
+function applyFilters(students) {
+  let list = students;
+  if (state.filter === 'crit') list = list.filter((s) => s.situacao === 'Crítica');
+  if (state.filter === 'warn') list = list.filter((s) => s.situacao === 'Atenção');
+  if (state.filter === 'ok') list = list.filter((s) => s.situacao === 'Regular');
+  if (state.search) {
+    const q = state.search;
+    list = list.filter((s) =>
+      (s.nome || '').toLowerCase().indexOf(q) >= 0 ||
+      (s.codigo || '').toLowerCase().indexOf(q) >= 0
+    );
+  }
+  return list;
+}
+
+function countBy(students, sit) {
+  return students.filter((s) => s.situacao === sit).length;
+}
+
+// =====================================================
+// Drawer: detalhe do aluno + edição inline
+// =====================================================
+function openStudent(rowNumber) {
+  const s = state.data.students.find((x) => x.rowNumber === rowNumber);
+  if (!s) return;
+  state.selected = s;
+
+  const grouped = {};
+  s.checklist.forEach((c) => {
+    const sec = c.section || 'Outros';
+    if (!grouped[sec]) grouped[sec] = [];
+    grouped[sec].push(c);
+  });
+
+  const sections = Object.keys(grouped).map((sec) => `
+    <div class="section-label">${escapeHtml(sec)}</div>
+    ${grouped[sec].map((c) => `
+      <div class="check-item">
+        <div>
+          <div class="title">${escapeHtml(c.title)}</div>
+          <div class="section">${statusPill(c.value)}</div>
+        </div>
+        <select data-col="${c.key}">
+          <option value="Pendente"${c.value === 'Pendente' ? ' selected' : ''}>Pendente</option>
+          <option value="Em andamento"${c.value === 'Em andamento' ? ' selected' : ''}>Em andamento</option>
+          <option value="Concluído"${c.value === 'Concluído' ? ' selected' : ''}>Concluído</option>
+        </select>
+      </div>
+    `).join('')}
+  `).join('');
+
+  const html = `
+    <div class="drawer-head">
+      <div>
+        <h2>${escapeHtml(s.nome || '—')}</h2>
+        <div class="meta">Código <b>${escapeHtml(s.codigo || '')}</b> · linha ${s.rowNumber}</div>
+      </div>
+      <button class="x" id="close-drawer" aria-label="Fechar">×</button>
+    </div>
+
+    <div style="margin-top:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      ${situacaoPill(s.situacao)}
+      <span class="muted">${s.progresso}% concluído</span>
+      <span class="pbar" style="flex:1;min-width:120px"><span style="width:${s.progresso}%"></span></span>
+    </div>
+
+    <div class="checklist">${sections}</div>
+  `;
+
+  const drawer = document.getElementById('drawer');
+  drawer.querySelector('.drawer-inner').innerHTML = html;
+  drawer.hidden = false;
+  document.getElementById('drawer-backdrop').hidden = false;
+
+  document.getElementById('close-drawer').addEventListener('click', closeDrawer);
+  drawer.querySelectorAll('select[data-col]').forEach((sel) => {
+    sel.addEventListener('change', () => updateCell(sel.dataset.col, sel.value, sel));
+  });
+}
+
+function closeDrawer() {
+  document.getElementById('drawer').hidden = true;
+  document.getElementById('drawer-backdrop').hidden = true;
+  state.selected = null;
+}
+
+function updateCell(columnLetter, value, selEl) {
+  const s = state.selected;
+  if (!s) return;
+  if (selEl) selEl.disabled = true;
+  google.script.run
+    .withSuccessHandler(() => {
+      const item = s.checklist.find((c) => c.key === columnLetter);
+      if (item) item.value = value;
+      s.totals = recalcTotals(s.checklist);
+      s.progresso = s.checklist.length
+        ? Math.round((s.totals['Concluído'] / s.checklist.length) * 100)
+        : 0;
+      if (selEl) selEl.disabled = false;
+      openStudent(s.rowNumber);
+      render();
+      toast('Salvo!', 'ok');
+    })
+    .withFailureHandler((err) => {
+      if (selEl) selEl.disabled = false;
+      toast('Erro ao salvar: ' + (err.message || err), 'err');
+    })
+    .api_updateCell({ rowNumber: s.rowNumber, columnLetter: columnLetter, value: value });
+}
+
+function recalcTotals(checklist) {
+  const t = { 'Concluído': 0, 'Em andamento': 0, 'Pendente': 0 };
+  checklist.forEach((c) => { if (t[c.value] != null) t[c.value]++; else t[c.value] = 1; });
+  return t;
+}
+
+// =====================================================
+// Utils
+// =====================================================
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+let toastTimer;
+function toast(msg, kind) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast' + (kind ? ' ' + kind : '');
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2400);
+}
+</script>

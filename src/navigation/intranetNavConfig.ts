@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   Search,
   Ticket,
+  Trophy,
   UserCog,
   UserRoundCheck,
   Users,
@@ -122,6 +123,7 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     label: "Operação interna",
     type: "flat",
     items: [
+      { title: "Trilha de Conhecimento", url: "/trilha-conhecimento", icon: Trophy },
       { title: "Base de Conhecimento", url: "/base-conhecimento", icon: BookOpen },
       { title: "Documentos", url: "/documentos", icon: FileText },
       { title: "Ramais", url: "/ramais", icon: Phone },

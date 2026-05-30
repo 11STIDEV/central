@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Checklist de Matrículas 2027</title>
+  <?!= include('Stylesheet'); ?>
+</head>
+<body>
+  <div id="app">
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">CM</div>
+        <div>
+          <div class="brand-title">Checklist</div>
+          <div class="brand-sub">Matrículas 2027</div>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-view="overview">
+          <span class="ic">📊</span><span>Visão geral</span>
+        </button>
+        <button class="nav-item" data-view="students">
+          <span class="ic">👥</span><span>Alunos</span>
+        </button>
+        <button class="nav-item" data-view="alerts">
+          <span class="ic">🚨</span><span>Alertas</span>
+          <span class="badge" id="badge-alerts">0</span>
+        </button>
+        <button class="nav-item" data-view="stages">
+          <span class="ic">✅</span><span>Etapas</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="user" id="user">—</div>
+        <button id="btn-refresh" class="btn-ghost" title="Recarregar">↻ Atualizar</button>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <h1 id="page-title">Visão geral</h1>
+          <span id="page-sub" class="muted">Acompanhe o andamento das matrículas</span>
+        </div>
+        <div class="topbar-right">
+          <div class="search">
+            <span>🔎</span>
+            <input id="search" type="search" placeholder="Buscar aluno ou código…" autocomplete="off">
+          </div>
+        </div>
+      </header>
+
+      <section id="view" class="view">
+        <div class="loading">Carregando…</div>
+      </section>
+    </main>
+
+    <!-- Drawer detalhe -->
+    <aside id="drawer" class="drawer" hidden>
+      <div class="drawer-inner"></div>
+    </aside>
+    <div id="drawer-backdrop" class="backdrop" hidden></div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast" hidden></div>
+  </div>
+
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
