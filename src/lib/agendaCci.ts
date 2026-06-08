@@ -33,10 +33,17 @@ export type ReservaAgendaCCI = {
   equipamentoQuantidade?: number;
   espacoNome?: string;
   observacao?: string;
-  /** Reservas compostas: intenção de usar checklist do evento (funcionalidade futura). */
+  /** Reservas compostas: intenção de usar checklist do evento. */
   checklistEventoHabilitado?: boolean;
+  checklist?: {
+    item: string;
+    setor: string;
+    atencao: string;
+    concluido: boolean;
+  }[];
   status: StatusReservaAgenda;
   criadoEm: string;
+  destinoCalendar?: "salas_labs" | "agenda_cci";
 };
 
 /** Chromebooks vinculados (tipo `chromebook` ou `composta`). */
@@ -216,6 +223,10 @@ export type ChromebookAgendaItem = {
   label: string;
   hasHdmi: boolean;
   serialNumber?: string;
+  /**
+   * Observação (notes) cadastrada no Admin Console.
+   */
+  notes?: string;
   /**
    * ID do recurso no Admin (ex.: annotatedAssetId).
    * Quando não vier, usamos o próprio `id` como fallback na UI.
@@ -401,6 +412,28 @@ export async function obterReservasDoServidor(
     return null;
   }
 }
+
+/** Busca eventos do Google Calendar vinculados à conta para o período. */
+export async function obterEventosGoogleCalendar(
+  idToken: string,
+  timeMin: string,
+  timeMax: string,
+): Promise<any[] | null> {
+  try {
+    const res = await fetch(apiUrl("/api/agenda-cci/google-events"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ idToken, timeMin, timeMax }),
+    });
+    if (!res.ok) return null;
+    const j = (await res.json()) as { events?: any[] };
+    if (!Array.isArray(j.events)) return null;
+    return j.events;
+  } catch {
+    return null;
+  }
+}
+
 
 export function toMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);

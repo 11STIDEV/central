@@ -26,6 +26,8 @@ type Props = {
   groups: SectorLinkGroup[];
   saving: boolean;
   onSave: (groups: SectorLinkGroup[]) => void;
+  /** Texto opcional (ex.: portal do funcionário). */
+  description?: string;
 };
 
 export function SetorLinksManageDialog({
@@ -34,6 +36,7 @@ export function SetorLinksManageDialog({
   groups,
   saving,
   onSave,
+  description,
 }: Props) {
   const [draft, setDraft] = useState<SectorLinkGroup[]>(() => cloneGroups(groups));
 
@@ -103,8 +106,8 @@ export function SetorLinksManageDialog({
         <DialogHeader>
           <DialogTitle>Gerenciar atalhos</DialogTitle>
           <DialogDescription>
-            Adicione, edite ou remova links. URLs devem começar com http:// ou https://. As alterações
-            valem para todos os utilizadores com acesso a esta página.
+            {description ??
+              "Adicione, edite ou remova links. URLs devem começar com http:// ou https://. As alterações valem para todos os utilizadores com acesso a esta página."}
           </DialogDescription>
         </DialogHeader>
 

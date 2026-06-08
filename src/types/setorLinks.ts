@@ -24,7 +24,8 @@ export type SectorPageKey =
   | "dp-financeiro"
   | "primeiros-socorros"
   | "direcao"
-  | "clat";
+  | "clat"
+  | "portal-colaborador";
 
 export const SETOR_LINK_KEYS: SectorPageKey[] = [
   "professores",
@@ -36,4 +37,5 @@ export const SETOR_LINK_KEYS: SectorPageKey[] = [
   "primeiros-socorros",
   "direcao",
   "clat",
+  "portal-colaborador",
 ];

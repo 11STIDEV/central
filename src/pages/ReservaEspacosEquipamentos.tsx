@@ -17,7 +17,6 @@ import {
 import {
   type ChromebookAgendaItem,
   type ReservaAgendaCCI,
-  CHROMEBOOKS_CATALOGO_FALLBACK,
   EQUIPAMENTOS_CATALOGO,
   ESPACOS_CATALOGO,
   STORAGE_KEY_AGENDA_CCI,
@@ -83,15 +82,37 @@ export default function ReservaEspacosEquipamentos() {
   ]);
   const [espacoNome, setEspacoNome] = useState("");
   const [observacao, setObservacao] = useState("");
+  
+  // Checklist do Evento
+  const [checklistHabilitado, setChecklistHabilitado] = useState(false);
+  const checklistPadrao = useMemo(() => [
+    { item: "Espaço destinado a cadeirante, idoso e bebê", setor: "CLM - Serv Gerais", atencao: "de preferência demarcado no chão", concluido: false },
+    { item: "Colocar alunos da série anterior para participar", setor: "Coordenação do Evento", atencao: "para dar a vontade de participar do próximo evento.", concluido: false },
+    { item: "Pedir a uma das lanchonetes para abrir", setor: "Direção", atencao: "", concluido: false },
+    { item: "Mandar convite formal para os professores", setor: "Coordenação do Evento", atencao: "", concluido: false },
+    { item: "Conferir os banheiros antes do início do evento", setor: "CLM - Serv Gerais", atencao: "", concluido: false },
+    { item: "Acomodações", setor: "CLM - Serv Gerais", atencao: "Sempre descrever a quantidade e como deverá ser organizada as acomodações. Ex.: Cadeiras em formato de auditório.", concluido: false },
+    { item: "Adesivos", setor: "Publicidade", atencao: "Os adesivos têm duas etapas, sendo: a etapa da confecção publicidade e a etapa de fixação, podendo ser monitores, bedéis.", concluido: false },
+    { item: "Agradecimento do diretor aos que organizaram o evento", setor: "Direção", atencao: "(providenciar um presente/ orquídea / caixa de bombom, e etc... )", concluido: false },
+    { item: "Amplificadores", setor: "Setape", atencao: "", concluido: false },
+    { item: "Ampulheta", setor: "Direção", atencao: "temos uma na sala da direção, caso não esteja, providenciar com antecedência", concluido: false },
+    { item: "Animação", setor: "Coordenação do Evento", atencao: "", concluido: false }
+  ], []);
+
+  const [checklistItens, setChecklistItens] = useState(() =>
+    checklistPadrao.map((item, idx) => ({ ...item, id: idx, ativo: false }))
+  );
+
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [reservas, setReservas] = useState<ReservaAgendaCCI[]>(() => carregarReservasAgenda());
-  const [chromebooksCatalogo, setChromebooksCatalogo] = useState<ChromebookAgendaItem[]>(
-    CHROMEBOOKS_CATALOGO_FALLBACK,
-  );
+  const [chromebooksCatalogo, setChromebooksCatalogo] = useState<ChromebookAgendaItem[]>([]);
   const [carregandoChromebooks, setCarregandoChromebooks] = useState(false);
   const [avisoChromebooks, setAvisoChromebooks] = useState<string | null>(null);
   const [dialogConfirmarAberto, setDialogConfirmarAberto] = useState(false);
   const [reservaPendente, setReservaPendente] = useState<ReservaAgendaCCI | null>(null);
+  
+  const podeAgendarNaAgendaCCI = usuario?.papeis.includes("admin") || usuario?.papeis.includes("setape");
+  const [destinoCalendar, setDestinoCalendar] = useState<"salas_labs" | "agenda_cci">("salas_labs");
 
   useEffect(() => {
     if (!googleIdToken || !usuario || location.pathname !== "/reserva-espacos-equipamentos") return;
@@ -143,9 +164,9 @@ export default function ReservaEspacosEquipamentos() {
             typeof body.error === "string" ? body.error : `HTTP ${res.status}`;
           const msg = detalhe ? `${base} — ${detalhe}` : base;
           if (!cancelado) {
-            setChromebooksCatalogo(CHROMEBOOKS_CATALOGO_FALLBACK);
+            setChromebooksCatalogo([]);
             setAvisoChromebooks(
-              `Não foi possível carregar Chromebooks do Google Workspace (${msg}). Exibindo lista de exemplo.`,
+              `Não foi possível carregar Chromebooks do Google Workspace (${msg}). Verifique se o servidor está rodando.`,
             );
           }
           return;
@@ -154,16 +175,16 @@ export default function ReservaEspacosEquipamentos() {
         if (!cancelado && Array.isArray(list) && list.length > 0) {
           setChromebooksCatalogo(list);
         } else if (!cancelado) {
-          setChromebooksCatalogo(CHROMEBOOKS_CATALOGO_FALLBACK);
+          setChromebooksCatalogo([]);
           setAvisoChromebooks(
-            "Nenhum Chromebook retornado pelo Workspace (ativos ou desativados). Confira o inventário no Admin Console ou a OU em GOOGLE_CHROMEBOOK_ORG_UNIT. Exibindo lista de exemplo.",
+            "Nenhum Chromebook retornado pelo Workspace. Confira o inventário no Admin Console ou a OU em GOOGLE_CHROMEBOOK_ORG_UNIT.",
           );
         }
       } catch {
         if (!cancelado) {
-          setChromebooksCatalogo(CHROMEBOOKS_CATALOGO_FALLBACK);
+          setChromebooksCatalogo([]);
           setAvisoChromebooks(
-            "Falha de rede ao buscar Chromebooks. Verifique se a API em server/ está rodando. Exibindo lista de exemplo.",
+            "Falha de rede ao buscar Chromebooks. Verifique se a API em server/ está rodando.",
           );
         }
       } finally {
@@ -262,6 +283,8 @@ export default function ReservaEspacosEquipamentos() {
     setEquipamentoLinhas([novaLinhaEquipamento()]);
     setEspacoNome("");
     setObservacao("");
+    setChecklistHabilitado(false);
+    setChecklistItens(checklistPadrao.map((item, idx) => ({ ...item, id: idx, ativo: false })));
   }
 
   function mostrarErro(texto: string) {
@@ -369,8 +392,15 @@ export default function ReservaEspacosEquipamentos() {
       equipamentoQuantidade: primeiroEq?.quantidade,
       espacoNome: temEspaco ? espacoNome.trim() : undefined,
       observacao: observacaoFinal,
+      checklistEventoHabilitado: checklistHabilitado || undefined,
+      checklist: checklistHabilitado
+        ? checklistItens
+            .filter((c) => c.ativo)
+            .map(({ item, setor, atencao, concluido }) => ({ item, setor, atencao, concluido }))
+        : undefined,
       status: "ativa",
       criadoEm: new Date().toISOString(),
+      destinoCalendar: podeAgendarNaAgendaCCI ? destinoCalendar : "salas_labs",
     };
 
     return nova;
@@ -480,12 +510,33 @@ export default function ReservaEspacosEquipamentos() {
                   <span className="font-medium">Espaço:</span> {reservaPendente.espacoNome}
                 </li>
               ) : null}
+              {podeAgendarNaAgendaCCI && (
+                <li>
+                  <span className="font-medium">Destino Google Calendar:</span>{" "}
+                  {reservaPendente.destinoCalendar === "agenda_cci"
+                    ? "Agenda CCI"
+                    : "Salas, Labs e Equipamentos"}
+                </li>
+              )}
               {observacaoSomenteTextoLivre(reservaPendente.observacao) ? (
                 <li className="whitespace-pre-wrap text-muted-foreground">
                   <span className="font-medium text-card-foreground">Observação:</span>{" "}
                   {observacaoSomenteTextoLivre(reservaPendente.observacao)}
                 </li>
               ) : null}
+              {reservaPendente.checklistEventoHabilitado && reservaPendente.checklist && reservaPendente.checklist.length > 0 && (
+                <li>
+                  <span className="font-medium">Checklist Habilitado:</span>
+                  <ul className="mt-1 list-disc pl-4 text-xs text-muted-foreground space-y-0.5">
+                    {reservaPendente.checklist.map((c, i) => (
+                      <li key={i}>
+                        {c.item} <span className="text-[10px] font-semibold text-primary">({c.setor})</span>
+                        {c.atencao && <span className="block text-[10px] italic text-muted-foreground/85">Atenção: {c.atencao}</span>}
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              )}
             </ul>
           )}
           <DialogFooter className="gap-2 sm:gap-0">
@@ -524,6 +575,41 @@ export default function ReservaEspacosEquipamentos() {
               className="w-full"
             />
           </div>
+
+          {podeAgendarNaAgendaCCI && (
+            <div className="mb-4 space-y-2">
+              <label className="text-sm font-medium text-card-foreground">
+                Agenda de Sincronização Google
+              </label>
+              <div className="flex gap-4">
+                <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="destinoCalendar"
+                    value="salas_labs"
+                    checked={destinoCalendar === "salas_labs"}
+                    onChange={() => setDestinoCalendar("salas_labs")}
+                    className="h-4 w-4 text-primary focus:ring-primary"
+                  />
+                  Salas, Labs e Equipamentos (Padrão)
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm cursor-pointer text-cyan-600 dark:text-cyan-400 font-semibold">
+                  <input
+                    type="radio"
+                    name="destinoCalendar"
+                    value="agenda_cci"
+                    checked={destinoCalendar === "agenda_cci"}
+                    onChange={() => setDestinoCalendar("agenda_cci")}
+                    className="h-4 w-4 text-primary focus:ring-primary"
+                  />
+                  Agenda CCI
+                </label>
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Apenas administradores e membros do Setape podem agendar diretamente na Agenda CCI.
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <label className="text-sm">
@@ -633,6 +719,16 @@ export default function ReservaEspacosEquipamentos() {
                 />
                 Apenas Chromebooks com HDMI
               </label>
+              <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                <span>
+                  <strong className="text-foreground">{disponiveisChromebook.length}</strong> Chromebook{disponiveisChromebook.length !== 1 ? "s" : ""} disponíve{disponiveisChromebook.length !== 1 ? "is" : "l"}
+                </span>
+                {chromebooksSelecionados.length > 0 && (
+                  <span className="rounded-full bg-primary/15 px-2 py-0.5 text-primary font-semibold">
+                    {chromebooksSelecionados.length} selecionado{chromebooksSelecionados.length !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
               <div className="grid max-h-52 grid-cols-1 gap-2 overflow-auto rounded-lg border border-border p-3 sm:grid-cols-2 md:grid-cols-3">
                 {disponiveisChromebook.map((cb) => {
                   const checked = chromebooksSelecionados.includes(cb.id);
@@ -660,7 +756,12 @@ export default function ReservaEspacosEquipamentos() {
                             <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden />
                           </span>
                         )}
-                        <span className="text-sm font-semibold text-card-foreground">Chromebook</span>
+                        <span className="text-sm font-semibold text-card-foreground">{cb.label || "Chromebook"}</span>
+                        {cb.serialNumber && (
+                          <span className="text-[10px] text-muted-foreground">
+                            S/N: {cb.serialNumber}
+                          </span>
+                        )}
                         <span
                           className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                             cb.hasHdmi
@@ -815,6 +916,87 @@ export default function ReservaEspacosEquipamentos() {
               />
             </label>
           </div>
+
+          {!papelAluno && (
+            <div className="mt-6 border-t border-border pt-6">
+              <div className="flex items-center gap-3">
+                <label className="relative inline-flex items-center cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={checklistHabilitado}
+                    onChange={(e) => setChecklistHabilitado(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  <span className="ml-3 text-sm font-semibold text-card-foreground">
+                    Habilitar checklist e organização do evento
+                  </span>
+                </label>
+              </div>
+
+              {checklistHabilitado && (
+                <div className="mt-4 rounded-xl border border-border bg-muted/10 p-5 animate-slide-down">
+                  <p className="text-xs text-muted-foreground mb-4">
+                    Marque os itens necessários para a realização do evento e ajuste os detalhes de atenção de cada um, se necessário.
+                  </p>
+                  <div className="space-y-4 max-h-[380px] overflow-y-auto pr-2">
+                    {checklistItens.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`flex flex-col gap-3 rounded-lg border p-4 transition-colors ${
+                          item.ativo
+                            ? "border-primary/40 bg-primary/5 dark:bg-primary/[0.02]"
+                            : "border-border bg-card/50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <label className="flex items-start gap-3 cursor-pointer text-sm font-medium text-card-foreground flex-1">
+                            <input
+                              type="checkbox"
+                              checked={item.ativo}
+                              onChange={(e) => {
+                                const val = e.target.checked;
+                                setChecklistItens((prev) =>
+                                  prev.map((c) => (c.id === item.id ? { ...c, ativo: val } : c))
+                                );
+                              }}
+                              className="mt-0.5 h-4 w-4 rounded border-input text-primary focus:ring-primary"
+                            />
+                            <div>
+                              <span>{item.item}</span>
+                              <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                {item.setor}
+                              </span>
+                            </div>
+                          </label>
+                        </div>
+
+                        {item.ativo && (
+                          <div className="pl-7 animate-fade-in">
+                            <label className="block text-xs">
+                              <span className="text-muted-foreground block mb-1">Atenção / Detalhes adicionais</span>
+                              <input
+                                type="text"
+                                value={item.atencao}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setChecklistItens((prev) =>
+                                    prev.map((c) => (c.id === item.id ? { ...c, atencao: val } : c))
+                                  );
+                                }}
+                                placeholder="Observação importante para este item..."
+                                className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:ring-primary focus:border-primary"
+                              />
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {feedback && (
             <div

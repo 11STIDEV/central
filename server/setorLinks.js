@@ -10,7 +10,24 @@ export const SETOR_LINK_KEYS = new Set([
   "primeiros-socorros",
   "direcao",
   "clat",
+  "portal-colaborador",
 ]);
+
+/** URLs internas ou sensíveis — não podem ser cadastradas em portal-colaborador. */
+const PORTAL_COLABORADOR_BLOCKED_PATH = /\/vale-adiantamento/i;
+
+function isAllowedPortalColaboradorUrl(url) {
+  if (!isValidHttpUrl(url)) return false;
+  const lower = url.trim().toLowerCase();
+  if (lower.startsWith("/")) return false;
+  try {
+    const u = new URL(url);
+    if (PORTAL_COLABORADOR_BLOCKED_PATH.test(u.pathname)) return false;
+  } catch {
+    return false;
+  }
+  return true;
+}
 
 export function isValidSetorKey(setor) {
   return typeof setor === "string" && SETOR_LINK_KEYS.has(setor);
@@ -29,7 +46,8 @@ function isValidHttpUrl(url) {
  * @param {unknown} groups
  * @returns {{ title: string, links: { title: string, url: string }[] }[] | null}
  */
-export function normalizarGroups(groups) {
+export function normalizarGroups(groups, opts = {}) {
+  const { portalColaborador = false } = opts;
   if (!Array.isArray(groups)) return null;
   const out = [];
   for (const g of groups) {
@@ -41,7 +59,8 @@ export function normalizarGroups(groups) {
       if (!l || typeof l !== "object") continue;
       const linkTitle = String(l.title ?? "").trim();
       const url = String(l.url ?? "").trim();
-      if (!linkTitle || !isValidHttpUrl(url)) continue;
+      const urlOk = portalColaborador ? isAllowedPortalColaboradorUrl(url) : isValidHttpUrl(url);
+      if (!linkTitle || !urlOk) continue;
       links.push({ title: linkTitle, url });
     }
     if (links.length > 0) {
@@ -77,11 +96,13 @@ export function createSetorLinksStore({ arquivo, ensureDataDir }) {
     const mapa = lerArquivoCompleto();
     const entry = mapa[setor];
     if (!entry || !Array.isArray(entry.groups)) return null;
-    return normalizarGroups(entry.groups);
+    return normalizarGroups(entry.groups, { portalColaborador: setor === "portal-colaborador" });
   }
 
   function salvarGroups(setor, groups) {
-    const normalizado = normalizarGroups(groups);
+    const normalizado = normalizarGroups(groups, {
+      portalColaborador: setor === "portal-colaborador",
+    });
     if (!normalizado) {
       const err = new Error("Informe ao menos um link válido (título e URL http/https).");
       err.status = 400;

@@ -156,6 +156,12 @@ Os links das páginas de setor (ex.: `/setores/secretaria`) vêm do código por 
 
 Modelo: [`server/data/setor-links.example.json`](server/data/setor-links.example.json). Sem entrada no ficheiro para um setor, a Central usa os atalhos embutidos no código.
 
+## Portal do Funcionário — Serviços ao colaborador
+
+Formulários externos em `/portal-do-funcionario` são editáveis por **admin** (Gerenciar atalhos / Organizar ordem), chave `portal-colaborador` no mesmo `setor-links.json`.
+
+O card **Solicitar Vale-Adiantamento** é fixo no código (`/vale-adiantamento`) e **não** pode ser alterado pela UI nem gravado no JSON (a API rejeita URLs com esse caminho).
+
 ## Desenvolvimento local (sem Docker)
 
 - Frontend: `npm run dev` (Vite, proxy `/api` → 3001).

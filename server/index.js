@@ -102,6 +102,21 @@ function getSupabaseAdmin() {
   });
 }
 
+/** Cliente Supabase separado para agendamentos (self-hosted em portalcci.com.br). */
+function lerSupabaseAgendaConfig() {
+  const url = (process.env.SUPABASE_AGENDA_URL || "").trim();
+  const serviceKey = (process.env.SUPABASE_AGENDA_SERVICE_ROLE_KEY || "").trim();
+  return { url, serviceKey };
+}
+
+function getSupabaseAgenda() {
+  const { url, serviceKey } = lerSupabaseAgendaConfig();
+  if (!url || !serviceKey) return null;
+  return createSupabaseClient(url, serviceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+}
+
 function mensagemSupabaseNaoConfigurado() {
   if (process.env.NODE_ENV === "production") {
     return (
@@ -482,17 +497,218 @@ function salvarReservasArquivo(lista) {
   );
 }
 
+function textoResumoReservasParaGoogle(r) {
+  if (r.tipo === "composta") {
+    const p = [];
+    const n = r.chromebookIds ? r.chromebookIds.length : 0;
+    if (n > 0) p.push(`${n} Chromebooks`);
+    
+    const eqList = r.equipamentos || [];
+    for (const eq of eqList) {
+      if (eq && eq.nome) p.push(`${eq.nome} x ${eq.quantity || eq.quantidade}`);
+    }
+    if (r.espacoNome) p.push(r.espacoNome);
+    return p.length ? p.join(" · ") : "Reserva composta";
+  }
+  if (r.tipo === "chromebook") {
+    const n = r.chromebookIds ? r.chromebookIds.length : 0;
+    return `${n} Chromebooks`;
+  }
+  if (r.tipo === "equipamento") {
+    return `${r.equipamentoNome || "Equipamento"} · ${r.equipamentoQuantidade || 0} un.`;
+  }
+  return r.espacoNome || "Espaço";
+}
+
+async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
+  const mainCalendarId = process.env.GOOGLE_CALENDAR_ID;
+  const salasCalendarId = process.env.GOOGLE_CALENDAR_SALAS_ID || mainCalendarId;
+  if (!mainCalendarId) return;
+
+  const auth = getAdminJwtForScopes(["https://www.googleapis.com/auth/calendar"]);
+  if (!auth) {
+    console.warn("[google-calendar-sync] Sem credenciais para sincronizar.");
+    return;
+  }
+
+  const getCalendarId = (res) => {
+    return res && res.destinoCalendar === "agenda_cci" ? mainCalendarId : salasCalendarId;
+  };
+
+  try {
+    await auth.authorize();
+    const calendar = google.calendar({ version: "v3", auth });
+    const oldMap = new Map(oldLista.map((r) => [r.id, r]));
+    const novosIds = new Set(novaLista.map((r) => r.id));
+
+    // 1. Processar criações e atualizações
+    for (const r of novaLista) {
+      const oldR = oldMap.get(r.id);
+      const isCancelado = r.status === "cancelada";
+      const targetCalendarId = getCalendarId(r);
+
+      if (isCancelado) {
+        // Se foi cancelado e tinha evento no Google, remove
+        const eventId = r.googleEventId || oldR?.googleEventId;
+        if (eventId) {
+          const cancelCalendarId = getCalendarId(r) || (oldR ? getCalendarId(oldR) : salasCalendarId);
+          try {
+            await calendar.events.delete({
+              calendarId: cancelCalendarId,
+              eventId,
+            });
+            console.log(`[google-calendar-sync] Evento removido (cancelado): ${r.id} do calendário ${cancelCalendarId}`);
+          } catch (e) {
+            console.error(`[google-calendar-sync] Erro ao remover evento cancelado ${r.id} do calendário ${cancelCalendarId}:`, e.message);
+          }
+          delete r.googleEventId;
+          if (oldR) delete oldR.googleEventId;
+        }
+        continue;
+      }
+
+      // Reserva ativa
+      const eventDetails = {
+        summary: r.titulo ? `${r.titulo} - ${r.solicitanteNome}` : `${textoResumoReservasParaGoogle(r)} - ${r.solicitanteNome}`,
+        description: `Reserva Intranet CCI\n\nSolicitante: ${r.solicitanteNome} (${r.solicitanteEmail})\nRecursos: ${textoResumoReservasParaGoogle(r)}\nObservação: ${r.observacao || "Nenhuma"}\nID da Reserva: ${r.id}`,
+        start: {
+          dateTime: `${r.data}T${r.inicio}:00`,
+          timeZone: AGENDA_CCI_TIMEZONE,
+        },
+        end: {
+          dateTime: `${r.data}T${r.fim}:00`,
+          timeZone: AGENDA_CCI_TIMEZONE,
+        },
+      };
+
+      let eventId = r.googleEventId || oldR?.googleEventId;
+
+      // Se o calendário de destino mudou, apaga do antigo e cria no novo
+      if (eventId && oldR && getCalendarId(oldR) !== targetCalendarId) {
+        const oldTargetCalendarId = getCalendarId(oldR);
+        try {
+          await calendar.events.delete({
+            calendarId: oldTargetCalendarId,
+            eventId,
+          });
+          console.log(`[google-calendar-sync] Evento removido do antigo calendário ${oldTargetCalendarId} para migrar reserva: ${r.id}`);
+        } catch (e) {
+          console.error(`[google-calendar-sync] Erro ao remover evento no antigo calendário ${oldTargetCalendarId} para migrar:`, e.message);
+        }
+        eventId = undefined;
+        delete r.googleEventId;
+      }
+
+      if (eventId) {
+        // Atualizar se algo mudou
+        const mudou =
+          !oldR ||
+          oldR.titulo !== r.titulo ||
+          oldR.data !== r.data ||
+          oldR.inicio !== r.inicio ||
+          oldR.fim !== r.fim ||
+          oldR.observacao !== r.observacao ||
+          oldR.status !== r.status;
+
+        if (mudou) {
+          try {
+            await calendar.events.update({
+              calendarId: targetCalendarId,
+              eventId,
+              requestBody: eventDetails,
+            });
+            r.googleEventId = eventId;
+            console.log(`[google-calendar-sync] Evento atualizado no Google Calendar: ${r.id} no calendário ${targetCalendarId}`);
+          } catch (e) {
+            console.error(`[google-calendar-sync] Erro ao atualizar evento ${r.id} no calendário ${targetCalendarId}:`, e.message);
+            if (e.code === 404 || (e.response && e.response.status === 404)) {
+              // Se o evento foi removido do Google Calendar, tentamos recriá-lo
+              try {
+                const created = await calendar.events.insert({
+                  calendarId: targetCalendarId,
+                  requestBody: eventDetails,
+                });
+                r.googleEventId = created.data.id;
+                console.log(`[google-calendar-sync] Evento recriado (estava ausente no Google): ${r.id} no calendário ${targetCalendarId}`);
+              } catch (insErr) {
+                console.error(`[google-calendar-sync] Erro ao recriar evento para ${r.id} no calendário ${targetCalendarId}:`, insErr.message);
+                delete r.googleEventId;
+              }
+            }
+          }
+        } else {
+          r.googleEventId = eventId; // Mantém
+        }
+      } else {
+        // Criar novo evento
+        try {
+          const created = await calendar.events.insert({
+            calendarId: targetCalendarId,
+            requestBody: eventDetails,
+          });
+          r.googleEventId = created.data.id;
+          console.log(`[google-calendar-sync] Novo evento criado no Google Calendar para reserva: ${r.id} no calendário ${targetCalendarId}`);
+        } catch (e) {
+          console.error(`[google-calendar-sync] Erro ao criar evento para ${r.id} no calendário ${targetCalendarId}:`, e.message);
+        }
+      }
+    }
+
+    // 2. Processar remoções (deletados completamente da lista)
+    for (const oldR of oldLista) {
+      if (!novosIds.has(oldR.id) && oldR.googleEventId) {
+        const targetCalendarId = getCalendarId(oldR);
+        try {
+          await calendar.events.delete({
+            calendarId: targetCalendarId,
+            eventId: oldR.googleEventId,
+          });
+          console.log(`[google-calendar-sync] Evento removido (deletado da lista): ${oldR.id} do calendário ${targetCalendarId}`);
+        } catch (e) {
+          console.error(`[google-calendar-sync] Erro ao remover evento deletado ${oldR.id} do calendário ${targetCalendarId}:`, e.message);
+        }
+      }
+    }
+
+  } catch (err) {
+    console.error("[google-calendar-sync] Falha geral na sincronização com Google Calendar:", err.message);
+  }
+}
+
 async function lerReservasPersistidas() {
   const supabase = getSupabaseAdmin();
-  if (supabase) return lerReservasSupabase();
+  if (supabase) {
+    try {
+      return await lerReservasSupabase();
+    } catch (e) {
+      console.warn("[lerReservasPersistidas] Falha ao ler do Supabase, caindo de volta para arquivo local:", e.message);
+      return lerReservasArquivo();
+    }
+  }
   return lerReservasArquivo();
 }
 
 async function salvarReservasPersistidas(lista) {
+  let oldLista = [];
+  try {
+    oldLista = await lerReservasPersistidas();
+  } catch (e) {
+    console.warn("[salvarReservasPersistidas] Não foi possível ler reservas anteriores para sincronizar:", e.message);
+  }
+
+  // Executa sincronização com o Google Calendar
+  await sincronizarReservasComGoogleCalendar(lista, oldLista);
+
   const supabase = getSupabaseAdmin();
   if (supabase) {
-    await salvarReservasSupabase(lista);
-    return true;
+    try {
+      await salvarReservasSupabase(lista);
+      return true;
+    } catch (e) {
+      console.warn("[salvarReservasPersistidas] Falha ao salvar no Supabase, caindo de volta para arquivo local:", e.message);
+      salvarReservasArquivo(lista);
+      return true;
+    }
   }
   salvarReservasArquivo(lista);
   return true;
@@ -848,7 +1064,9 @@ app.post("/api/chromebooks", async (req, res) => {
         id: d.deviceId,
         serialNumber: d.serialNumber || undefined,
         annotatedAssetId: d.annotatedAssetId || undefined,
+        notes: notes || undefined,
         label:
+          notes ||
           [d.annotatedAssetId, d.serialNumber].filter(Boolean).join(" · ") ||
           d.deviceId,
         model: d.model || undefined,
@@ -930,6 +1148,92 @@ app.post("/api/agenda-cci/reservas/obter", async (req, res) => {
     const msg = mensagemErroGoogle(err);
     console.error("Erro /api/agenda-cci/reservas/obter:", msg);
     return res.status(500).json({ error: msg || "Erro ao ler reservas." });
+  }
+});
+
+/**
+ * POST /api/agenda-cci/google-events
+ * Body: { idToken, timeMin, timeMax }
+ * Retorna os eventos do Google Calendar para o período.
+ */
+app.post("/api/agenda-cci/google-events", async (req, res) => {
+  try {
+    const { idToken, timeMin, timeMax } = req.body || {};
+    try {
+      await verificarIdTokenUsuario(idToken);
+    } catch (e) {
+      return respostaErroIdToken(res, e);
+    }
+
+    const calendarIds = [
+      process.env.GOOGLE_CALENDAR_ID,
+      process.env.GOOGLE_CALENDAR_SALAS_ID,
+    ].filter(Boolean);
+
+    if (calendarIds.length === 0) {
+      console.warn("[google-calendar] Nenhum ID de Google Calendar configurado. Retornando array vazio.");
+      return res.json({ events: [] });
+    }
+
+    const auth = getAdminJwtForScopes(["https://www.googleapis.com/auth/calendar"]);
+    if (!auth) {
+      console.warn("[google-calendar] Não foi possível obter credenciais para Google Calendar (verifique o JSON da service account e GOOGLE_ADMIN_IMPERSONATE).");
+      return res.json({ events: [] });
+    }
+
+    try {
+      await auth.authorize();
+      const calendar = google.calendar({ version: "v3", auth });
+      
+      const fetchPromises = calendarIds.map(async (calId) => {
+        try {
+          const response = await calendar.events.list({
+            calendarId: calId,
+            timeMin: timeMin || new Date().toISOString(),
+            timeMax: timeMax || new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+            singleEvents: true,
+          });
+          const items = response.data.items || [];
+          return items.map((item) => ({ ...item, calendarId: calId }));
+        } catch (calErr) {
+          console.error(`[google-calendar] Erro ao listar eventos do calendar ${calId}:`, mensagemErroGoogle(calErr));
+          return [];
+        }
+      });
+
+      const results = await Promise.all(fetchPromises);
+      const allEvents = results.flat();
+
+      // Deduplicar eventos por id
+      const seenIds = new Set();
+      const uniqueEvents = [];
+      for (const ev of allEvents) {
+        if (!ev.id) continue;
+        if (!seenIds.has(ev.id)) {
+          seenIds.add(ev.id);
+          uniqueEvents.push(ev);
+        }
+      }
+
+      // Ordenar por horário de início
+      const getStartTime = (e) => {
+        if (e.start?.dateTime) return new Date(e.start.dateTime).getTime();
+        if (e.start?.date) return new Date(e.start.date).getTime();
+        return 0;
+      };
+      uniqueEvents.sort((a, b) => getStartTime(a) - getStartTime(b));
+
+      return res.json({ events: uniqueEvents });
+    } catch (apiErr) {
+      const msg = mensagemErroGoogle(apiErr);
+      console.error("[google-calendar] Erro geral ao listar eventos do Google Calendar:", msg, apiErr?.response?.data || apiErr);
+      // Retorna sucesso com array vazio para resiliência no frontend, mas informando que houve falha
+      return res.json({ events: [], error: msg || "Erro de permissão ou API no Google Calendar." });
+    }
+  } catch (err) {
+    const msg = mensagemErroGoogle(err);
+    console.error("Erro /api/agenda-cci/google-events:", msg);
+    return res.status(500).json({ error: msg || "Erro ao obter eventos da Google." });
   }
 });
 
@@ -1571,3 +1875,6 @@ app.listen(PORT, HOST, () => {
     setTimeout(() => aplicarPoliticaChromebooks().catch(console.error), 12_000);
   }
 });
+
+// Trigger reload for reading env variables
+
