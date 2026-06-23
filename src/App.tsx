@@ -27,6 +27,8 @@ import ValeAdiantamento from "./pages/ValeAdiantamento";
 import FinanceiroValesAdiantamento from "./pages/FinanceiroValesAdiantamento";
 import { SetorLinksPage } from "./pages/SetorLinksPage";
 import PortalDoFuncionario from "./pages/PortalDoFuncionario";
+import Avisos from "./pages/Avisos";
+import PublicarAviso from "./pages/PublicarAviso";
 import AdminPapeisManuais from "./pages/AdminPapeisManuais";
 import NotFound from "./pages/NotFound";
 import TrilhaConhecimento from "./pages/TrilhaConhecimento";
@@ -62,6 +64,8 @@ function CentralIntranetApp() {
                   <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/" element={<Index />} />
+              <Route path="/avisos" element={<Avisos />} />
+              <Route path="/avisos/publicar" element={<PublicarAviso />} />
               <Route path="/portal-do-funcionario" element={<PortalDoFuncionario />} />
               <Route
                 path="/admin/papeis-manuais"

@@ -18,6 +18,12 @@ export type Chamado = {
   acompanhamentos: { autor: string; texto: string; data: string }[];
   tarefas: { autor: string; texto: string; data: string }[];
   solucao?: { autor: string; texto: string; data: string };
+  /** Campos extras para solicitação de filmagem de câmera. */
+  solicitaFilmagem?: boolean;
+  filmagemData?: string;
+  filmagemHoraInicio?: string;
+  filmagemHoraFim?: string;
+  filmagemTermosAceitos?: boolean;
 };
 
 /** Papel “de equipe” para filtro de visibilidade (exclui `usuario` genérico). */
@@ -67,6 +73,12 @@ export type CriarChamadoInput = {
   categoria: string;
   prioridade: "baixa" | "media" | "alta";
   descricao: string;
+  /** Campos de solicitação de filmagem (opcionais). */
+  solicitaFilmagem?: boolean;
+  filmagemData?: string;
+  filmagemHoraInicio?: string;
+  filmagemHoraFim?: string;
+  filmagemTermosAceitos?: boolean;
 };
 
 /** Registra um novo chamado no Supabase. */

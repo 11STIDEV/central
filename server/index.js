@@ -25,6 +25,13 @@ import {
   inserirChamado,
   atualizarChamado,
 } from "./chamadosStore.js";
+import {
+  AVISO_TIPOS_VALIDOS,
+  AVISO_SETORES_VALIDOS,
+  listarTodosAvisos,
+  inserirAviso,
+} from "./avisosStore.js";
+import { podeVerAviso, podePublicarNoSetor } from "./avisosAccess.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** Dev local: lê `server/.env`. Produção (Docker/Coolify): variáveis vêm do runtime — o `.env` não vai na imagem. */
@@ -330,6 +337,34 @@ function getJwtOrganizacao() {
 /** Listagem de Chromebooks + disable/reenable na agenda. Exige escopo delegado à service account. */
 function getJwtChromeOs() {
   return getAdminJwtForScopes([SCOPE_ADMIN_CHROME_DEVICE]);
+}
+
+/**
+ * JWT dedicado para envio de e-mail via Gmail API.
+ * IMPORTANTE: o `subject` deve ser o mesmo endereço usado como `userId` na chamada
+ * (EMAIL_REMETENTE), e não GOOGLE_ADMIN_IMPERSONATE.
+ * Quando diferem, o Google retorna "Delegation denied for <conta>".
+ */
+function getJwtParaEmail() {
+  const remetente = (
+    process.env.EMAIL_REMETENTE ||
+    process.env.GOOGLE_ADMIN_IMPERSONATE ||
+    ""
+  ).trim();
+  if (!remetente) return null;
+  const credentials = getServiceAccountCredentials();
+  if (!credentials) return null;
+  try {
+    return new google.auth.JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
+      scopes: ["https://www.googleapis.com/auth/gmail.send"],
+      subject: remetente,
+    });
+  } catch (e) {
+    console.error("[email] Erro ao criar JWT para Gmail:", e.message);
+    return null;
+  }
 }
 
 /**
@@ -696,6 +731,10 @@ async function salvarReservasPersistidas(lista) {
     console.warn("[salvarReservasPersistidas] Não foi possível ler reservas anteriores para sincronizar:", e.message);
   }
 
+  // Detecta reservas novas (IDs que não existiam antes) para envio de e-mail
+  const oldIds = new Set(oldLista.map((r) => r.id));
+  const novasReservas = lista.filter((r) => r.status === "ativa" && !oldIds.has(r.id));
+
   // Executa sincronização com o Google Calendar
   await sincronizarReservasComGoogleCalendar(lista, oldLista);
 
@@ -703,14 +742,25 @@ async function salvarReservasPersistidas(lista) {
   if (supabase) {
     try {
       await salvarReservasSupabase(lista);
-      return true;
     } catch (e) {
       console.warn("[salvarReservasPersistidas] Falha ao salvar no Supabase, caindo de volta para arquivo local:", e.message);
       salvarReservasArquivo(lista);
-      return true;
     }
+  } else {
+    salvarReservasArquivo(lista);
   }
-  salvarReservasArquivo(lista);
+
+  // Dispara e-mails de confirmação de forma assíncrona para cada nova reserva
+  if (novasReservas.length > 0) {
+    setImmediate(() => {
+      for (const reserva of novasReservas) {
+        enviarEmailConfirmacaoReserva(reserva).catch((e) =>
+          console.error("[email-reserva] Erro inesperado:", e.message)
+        );
+      }
+    });
+  }
+
   return true;
 }
 
@@ -1248,6 +1298,285 @@ function respostaErroIdToken(res, e) {
   return res.status(st).json({ error: e.message });
 }
 
+/**
+ * Envia e-mail de notificação de solução de chamado via Gmail API (service account).
+ * Disparado de forma assíncrona — não bloqueia a resposta HTTP.
+ * @param {{ id: string, titulo: string, solicitante: string, solicitanteEmail: string, data: string, solucao: { autor: string, texto: string, data: string } }} chamado
+ */
+async function enviarEmailSolucaoChamado(chamado) {
+  const remetente = (
+    process.env.EMAIL_REMETENTE ||
+    process.env.GOOGLE_ADMIN_IMPERSONATE ||
+    ""
+  ).trim();
+
+  if (!remetente) {
+    console.warn("[email-chamado] EMAIL_REMETENTE não configurado — e-mail de solução não enviado.");
+    return;
+  }
+
+  const auth = getJwtParaEmail();
+  if (!auth) {
+    console.warn("[email-chamado] Sem credenciais para enviar e-mail (EMAIL_REMETENTE ou service account não configurado).");
+    return;
+  }
+
+  try {
+    await auth.authorize();
+  } catch (e) {
+    console.error("[email-chamado] Falha ao autorizar JWT Gmail:", e.message);
+    console.error("[email-chamado] Verifique se o escopo https://www.googleapis.com/auth/gmail.send está na delegação em todo o domínio.");
+    return;
+  }
+
+  const destinatario = chamado.solicitanteEmail;
+  const assunto = `✅ Seu chamado [${chamado.id}] foi resolvido`;
+  const solucaoTexto = chamado.solucao?.texto || "";
+  const solucaoAutor = chamado.solucao?.autor || "Equipe Setape";
+  const _solucaoDataRaw = chamado.solucao?.data || "";
+  let solucaoData = "";
+  if (_solucaoDataRaw) {
+    const _parsed = new Date(_solucaoDataRaw);
+    solucaoData = isNaN(_parsed.getTime())
+      ? _solucaoDataRaw
+      : _parsed.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  }
+
+  const htmlBody = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 32px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .header { background: #1a56db; padding: 24px 32px; }
+    .header h1 { color: #fff; margin: 0; font-size: 20px; }
+    .body { padding: 24px 32px; color: #333; }
+    .info-box { background: #f0f4ff; border-left: 4px solid #1a56db; border-radius: 4px; padding: 14px 18px; margin: 16px 0; }
+    .info-box p { margin: 4px 0; font-size: 14px; }
+    .solution-box { background: #f0fdf4; border-left: 4px solid #16a34a; border-radius: 4px; padding: 14px 18px; margin: 16px 0; white-space: pre-wrap; font-size: 14px; color: #166534; }
+    .footer { padding: 16px 32px; background: #f4f4f4; font-size: 12px; color: #888; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>✅ Chamado Resolvido</h1>
+    </div>
+    <div class="body">
+      <p>Olá, <strong>${chamado.solicitante}</strong>!</p>
+      <p>Seu chamado foi resolvido. Confira os detalhes abaixo:</p>
+      <div class="info-box">
+        <p><strong>📌 Chamado:</strong> ${chamado.titulo}</p>
+        <p><strong>🆔 ID:</strong> ${chamado.id}</p>
+        <p><strong>📅 Aberto em:</strong> ${chamado.data}</p>
+      </div>
+      <p><strong>✅ Solução registrada por ${solucaoAutor}${solucaoData ? ` em ${solucaoData}` : ""}:</strong></p>
+      <div class="solution-box">${solucaoTexto}</div>
+      <p>Se tiver dúvidas, acesse a intranet e consulte o chamado.</p>
+    </div>
+    <div class="footer">Este é um e-mail automático da Intranet CCI. Não responda este e-mail.</div>
+  </div>
+</body>
+</html>`;
+
+  // Monta a mensagem RFC 2822 em Base64url
+  const rawMessage = [
+    `From: Intranet CCI <${remetente}>`,
+    `To: ${destinatario}`,
+    `Reply-To: ${remetente}`,
+    `Subject: =?UTF-8?B?${Buffer.from(assunto).toString("base64")}?=`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/html; charset="UTF-8"',
+    "X-Mailer: Intranet-CCI/1.0",
+    "X-Auto-Submitted: auto-generated",
+    "Precedence: transactional",
+    "",
+    htmlBody,
+  ].join("\r\n");
+
+  const encoded = Buffer.from(rawMessage)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  try {
+    const gmail = google.gmail({ version: "v1", auth });
+    await gmail.users.messages.send({
+      userId: remetente,
+      requestBody: { raw: encoded },
+    });
+    console.log(`[email-chamado] E-mail de solução enviado para ${destinatario} (chamado ${chamado.id}).`);
+  } catch (e) {
+    console.error(`[email-chamado] Falha ao enviar e-mail para ${destinatario}:`, e.message);
+  }
+}
+
+/**
+ * Formata data no padrão ISO (yyyy-MM-dd) para dd/MM/yyyy.
+ * Se já vier formatada, devolve como está.
+ */
+function formatarDataBR(data) {
+  if (!data) return "";
+  const m = String(data).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+  return String(data);
+}
+
+/**
+ * Monta o resumo de recursos da reserva em linhas de HTML para o e-mail.
+ */
+function resumoRecursosHtml(reserva) {
+  const linhas = [];
+
+  // Chromebooks
+  if (Array.isArray(reserva.chromebookIds) && reserva.chromebookIds.length > 0) {
+    const total = reserva.chromebookIds.length;
+    let comHdmi = 0;
+    if (Array.isArray(reserva.chromebooksEntrega)) {
+      comHdmi = reserva.chromebooksEntrega.filter((c) => c.hasHdmi).length;
+    }
+    const semHdmi = total - comHdmi;
+    const partes = [];
+    if (comHdmi > 0) partes.push(`${comHdmi} com HDMI`);
+    if (semHdmi > 0) partes.push(`${semHdmi} sem HDMI`);
+    linhas.push(`<p><strong>💻 Chromebooks:</strong> ${total} unidade(s)${partes.length ? ` (${partes.join(" · ")})` : ""}</p>`);
+  }
+
+  // Equipamentos
+  if (Array.isArray(reserva.equipamentos) && reserva.equipamentos.length > 0) {
+    for (const eq of reserva.equipamentos) {
+      linhas.push(`<p><strong>📦 Equipamento:</strong> ${eq.nome} × ${eq.quantidade}</p>`);
+    }
+  } else if (reserva.equipamentoNome && reserva.equipamentoQuantidade) {
+    linhas.push(`<p><strong>📦 Equipamento:</strong> ${reserva.equipamentoNome} × ${reserva.equipamentoQuantidade}</p>`);
+  }
+
+  // Espaço
+  if (reserva.espacoNome) {
+    linhas.push(`<p><strong>📍 Espaço:</strong> ${reserva.espacoNome}</p>`);
+  }
+
+  if (linhas.length === 0) {
+    linhas.push("<p>Nenhum recurso identificado.</p>");
+  }
+  return linhas.join("\n        ");
+}
+
+/**
+ * Envia e-mail de confirmação de reserva de equipamentos/espaços via Gmail API.
+ * @param {object} reserva — objeto completo da reserva (ReservaAgendaCCI)
+ */
+async function enviarEmailConfirmacaoReserva(reserva) {
+  const destinatario = reserva.solicitanteEmail;
+  if (!destinatario) {
+    console.warn("[email-reserva] Reserva sem solicitanteEmail — e-mail não enviado.", reserva.id);
+    return;
+  }
+
+  const remetente = (
+    process.env.EMAIL_REMETENTE ||
+    process.env.GOOGLE_ADMIN_IMPERSONATE ||
+    ""
+  ).trim();
+
+  if (!remetente) {
+    console.warn("[email-reserva] EMAIL_REMETENTE não configurado — e-mail de reserva não enviado.");
+    return;
+  }
+
+  const auth = getJwtParaEmail();
+  if (!auth) {
+    console.warn("[email-reserva] Sem credenciais para enviar e-mail (EMAIL_REMETENTE ou service account não configurado).");
+    return;
+  }
+
+  try {
+    await auth.authorize();
+  } catch (e) {
+    console.error("[email-reserva] Falha ao autorizar JWT Gmail:", e.message);
+    return;
+  }
+
+  const assunto = `📅 Reserva [${reserva.id}] confirmada`;
+  const dataBR = formatarDataBR(reserva.data);
+  const recursosHtml = resumoRecursosHtml(reserva);
+
+  const htmlBody = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 32px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .header { background: #0e7490; padding: 24px 32px; }
+    .header h1 { color: #fff; margin: 0; font-size: 20px; }
+    .body { padding: 24px 32px; color: #333; }
+    .info-box { background: #f0fdfa; border-left: 4px solid #0e7490; border-radius: 4px; padding: 14px 18px; margin: 16px 0; }
+    .info-box p { margin: 5px 0; font-size: 14px; }
+    .resources-box { background: #fafafa; border: 1px solid #e2e8f0; border-radius: 4px; padding: 14px 18px; margin: 16px 0; }
+    .resources-box p { margin: 5px 0; font-size: 14px; }
+    .footer { padding: 16px 32px; background: #f4f4f4; font-size: 12px; color: #888; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📅 Reserva Confirmada</h1>
+    </div>
+    <div class="body">
+      <p>Olá, <strong>${reserva.solicitanteNome || destinatario}</strong>!</p>
+      <p>Sua reserva foi registrada com sucesso. Confira os detalhes abaixo:</p>
+      <div class="info-box">
+        <p><strong>🏷️ Título:</strong> ${reserva.titulo || "—"}</p>
+        <p><strong>🆔 ID da Reserva:</strong> ${reserva.id}</p>
+        <p><strong>📅 Data:</strong> ${dataBR}</p>
+        <p><strong>🕐 Horário:</strong> ${reserva.inicio} — ${reserva.fim}</p>
+      </div>
+      <p><strong>📋 Recursos reservados:</strong></p>
+      <div class="resources-box">
+        ${recursosHtml}
+      </div>
+      <p>Você pode acompanhar sua reserva em <strong>Minhas Reservas</strong> na intranet.</p>
+    </div>
+    <div class="footer">Este é um e-mail automático da Intranet CCI. Não responda este e-mail.</div>
+  </div>
+</body>
+</html>`;
+
+  const rawMessage = [
+    `From: Intranet CCI <${remetente}>`,
+    `To: ${destinatario}`,
+    `Reply-To: ${remetente}`,
+    `Subject: =?UTF-8?B?${Buffer.from(assunto).toString("base64")}?=`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/html; charset="UTF-8"',
+    "X-Mailer: Intranet-CCI/1.0",
+    "X-Auto-Submitted: auto-generated",
+    "Precedence: transactional",
+    "",
+    htmlBody,
+  ].join("\r\n");
+
+  const encoded = Buffer.from(rawMessage)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  try {
+    const gmail = google.gmail({ version: "v1", auth });
+    await gmail.users.messages.send({
+      userId: remetente,
+      requestBody: { raw: encoded },
+    });
+    console.log(`[email-reserva] E-mail de confirmação enviado para ${destinatario} (reserva ${reserva.id}).`);
+  } catch (e) {
+    console.error(`[email-reserva] Falha ao enviar e-mail para ${destinatario}:`, e.message);
+  }
+}
+
 async function resolverContextoChamados(idToken) {
   const { email } = await verificarIdTokenUsuario(idToken);
   const payload = decodeJwtPayloadUnsafe(idToken);
@@ -1319,11 +1648,17 @@ app.post("/api/chamados/listar", async (req, res) => {
 
 /**
  * POST /api/chamados/criar
- * Body: { idToken, titulo, categoria, prioridade, descricao }
+ * Body: { idToken, titulo, categoria, prioridade, descricao,
+ *         solicitaFilmagem?, filmagemData?, filmagemHoraInicio?,
+ *         filmagemHoraFim?, filmagemTermosAceitos? }
  */
 app.post("/api/chamados/criar", async (req, res) => {
   try {
-    const { idToken, titulo, categoria, prioridade, descricao } = req.body || {};
+    const {
+      idToken, titulo, categoria, prioridade, descricao,
+      solicitaFilmagem, filmagemData, filmagemHoraInicio,
+      filmagemHoraFim, filmagemTermosAceitos,
+    } = req.body || {};
     const ctx = await resolverContextoChamados(idToken);
     const supabase = getSupabaseAdmin();
     if (!supabase) {
@@ -1341,6 +1676,26 @@ app.post("/api/chamados/criar", async (req, res) => {
     const prioridades = ["baixa", "media", "alta"];
     const prioridadeFinal = prioridades.includes(prioridade) ? prioridade : "media";
 
+    // Validações de filmagem
+    const eFilmagem = solicitaFilmagem === true;
+    if (eFilmagem) {
+      if (!filmagemData || !filmagemHoraInicio || !filmagemHoraFim) {
+        return res.status(400).json({
+          error: "Para chamados de filmagem, informe a data, hora de início e hora final.",
+        });
+      }
+      if (filmagemHoraInicio >= filmagemHoraFim) {
+        return res.status(400).json({
+          error: "A hora de início deve ser anterior à hora final da filmagem.",
+        });
+      }
+      if (filmagemTermosAceitos !== true) {
+        return res.status(400).json({
+          error: "É obrigatório aceitar os termos de responsabilidade para chamados de filmagem.",
+        });
+      }
+    }
+
     const chamado = {
       id: `CHM-${Date.now()}`,
       titulo: tituloLimpo,
@@ -1354,6 +1709,12 @@ app.post("/api/chamados/criar", async (req, res) => {
       descricao: descricaoLimpa,
       acompanhamentos: [],
       tarefas: [],
+      // Campos de filmagem
+      solicitaFilmagem: eFilmagem,
+      filmagemData: eFilmagem ? String(filmagemData) : null,
+      filmagemHoraInicio: eFilmagem ? String(filmagemHoraInicio) : null,
+      filmagemHoraFim: eFilmagem ? String(filmagemHoraFim) : null,
+      filmagemTermosAceitos: eFilmagem ? true : false,
     };
 
     await inserirChamado(supabase, chamado);
@@ -1365,6 +1726,8 @@ app.post("/api/chamados/criar", async (req, res) => {
     return res.status(500).json({ error: msg || "Erro ao criar chamado." });
   }
 });
+
+
 
 /**
  * POST /api/chamados/atualizar
@@ -1407,13 +1770,107 @@ app.post("/api/chamados/atualizar", async (req, res) => {
         statusOk === "resolvido" ? sanitizarSolucao(chamado.solucao) : undefined;
     }
 
+    // Detecta se a solução foi adicionada agora (antes não existia, agora existe)
+    const solucaoEraAusente = !existente.solucao;
+    const solucaoFoiAdicionada = Boolean(atualizado.solucao);
+
     await atualizarChamado(supabase, atualizado);
+
+    // Dispara e-mail de solução de forma assíncrona (não bloqueia a resposta)
+    if (solucaoEraAusente && solucaoFoiAdicionada) {
+      setImmediate(() =>
+        enviarEmailSolucaoChamado(atualizado).catch((e) =>
+          console.error("[email-chamado] Erro inesperado:", e.message)
+        )
+      );
+    }
+
     return res.json({ ok: true, chamado: atualizado });
   } catch (e) {
     if (e.status) return respostaErroIdToken(res, e);
     const msg = e instanceof Error ? e.message : String(e);
     console.error("Erro /api/chamados/atualizar:", msg);
     return res.status(500).json({ error: msg || "Erro ao atualizar chamado." });
+  }
+});
+
+/**
+ * POST /api/avisos/listar
+ * Body: { idToken }
+ * Retorna avisos visíveis conforme papéis (OU) do usuário.
+ */
+app.post("/api/avisos/listar", async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    const ctx = await resolverContextoChamados(idToken);
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return res.status(503).json({
+        error: mensagemSupabaseNaoConfigurado(),
+      });
+    }
+    const todos = await listarTodosAvisos(supabase);
+    const avisos = todos.filter((a) => podeVerAviso(ctx.viewer, a));
+    return res.json({ avisos });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("Erro /api/avisos/listar:", msg);
+    return res.status(500).json({ error: msg || "Erro ao listar avisos." });
+  }
+});
+
+/**
+ * POST /api/avisos/criar
+ * Body: { idToken, titulo, conteudo, tipo, setor }
+ */
+app.post("/api/avisos/criar", async (req, res) => {
+  try {
+    const { idToken, titulo, conteudo, tipo, setor } = req.body || {};
+    const ctx = await resolverContextoChamados(idToken);
+    const supabase = getSupabaseAdmin();
+    if (!supabase) {
+      return res.status(503).json({
+        error: mensagemSupabaseNaoConfigurado(),
+      });
+    }
+
+    const tituloLimpo = typeof titulo === "string" ? titulo.trim() : "";
+    const conteudoLimpo = typeof conteudo === "string" ? conteudo.trim() : "";
+    if (!tituloLimpo || !conteudoLimpo) {
+      return res.status(400).json({ error: "titulo e conteudo são obrigatórios." });
+    }
+    const tipoFinal = AVISO_TIPOS_VALIDOS.includes(tipo) ? tipo : "aviso";
+    if (!AVISO_SETORES_VALIDOS.includes(setor)) {
+      return res.status(400).json({ error: "setor inválido." });
+    }
+    if (!podePublicarNoSetor(ctx.papeis, setor)) {
+      return res.status(403).json({
+        error: "Você não tem permissão para publicar avisos neste setor.",
+      });
+    }
+    const setorFinal = setor;
+
+    const agora = new Date();
+    const aviso = {
+      id: `AVS-${agora.getTime()}`,
+      titulo: tituloLimpo,
+      conteudo: conteudoLimpo,
+      tipo: tipoFinal,
+      setor: setorFinal,
+      autor: ctx.nome,
+      autorEmail: ctx.email,
+      data: agora.toLocaleDateString("pt-BR"),
+      createdAt: agora.toISOString(),
+    };
+
+    await inserirAviso(supabase, aviso);
+    return res.json({ ok: true, aviso });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("Erro /api/avisos/criar:", msg);
+    return res.status(500).json({ error: msg || "Erro ao publicar aviso." });
   }
 });
 

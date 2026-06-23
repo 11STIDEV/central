@@ -15,6 +15,12 @@ function rowToChamado(row) {
     acompanhamentos: Array.isArray(row.acompanhamentos) ? row.acompanhamentos : [],
     tarefas: Array.isArray(row.tarefas) ? row.tarefas : [],
     solucao: row.solucao && typeof row.solucao === "object" ? row.solucao : undefined,
+    // Campos de filmagem
+    solicitaFilmagem: row.solicita_filmagem ?? false,
+    filmagemData: row.filmagem_data ?? undefined,
+    filmagemHoraInicio: row.filmagem_hora_inicio ?? undefined,
+    filmagemHoraFim: row.filmagem_hora_fim ?? undefined,
+    filmagemTermosAceitos: row.filmagem_termos_aceitos ?? false,
   };
 }
 
@@ -34,6 +40,12 @@ function chamadoToRow(chamado) {
     acompanhamentos: chamado.acompanhamentos ?? [],
     tarefas: chamado.tarefas ?? [],
     solucao: chamado.solucao ?? null,
+    // Campos de filmagem
+    solicita_filmagem: chamado.solicitaFilmagem ?? false,
+    filmagem_data: chamado.filmagemData ?? null,
+    filmagem_hora_inicio: chamado.filmagemHoraInicio ?? null,
+    filmagem_hora_fim: chamado.filmagemHoraFim ?? null,
+    filmagem_termos_aceitos: chamado.filmagemTermosAceitos ?? false,
     updated_at: now,
   };
 }

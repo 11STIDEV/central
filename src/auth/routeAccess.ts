@@ -10,6 +10,7 @@ const ROTAS_INTRANET_COMUM = new Set([
   "/achados-e-perdidos",
   "/achados-e-perdidos/publico",
   "/",
+  "/avisos",
   "/portal-do-funcionario",
   "/chamados/novo",
   "/chamados/gestao",
@@ -23,6 +24,9 @@ const ROTAS_INTRANET_COMUM = new Set([
 
 const PAPEIS_PROFESSORES: Papel[] = ["professorfac", "professortecs", "professorregular"];
 
+/** Alunos não acessam o módulo de avisos. */
+const ROTAS_BLOQUEADAS_ALUNO = new Set(["/avisos", "/avisos/publicar"]);
+
 /**
  * Rotas extra-comuns: o utilizador precisa de **pelo menos um** dos papéis listados.
  * Rotas não listadas aqui e fora de `ROTAS_INTRANET_COMUM` e fora de `/senhas/*` → acesso negado
@@ -30,6 +34,8 @@ const PAPEIS_PROFESSORES: Papel[] = ["professorfac", "professortecs", "professor
  */
 export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/admin/papeis-manuais": ["admin"],
+  /** Somente administradores podem publicar avisos. */
+  "/avisos/publicar": ["admin"],
   "/ti-interno": ["setape"],
   "/controle-materiais-ti": ["setape"],
   "/controle-materiais-almoxarifado": ["almoxarifado"],
@@ -81,6 +87,8 @@ function podeAcessoRotasSenhas(papeis: Papel[], pathname: string, email?: string
 export function hasRoleAccessToRoute(papeis: Papel[], pathname: string, email?: string | null): boolean {
   const path = normalizarPath(pathname);
   if (papeis.includes("admin")) return true;
+
+  if (papeis.includes("aluno") && ROTAS_BLOQUEADAS_ALUNO.has(path)) return false;
 
   if (isSomenteAluno(papeis)) {
     return (

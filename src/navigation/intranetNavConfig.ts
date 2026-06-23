@@ -13,6 +13,7 @@ import {
   Home,
   MapPin,
   Megaphone,
+  PenLine,
   Phone,
   School,
   Shield,
@@ -74,6 +75,8 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     items: [
       { title: "Central de Informações", url: "/", icon: Home },
       { title: "Portal do Funcionário", url: "/portal-do-funcionario", icon: Users },
+      { title: "Avisos", url: "/avisos", icon: Megaphone },
+      { title: "Publicar aviso", url: "/avisos/publicar", icon: PenLine },
     ],
   },
   {

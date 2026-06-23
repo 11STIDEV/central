@@ -1,11 +1,14 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Ticket, MapPin, ArrowUpRight } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
 import { canAccessRoute } from "@/auth/routeAccess";
+import { AvisosTimeline } from "@/components/avisos/AvisosTimeline";
 import { IntranetHero } from "@/components/IntranetHero";
 import { PageHeroEyebrow } from "@/components/PageHero";
+import { obterUltimosAvisos, type Aviso } from "@/lib/avisos";
+import { podeAcessarAvisos } from "@/lib/avisosAccess";
 
 /** Atalhos exibidos na home (ordem fixa; demais rotas ficam só no menu lateral). */
 const highlightedShortcuts = [
@@ -31,10 +34,11 @@ function primeiroNome(nome: string | undefined): string {
 }
 
 export default function Index() {
-  const { usuario } = useAuth();
+  const { usuario, googleIdToken } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const papeis = usuario?.papeis ?? [];
+  const [ultimosAvisos, setUltimosAvisos] = useState<Aviso[]>([]);
 
   useEffect(() => {
     const state = location.state as { accessDeniedHint?: string } | null;
@@ -43,6 +47,24 @@ export default function Index() {
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location.pathname, location.state, navigate]);
+
+  const exibeAvisos = podeAcessarAvisos(papeis);
+
+  useEffect(() => {
+    if (!exibeAvisos || !googleIdToken || location.pathname !== "/") return;
+    let cancelado = false;
+    void obterUltimosAvisos(googleIdToken, 3)
+      .then((lista) => {
+        if (!cancelado) setUltimosAvisos(lista);
+      })
+      .catch(() => {
+        if (!cancelado) setUltimosAvisos([]);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [exibeAvisos, googleIdToken, location.pathname, location.key]);
+
   const visiveis = highlightedShortcuts.filter((a) =>
     canAccessRoute(papeis, a.url, usuario?.email),
   );
@@ -119,6 +141,8 @@ export default function Index() {
             </div>
           </>
         )}
+
+        {exibeAvisos ? <AvisosTimeline avisos={ultimosAvisos} titulo="Últimos avisos" /> : null}
 
         <p className="mt-12 text-center font-mono text-[10px] uppercase tracking-[0.35em] text-muted-foreground/70">
           Uso interno · Grupo CCI
