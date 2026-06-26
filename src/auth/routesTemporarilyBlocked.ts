@@ -8,6 +8,9 @@ export const ROTAS_TEMPORARIAMENTE_BLOQUEADAS = new Set([
   "/documentos",
   "/controle-materiais-almoxarifado",
   "/financeiro/vales-adiantamento",
+  "/reserva-espacos-equipamentos",
+  "/minhas-reservas",
+  "/trilha-conhecimento",
 ]);
 
 function normalizarPath(pathname: string): string {
