@@ -2210,6 +2210,74 @@ app.post("/api/painel/create-user", async (req, res) => {
   }
 });
 
+app.post("/api/webhooks/ischolar", async (req, res) => {
+  try {
+    const payload = {
+      timestamp: new Date().toISOString(),
+      headers: req.headers,
+      query: req.query,
+      body: req.body,
+    };
+    
+    console.log("[webhook-ischolar] Recebido webhook do iScholar:", JSON.stringify(req.body));
+    
+    const logPath = path.join(__dirname, "webhook-logs.json");
+    let logs = [];
+    if (fs.existsSync(logPath)) {
+      try {
+        const raw = fs.readFileSync(logPath, "utf8");
+        logs = JSON.parse(raw);
+        if (!Array.isArray(logs)) logs = [];
+      } catch (e) {
+        logs = [];
+      }
+    }
+    
+    logs.unshift(payload);
+    if (logs.length > 100) {
+      logs = logs.slice(0, 100);
+    }
+    
+    fs.writeFileSync(logPath, JSON.stringify(logs, null, 2), "utf8");
+    
+    return res.json({ ok: true, received: true });
+  } catch (e) {
+    console.error("[webhook-ischolar] Erro ao processar webhook:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/ischolar/webhook-logs", async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    await verificarIdTokenUsuario(idToken);
+    
+    const logPath = path.join(__dirname, "webhook-logs.json");
+    if (!fs.existsSync(logPath)) {
+      return res.json([]);
+    }
+    
+    const raw = fs.readFileSync(logPath, "utf8");
+    const logs = JSON.parse(raw);
+    return res.json(Array.isArray(logs) ? logs : []);
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/ischolar/webhook-logs/clear", async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    await verificarIdTokenUsuario(idToken);
+    
+    const logPath = path.join(__dirname, "webhook-logs.json");
+    fs.writeFileSync(logPath, JSON.stringify([], null, 2), "utf8");
+    return res.json({ ok: true });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
 app.get("/api/health", (_, res) => {
   const supabase = statusSupabaseEnv();
   res.json({

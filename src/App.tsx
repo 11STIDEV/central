@@ -16,6 +16,7 @@ import AbrirChamado from "./pages/AbrirChamado";
 import GestaoChamados from "./pages/GestaoChamados";
 import BaseConhecimento from "./pages/BaseConhecimento";
 import AreaTI from "./pages/AreaTI";
+import IScholar from "./pages/IScholar";
 import Documentos from "./pages/Documentos";
 import AgendaCCI from "./pages/AgendaCCI";
 import AgendaCCIAdmin from "./pages/AgendaCCIAdmin";
@@ -94,6 +95,14 @@ function CentralIntranetApp() {
                 element={
                   <RequireRouteAccess>
                     <AreaTI />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/ti/ischolar"
+                element={
+                  <RequireRouteAccess>
+                    <IScholar />
                   </RequireRouteAccess>
                 }
               />

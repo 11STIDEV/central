@@ -197,6 +197,7 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
         items: [
           { title: "Área Interna TI", url: "/ti-interno", icon: ShieldCheck },
           { title: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes },
+          { title: "iScholar", url: "/ti/ischolar", icon: GraduationCap },
         ],
       },
       {

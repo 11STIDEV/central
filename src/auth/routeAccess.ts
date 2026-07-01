@@ -38,6 +38,7 @@ export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/avisos/publicar": ["admin"],
   "/ti-interno": ["setape"],
   "/controle-materiais-ti": ["setape"],
+  "/ti/ischolar": ["setape"],
   "/controle-materiais-almoxarifado": ["almoxarifado"],
   "/financeiro/vales-adiantamento": ["dp", "financeiro"],
   "/vale-adiantamento": ["dp", "financeiro"],
