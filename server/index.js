@@ -312,6 +312,9 @@ const SCOPE_ADMIN_USER_READONLY =
   "https://www.googleapis.com/auth/admin.directory.user.readonly";
 const SCOPE_ADMIN_CHROME_DEVICE =
   "https://www.googleapis.com/auth/admin.directory.device.chromeos";
+const SCOPE_ADMIN_USER_WRITE =
+  "https://www.googleapis.com/auth/admin.directory.user";
+
 
 function getAdminJwtForScopes(scopes) {
   const credentials = getServiceAccountCredentials();
@@ -333,6 +336,12 @@ function getAdminJwtForScopes(scopes) {
 function getJwtOrganizacao() {
   return getAdminJwtForScopes([SCOPE_ADMIN_USER_READONLY]);
 }
+
+/** Para criação de contas de alunos no Google Workspace. */
+function getJwtWorkspaceUserWrite() {
+  return getAdminJwtForScopes([SCOPE_ADMIN_USER_WRITE]);
+}
+
 
 /** Listagem de Chromebooks + disable/reenable na agenda. Exige escopo delegado à service account. */
 function getJwtChromeOs() {
@@ -2210,17 +2219,293 @@ app.post("/api/painel/create-user", async (req, res) => {
   }
 });
 
+function obterCredenciaisIscholar() {
+  const codigoEscola = (
+    process.env.ISCHOLAR_CODIGO_ESCOLA ||
+    process.env.VITE_ISCHOLAR_CODIGO_ESCOLA ||
+    ""
+  ).trim();
+  const token = (
+    process.env.ISCHOLAR_TOKEN ||
+    process.env.VITE_ISCHOLAR_TOKEN ||
+    ""
+  ).trim();
+  return { codigoEscola, token };
+}
+
+async function obterMatriculaIscholar(idAluno) {
+  const { codigoEscola, token } = obterCredenciaisIscholar();
+  if (!codigoEscola || !token) {
+    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+  }
+  
+  const url = `https://api.ischolar.app/matricula/listar?id_aluno=${idAluno}`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "X-Codigo-Escola": codigoEscola,
+      "X-Autorizacao": token,
+      "Content-Type": "application/json"
+    }
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Erro na API do iScholar (${response.status}): ${errText}`);
+  }
+
+  const resJson = await response.json();
+  if (resJson.status !== "sucesso") {
+    throw new Error(`Erro no iScholar: ${resJson.mensagem || "Resposta sem sucesso"}`);
+  }
+
+  return resJson;
+}
+
+async function alterarEmailAlunoIscholar(idAluno, email) {
+  const { codigoEscola, token } = obterCredenciaisIscholar();
+  if (!codigoEscola || !token) {
+    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+  }
+
+  const url = "https://api.ischolar.app/aluno/altera";
+  const body = {
+    id_aluno: parseInt(idAluno, 10),
+    informacoes_basicas: {
+      email: email
+    }
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "X-Codigo-Escola": codigoEscola,
+      "X-Autorizacao": token,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Erro ao atualizar e-mail no iScholar (${response.status}): ${errText}`);
+  }
+
+  const resJson = await response.json();
+  return resJson;
+}
+
+function gerarEmailLocalPart(nomeAluno) {
+  if (!nomeAluno) return "estudante";
+  
+  const normalized = nomeAluno
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, ""); 
+  
+  const clean = normalized.replace(/[^a-z0-9\s]/g, "");
+  
+  const partes = clean.split(/\s+/).filter(Boolean);
+  if (partes.length === 0) return "estudante";
+  if (partes.length === 1) return partes[0];
+  
+  return `${partes[0]}.${partes[partes.length - 1]}`;
+}
+
+async function criarUsuarioGoogleWorkspace(email, nome, sobrenome, senhaProvisoria) {
+  const auth = getJwtWorkspaceUserWrite();
+  if (!auth) {
+    throw new Error("Não foi possível inicializar a autenticação do Google Workspace para escrita.");
+  }
+
+  await auth.authorize();
+  const directory = google.admin({ version: "directory_v1", auth });
+
+  const response = await directory.users.insert({
+    requestBody: {
+      primaryEmail: email,
+      name: {
+        givenName: nome || "Estudante",
+        familyName: sobrenome || "CCI",
+      },
+      password: senhaProvisoria,
+      changePasswordAtNextLogin: true,
+    }
+  });
+
+  return response.data;
+}
+
 app.post("/api/webhooks/ischolar", async (req, res) => {
+  const payload = {
+    timestamp: new Date().toISOString(),
+    headers: req.headers,
+    query: req.query,
+    body: req.body,
+    automacao: {
+      status: "sem_acao",
+      motivo: "Evento não processado por este webhook"
+    }
+  };
+
   try {
-    const payload = {
-      timestamp: new Date().toISOString(),
-      headers: req.headers,
-      query: req.query,
-      body: req.body,
+    const evento = req.body?.evento || req.body?.event;
+    console.log(`[webhook-ischolar] Recebido webhook do iScholar: ${evento}`);
+
+    if (evento === "secretaria.matriculas.novo") {
+      const dadosDepois = req.body?.data?.depois;
+      const idAluno = dadosDepois?.id_aluno;
+      const idMatricula = dadosDepois?.id_matricula;
+      const idTurma = dadosDepois?.id_turma;
+
+      if (!idAluno) {
+        payload.automacao = {
+          status: "erro",
+          motivo: "id_aluno ausente no payload"
+        };
+      } else {
+        console.log(`[webhook-ischolar] Buscando matrícula do aluno ${idAluno}...`);
+        const infoMatricula = await obterMatriculaIscholar(idAluno);
+        const matricula = infoMatricula.dados?.[0];
+
+        if (!matricula) {
+          payload.automacao = {
+            status: "erro",
+            motivo: `Nenhuma matrícula encontrada para o aluno ID ${idAluno}`
+          };
+        } else {
+          const nomeAluno = matricula.nome_aluno || "";
+          const periodo = matricula.periodo || "";
+          const nomeTurma = matricula.nome_turma || "";
+
+          // Normalizar para comparações seguras
+          const normalizarTexto = (txt) => {
+            return (txt || "")
+              .toUpperCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "");
+          };
+
+          const tPeriodo = normalizarTexto(periodo);
+          const tTurma = normalizarTexto(nomeTurma);
+          const tCurso = normalizarTexto(matricula.nome_curso || "");
+          const tCursoRef = normalizarTexto(matricula.curso || "");
+          const tModalidade = normalizarTexto(matricula.modalidade || "");
+
+          // 1. Filtrar Períodos Letivos
+          const periodosIgnorados = ["P1NEGOCCIA", "PEC 2026", "ESTAGIO OBRIGT FACS"];
+          const deveIgnorarPeriodo = periodosIgnorados.some(p => tPeriodo.includes(p));
+
+          // 2. Filtrar Turmas Extracurriculares
+          const termosTurmasIgnorados = [
+            "EXTRACURRICULAR",
+            "PERIODO INTEGRAL",
+            "PI.",
+            "OFICINA DA ESCRITA",
+            "SERVICO DE CUIDADOR",
+            "PASSEIOS E EVENTOS",
+            "PEC TEATRO",
+            "PROGRAMA ELETIVO"
+          ];
+          const deveIgnorarTurma = termosTurmasIgnorados.some(termo => tTurma.includes(termo));
+
+          if (deveIgnorarPeriodo) {
+            console.log(`[webhook-ischolar] Descartado aluno ${nomeAluno}: Período letivo ${periodo} ignorado.`);
+            payload.automacao = {
+              status: "ignorado",
+              motivo: `Período letivo "${periodo}" está na lista de exclusão.`,
+              aluno: nomeAluno
+            };
+          } else if (deveIgnorarTurma) {
+            console.log(`[webhook-ischolar] Descartado aluno ${nomeAluno}: Turma ${nomeTurma} ignorada.`);
+            payload.automacao = {
+              status: "ignorado",
+              motivo: `Turma "${nomeTurma}" está na lista de exclusão (extracurricular/especial).`,
+              aluno: nomeAluno
+            };
+          } else {
+            // Determinar o domínio correto do e-mail
+            let dominioEmail = "";
+            if (tTurma.includes("TECNICO") || tCurso.includes("TECNICO") || tCursoRef.includes("TECNICO")) {
+              dominioEmail = "@tecscci.com.br";
+            } else if (
+              tTurma.includes("FACULDADE") ||
+              tCurso.includes("FACULDADE") ||
+              tCursoRef.includes("FACULDADE") ||
+              tModalidade.includes("GRADUACAO") ||
+              tModalidade.includes("POS-GRADUACAO") ||
+              tModalidade.includes("FACULDADE")
+            ) {
+              dominioEmail = "@faculdadecci.com.br";
+            } else {
+              dominioEmail = "@portalcci.com.br";
+            }
+
+            // Gerar local part (username) do e-mail
+            const localPart = gerarEmailLocalPart(nomeAluno);
+            const emailCandidato = `${localPart}${dominioEmail}`;
+            const senhaProvisoria = `Cci@${idAluno}`;
+
+            console.log(`[webhook-ischolar] Criando e-mail ${emailCandidato} no Google Workspace...`);
+            
+            // Separar nome e sobrenome
+            const partesNome = nomeAluno.trim().split(/\s+/);
+            const givenName = partesNome[0] || "Estudante";
+            const familyName = partesNome.slice(1).join(" ") || "CCI";
+
+            let contaCriada = false;
+            let erroWorkspace = null;
+
+            try {
+              await criarUsuarioGoogleWorkspace(emailCandidato, givenName, familyName, senhaProvisoria);
+              contaCriada = true;
+              console.log(`[webhook-ischolar] Conta de e-mail ${emailCandidato} criada com sucesso.`);
+            } catch (errGoogle) {
+              erroWorkspace = errGoogle.message;
+              console.error(`[webhook-ischolar] Erro ao criar conta no Google Workspace:`, erroWorkspace);
+              
+              // Se for um erro de duplicidade (409), podemos considerar que a conta já existe e atualizar no iScholar mesmo assim
+              if (errGoogle.code === 409 || erroWorkspace.includes("Entity already exists") || erroWorkspace.includes("already exists")) {
+                console.log(`[webhook-ischolar] A conta ${emailCandidato} já existe no Google Workspace. Prosseguindo com o vínculo.`);
+                contaCriada = true;
+              }
+            }
+
+            if (contaCriada) {
+              console.log(`[webhook-ischolar] Vinculando e-mail ${emailCandidato} no iScholar para o aluno ID ${idAluno}...`);
+              await alterarEmailAlunoIscholar(idAluno, emailCandidato);
+              
+              payload.automacao = {
+                status: "sucesso",
+                motivo: "Conta de e-mail criada/verificada e cadastrada no iScholar",
+                email: emailCandidato,
+                aluno: nomeAluno,
+                turma: nomeTurma,
+                periodo: periodo,
+                warning: erroWorkspace ? `Conta já existia no Workspace: ${erroWorkspace}` : null
+              };
+            } else {
+              payload.automacao = {
+                status: "erro",
+                motivo: `Falha ao criar conta no Google Workspace: ${erroWorkspace}`,
+                email: emailCandidato,
+                aluno: nomeAluno
+              };
+            }
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("[webhook-ischolar] Erro geral ao processar automação:", e);
+    payload.automacao = {
+      status: "erro",
+      motivo: `Erro geral no processamento: ${e.message}`
     };
-    
-    console.log("[webhook-ischolar] Recebido webhook do iScholar:", JSON.stringify(req.body));
-    
+  }
+
+  // Salvar o log no arquivo local (mantendo os últimos 100 logs)
+  try {
     const logPath = path.join(__dirname, "webhook-logs.json");
     let logs = [];
     if (fs.existsSync(logPath)) {
@@ -2239,12 +2524,11 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
     }
     
     fs.writeFileSync(logPath, JSON.stringify(logs, null, 2), "utf8");
-    
-    return res.json({ ok: true, received: true });
-  } catch (e) {
-    console.error("[webhook-ischolar] Erro ao processar webhook:", e);
-    return res.status(500).json({ error: e.message });
+  } catch (errLog) {
+    console.error("[webhook-ischolar] Erro ao escrever no webhook-logs.json:", errLog);
   }
+
+  return res.json({ ok: true, received: true });
 });
 
 app.post("/api/ti/ischolar/webhook-logs", async (req, res) => {
