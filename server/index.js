@@ -2295,8 +2295,8 @@ async function alterarEmailAlunoIscholar(idAluno, email) {
   return resJson;
 }
 
-function gerarEmailLocalPart(nomeAluno) {
-  if (!nomeAluno) return "estudante";
+function gerarEmailLocalPart(nomeAluno, numeroRe) {
+  if (!nomeAluno) return `estudante${numeroRe || ""}`;
   
   const normalized = nomeAluno
     .toLowerCase()
@@ -2306,11 +2306,11 @@ function gerarEmailLocalPart(nomeAluno) {
   const clean = normalized.replace(/[^a-z0-9\s]/g, "");
   
   const partes = clean.split(/\s+/).filter(Boolean);
-  if (partes.length === 0) return "estudante";
-  if (partes.length === 1) return partes[0];
+  const primeiroNome = partes[0] || "estudante";
   
-  return `${partes[0]}.${partes[partes.length - 1]}`;
+  return `${primeiroNome}${numeroRe || ""}`;
 }
+
 
 async function criarUsuarioGoogleWorkspace(email, nome, sobrenome, senhaProvisoria) {
   const auth = getJwtWorkspaceUserWrite();
@@ -2441,10 +2441,14 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
               dominioEmail = "@portalcci.com.br";
             }
 
+            // Obter número de matrícula (numero_re)
+            const numeroRe = (matricula.numero_re || dadosDepois?.numero_re || "").trim();
+
             // Gerar local part (username) do e-mail
-            const localPart = gerarEmailLocalPart(nomeAluno);
+            const localPart = gerarEmailLocalPart(nomeAluno, numeroRe);
             const emailCandidato = `${localPart}${dominioEmail}`;
-            const senhaProvisoria = `Cci@${idAluno}`;
+            const senhaProvisoria = "cci@2026";
+
 
             console.log(`[webhook-ischolar] Criando e-mail ${emailCandidato} no Google Workspace...`);
             
