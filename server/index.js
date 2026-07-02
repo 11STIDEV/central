@@ -2496,7 +2496,7 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
               dominioEmail = "@faculdadecci.com.br";
               orgUnitPath = "/Alunos FACULDADE";
             } else {
-              dominioEmail = "@portalcci.com.br";
+              dominioEmail = "@cciweb.com.br";
               orgUnitPath = "/Alunos REGULAR";
             }
 
