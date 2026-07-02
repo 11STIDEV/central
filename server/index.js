@@ -2294,6 +2294,9 @@ async function alterarEmailAlunoIscholar(idAluno, email) {
   }
 
   const resJson = await response.json();
+  if (resJson.status !== "sucesso") {
+    throw new Error(`Rejeitado pelo iScholar: ${resJson.mensagem || JSON.stringify(resJson)}`);
+  }
   return resJson;
 }
 
