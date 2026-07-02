@@ -701,11 +701,21 @@ export default function IScholar() {
                             POST
                           </span>
                           <div>
-                            <div className="font-semibold text-card-foreground flex items-center gap-2">
-                              {evType}
+                            <div className="font-semibold text-card-foreground flex items-center gap-2 flex-wrap">
+                              <span>{evType}</span>
                               {alunoNome && (
-                                <span className="text-xs text-muted-foreground font-normal">
+                                <span className="text-xs text-muted-foreground font-normal font-sans">
                                   ({alunoNome} {matriculaId ? `- Matrícula: ${matriculaId}` : ""})
+                                </span>
+                              )}
+                              {log.automacao && (
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  log.automacao.status === "sucesso" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400" :
+                                  log.automacao.status === "ignorado" ? "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400" :
+                                  log.automacao.status === "erro" ? "bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-400" :
+                                  "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400"
+                                }`}>
+                                  Automação: {log.automacao.status.toUpperCase()}
                                 </span>
                               )}
                             </div>
@@ -726,6 +736,26 @@ export default function IScholar() {
                       {/* Corpo Expandível */}
                       {isExpanded && (
                         <div className="border-t border-border bg-muted/30 p-6 space-y-4 animate-fade-in">
+                          {/* Resumo da Automação */}
+                          {log.automacao && (
+                            <div className={`p-4 rounded-lg border ${
+                              log.automacao.status === "sucesso" ? "bg-emerald-50/50 border-emerald-200 dark:bg-emerald-950/10 dark:border-emerald-900" :
+                              log.automacao.status === "ignorado" ? "bg-amber-50/50 border-amber-200 dark:bg-amber-950/10 dark:border-amber-900" :
+                              log.automacao.status === "erro" ? "bg-rose-50/50 border-rose-200 dark:bg-rose-950/10 dark:border-rose-900" :
+                              "bg-muted/50 border-border"
+                            }`}>
+                              <div className="text-xs font-bold text-card-foreground mb-1">Resultado do Processamento:</div>
+                              <div className="text-xs text-muted-foreground">
+                                <strong>Detalhe:</strong> {log.automacao.motivo}
+                              </div>
+                              {log.automacao.email && (
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  <strong>E-mail Candidato:</strong> <code className="bg-background px-1 py-0.5 rounded font-mono border text-primary">{log.automacao.email}</code>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           {/* Query params se existirem */}
                           {log.query && Object.keys(log.query).length > 0 && (
                             <div>
