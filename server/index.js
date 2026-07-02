@@ -2272,9 +2272,11 @@ async function alterarEmailAlunoIscholar(idAluno, email) {
   const body = {
     id_aluno: parseInt(idAluno, 10),
     informacoes_basicas: {
+      id_aluno: parseInt(idAluno, 10),
       email: email
     }
   };
+
 
   const response = await fetch(url, {
     method: "POST",
@@ -2312,7 +2314,7 @@ function gerarEmailLocalPart(nomeAluno, numeroRe) {
 }
 
 
-async function criarUsuarioGoogleWorkspace(email, nome, sobrenome, senhaProvisoria) {
+async function criarUsuarioGoogleWorkspace(email, nome, sobrenome, senhaProvisoria, orgUnitPath) {
   const auth = getJwtWorkspaceUserWrite();
   if (!auth) {
     throw new Error("Não foi possível inicializar a autenticação do Google Workspace para escrita.");
@@ -2330,11 +2332,13 @@ async function criarUsuarioGoogleWorkspace(email, nome, sobrenome, senhaProvisor
       },
       password: senhaProvisoria,
       changePasswordAtNextLogin: true,
+      orgUnitPath: orgUnitPath,
     }
   });
 
   return response.data;
 }
+
 
 app.post("/api/webhooks/ischolar", async (req, res) => {
   const payload = {
@@ -2424,10 +2428,12 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
               aluno: nomeAluno
             };
           } else {
-            // Determinar o domínio correto do e-mail
+            // Determinar o domínio correto do e-mail e unidade organizacional (OU)
             let dominioEmail = "";
+            let orgUnitPath = "";
             if (tTurma.includes("TECNICO") || tCurso.includes("TECNICO") || tCursoRef.includes("TECNICO")) {
               dominioEmail = "@tecscci.com.br";
+              orgUnitPath = "/Alunos TECSCCI";
             } else if (
               tTurma.includes("FACULDADE") ||
               tCurso.includes("FACULDADE") ||
@@ -2437,9 +2443,12 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
               tModalidade.includes("FACULDADE")
             ) {
               dominioEmail = "@faculdadecci.com.br";
+              orgUnitPath = "/Alunos FACULDADE";
             } else {
               dominioEmail = "@portalcci.com.br";
+              orgUnitPath = "/Alunos REGULAR";
             }
+
 
             // Obter número de matrícula (numero_re)
             const numeroRe = (matricula.numero_re || dadosDepois?.numero_re || "").trim();
@@ -2461,7 +2470,7 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
             let erroWorkspace = null;
 
             try {
-              await criarUsuarioGoogleWorkspace(emailCandidato, givenName, familyName, senhaProvisoria);
+              await criarUsuarioGoogleWorkspace(emailCandidato, givenName, familyName, senhaProvisoria, orgUnitPath);
               contaCriada = true;
               console.log(`[webhook-ischolar] Conta de e-mail ${emailCandidato} criada com sucesso.`);
             } catch (errGoogle) {
