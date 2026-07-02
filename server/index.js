@@ -2491,7 +2491,14 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
               tCursoRef.includes("FACULDADE") ||
               tModalidade.includes("GRADUACAO") ||
               tModalidade.includes("POS-GRADUACAO") ||
-              tModalidade.includes("FACULDADE")
+              tModalidade.includes("FACULDADE") ||
+              tTurma.includes("SUPERIOR") ||
+              tCurso.includes("SUPERIOR") ||
+              tCursoRef.includes("SUPERIOR") ||
+              tModalidade.includes("SUPERIOR") ||
+              tTurma.includes("FACS") ||
+              tCurso.includes("FACS") ||
+              tCursoRef.includes("FACS")
             ) {
               dominioEmail = "@faculdadecci.com.br";
               orgUnitPath = "/Alunos FACULDADE";
@@ -2660,7 +2667,14 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
       tCursoRef.includes("FACULDADE") ||
       tModalidade.includes("GRADUACAO") ||
       tModalidade.includes("POS-GRADUACAO") ||
-      tModalidade.includes("FACULDADE")
+      tModalidade.includes("FACULDADE") ||
+      tTurma.includes("SUPERIOR") ||
+      tCurso.includes("SUPERIOR") ||
+      tCursoRef.includes("SUPERIOR") ||
+      tModalidade.includes("SUPERIOR") ||
+      tTurma.includes("FACS") ||
+      tCurso.includes("FACS") ||
+      tCursoRef.includes("FACS")
     ) {
       dominioEmail = "@faculdadecci.com.br";
       orgUnitPath = "/Alunos FACULDADE";
