@@ -2613,6 +2613,111 @@ app.post("/api/ti/ischolar/webhook-logs", async (req, res) => {
   }
 });
 
+app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
+  try {
+    const { idToken, id_aluno } = req.body || {};
+    await verificarIdTokenUsuario(idToken);
+
+    if (!id_aluno) {
+      return res.status(400).json({ error: "Parâmetro id_aluno é obrigatório." });
+    }
+
+    console.log(`[diagnostico-aluno] Iniciando criação de e-mail manual para aluno ID ${id_aluno}...`);
+
+    // 1. Obter matrícula do iScholar para decidir o domínio do e-mail
+    const infoMatricula = await obterMatriculaIscholar(id_aluno);
+    const matricula = infoMatricula.dados?.[0];
+
+    if (!matricula) {
+      return res.status(404).json({ error: `Nenhuma matrícula encontrada no iScholar para o aluno ID ${id_aluno}.` });
+    }
+
+    const nomeAluno = matricula.nome_aluno || "";
+    const nomeTurma = matricula.nome_turma || "";
+
+    // Normalizar para comparações seguras
+    const normalizarTexto = (txt) => {
+      return (txt || "")
+        .toUpperCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+    };
+
+    const tTurma = normalizarTexto(nomeTurma);
+    const tCurso = normalizarTexto(matricula.nome_curso || "");
+    const tCursoRef = normalizarTexto(matricula.curso || "");
+    const tModalidade = normalizarTexto(matricula.modalidade || "");
+
+    // Determinar o domínio correto do e-mail e unidade organizacional (OU)
+    let dominioEmail = "";
+    let orgUnitPath = "";
+    if (tTurma.includes("TECNICO") || tCurso.includes("TECNICO") || tCursoRef.includes("TECNICO")) {
+      dominioEmail = "@tecscci.com.br";
+      orgUnitPath = "/Alunos TECSCCI";
+    } else if (
+      tTurma.includes("FACULDADE") ||
+      tCurso.includes("FACULDADE") ||
+      tCursoRef.includes("FACULDADE") ||
+      tModalidade.includes("GRADUACAO") ||
+      tModalidade.includes("POS-GRADUACAO") ||
+      tModalidade.includes("FACULDADE")
+    ) {
+      dominioEmail = "@faculdadecci.com.br";
+      orgUnitPath = "/Alunos FACULDADE";
+    } else {
+      dominioEmail = "@cciweb.com.br";
+      orgUnitPath = "/Alunos REGULAR";
+    }
+
+    // Obter número de matrícula (numero_re)
+    const numeroRe = (matricula.numero_re || "").trim();
+
+    // Gerar local part (username) do e-mail
+    const localPart = gerarEmailLocalPart(nomeAluno, numeroRe);
+    const emailCandidato = `${localPart}${dominioEmail}`;
+    const senhaProvisoria = "cci@2026";
+
+    // Separar nome e sobrenome
+    const partesNome = nomeAluno.trim().split(/\s+/);
+    const givenName = partesNome[0] || "Estudante";
+    const familyName = partesNome.slice(1).join(" ") || "CCI";
+
+    let contaCriada = false;
+    let erroWorkspace = null;
+
+    try {
+      await criarUsuarioGoogleWorkspace(emailCandidato, givenName, familyName, senhaProvisoria, orgUnitPath);
+      contaCriada = true;
+      console.log(`[diagnostico-aluno] Conta de e-mail ${emailCandidato} criada com sucesso para o aluno ID ${id_aluno}.`);
+    } catch (errGoogle) {
+      erroWorkspace = errGoogle.message;
+      if (errGoogle.code === 409 || erroWorkspace.includes("Entity already exists") || erroWorkspace.includes("already exists")) {
+        console.log(`[diagnostico-aluno] A conta ${emailCandidato} já existe no Google Workspace. Prosseguindo com o vínculo.`);
+        contaCriada = true;
+      } else {
+        throw errGoogle;
+      }
+    }
+
+    if (contaCriada) {
+      console.log(`[diagnostico-aluno] Vinculando e-mail ${emailCandidato} no iScholar para o aluno ID ${id_aluno}...`);
+      await alterarEmailAlunoIscholar(id_aluno, emailCandidato);
+      return res.json({
+        ok: true,
+        email: emailCandidato,
+        aluno: nomeAluno,
+        warning: erroWorkspace ? "A conta de e-mail já existia no Google Workspace, mas foi vinculada com sucesso no iScholar." : null
+      });
+    } else {
+      throw new Error("Não foi possível criar a conta no Workspace.");
+    }
+  } catch (e) {
+    console.error("[diagnostico-aluno] Erro ao criar e-mail manual:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+
 app.post("/api/ti/ischolar/webhook-logs/clear", async (req, res) => {
   try {
     const { idToken } = req.body || {};

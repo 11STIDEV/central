@@ -81,6 +81,7 @@ export default function IScholar() {
   const [onlyWithoutEmail, setOnlyWithoutEmail] = useState(true);
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const [mensagemAPI, setMensagemAPI] = useState<string>("");
+  const [loadingAlunosMap, setLoadingAlunosMap] = useState<Record<string, boolean>>({});
 
   // State para webhooks
   const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
@@ -184,6 +185,62 @@ export default function IScholar() {
       }
     } catch (e) {
       console.error("Erro ao limpar logs de webhook:", e);
+    }
+  };
+
+  const handleCriarEmailAluno = async (aluno: AlunoAgrupado) => {
+    if (!googleIdToken) {
+      alert("Você precisa estar autenticado para realizar esta ação.");
+      return;
+    }
+
+    if (
+      !window.confirm(
+        `Deseja criar a conta do Google Workspace e salvar o e-mail para o aluno ${aluno.nome_aluno}?`
+      )
+    ) {
+      return;
+    }
+
+    const idAluno = aluno.id_aluno;
+    setLoadingAlunosMap((prev) => ({ ...prev, [idAluno]: true }));
+
+    try {
+      const response = await fetch("/api/ti/ischolar/aluno/criar-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken: googleIdToken,
+          id_aluno: idAluno,
+        }),
+      });
+
+      const resJson = await response.json();
+
+      if (response.ok) {
+        alert(
+          resJson.warning
+            ? `Aviso: ${resJson.warning}\n\nE-mail vinculado no iScholar: ${resJson.email}`
+            : `Sucesso! Conta criada e cadastrada no iScholar:\n${resJson.email}\nSenha inicial padrão: cci@2026`
+        );
+
+        // Atualizar o estado local dos alunos para marcar que esse aluno agora tem o e-mail
+        setAlunos((prev) =>
+          prev.map((a) => {
+            if (a.id_aluno === idAluno) {
+              return { ...a, email_aluno: resJson.email };
+            }
+            return a;
+          })
+        );
+      } else {
+        alert(`Erro ao criar e-mail: ${resJson.error || "Erro desconhecido"}`);
+      }
+    } catch (e: any) {
+      console.error("Erro ao criar e-mail manual:", e);
+      alert(`Erro de rede ou servidor: ${e.message}`);
+    } finally {
+      setLoadingAlunosMap((prev) => ({ ...prev, [idAluno]: false }));
     }
   };
 
@@ -590,9 +647,23 @@ export default function IScholar() {
                                 <td className="px-6 py-4 text-muted-foreground text-xs">{aluno.periodos.join(", ")}</td>
                                 <td className="px-6 py-4">
                                   {semEmail ? (
-                                    <span className="inline-flex items-center gap-1 text-destructive font-medium bg-destructive/10 px-2 py-0.5 rounded text-xs">
-                                      <AlertCircle className="h-3 w-3" /> Sem E-mail
-                                    </span>
+                                    <div className="flex flex-col gap-2 items-start">
+                                      <span className="inline-flex items-center gap-1 text-destructive font-medium bg-destructive/10 px-2 py-0.5 rounded text-xs">
+                                        <AlertCircle className="h-3 w-3" /> Sem E-mail
+                                      </span>
+                                      <button
+                                        onClick={() => handleCriarEmailAluno(aluno)}
+                                        disabled={loadingAlunosMap[aluno.id_aluno]}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow disabled:opacity-50"
+                                      >
+                                        {loadingAlunosMap[aluno.id_aluno] ? (
+                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                        ) : (
+                                          <Mail className="h-3 w-3" />
+                                        )}
+                                        Criar e-mail
+                                      </button>
+                                    </div>
                                   ) : (
                                     <div className="flex items-center gap-1.5 text-card-foreground font-medium">
                                       <Mail className="h-3.5 w-3.5 text-muted-foreground" />
