@@ -2308,6 +2308,13 @@ async function alterarEmailAlunoIscholar(idAluno, email) {
   informacoesBasicas.email = email;
   informacoesBasicas.id_aluno = parseInt(idAluno, 10);
 
+  // Garantir valor válido para cor_raca (se vazio ou inválido, define como "PARDA")
+  const corRacaAtual = (informacoesBasicas.cor_raca || "").trim().toUpperCase();
+  const validos = ["AMARELA", "BRANCA", "INDÍGENA", "INDIGENA", "PARDA", "NEGRA", "NÃO DECLARADA", "NAO DECLARADA"];
+  if (!corRacaAtual || !validos.includes(corRacaAtual)) {
+    informacoesBasicas.cor_raca = "PARDA";
+  }
+
   const url = "https://api.ischolar.app/aluno/altera";
   const body = {
     id_aluno: parseInt(idAluno, 10),
