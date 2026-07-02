@@ -2262,21 +2262,69 @@ async function obterMatriculaIscholar(idAluno) {
   return resJson;
 }
 
+async function obterDadosCompletosAlunoIscholar(idAluno) {
+  const { codigoEscola, token } = obterCredenciaisIscholar();
+  if (!codigoEscola || !token) {
+    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+  }
+  
+  const url = `https://api.ischolar.app/aluno/busca?id_aluno=${idAluno}`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      "X-Codigo-Escola": codigoEscola,
+      "X-Autorizacao": token,
+      "Content-Type": "application/json"
+    }
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Erro ao buscar dados do aluno (${response.status}): ${errText}`);
+  }
+
+  const resJson = await response.json();
+  if (resJson.status !== "sucesso") {
+    throw new Error(`Erro ao buscar aluno no iScholar: ${resJson.mensagem || "Resposta sem sucesso"}`);
+  }
+
+  return resJson.dados;
+}
+
 async function alterarEmailAlunoIscholar(idAluno, email) {
   const { codigoEscola, token } = obterCredenciaisIscholar();
   if (!codigoEscola || !token) {
     throw new Error("Credenciais do iScholar não configuradas no servidor.");
   }
 
+  // 1. Obter dados completos atuais do aluno para não quebrar validações
+  const dadosAluno = await obterDadosCompletosAlunoIscholar(idAluno);
+  if (!dadosAluno || !dadosAluno.informacoes_basicas) {
+    throw new Error("Dados básicos do aluno não encontrados para atualização.");
+  }
+
+  // 2. Mesclar o e-mail no objeto informacoes_basicas existente
+  const informacoesBasicas = { ...dadosAluno.informacoes_basicas };
+  informacoesBasicas.email = email;
+  informacoesBasicas.id_aluno = parseInt(idAluno, 10);
+
   const url = "https://api.ischolar.app/aluno/altera";
   const body = {
     id_aluno: parseInt(idAluno, 10),
-    informacoes_basicas: {
-      id_aluno: parseInt(idAluno, 10),
-      email: email
-    }
+    informacoes_basicas: informacoesBasicas
   };
 
+  if (dadosAluno.id_externo !== undefined) {
+    body.id_externo = dadosAluno.id_externo;
+  }
+
+  if (dadosAluno.ultima_atualizacao) {
+    body.versao = {
+      checa: 0,
+      nova: Math.floor(Date.now() / 1000),
+      anterior: parseInt(dadosAluno.ultima_atualizacao, 10) || Math.floor(Date.now() / 1000)
+    };
+  }
 
   const response = await fetch(url, {
     method: "POST",
