@@ -56,6 +56,7 @@ interface AlunoAgrupado {
   responsavel: string;
   email_responsavel: string | null;
   contatos_telefonicos?: ContatosTelefonicos;
+  numero_re?: string;
 }
 
 interface WebhookLog {
@@ -82,6 +83,11 @@ export default function IScholar() {
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const [mensagemAPI, setMensagemAPI] = useState<string>("");
   const [loadingAlunosMap, setLoadingAlunosMap] = useState<Record<string, boolean>>({});
+
+  // States para seleção em lote
+  const [selectedAlunoIds, setSelectedAlunoIds] = useState<Set<string>>(new Set());
+  const [isBulkLoading, setIsBulkLoading] = useState(false);
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
 
   // State para webhooks
   const [webhookLogs, setWebhookLogs] = useState<WebhookLog[]>([]);
@@ -212,6 +218,9 @@ export default function IScholar() {
         body: JSON.stringify({
           idToken: googleIdToken,
           id_aluno: idAluno,
+          nome_aluno: aluno.nome_aluno,
+          turma: aluno.turmas?.[0] || "",
+          numero_re: aluno.numero_re || "",
         }),
       });
 
@@ -241,6 +250,89 @@ export default function IScholar() {
       alert(`Erro de rede ou servidor: ${e.message}`);
     } finally {
       setLoadingAlunosMap((prev) => ({ ...prev, [idAluno]: false }));
+    }
+  };
+
+  const handleCriarEmailsSelecionados = async () => {
+    if (!googleIdToken) {
+      alert("Você precisa estar autenticado para realizar esta ação.");
+      return;
+    }
+
+    const ids = Array.from(selectedAlunoIds);
+    if (ids.length === 0) return;
+
+    if (!window.confirm(`Deseja criar e-mails para os ${ids.length} alunos selecionados?`)) {
+      return;
+    }
+
+    setIsBulkLoading(true);
+    setBulkProgress({ current: 0, total: ids.length });
+
+    let sucessos = 0;
+    let falhas = 0;
+    const errosDetalhes: string[] = [];
+
+    const alunoMap = new Map(alunosAgrupados.map(a => [a.id_aluno, a]));
+
+    for (let i = 0; i < ids.length; i++) {
+      const idAluno = ids[i];
+      setBulkProgress({ current: i + 1, total: ids.length });
+      
+      const alunoObj = alunoMap.get(idAluno);
+      if (!alunoObj) continue;
+
+      setLoadingAlunosMap((prev) => ({ ...prev, [idAluno]: true }));
+
+      try {
+        const response = await fetch("/api/ti/ischolar/aluno/criar-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken: googleIdToken,
+            id_aluno: idAluno,
+            nome_aluno: alunoObj.nome_aluno,
+            turma: alunoObj.turmas?.[0] || "",
+            numero_re: alunoObj.numero_re || "",
+          }),
+        });
+
+        const resJson = await response.json();
+
+        if (response.ok) {
+          sucessos++;
+          setAlunos((prev) =>
+            prev.map((a) => {
+              if (a.id_aluno === idAluno) {
+                return { ...a, email_aluno: resJson.email };
+              }
+              return a;
+            })
+          );
+        } else {
+          falhas++;
+          errosDetalhes.push(`${alunoObj.nome_aluno}: ${resJson.error || "Erro desconhecido"}`);
+        }
+      } catch (e: any) {
+        falhas++;
+        errosDetalhes.push(`${alunoObj.nome_aluno}: Erro de rede (${e.message})`);
+      } finally {
+        setLoadingAlunosMap((prev) => ({ ...prev, [idAluno]: false }));
+      }
+    }
+
+    setIsBulkLoading(false);
+    setBulkProgress(null);
+    setSelectedAlunoIds(new Set());
+
+    if (falhas === 0) {
+      alert(`Processo em lote concluído com sucesso! ${sucessos} e-mails criados.`);
+    } else {
+      alert(
+        `Processo em lote concluído.\nSucessos: ${sucessos}\nFalhas: ${falhas}\n\nDetalhes dos erros:\n` +
+          errosDetalhes.slice(0, 10).join("\n") +
+          (errosDetalhes.length > 10 ? `\n... e mais ${errosDetalhes.length - 10} erros.` : "")
+      );
     }
   };
 
@@ -386,6 +478,7 @@ export default function IScholar() {
       contatosMesclados.filiacao1 = limparTelefones(contatosMesclados.filiacao1);
       contatosMesclados.filiacao2 = limparTelefones(contatosMesclados.filiacao2);
 
+      const numeroRe = registros.find((m) => m.numero_re && m.numero_re.trim() !== "")?.numero_re || registros[0].numero_re;
       return {
         id_aluno: id,
         id_matricula: idsMatricula,
@@ -396,6 +489,7 @@ export default function IScholar() {
         responsavel: registros[0].responsavel,
         email_responsavel,
         contatos_telefonicos: contatosMesclados,
+        numero_re: numeroRe || "",
       };
     });
   };
@@ -612,11 +706,69 @@ export default function IScholar() {
                     </button>
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+                  <div className="space-y-4">
+                    {/* Ações em Lote */}
+                    {!loading && !error && selectedAlunoIds.size > 0 && (
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4 rounded-xl border border-primary/30 bg-primary/5 p-4 shadow-sm animate-in fade-in slide-in-from-top-2">
+                        <div className="text-sm font-semibold text-card-foreground">
+                          {selectedAlunoIds.size} {selectedAlunoIds.size === 1 ? "aluno selecionado" : "alunos selecionados"} para criação de e-mail
+                        </div>
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                          <button
+                            onClick={handleCriarEmailsSelecionados}
+                            disabled={isBulkLoading}
+                            className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow disabled:opacity-50 w-full sm:w-auto"
+                          >
+                            {isBulkLoading ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Criando ({bulkProgress?.current}/{bulkProgress?.total})...
+                              </>
+                            ) : (
+                              <>
+                                <Mail className="h-4 w-4" />
+                                Criar E-mails em Massa
+                              </>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => setSelectedAlunoIds(new Set())}
+                            disabled={isBulkLoading}
+                            className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium text-card-foreground hover:bg-muted w-full sm:w-auto"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
                     <div className="overflow-x-auto">
                       <table className="w-full border-collapse">
                         <thead>
                           <tr className="border-b border-border bg-muted/50 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            <th className="px-4 py-4 text-left w-10">
+                              <input
+                                type="checkbox"
+                                checked={
+                                  alunosFiltradosExibicao.filter(a => !a.email_aluno || a.email_aluno.trim() === "").length > 0 &&
+                                  alunosFiltradosExibicao.filter(a => !a.email_aluno || a.email_aluno.trim() === "").every((a) =>
+                                    selectedAlunoIds.has(a.id_aluno)
+                                  )
+                                }
+                                onChange={(e) => {
+                                  const semEmail = alunosFiltradosExibicao.filter(a => !a.email_aluno || a.email_aluno.trim() === "");
+                                  if (e.target.checked) {
+                                    setSelectedAlunoIds(
+                                      new Set(semEmail.map((a) => a.id_aluno))
+                                    );
+                                  } else {
+                                    setSelectedAlunoIds(new Set());
+                                  }
+                                }}
+                                className="h-4 w-4 rounded border-input text-primary focus:ring-ring/20 cursor-pointer"
+                              />
+                            </th>
                             <th className="px-6 py-4 text-left">Aluno</th>
                             <th className="px-6 py-4 text-left">Turmas</th>
                             <th className="px-6 py-4 text-left">Períodos Letivos</th>
@@ -631,6 +783,25 @@ export default function IScholar() {
                             const telefones = getTelefoneExibicao(aluno);
                             return (
                               <tr key={aluno.id_aluno || i} className="transition-colors hover:bg-muted/30">
+                                <td className="px-4 py-4 w-10">
+                                  {semEmail && (
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedAlunoIds.has(aluno.id_aluno)}
+                                      onChange={(e) => {
+                                        const next = new Set(selectedAlunoIds);
+                                        if (e.target.checked) {
+                                          next.add(aluno.id_aluno);
+                                        } else {
+                                          next.delete(aluno.id_aluno);
+                                        }
+                                        setSelectedAlunoIds(next);
+                                      }}
+                                      disabled={isBulkLoading}
+                                      className="h-4 w-4 rounded border-input text-primary focus:ring-ring/20 cursor-pointer"
+                                    />
+                                  )}
+                                </td>
                                 <td className="px-6 py-4">
                                   <div className="font-semibold text-card-foreground">{aluno.nome_aluno}</div>
                                   <div className="text-xs text-muted-foreground font-mono">Matrículas: {aluno.id_matricula}</div>
@@ -696,6 +867,7 @@ export default function IScholar() {
                         </tbody>
                       </table>
                     </div>
+                  </div>
                   </div>
                 )}
               </>

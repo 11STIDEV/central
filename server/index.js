@@ -2629,7 +2629,7 @@ app.post("/api/ti/ischolar/webhook-logs", async (req, res) => {
 
 app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
   try {
-    const { idToken, id_aluno } = req.body || {};
+    const { idToken, id_aluno, nome_aluno, turma, numero_re } = req.body || {};
     await verificarIdTokenUsuario(idToken);
 
     if (!id_aluno) {
@@ -2638,16 +2638,44 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
 
     console.log(`[diagnostico-aluno] Iniciando criação de e-mail manual para aluno ID ${id_aluno}...`);
 
-    // 1. Obter matrícula do iScholar para decidir o domínio do e-mail
-    const infoMatricula = await obterMatriculaIscholar(id_aluno);
-    const matricula = infoMatricula.dados?.[0];
+    let matricula = null;
+    let nomeAluno = nome_aluno || "";
+    let nomeTurma = turma || "";
+    let numeroRe = numero_re || "";
 
-    if (!matricula) {
-      return res.status(404).json({ error: `Nenhuma matrícula encontrada no iScholar para o aluno ID ${id_aluno}.` });
+    // 1. Tentar obter matrícula do iScholar para decidir o domínio do e-mail
+    try {
+      const idBuscaMatricula = String(id_aluno).startsWith("m-") ? String(id_aluno).substring(2) : id_aluno;
+      const infoMatricula = await obterMatriculaIscholar(idBuscaMatricula);
+      matricula = infoMatricula.dados?.[0];
+    } catch (errMatricula) {
+      console.warn(`[diagnostico-aluno] Não foi possível obter matrícula para o aluno ID ${id_aluno}:`, errMatricula.message);
     }
 
-    const nomeAluno = matricula.nome_aluno || "";
-    const nomeTurma = matricula.nome_turma || "";
+    if (matricula) {
+      nomeAluno = matricula.nome_aluno || nomeAluno;
+      nomeTurma = matricula.nome_turma || nomeTurma;
+      numeroRe = matricula.numero_re || numeroRe;
+    } else {
+      // 2. Fallback: Buscar dados básicos do aluno caso não haja matrícula ativa (ex: transferido)
+      try {
+        const idBuscaAluno = String(id_aluno).startsWith("m-") ? String(id_aluno).substring(2) : id_aluno;
+        const dadosAluno = await obterDadosCompletosAlunoIscholar(idBuscaAluno);
+        if (dadosAluno && dadosAluno.informacoes_basicas) {
+          const ib = dadosAluno.informacoes_basicas;
+          nomeAluno = nomeAluno || `${ib.nome || ""} ${ib.sobrenome || ""}`.trim();
+          numeroRe = numeroRe || ib.registro_escolar || ib.numero_re || "";
+        }
+      } catch (errAluno) {
+        console.warn(`[diagnostico-aluno] Falha ao obter dados básicos do aluno ID ${id_aluno}:`, errAluno.message);
+      }
+    }
+
+    if (!nomeAluno) {
+      return res.status(400).json({ 
+        error: `Não foi possível encontrar dados no iScholar para o aluno ID ${id_aluno} e nenhuma informação foi fornecida.` 
+      });
+    }
 
     // Normalizar para comparações seguras
     const normalizarTexto = (txt) => {
@@ -2658,9 +2686,9 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
     };
 
     const tTurma = normalizarTexto(nomeTurma);
-    const tCurso = normalizarTexto(matricula.nome_curso || "");
-    const tCursoRef = normalizarTexto(matricula.curso || "");
-    const tModalidade = normalizarTexto(matricula.modalidade || "");
+    const tCurso = matricula ? normalizarTexto(matricula.nome_curso || "") : "";
+    const tCursoRef = matricula ? normalizarTexto(matricula.curso || "") : "";
+    const tModalidade = matricula ? normalizarTexto(matricula.modalidade || "") : "";
 
     // Determinar o domínio correto do e-mail e unidade organizacional (OU)
     let dominioEmail = "";
@@ -2691,10 +2719,10 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
     }
 
     // Obter número de matrícula (numero_re)
-    const numeroRe = (matricula.numero_re || "").trim();
+    const cleanNumeroRe = (numeroRe || "").trim();
 
     // Gerar local part (username) do e-mail
-    const localPart = gerarEmailLocalPart(nomeAluno, numeroRe);
+    const localPart = gerarEmailLocalPart(nomeAluno, cleanNumeroRe);
     const emailCandidato = `${localPart}${dominioEmail}`;
     const senhaProvisoria = "cci@2026";
 
@@ -2722,7 +2750,8 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
 
     if (contaCriada) {
       console.log(`[diagnostico-aluno] Vinculando e-mail ${emailCandidato} no iScholar para o aluno ID ${id_aluno}...`);
-      await alterarEmailAlunoIscholar(id_aluno, emailCandidato);
+      const idVinculo = String(id_aluno).startsWith("m-") ? String(id_aluno).substring(2) : id_aluno;
+      await alterarEmailAlunoIscholar(idVinculo, emailCandidato);
       return res.json({
         ok: true,
         email: emailCandidato,
