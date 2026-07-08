@@ -319,22 +319,22 @@ export default function AgendaCCI() {
           <PageHeroEyebrow />
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/15">
-                <CalendarDays className="h-5 w-5 text-amber-300" strokeWidth={1.75} />
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-background/40 ring-1 ring-border">
+                <CalendarDays className="h-5 w-5 text-amber-500 dark:text-amber-300" strokeWidth={1.75} />
               </div>
               <div>
-                <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl lg:text-4xl">Agenda CCI</h1>
-                <p className="mt-2 max-w-2xl text-slate-300">
+                <h1 className="text-2xl font-bold tracking-tight text-hero-foreground md:text-3xl lg:text-4xl">Agenda CCI</h1>
+                <p className="mt-2 max-w-2xl text-hero-muted">
                   Visão da semana: eventos da Google Agenda e reservas ativas de Chromebooks, equipamentos e espaços.
                   Para criar ou cancelar uma reserva, use{" "}
-                  <strong className="text-white font-semibold">Reserva de Equipamentos e Espaços</strong>.
+                  <strong className="text-hero-foreground font-semibold">Reserva de Equipamentos e Espaços</strong>.
                 </p>
               </div>
             </div>
             <Button
               asChild
               variant="secondary"
-              className="shrink-0 border border-white/20 bg-white/10 text-white hover:bg-white/20"
+              className="shrink-0 border border-hero-border bg-background/50 text-hero-foreground hover:bg-background"
             >
               <Link to="/reserva-espacos-equipamentos">Ir para reservas</Link>
             </Button>

@@ -2890,7 +2890,19 @@ app.post("/api/kanban/usuarios", async (req, res) => {
     }
     const supabase = getSupabaseAdmin();
     if (!supabase) return res.status(503).json({ error: mensagemSupabaseNaoConfigurado() });
-    const usuarios = await listarUsuariosPorSetor(supabase, setor);
+
+    let usuarios = [];
+    if (setor === "dp-financeiro") {
+      const [uDP, uFin] = await Promise.all([
+        listarUsuariosPorSetor(supabase, "dp"),
+        listarUsuariosPorSetor(supabase, "financeiro"),
+      ]);
+      const mapa = new Map();
+      [...uDP, ...uFin].forEach(u => mapa.set(u.email, u));
+      usuarios = Array.from(mapa.values());
+    } else {
+      usuarios = await listarUsuariosPorSetor(supabase, setor);
+    }
     return res.json({ usuarios });
   } catch (e) {
     if (e.status) return respostaErroIdToken(res, e);

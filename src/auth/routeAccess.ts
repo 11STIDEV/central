@@ -18,7 +18,6 @@ const ROTAS_INTRANET_COMUM = new Set([
   "/agenda-cci",
   "/minhas-reservas",
   "/reserva-espacos-equipamentos",
-  "/base-conhecimento",
   "/documentos",
   "/ramais",
 ]);

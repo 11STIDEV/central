@@ -34,9 +34,8 @@ export const KANBAN_SETORES = [
   { slug: "biblioteca",         papel: "biblioteca"        as Papel, gerentePapel: "gerente_biblioteca"        as Papel, nome: "Biblioteca"       },
   { slug: "direcao",            papel: "direcao"           as Papel, gerentePapel: "gerente_direcao"           as Papel, nome: "Direção"          },
   { slug: "disciplinar",        papel: "disciplinar"       as Papel, gerentePapel: "gerente_disciplinar"       as Papel, nome: "Disciplinar"      },
-  { slug: "dp",                 papel: "dp"                as Papel, gerentePapel: "gerente_dp"                as Papel, nome: "DP"              },
+  { slug: "dp-financeiro",      papel: "dp"                as Papel, gerentePapel: "gerente_dp"                as Papel, nome: "DP e Financeiro"  },
   { slug: "faculdade",          papel: "faculdade"         as Papel, gerentePapel: "gerente_faculdade"         as Papel, nome: "Faculdade"        },
-  { slug: "financeiro",         papel: "financeiro"        as Papel, gerentePapel: "gerente_financeiro"        as Papel, nome: "Financeiro"       },
   { slug: "publicidade",        papel: "publicidade"       as Papel, gerentePapel: "gerente_publicidade"       as Papel, nome: "Publicidade"      },
   { slug: "secretaria",         papel: "secretaria"        as Papel, gerentePapel: "gerente_secretaria"        as Papel, nome: "Secretaria"       },
   { slug: "servicosgerais",     papel: "servicosgerais"    as Papel, gerentePapel: "gerente_servicosgerais"    as Papel, nome: "Serviços Gerais"  },
@@ -53,6 +52,9 @@ export function getSetorBySlug(slug: string) {
 }
 
 export function isGerenteDoSetor(papeis: Papel[], slug: string): boolean {
+  if (slug === "dp-financeiro") {
+    return papeis.includes("gerente_dp") || papeis.includes("gerente_financeiro");
+  }
   const s = getSetorBySlug(slug);
   if (!s) return false;
   return papeis.includes(s.gerentePapel);
@@ -60,6 +62,14 @@ export function isGerenteDoSetor(papeis: Papel[], slug: string): boolean {
 
 export function podeAcessarKanban(papeis: Papel[], slug: string): boolean {
   if (papeis.includes("admin")) return true;
+  if (slug === "dp-financeiro") {
+    return (
+      papeis.includes("dp") ||
+      papeis.includes("financeiro") ||
+      papeis.includes("gerente_dp") ||
+      papeis.includes("gerente_financeiro")
+    );
+  }
   const s = getSetorBySlug(slug);
   if (!s) return false;
   return papeis.includes(s.papel) || papeis.includes(s.gerentePapel);
@@ -68,9 +78,9 @@ export function podeAcessarKanban(papeis: Papel[], slug: string): boolean {
 // ─── Helpers de UI ───────────────────────────────────────────────────────────
 
 export const COLUNAS: { key: KanbanColuna; label: string; cor: string; bgGlass: string; borderColor: string }[] = [
-  { key: "todo",  label: "A Fazer",       cor: "text-blue-400",   bgGlass: "bg-blue-950/30",   borderColor: "border-blue-500/30" },
-  { key: "doing", label: "Em Andamento",  cor: "text-amber-400",  bgGlass: "bg-amber-950/30",  borderColor: "border-amber-500/30" },
-  { key: "done",  label: "Concluído",     cor: "text-emerald-400",bgGlass: "bg-emerald-950/30",borderColor: "border-emerald-500/30" },
+  { key: "todo",  label: "A Fazer",       cor: "text-blue-600 dark:text-blue-400",   bgGlass: "bg-blue-50/40 dark:bg-blue-950/30",   borderColor: "border-blue-200 dark:border-blue-500/30" },
+  { key: "doing", label: "Em Andamento",  cor: "text-amber-600 dark:text-amber-400",  bgGlass: "bg-amber-50/40 dark:bg-amber-950/30",  borderColor: "border-amber-200 dark:border-amber-500/30" },
+  { key: "done",  label: "Concluído",     cor: "text-emerald-600 dark:text-emerald-400",bgGlass: "bg-emerald-50/40 dark:bg-emerald-950/30",borderColor: "border-emerald-200 dark:border-emerald-500/30" },
 ];
 
 export const PRIORIDADE_INFO: Record<KanbanPrioridade, { label: string; className: string }> = {

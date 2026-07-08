@@ -14,7 +14,6 @@ import Login from "./pages/Login";
 import Ramais from "./pages/Ramais";
 import AbrirChamado from "./pages/AbrirChamado";
 import GestaoChamados from "./pages/GestaoChamados";
-import BaseConhecimento from "./pages/BaseConhecimento";
 import AreaTI from "./pages/AreaTI";
 import IScholar from "./pages/IScholar";
 import Documentos from "./pages/Documentos";
@@ -91,7 +90,6 @@ function CentralIntranetApp() {
               <Route path="/chamados/novo" element={<AbrirChamado />} />
               <Route path="/chamados/gestao" element={<GestaoChamados />} />
               <Route path="/kanban/:setor" element={<KanbanSetor />} />
-              <Route path="/base-conhecimento" element={<BaseConhecimento />} />
               <Route
                 path="/ti-interno"
                 element={

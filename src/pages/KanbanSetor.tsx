@@ -30,7 +30,7 @@ function Avatar({ nome, size = "sm" }: { nome: string | null | undefined; size?:
   const cls = size === "sm" ? "w-7 h-7 text-xs" : "w-9 h-9 text-sm";
   return (
     <div
-      className={`${cls} rounded-full bg-gradient-to-br from-violet-500 to-purple-700 flex items-center justify-center font-bold text-white shrink-0 shadow`}
+      className={`${cls} rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center font-bold text-white shrink-0 shadow-sm`}
     >
       {iniciais(nome)}
     </div>
@@ -47,7 +47,7 @@ function PrioridadeBadge({ p }: { p: KanbanPrioridade }) {
     baixa: <Flag className="w-2.5 h-2.5" />,
   };
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-semibold ${info.className}`}>
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full border text-[10px] font-semibold ${info.className}`}>
       {icons[p]}{info.label}
     </span>
   );
@@ -74,33 +74,33 @@ function KanbanCardItem({ card, isGerente, emailUsuario, dragging, onDragStart, 
       draggable={podeArrastar}
       onDragStart={podeArrastar ? onDragStart : undefined}
       onDragEnd={podeArrastar ? onDragEnd : undefined}
-      className={`group relative rounded-xl border bg-white/5 backdrop-blur-sm p-3.5 transition-all duration-200
-        ${podeArrastar ? "cursor-grab active:cursor-grabbing hover:bg-white/10 hover:shadow-lg hover:-translate-y-0.5" : "cursor-default"}
-        ${dragging ? "opacity-40 scale-95 rotate-1 shadow-2xl" : "shadow-sm"}
-        border-white/10 hover:border-white/20`}
+      className={`group relative rounded-xl border bg-card p-3.5 transition-all duration-200
+        ${podeArrastar ? "cursor-grab active:cursor-grabbing hover:bg-accent/30 dark:hover:bg-white/[0.04] hover:shadow-md hover:-translate-y-0.5" : "cursor-default"}
+        ${dragging ? "opacity-30 scale-95 rotate-1 shadow-lg" : "shadow-sm"}
+        border-border/60`}
     >
       {/* Grip */}
       {podeArrastar && (
-        <div className="absolute right-2 top-3 opacity-0 group-hover:opacity-40 transition-opacity">
-          <GripVertical className="w-4 h-4 text-white" />
+        <div className="absolute right-2.5 top-3 opacity-0 group-hover:opacity-40 transition-opacity">
+          <GripVertical className="w-4 h-4 text-foreground" />
         </div>
       )}
 
       {/* Header: Título + ações gerente */}
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <span className="text-sm font-semibold text-white leading-snug pr-5">{card.titulo}</span>
+      <div className="flex items-start justify-between gap-2 mb-1.5">
+        <span className="text-sm font-semibold text-foreground leading-snug pr-5">{card.titulo}</span>
         {isGerente && (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <button
               onClick={onEdit}
-              className="p-1 rounded-lg hover:bg-blue-500/20 text-blue-400 transition-colors"
+              className="p-1 rounded-lg hover:bg-blue-500/10 text-blue-500 dark:text-blue-400 transition-colors"
               title="Editar"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={onDelete}
-              className="p-1 rounded-lg hover:bg-red-500/20 text-red-400 transition-colors"
+              className="p-1 rounded-lg hover:bg-red-500/10 text-red-500 dark:text-red-400 transition-colors"
               title="Excluir"
             >
               <Trash2 className="w-3.5 h-3.5" />
@@ -111,16 +111,16 @@ function KanbanCardItem({ card, isGerente, emailUsuario, dragging, onDragStart, 
 
       {/* Descrição */}
       {card.descricao && (
-        <p className="text-xs text-white/50 mb-2.5 line-clamp-2 leading-relaxed">{card.descricao}</p>
+        <p className="text-xs text-muted-foreground mb-3 line-clamp-2 leading-relaxed">{card.descricao}</p>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between gap-2 mt-2 pt-2 border-t border-white/5">
+      <div className="flex items-center justify-between gap-2 mt-2 pt-2.5 border-t border-border/40">
         <PrioridadeBadge p={card.prioridade} />
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           {card.dataLimite && (
-            <span className="inline-flex items-center gap-1 text-[10px] text-white/40">
-              <Calendar className="w-2.5 h-2.5" />{card.dataLimite}
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+              <Calendar className="w-3.5 h-3.5 opacity-60" />{card.dataLimite}
             </span>
           )}
           <div className="flex items-center -space-x-1.5 overflow-hidden">
@@ -129,8 +129,8 @@ function KanbanCardItem({ card, isGerente, emailUsuario, dragging, onDragStart, 
                 <Avatar key={idx} nome={nome} size="sm" />
               ))
             ) : (
-              <div className="w-7 h-7 rounded-full border border-dashed border-white/20 flex items-center justify-center">
-                <User className="w-3.5 h-3.5 text-white/30" />
+              <div className="w-7 h-7 rounded-full border border-dashed border-border flex items-center justify-center bg-muted/40">
+                <User className="w-3.5 h-3.5 text-muted-foreground/60" />
               </div>
             )}
           </div>
@@ -138,9 +138,9 @@ function KanbanCardItem({ card, isGerente, emailUsuario, dragging, onDragStart, 
       </div>
 
       {(card.atribuidoNome ?? []).length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className="mt-2.5 flex flex-wrap gap-1">
           {(card.atribuidoNome ?? []).map((nome, idx) => (
-            <span key={idx} className="text-[9px] font-medium text-white/60 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
+            <span key={idx} className="text-[9px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border/40">
               {nome}
             </span>
           ))}
@@ -183,13 +183,13 @@ function KanbanColuna({ coluna, cards, isGerente, emailUsuario, draggingId, onDr
           {coluna.label}
         </div>
         <div className="flex items-center gap-2">
-          <span className={`text-xs px-2 py-0.5 rounded-full bg-white/10 font-mono ${coluna.cor}`}>
+          <span className={`text-xs px-2.5 py-0.5 rounded-full bg-background/60 font-mono ${coluna.cor} border border-border/30`}>
             {cards.length}
           </span>
           {isGerente && coluna.key === "todo" && (
             <button
               onClick={onNovaCard}
-              className="p-1 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+              className="p-1 rounded-lg hover:bg-background/80 text-muted-foreground hover:text-foreground transition-colors"
               title="Nova tarefa"
             >
               <Plus className="w-4 h-4" />
@@ -207,8 +207,8 @@ function KanbanColuna({ coluna, cards, isGerente, emailUsuario, draggingId, onDr
           ${dragOver ? `${coluna.bgGlass} ${coluna.borderColor} border-2 border-dashed` : "border-2 border-transparent"}`}
       >
         {cards.length === 0 && !dragOver && (
-          <div className="flex flex-col items-center justify-center h-32 text-white/20 select-none">
-            <LayoutDashboard className="w-8 h-8 mb-2" />
+          <div className="flex flex-col items-center justify-center h-32 text-muted-foreground/30 select-none">
+            <LayoutDashboard className="w-8 h-8 mb-2 opacity-50" />
             <span className="text-xs">Nenhuma tarefa</span>
           </div>
         )}
@@ -273,18 +273,18 @@ function ModalCard({ card, usuarios, onSalvar, onFechar, salvando }: ModalCardPr
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onFechar}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={onFechar}>
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
       <div
-        className="relative w-full max-w-lg bg-gray-900 border border-white/10 rounded-2xl shadow-2xl p-6 animate-in fade-in slide-in-from-bottom-4 duration-200"
+        className="relative w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl p-6 animate-in fade-in slide-in-from-bottom-4 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <LayoutDashboard className="w-5 h-5 text-violet-400" />
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <LayoutDashboard className="w-5 h-5 text-primary" />
             {card?.id ? "Editar Tarefa" : "Nova Tarefa"}
           </h2>
-          <button onClick={onFechar} className="p-2 rounded-lg hover:bg-white/10 text-white/60 hover:text-white transition-colors">
+          <button onClick={onFechar} className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -292,68 +292,68 @@ function ModalCard({ card, usuarios, onSalvar, onFechar, salvando }: ModalCardPr
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Título */}
           <div>
-            <label className="block text-xs font-semibold text-white/60 mb-1.5 uppercase tracking-wider">Título *</label>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">Título *</label>
             <input
               ref={inputRef}
               value={titulo}
               onChange={(e) => setTitulo(e.target.value)}
               placeholder="Descreva a tarefa..."
               required
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-violet-500/60 focus:bg-white/8 transition-all"
+              className="w-full bg-background border border-input rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all"
             />
           </div>
 
           {/* Descrição */}
           <div>
-            <label className="block text-xs font-semibold text-white/60 mb-1.5 uppercase tracking-wider">Descrição</label>
+            <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">Descrição</label>
             <textarea
               value={descricao}
               onChange={(e) => setDescricao(e.target.value)}
               placeholder="Detalhes adicionais..."
               rows={3}
-              className="w-full bg-white/5 border border-white/10 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-violet-500/60 resize-none transition-all"
+              className="w-full bg-background border border-input rounded-xl px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none transition-all"
             />
           </div>
 
           {/* Prioridade + Data Limite */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-semibold text-white/60 mb-1.5 uppercase tracking-wider">Prioridade</label>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">Prioridade</label>
               <select
                 value={prioridade}
                 onChange={(e) => setPrioridade(e.target.value as KanbanPrioridade)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-violet-500/60 transition-all bg-gray-900"
+                className="w-full bg-background border border-input rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:border-primary transition-all bg-card"
               >
-                <option value="alta" className="bg-gray-900 text-white">Alta</option>
-                <option value="media" className="bg-gray-900 text-white">Média</option>
-                <option value="baixa" className="bg-gray-900 text-white">Baixa</option>
+                <option value="alta" className="bg-card text-foreground">Alta</option>
+                <option value="media" className="bg-card text-foreground">Média</option>
+                <option value="baixa" className="bg-card text-foreground">Baixa</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-semibold text-white/60 mb-1.5 uppercase tracking-wider">Data Limite</label>
+              <label className="block text-xs font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">Data Limite</label>
               <input
                 type="text"
                 value={dataLimite}
                 onChange={(e) => setDataLimite(e.target.value)}
                 placeholder="dd/mm/aaaa"
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-3 py-2.5 text-sm text-white placeholder-white/30 focus:outline-none focus:border-violet-500/60 transition-all"
+                className="w-full bg-background border border-input rounded-xl px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-primary transition-all"
               />
             </div>
           </div>
 
           {/* Atribuir a (Múltiplos) */}
           <div>
-            <label className="block text-xs font-semibold text-white/60 mb-2 uppercase tracking-wider">
+            <label className="block text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">
               Atribuir a (Selecione um ou mais)
             </label>
-            <div className="w-full bg-white/5 border border-white/10 rounded-xl p-3 max-h-48 overflow-y-auto space-y-2">
+            <div className="w-full bg-background border border-input rounded-xl p-3 max-h-48 overflow-y-auto space-y-2">
               {usuarios.length === 0 ? (
-                <span className="text-xs text-white/40">Nenhum colaborador encontrado no setor.</span>
+                <span className="text-xs text-muted-foreground/50">Nenhum colaborador encontrado no setor.</span>
               ) : (
                 usuarios.map((u) => {
                   const isChecked = atribuidoA.includes(u.email);
                   return (
-                    <label key={u.email} className="flex items-center gap-2.5 text-sm text-white cursor-pointer hover:bg-white/5 p-1 rounded-lg transition-all">
+                    <label key={u.email} className="flex items-center gap-2.5 text-sm text-foreground cursor-pointer hover:bg-muted p-1.5 rounded-lg transition-all">
                       <input
                         type="checkbox"
                         checked={isChecked}
@@ -364,7 +364,7 @@ function ModalCard({ card, usuarios, onSalvar, onFechar, salvando }: ModalCardPr
                             setAtribuidoA((prev) => [...prev, u.email]);
                           }
                         }}
-                        className="rounded border-white/20 bg-white/5 text-violet-600 focus:ring-violet-500"
+                        className="rounded border-input bg-card text-primary focus:ring-primary h-4 w-4"
                       />
                       <span>{u.nome}{u.isGerente ? " (Gerente)" : ""}</span>
                     </label>
@@ -375,18 +375,18 @@ function ModalCard({ card, usuarios, onSalvar, onFechar, salvando }: ModalCardPr
           </div>
 
           {/* Botões */}
-          <div className="flex gap-2 pt-1">
+          <div className="flex gap-2 pt-2 border-t border-border/40">
             <button
               type="button"
               onClick={onFechar}
-              className="flex-1 py-2.5 rounded-xl border border-white/10 text-white/60 hover:text-white hover:bg-white/5 text-sm font-medium transition-all"
+              className="flex-1 py-2.5 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted text-sm font-medium transition-all"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={salvando || !titulo.trim()}
-              className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg"
+              className="flex-1 py-2.5 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-sm"
             >
               {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               {card?.id ? "Salvar" : "Criar Tarefa"}
@@ -404,30 +404,30 @@ function ModalConfirmar({ card, onConfirmar, onCancelar, excluindo }: {
   card: KanbanCard; onConfirmar: () => void; onCancelar: () => void; excluindo: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onCancelar}>
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={onCancelar}>
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
       <div
-        className="relative bg-gray-900 border border-red-500/20 rounded-2xl shadow-2xl p-6 max-w-sm w-full animate-in fade-in zoom-in-95 duration-200"
+        className="relative bg-card border border-border rounded-2xl shadow-2xl p-6 max-w-sm w-full animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col items-center text-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-red-500/15 flex items-center justify-center">
-            <AlertTriangle className="w-6 h-6 text-red-400" />
+          <div className="w-12 h-12 rounded-full bg-destructive/15 flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-destructive" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white mb-1">Excluir tarefa?</h3>
-            <p className="text-sm text-white/50">
-              A tarefa <strong className="text-white/80">"{card.titulo}"</strong> será excluída permanentemente.
+            <h3 className="text-base font-bold text-foreground mb-1">Excluir tarefa?</h3>
+            <p className="text-sm text-muted-foreground">
+              A tarefa <strong className="text-foreground">"{card.titulo}"</strong> será excluída permanentemente.
             </p>
           </div>
-          <div className="flex gap-2 w-full pt-1">
-            <button onClick={onCancelar} className="flex-1 py-2 rounded-xl border border-white/10 text-white/60 hover:text-white text-sm transition-all">
+          <div className="flex gap-2 w-full pt-1.5 border-t border-border/40">
+            <button onClick={onCancelar} className="flex-1 py-2 rounded-xl border border-border text-muted-foreground hover:text-foreground hover:bg-muted text-sm transition-all">
               Cancelar
             </button>
             <button
               onClick={onConfirmar}
               disabled={excluindo}
-              className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-1.5"
+              className="flex-1 py-2 rounded-xl bg-destructive hover:bg-destructive/90 text-destructive-foreground text-sm font-semibold transition-all disabled:opacity-50 flex items-center justify-center gap-1.5 shadow-sm"
             >
               {excluindo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
               Excluir
@@ -541,11 +541,11 @@ export default function KanbanSetor() {
 
   if (!setorConfig) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white">
+      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
         <div className="text-center">
-          <AlertTriangle className="w-12 h-12 text-amber-400 mx-auto mb-3" />
+          <AlertTriangle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
           <p className="text-lg font-semibold">Setor não encontrado.</p>
-          <button onClick={() => navigate("/")} className="mt-4 text-sm text-violet-400 hover:underline">
+          <button onClick={() => navigate("/")} className="mt-4 text-sm text-primary hover:underline">
             Voltar ao início
           </button>
         </div>
@@ -554,17 +554,17 @@ export default function KanbanSetor() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950 text-white">
+    <div className="min-h-screen bg-background text-foreground animate-fade-in pb-12">
       {/* Header */}
-      <div className="border-b border-white/5 bg-white/[0.02] backdrop-blur sticky top-0 z-20">
+      <div className="border-b border-border bg-card/60 backdrop-blur sticky top-0 z-20">
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-purple-700 flex items-center justify-center shadow-lg">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-purple-600 flex items-center justify-center shadow shadow-violet-500/10">
               <LayoutDashboard className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-bold text-white">Kanban — {setorConfig.nome}</h1>
-              <p className="text-xs text-white/40">
+              <h1 className="text-lg font-bold text-foreground">Kanban — {setorConfig.nome}</h1>
+              <p className="text-xs text-muted-foreground">
                 {gerente ? "Gerente — acesso total" : "Colaborador — visualização + mover tarefas atribuídas a você"}
               </p>
             </div>
@@ -573,7 +573,7 @@ export default function KanbanSetor() {
             {gerente && (
               <button
                 onClick={() => setModalCard({})}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-500 hover:to-purple-500 text-white text-sm font-semibold transition-all shadow-lg hover:shadow-violet-500/25"
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground text-sm font-semibold transition-all shadow-sm"
               >
                 <Plus className="w-4 h-4" />
                 Nova Tarefa
@@ -587,21 +587,21 @@ export default function KanbanSetor() {
       <div className="max-w-7xl mx-auto px-6 py-8">
         {carregando ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="w-8 h-8 animate-spin text-violet-400" />
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : erro ? (
-          <div className="flex flex-col items-center justify-center h-64 gap-3">
-            <AlertTriangle className="w-10 h-10 text-amber-400" />
-            <p className="text-white/60 text-sm">{erro}</p>
+          <div className="flex flex-col items-center justify-center h-64 gap-3 animate-fade-in">
+            <AlertTriangle className="w-10 h-10 text-amber-500" />
+            <p className="text-muted-foreground text-sm">{erro}</p>
             <button
               onClick={carregarDados}
-              className="px-4 py-2 rounded-xl border border-white/10 text-sm text-white/70 hover:text-white hover:bg-white/5 transition-all"
+              className="px-4 py-2 rounded-xl border border-border text-sm text-foreground hover:bg-muted transition-all"
             >
               Tentar novamente
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {COLUNAS.map((col) => (
               <KanbanColuna
                 key={col.key}
@@ -623,7 +623,7 @@ export default function KanbanSetor() {
 
         {/* Estatísticas */}
         {!carregando && !erro && (
-          <div className="mt-8 flex flex-wrap items-center gap-4 text-xs text-white/30 border-t border-white/5 pt-5">
+          <div className="mt-8 flex flex-wrap items-center gap-4 text-xs text-muted-foreground border-t border-border pt-5 select-none">
             <span>{cards.length} tarefas no total</span>
             <span>•</span>
             <span>{cards.filter((c) => c.coluna === "done").length} concluídas</span>

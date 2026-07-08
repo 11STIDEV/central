@@ -246,14 +246,14 @@ export default function AgendaCCIAdmin() {
           <PageHeroEyebrow />
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-slate-200">
-                <Shield className="h-3.5 w-3.5 text-amber-300" />
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-hero-border bg-background/40 px-3 py-1 text-xs font-medium text-hero-foreground">
+                <Shield className="h-3.5 w-3.5 text-amber-500 dark:text-amber-300" />
                 Somente Setape
               </div>
-              <h1 className="text-2xl font-bold tracking-tight text-white md:text-3xl lg:text-4xl">
+              <h1 className="text-2xl font-bold tracking-tight text-hero-foreground md:text-3xl lg:text-4xl">
                 Admin — Agenda CCI
               </h1>
-              <p className="mt-2 max-w-2xl text-slate-300">
+              <p className="mt-2 max-w-2xl text-hero-muted">
                 Visualize reservas de Chromebooks, equipamentos e espaços. Clique em uma linha para ver todos os
                 detalhes. Os dados são sincronizados com o servidor quando disponível.
               </p>
@@ -261,7 +261,7 @@ export default function AgendaCCIAdmin() {
             <Button
               asChild
               variant="secondary"
-              className="shrink-0 border border-white/20 bg-white/10 text-white hover:bg-white/20"
+              className="shrink-0 border border-hero-border bg-background/50 text-hero-foreground hover:bg-background"
             >
               <Link to="/agenda-cci" className="inline-flex items-center gap-2">
                 <ArrowLeft className="h-4 w-4" />

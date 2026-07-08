@@ -128,7 +128,6 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     type: "flat",
     items: [
       { title: "Trilha de Conhecimento", url: "/trilha-conhecimento", icon: Trophy },
-      { title: "Base de Conhecimento", url: "/base-conhecimento", icon: BookOpen },
       { title: "Documentos", url: "/documentos", icon: FileText },
       { title: "Ramais", url: "/ramais", icon: Phone },
     ],
@@ -192,8 +191,7 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
             url: "/financeiro/vales-adiantamento",
             icon: CircleDollarSign,
           },
-          { title: "Kanban — DP", url: "/kanban/dp", icon: LayoutDashboard },
-          { title: "Kanban — Financeiro", url: "/kanban/financeiro", icon: LayoutDashboard },
+          { title: "Kanban — DP e Financeiro", url: "/kanban/dp-financeiro", icon: LayoutDashboard },
         ],
       },
       {

@@ -22,7 +22,7 @@
     --secondary-foreground: 210 100% 15%;
 
     --muted: 210 20% 94%;
-    --muted-foreground: 210 15% 45%;
+    --muted-foreground: 210 15% 32%;
 
     --accent: 48 100% 50%;
     --accent-foreground: 210 50% 10%;
@@ -45,7 +45,7 @@
     --sidebar-accent-foreground: 222 47% 16%;
     --sidebar-border: 214 28% 86%;
     --sidebar-ring: 48 100% 46%;
-    --sidebar-muted: 215 16% 42%;
+    --sidebar-muted: 215 16% 30%;
 
     --success: 142 70% 40%;
     --success-foreground: 0 0% 100%;
