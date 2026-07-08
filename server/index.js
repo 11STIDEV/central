@@ -32,6 +32,17 @@ import {
   inserirAviso,
 } from "./avisosStore.js";
 import { podeVerAviso, podePublicarNoSetor } from "./avisosAccess.js";
+import {
+  registrarOuAtualizarUsuario,
+  listarUsuariosPorSetor,
+} from "./usuariosStore.js";
+import {
+  listarCardsPorSetor,
+  criarCard,
+  atualizarCard,
+  excluirCard,
+} from "./kanbanStore.js";
+
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /** Dev local: lê `server/.env`. Produção (Docker/Coolify): variáveis vêm do runtime — o `.env` não vai na imagem. */
@@ -1225,8 +1236,8 @@ app.post("/api/agenda-cci/google-events", async (req, res) => {
     }
 
     const calendarIds = [
-      process.env.GOOGLE_CALENDAR_ID,
-      process.env.GOOGLE_CALENDAR_SALAS_ID,
+      process.env.GOOGLE_CALENDAR_ID || process.env.VITE_GOOGLE_CALENDAR_ID,
+      process.env.GOOGLE_CALENDAR_SALAS_ID || process.env.VITE_GOOGLE_CALENDAR_SALAS_ID,
     ].filter(Boolean);
 
     if (calendarIds.length === 0) {
@@ -1630,6 +1641,25 @@ function sanitizarSolucao(sol) {
   return { autor: sol.autor, texto: sol.texto, data: sol.data };
 }
 
+function sanitizarReaberturas(arr) {
+  if (!Array.isArray(arr)) return [];
+  return arr
+    .filter(
+      (x) =>
+        x &&
+        typeof x === "object" &&
+        typeof x.autor === "string" &&
+        typeof x.motivo === "string" &&
+        typeof x.data === "string"
+    )
+    .map((x) => ({
+      autor: x.autor,
+      data: x.data,
+      motivo: x.motivo,
+      solucaoAnterior: sanitizarSolucao(x.solucaoAnterior),
+    }));
+}
+
 /**
  * POST /api/chamados/listar
  * Body: { idToken }
@@ -1777,6 +1807,7 @@ app.post("/api/chamados/atualizar", async (req, res) => {
       atualizado.tarefas = sanitizarListaEntradas(chamado.tarefas);
       atualizado.solucao =
         statusOk === "resolvido" ? sanitizarSolucao(chamado.solucao) : undefined;
+      atualizado.reaberturas = sanitizarReaberturas(chamado.reaberturas);
     }
 
     // Detecta se a solução foi adicionada agora (antes não existia, agora existe)
@@ -2778,6 +2809,182 @@ app.post("/api/ti/ischolar/webhook-logs/clear", async (req, res) => {
     return res.json({ ok: true });
   } catch (e) {
     return res.status(500).json({ error: e.message });
+  }
+});
+
+
+// ─── Mapeamento server-side: setor a partir dos papeis ──────────────────────
+
+/** Papeis de gerente → papel base do setor (espelhado do front). */
+const GERENTE_PARA_SETOR_BASE = {
+  gerente_biblioteca: "biblioteca",
+  gerente_direcao: "direcao",
+  gerente_disciplinar: "disciplinar",
+  gerente_dp: "dp",
+  gerente_faculdade: "faculdade",
+  gerente_financeiro: "financeiro",
+  gerente_publicidade: "publicidade",
+  gerente_secretaria: "secretaria",
+  gerente_servicosgerais: "servicosgerais",
+  gerente_setape: "setape",
+  gerente_almoxarifado: "almoxarifado",
+  gerente_primeirossocorros: "primeirossocorros",
+  gerente_clat: "clat",
+};
+
+const PAPEIS_SETOR_BASE = new Set([
+  "biblioteca", "direcao", "disciplinar", "dp", "faculdade", "financeiro",
+  "publicidade", "secretaria", "servicosgerais", "setape", "almoxarifado",
+  "primeirossocorros", "clat",
+]);
+
+function extrairSetorDePapeis(papeis) {
+  if (!Array.isArray(papeis)) return { setor: null, isGerente: false };
+  // Verifica se é gerente de algum setor
+  for (const p of papeis) {
+    if (GERENTE_PARA_SETOR_BASE[p]) {
+      return { setor: GERENTE_PARA_SETOR_BASE[p], isGerente: true };
+    }
+  }
+  // Verifica papel base
+  for (const p of papeis) {
+    if (PAPEIS_SETOR_BASE.has(p)) {
+      return { setor: p, isGerente: false };
+    }
+  }
+  return { setor: null, isGerente: false };
+}
+
+// ─── POST /api/usuarios/registrar ───────────────────────────────────────────
+
+app.post("/api/usuarios/registrar", async (req, res) => {
+  try {
+    const { idToken, papeis } = req.body || {};
+    const payload = await verificarIdTokenUsuario(idToken);
+    const email = payload?.email;
+    const nome = payload?.name ?? payload?.given_name ?? email ?? "Usuário";
+    if (!email) return res.status(400).json({ error: "Token inválido." });
+
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.json({ ok: true, skipped: true }); // sem supabase, ignora silenciosamente
+
+    const { setor, isGerente } = extrairSetorDePapeis(papeis);
+    await registrarOuAtualizarUsuario(supabase, { email, nome, setor, isGerente });
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("Erro /api/usuarios/registrar:", msg);
+    return res.status(500).json({ error: msg });
+  }
+});
+
+// ─── GET /api/kanban/usuarios ────────────────────────────────────────────────
+
+app.post("/api/kanban/usuarios", async (req, res) => {
+  try {
+    const { idToken, setor } = req.body || {};
+    await verificarIdTokenUsuario(idToken);
+    if (!setor || typeof setor !== "string") {
+      return res.status(400).json({ error: "setor é obrigatório." });
+    }
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(503).json({ error: mensagemSupabaseNaoConfigurado() });
+    const usuarios = await listarUsuariosPorSetor(supabase, setor);
+    return res.json({ usuarios });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+// ─── GET /api/kanban/cards ───────────────────────────────────────────────────
+
+app.post("/api/kanban/cards/listar", async (req, res) => {
+  try {
+    const { idToken, setor } = req.body || {};
+    const payload = await verificarIdTokenUsuario(idToken);
+    if (!setor || typeof setor !== "string") {
+      return res.status(400).json({ error: "setor é obrigatório." });
+    }
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(503).json({ error: mensagemSupabaseNaoConfigurado() });
+    const cards = await listarCardsPorSetor(supabase, setor);
+    return res.json({ cards });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+// ─── POST /api/kanban/cards/criar ────────────────────────────────────────────
+
+app.post("/api/kanban/cards/criar", async (req, res) => {
+  try {
+    const { idToken, card } = req.body || {};
+    const payload = await verificarIdTokenUsuario(idToken);
+    if (!card || typeof card !== "object") {
+      return res.status(400).json({ error: "card é obrigatório." });
+    }
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(503).json({ error: mensagemSupabaseNaoConfigurado() });
+
+    const id = `KNB-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+    const novoCard = await criarCard(supabase, {
+      id,
+      setor: card.setor,
+      titulo: String(card.titulo || "").trim(),
+      descricao: String(card.descricao || "").trim(),
+      coluna: card.coluna || "todo",
+      atribuidoA: card.atribuidoA || null,
+      atribuidoNome: card.atribuidoNome || null,
+      criadoPor: payload.email,
+      criadoPorNome: payload.name ?? payload.given_name ?? payload.email,
+      prioridade: card.prioridade || "media",
+      dataLimite: card.dataLimite || null,
+    });
+    return res.json({ ok: true, card: novoCard });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+// ─── POST /api/kanban/cards/atualizar ────────────────────────────────────────
+
+app.post("/api/kanban/cards/atualizar", async (req, res) => {
+  try {
+    const { idToken, id, patch } = req.body || {};
+    await verificarIdTokenUsuario(idToken);
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ error: "id é obrigatório." });
+    }
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(503).json({ error: mensagemSupabaseNaoConfigurado() });
+    const card = await atualizarCard(supabase, id, patch || {});
+    return res.json({ ok: true, card });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+// ─── POST /api/kanban/cards/excluir ──────────────────────────────────────────
+
+app.post("/api/kanban/cards/excluir", async (req, res) => {
+  try {
+    const { idToken, id } = req.body || {};
+    await verificarIdTokenUsuario(idToken);
+    if (!id || typeof id !== "string") {
+      return res.status(400).json({ error: "id é obrigatório." });
+    }
+    const supabase = getSupabaseAdmin();
+    if (!supabase) return res.status(503).json({ error: mensagemSupabaseNaoConfigurado() });
+    await excluirCard(supabase, id);
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
   }
 });
 

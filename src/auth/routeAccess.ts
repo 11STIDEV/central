@@ -1,6 +1,7 @@
 import type { Papel } from "./AuthProvider";
 import { isPainelAdminEmail } from "@/painel/painelEnv";
 import { isRotaBloqueadaParaUsuario } from "./routesTemporarilyBlocked";
+import { podeAcessarKanban } from "@/lib/kanban";
 
 /**
  * Rotas da intranet comum (funcionários; exclui perfil “somente aluno”).
@@ -95,6 +96,11 @@ export function hasRoleAccessToRoute(papeis: Papel[], pathname: string, email?: 
     return (
       path === "/login" || path === "/reserva-espacos-equipamentos" || path === "/minhas-reservas"
     );
+  }
+
+  if (path.startsWith("/kanban/")) {
+    const slug = path.replace("/kanban/", "");
+    return podeAcessarKanban(papeis, slug);
   }
 
   if (path.startsWith("/senhas")) {

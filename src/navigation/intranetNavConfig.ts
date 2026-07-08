@@ -11,6 +11,7 @@ import {
   Hash,
   HeartPulse,
   Home,
+  LayoutDashboard,
   MapPin,
   Megaphone,
   PenLine,
@@ -138,6 +139,13 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     type: "nested",
     sectors: [
       {
+        id: "setores-biblioteca",
+        label: "Biblioteca",
+        items: [
+          { title: "Kanban — Biblioteca", url: "/kanban/biblioteca", icon: LayoutDashboard },
+        ],
+      },
+      {
         id: "setores-professores",
         label: "Professores",
         items: [{ title: "Links dos Professores", url: "/setores/professores", icon: GraduationCap }],
@@ -145,22 +153,34 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
       {
         id: "setores-disciplinar",
         label: "Disciplinar",
-        items: [{ title: "Links do Disciplinar", url: "/setores/disciplinar", icon: ClipboardList }],
+        items: [
+          { title: "Links do Disciplinar", url: "/setores/disciplinar", icon: ClipboardList },
+          { title: "Kanban — Disciplinar", url: "/kanban/disciplinar", icon: LayoutDashboard },
+        ],
       },
       {
         id: "setores-secretaria",
         label: "Secretaria",
-        items: [{ title: "Links da Secretaria", url: "/setores/secretaria", icon: FileText }],
+        items: [
+          { title: "Links da Secretaria", url: "/setores/secretaria", icon: FileText },
+          { title: "Kanban — Secretaria", url: "/kanban/secretaria", icon: LayoutDashboard },
+        ],
       },
       {
         id: "setores-servicos-gerais",
         label: "Serviços Gerais",
-        items: [{ title: "Links de Serviços Gerais", url: "/setores/servicos-gerais", icon: Wrench }],
+        items: [
+          { title: "Links de Serviços Gerais", url: "/setores/servicos-gerais", icon: Wrench },
+          { title: "Kanban — Serviços Gerais", url: "/kanban/servicosgerais", icon: LayoutDashboard },
+        ],
       },
       {
         id: "setores-publicidade",
         label: "Publicidade",
-        items: [{ title: "Links da Publicidade", url: "/setores/publicidade", icon: Megaphone }],
+        items: [
+          { title: "Links da Publicidade", url: "/setores/publicidade", icon: Megaphone },
+          { title: "Kanban — Publicidade", url: "/kanban/publicidade", icon: LayoutDashboard },
+        ],
       },
       {
         id: "setores-dp-financeiro",
@@ -172,6 +192,8 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
             url: "/financeiro/vales-adiantamento",
             icon: CircleDollarSign,
           },
+          { title: "Kanban — DP", url: "/kanban/dp", icon: LayoutDashboard },
+          { title: "Kanban — Financeiro", url: "/kanban/financeiro", icon: LayoutDashboard },
         ],
       },
       {
@@ -179,17 +201,24 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
         label: "Primeiros Socorros",
         items: [
           { title: "Links de Primeiros Socorros", url: "/setores/primeiros-socorros", icon: HeartPulse },
+          { title: "Kanban — Primeiros Socorros", url: "/kanban/primeirossocorros", icon: LayoutDashboard },
         ],
       },
       {
         id: "setores-direcao",
         label: "Direção",
-        items: [{ title: "Links da Direção", url: "/setores/direcao", icon: School }],
+        items: [
+          { title: "Links da Direção", url: "/setores/direcao", icon: School },
+          { title: "Kanban — Direção", url: "/kanban/direcao", icon: LayoutDashboard },
+        ],
       },
       {
         id: "setores-clat",
         label: "CLAT",
-        items: [{ title: "Links do CLAT", url: "/setores/clat", icon: ClipboardList }],
+        items: [
+          { title: "Links do CLAT", url: "/setores/clat", icon: ClipboardList },
+          { title: "Kanban — CLAT", url: "/kanban/clat", icon: LayoutDashboard },
+        ],
       },
       {
         id: "setores-ti",
@@ -198,6 +227,7 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
           { title: "Área Interna TI", url: "/ti-interno", icon: ShieldCheck },
           { title: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes },
           { title: "iScholar", url: "/ti/ischolar", icon: GraduationCap },
+          { title: "Kanban — Setape/TI", url: "/kanban/setape", icon: LayoutDashboard },
         ],
       },
       {
@@ -209,6 +239,14 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
             url: "/controle-materiais-almoxarifado",
             icon: Warehouse,
           },
+          { title: "Kanban — Almoxarifado", url: "/kanban/almoxarifado", icon: LayoutDashboard },
+        ],
+      },
+      {
+        id: "setores-faculdade",
+        label: "Faculdade",
+        items: [
+          { title: "Kanban — Faculdade", url: "/kanban/faculdade", icon: LayoutDashboard },
         ],
       },
     ],

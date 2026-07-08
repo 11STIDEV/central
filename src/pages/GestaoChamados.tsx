@@ -11,6 +11,9 @@ import {
   Send,
   Eye,
   EyeOff,
+  Pencil,
+  X,
+  RotateCcw,
 } from "lucide-react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
@@ -33,6 +36,12 @@ const statusConfig = {
 };
 
 type TabKey = "acompanhamentos" | "tarefas" | "solucao";
+
+type EditandoItem = {
+  tipo: "acompanhamento" | "tarefa" | "solucao";
+  idx: number;
+  texto: string;
+} | null;
 
 function agoraLegivel(): string {
   const d = new Date();
@@ -77,14 +86,23 @@ export default function GestaoChamados() {
       void recarregar();
     }
   }, [location.pathname, recarregar]);
+
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Record<string, TabKey>>({});
   const [filter, setFilter] = useState<"todos" | "aberto" | "resolvido">("todos");
 
+  // Drafts para novas entradas
   const [acompanhamentoDraft, setAcompanhamentoDraft] = useState<Record<string, string>>({});
   const [tarefaDraft, setTarefaDraft] = useState<Record<string, string>>({});
   const [solucaoDraft, setSolucaoDraft] = useState<Record<string, string>>({});
+
+  // Reabertura
+  const [reaberturaDraft, setReaberturaDraft] = useState<Record<string, string>>({});
+  const [mostraReabertura, setMostraReabertura] = useState<Record<string, boolean>>({});
+
+  // Edição inline
+  const [editando, setEditando] = useState<Record<string, EditandoItem>>({});
 
   const persistir = useCallback(
     async (lista: Chamado[], idAlterado: string) => {
@@ -136,6 +154,8 @@ export default function GestaoChamados() {
     void persistir(lista, id);
   };
 
+  // ── Adicionar entradas ──────────────────────────────────────────────────────
+
   const adicionarAcompanhamento = (id: string) => {
     const texto = (acompanhamentoDraft[id] ?? "").trim();
     if (!texto || !usuario) return;
@@ -165,10 +185,90 @@ export default function GestaoChamados() {
     atualizarChamado(id, (c) => ({
       ...c,
       status: "resolvido" as const,
-      solucao: { autor: usuario.nome, texto, data: agoraLegivel() },
+      solucao: { autor: usuario!.nome, texto, data: agoraLegivel() },
+      // soluções anteriores permanecem em reaberturas[].solucaoAnterior
     }));
     setSolucaoDraft((d) => ({ ...d, [id]: "" }));
   };
+
+  // ── Reabertura ──────────────────────────────────────────────────────────────
+
+  const reabrirChamado = (id: string) => {
+    const motivo = (reaberturaDraft[id] ?? "").trim();
+    if (!motivo || !usuario || !isSetape) return;
+    atualizarChamado(id, (c) => ({
+      ...c,
+      status: "aberto" as const,
+      // Arquiva a solução atual em reaberturas e limpa solucao
+      // A UI exibe o histórico de reaberturas[].solucaoAnterior na aba Solução (badge amarelo)
+      solucao: undefined,
+      reaberturas: [
+        ...(c.reaberturas ?? []),
+        {
+          autor: usuario.nome,
+          data: agoraLegivel(),
+          motivo,
+          solucaoAnterior: c.solucao,
+        },
+      ],
+    }));
+    setReaberturaDraft((d) => ({ ...d, [id]: "" }));
+    setMostraReabertura((d) => ({ ...d, [id]: false }));
+  };
+
+  // ── Edição inline ───────────────────────────────────────────────────────────
+
+  const iniciarEdicao = (
+    chamadoId: string,
+    tipo: "acompanhamento" | "tarefa" | "solucao",
+    idx: number,
+    texto: string,
+  ) => {
+    setEditando((prev) => ({ ...prev, [chamadoId]: { tipo, idx, texto } }));
+  };
+
+  const cancelarEdicao = (chamadoId: string) => {
+    setEditando((prev) => ({ ...prev, [chamadoId]: null }));
+  };
+
+  const salvarEdicao = (chamadoId: string) => {
+    const ed = editando[chamadoId];
+    if (!ed) return;
+    const textoNovo = ed.texto.trim();
+    if (!textoNovo) return;
+
+    atualizarChamado(chamadoId, (c) => {
+      if (ed.tipo === "acompanhamento") {
+        const lista = c.acompanhamentos.map((a, i) =>
+          i === ed.idx ? { ...a, texto: textoNovo } : a,
+        );
+        return { ...c, acompanhamentos: lista };
+      }
+      if (ed.tipo === "tarefa") {
+        const lista = c.tarefas.map((t, i) =>
+          i === ed.idx ? { ...t, texto: textoNovo } : t,
+        );
+        return { ...c, tarefas: lista };
+      }
+      // solucao
+      if (c.solucao) {
+        return { ...c, solucao: { ...c.solucao, texto: textoNovo } };
+      }
+      return c;
+    });
+
+    cancelarEdicao(chamadoId);
+  };
+
+  // ── Permissões de edição ────────────────────────────────────────────────────
+
+  const podeEditarAcompanhamento = (chamado: Chamado) =>
+    isSetape || chamado.solicitanteEmail.toLowerCase() === (usuario?.email ?? "").toLowerCase();
+
+  const podeEditarSolucao = (chamado: Chamado) =>
+    isSetape || chamado.solicitanteEmail.toLowerCase() === (usuario?.email ?? "").toLowerCase();
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   if (!usuario) {
     return <Navigate to="/login" replace />;
@@ -195,239 +295,461 @@ export default function GestaoChamados() {
           <div className="py-16 text-center text-sm text-muted-foreground">Carregando chamados...</div>
         ) : (
           <>
-        {/* Stats */}
-        <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {(["aberto", "resolvido"] as const).map((s) => {
-            const config = statusConfig[s];
-            return (
-              <div key={s} className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-card">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${config.className}`}>
-                  <config.icon className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold text-card-foreground">{contagem(s)}</p>
-                  <p className="text-xs text-muted-foreground">{config.label}</p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Filters */}
-        <div className="mb-6 flex flex-col gap-4 sm:flex-row">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Buscar chamados..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-input bg-card py-3 pl-10 pr-4 text-sm text-card-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
-            />
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {(["todos", "aberto", "resolvido"] as const).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setFilter(f)}
-                className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
-                  filter === f
-                    ? "bg-primary text-primary-foreground"
-                    : "border border-border bg-card text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {f === "todos" ? "Todos" : f === "aberto" ? "Aberto" : "Resolvido"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Chamados list */}
-        <div className="space-y-3">
-          {filtered.map((chamado) => {
-            const isExpanded = expanded === chamado.id;
-            const tab = getTab(chamado.id);
-            const sc = statusConfig[chamado.status];
-            const pc = prioridadeConfig[chamado.prioridade];
-
-            const tabsVisiveis: { key: TabKey; label: string; icon: typeof MessageSquare }[] = [
-              { key: "acompanhamentos", label: "Acompanhamentos", icon: MessageSquare },
-              ...(isSetape ? [{ key: "tarefas" as const, label: "Tarefas (TI)", icon: ListChecks }] : []),
-              { key: "solucao", label: "Solução", icon: CheckCircle2 },
-            ];
-
-            return (
-              <div key={chamado.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
-                <button
-                  type="button"
-                  onClick={() => setExpanded(isExpanded ? null : chamado.id)}
-                  className="flex w-full items-center gap-4 px-6 py-4 text-left transition-colors hover:bg-muted/30"
-                >
-                  <div className="flex-1">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="text-xs font-mono text-muted-foreground">{chamado.id}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${sc.className}`}>{sc.label}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${pc.className}`}>{pc.label}</span>
+            {/* Stats */}
+            <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {(["aberto", "resolvido"] as const).map((s) => {
+                const config = statusConfig[s];
+                return (
+                  <div key={s} className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 shadow-card">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${config.className}`}>
+                      <config.icon className="h-5 w-5" />
                     </div>
-                    <p className="mt-1 text-sm font-semibold text-card-foreground">{chamado.titulo}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {chamado.solicitante} · {chamado.data} · {chamado.categoria}
-                    </p>
+                    <div>
+                      <p className="text-2xl font-bold text-card-foreground">{contagem(s)}</p>
+                      <p className="text-xs text-muted-foreground">{config.label}</p>
+                    </div>
                   </div>
-                  {isExpanded ? (
-                    <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                  )}
-                </button>
+                );
+              })}
+            </div>
 
-                {isExpanded && (
-                  <div className="animate-fade-in border-t border-border px-6 py-4">
-                    <p className="mb-4 text-sm text-card-foreground">{chamado.descricao}</p>
+            {/* Filters */}
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder="Buscar chamados..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full rounded-xl border border-input bg-card py-3 pl-10 pr-4 text-sm text-card-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(["todos", "aberto", "resolvido"] as const).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setFilter(f)}
+                    className={`rounded-lg px-4 py-2 text-sm font-medium transition-all ${
+                      filter === f
+                        ? "bg-primary text-primary-foreground"
+                        : "border border-border bg-card text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {f === "todos" ? "Todos" : f === "aberto" ? "Aberto" : "Resolvido"}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                    <div className="mb-4 flex flex-wrap gap-1 rounded-lg bg-muted p-1">
-                      {tabsVisiveis.map((t) => (
-                        <button
-                          key={t.key}
-                          type="button"
-                          onClick={() => setActiveTab({ ...activeTab, [chamado.id]: t.key })}
-                          className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-all sm:flex-initial ${
-                            tab === t.key ? "bg-card text-card-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          <t.icon className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{t.label}</span>
-                        </button>
-                      ))}
-                    </div>
+            {/* Chamados list */}
+            <div className="space-y-3">
+              {filtered.map((chamado) => {
+                const isExpanded = expanded === chamado.id;
+                const tab = getTab(chamado.id);
+                const sc = statusConfig[chamado.status];
+                const pc = prioridadeConfig[chamado.prioridade];
+                const ed = editando[chamado.id] ?? null;
+                const salvando = salvandoId === chamado.id;
 
-                    <div className="space-y-3">
-                      {tab === "acompanhamentos" && (
-                        <>
-                          {chamado.acompanhamentos.map((a, i) => (
-                            <div key={i} className="rounded-lg bg-muted/50 px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <Eye className="h-3 w-3 text-info" />
-                                <span className="text-xs font-medium text-card-foreground">{a.autor}</span>
-                                <span className="text-xs text-muted-foreground">{a.data}</span>
-                              </div>
-                              <p className="mt-1 text-sm text-card-foreground">{a.texto}</p>
-                            </div>
-                          ))}
-                          <div className="flex gap-2">
-                            <input
-                              placeholder="Adicionar acompanhamento..."
-                              value={acompanhamentoDraft[chamado.id] ?? ""}
-                              onChange={(e) =>
-                                setAcompanhamentoDraft((d) => ({ ...d, [chamado.id]: e.target.value }))
-                              }
-                              className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => adicionarAcompanhamento(chamado.id)}
-                              className="rounded-lg gradient-primary px-4 py-2 text-primary-foreground transition-all hover:opacity-90"
-                            >
-                              <Send className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </>
+                const tabsVisiveis: { key: TabKey; label: string; icon: typeof MessageSquare }[] = [
+                  { key: "acompanhamentos", label: "Acompanhamentos", icon: MessageSquare },
+                  ...(isSetape ? [{ key: "tarefas" as const, label: "Tarefas (TI)", icon: ListChecks }] : []),
+                  { key: "solucao", label: "Solução", icon: CheckCircle2 },
+                ];
+
+                return (
+                  <div key={chamado.id} className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
+                    <button
+                      type="button"
+                      onClick={() => setExpanded(isExpanded ? null : chamado.id)}
+                      className="flex w-full items-center gap-4 px-6 py-4 text-left transition-colors hover:bg-muted/30"
+                    >
+                      <div className="flex-1">
+                        <div className="flex flex-wrap items-center gap-3">
+                          <span className="text-xs font-mono text-muted-foreground">{chamado.id}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${sc.className}`}>{sc.label}</span>
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${pc.className}`}>{pc.label}</span>
+                          {salvando && (
+                            <span className="text-xs text-muted-foreground animate-pulse">Salvando...</span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm font-semibold text-card-foreground">{chamado.titulo}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {chamado.solicitante} · {chamado.data} · {chamado.categoria}
+                        </p>
+                      </div>
+                      {isExpanded ? (
+                        <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                       )}
+                    </button>
 
-                      {tab === "tarefas" && isSetape && (
-                        <>
-                          <div className="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2">
-                            <EyeOff className="h-3.5 w-3.5 text-warning" />
-                            <span className="text-xs text-warning">Visível apenas para a equipe de TI (Setape)</span>
-                          </div>
-                          {chamado.tarefas.map((t, i) => (
-                            <div key={i} className="rounded-lg bg-muted/50 px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <ListChecks className="h-3 w-3 text-primary" />
-                                <span className="text-xs font-medium text-card-foreground">{t.autor}</span>
-                                <span className="text-xs text-muted-foreground">{t.data}</span>
-                              </div>
-                              <p className="mt-1 text-sm text-card-foreground">{t.texto}</p>
-                            </div>
-                          ))}
-                          <div className="flex gap-2">
-                            <input
-                              placeholder="Adicionar tarefa interna..."
-                              value={tarefaDraft[chamado.id] ?? ""}
-                              onChange={(e) =>
-                                setTarefaDraft((d) => ({ ...d, [chamado.id]: e.target.value }))
-                              }
-                              className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
-                            />
+                    {isExpanded && (
+                      <div className="animate-fade-in border-t border-border px-6 py-4">
+                        <p className="mb-4 text-sm text-card-foreground">{chamado.descricao}</p>
+
+
+                        {/* Tabs */}
+                        <div className="mb-4 flex flex-wrap gap-1 rounded-lg bg-muted p-1">
+                          {tabsVisiveis.map((t) => (
                             <button
+                              key={t.key}
                               type="button"
-                              onClick={() => adicionarTarefa(chamado.id)}
-                              className="rounded-lg gradient-primary px-4 py-2 text-primary-foreground transition-all hover:opacity-90"
+                              onClick={() => setActiveTab({ ...activeTab, [chamado.id]: t.key })}
+                              className={`flex min-w-0 flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-medium transition-all sm:flex-initial ${
+                                tab === t.key ? "bg-card text-card-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                              }`}
                             >
-                              <Send className="h-4 w-4" />
+                              <t.icon className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">{t.label}</span>
                             </button>
-                          </div>
-                        </>
-                      )}
+                          ))}
+                        </div>
 
-                      {tab === "solucao" && (
-                        <>
-                          {chamado.solucao ? (
-                            <div className="rounded-lg border border-success/30 bg-success/5 px-4 py-3">
-                              <div className="flex items-center gap-2">
-                                <CheckCircle2 className="h-3.5 w-3.5 text-success" />
-                                <span className="text-xs font-medium text-card-foreground">{chamado.solucao.autor}</span>
-                                <span className="text-xs text-muted-foreground">{chamado.solucao.data}</span>
-                              </div>
-                              <p className="mt-1 text-sm text-card-foreground">{chamado.solucao.texto}</p>
-                            </div>
-                          ) : (
+                        <div className="space-y-3">
+
+                          {/* ── Acompanhamentos ── */}
+                          {tab === "acompanhamentos" && (
                             <>
-                              {isSetape && chamado.status === "aberto" ? (
-                                <div className="space-y-3">
-                                  <textarea
-                                    rows={3}
-                                    placeholder="Descreva a solução aplicada..."
-                                    value={solucaoDraft[chamado.id] ?? ""}
-                                    onChange={(e) =>
-                                      setSolucaoDraft((d) => ({ ...d, [chamado.id]: e.target.value }))
-                                    }
-                                    className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => resolverChamado(chamado.id)}
-                                    className="flex items-center gap-2 rounded-lg bg-success px-4 py-2 text-sm font-medium text-success-foreground transition-all hover:opacity-90"
-                                  >
-                                    <CheckCircle2 className="h-4 w-4" />
-                                    Resolver chamado
-                                  </button>
-                                </div>
-                              ) : (
-                                <p className="text-sm text-muted-foreground">
-                                  {chamado.status === "aberto"
-                                    ? "A solução será registrada pela equipe de TI (Setape) quando o chamado for resolvido."
-                                    : "Nenhuma solução registrada."}
-                                </p>
-                              )}
+                              {chamado.acompanhamentos.map((a, i) => {
+                                const estaEditando = ed?.tipo === "acompanhamento" && ed.idx === i;
+                                return (
+                                  <div key={i} className="rounded-lg bg-muted/50 px-4 py-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <Eye className="h-3 w-3 text-info" />
+                                        <span className="text-xs font-medium text-card-foreground">{a.autor}</span>
+                                        <span className="text-xs text-muted-foreground">{a.data}</span>
+                                      </div>
+                                      {podeEditarAcompanhamento(chamado) && !estaEditando && (
+                                        <button
+                                          type="button"
+                                          title="Editar acompanhamento"
+                                          onClick={() => iniciarEdicao(chamado.id, "acompanhamento", i, a.texto)}
+                                          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                    {estaEditando ? (
+                                      <div className="mt-2 space-y-2">
+                                        <textarea
+                                          rows={3}
+                                          value={ed.texto}
+                                          onChange={(e) =>
+                                            setEditando((prev) => ({
+                                              ...prev,
+                                              [chamado.id]: { ...ed, texto: e.target.value },
+                                            }))
+                                          }
+                                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                                        />
+                                        <div className="flex gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => salvarEdicao(chamado.id)}
+                                            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+                                          >
+                                            <CheckCircle2 className="h-3 w-3" /> Salvar
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => cancelarEdicao(chamado.id)}
+                                            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                                          >
+                                            <X className="h-3 w-3" /> Cancelar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p className="mt-1 text-sm text-card-foreground">{a.texto}</p>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              <div className="flex gap-2">
+                                <input
+                                  placeholder="Adicionar acompanhamento..."
+                                  value={acompanhamentoDraft[chamado.id] ?? ""}
+                                  onChange={(e) =>
+                                    setAcompanhamentoDraft((d) => ({ ...d, [chamado.id]: e.target.value }))
+                                  }
+                                  className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => adicionarAcompanhamento(chamado.id)}
+                                  className="rounded-lg gradient-primary px-4 py-2 text-primary-foreground transition-all hover:opacity-90"
+                                >
+                                  <Send className="h-4 w-4" />
+                                </button>
+                              </div>
                             </>
                           )}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
 
-        {filtered.length === 0 && (
-          <div className="py-12 text-center text-sm text-muted-foreground">
-            Nenhum chamado encontrado para o seu perfil ou para os filtros selecionados.
-          </div>
-        )}
+                          {/* ── Tarefas (TI) ── */}
+                          {tab === "tarefas" && isSetape && (
+                            <>
+                              <div className="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2">
+                                <EyeOff className="h-3.5 w-3.5 text-warning" />
+                                <span className="text-xs text-warning">Visível apenas para a equipe de TI (Setape)</span>
+                              </div>
+                              {chamado.tarefas.map((t, i) => {
+                                const estaEditando = ed?.tipo === "tarefa" && ed.idx === i;
+                                return (
+                                  <div key={i} className="rounded-lg bg-muted/50 px-4 py-3">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2">
+                                        <ListChecks className="h-3 w-3 text-primary" />
+                                        <span className="text-xs font-medium text-card-foreground">{t.autor}</span>
+                                        <span className="text-xs text-muted-foreground">{t.data}</span>
+                                      </div>
+                                      {isSetape && !estaEditando && (
+                                        <button
+                                          type="button"
+                                          title="Editar tarefa"
+                                          onClick={() => iniciarEdicao(chamado.id, "tarefa", i, t.texto)}
+                                          className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                    {estaEditando ? (
+                                      <div className="mt-2 space-y-2">
+                                        <textarea
+                                          rows={3}
+                                          value={ed.texto}
+                                          onChange={(e) =>
+                                            setEditando((prev) => ({
+                                              ...prev,
+                                              [chamado.id]: { ...ed, texto: e.target.value },
+                                            }))
+                                          }
+                                          className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                                        />
+                                        <div className="flex gap-2">
+                                          <button
+                                            type="button"
+                                            onClick={() => salvarEdicao(chamado.id)}
+                                            className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+                                          >
+                                            <CheckCircle2 className="h-3 w-3" /> Salvar
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => cancelarEdicao(chamado.id)}
+                                            className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                                          >
+                                            <X className="h-3 w-3" /> Cancelar
+                                          </button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <p className="mt-1 text-sm text-card-foreground">{t.texto}</p>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                              <div className="flex gap-2">
+                                <input
+                                  placeholder="Adicionar tarefa interna..."
+                                  value={tarefaDraft[chamado.id] ?? ""}
+                                  onChange={(e) =>
+                                    setTarefaDraft((d) => ({ ...d, [chamado.id]: e.target.value }))
+                                  }
+                                  className="flex-1 rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => adicionarTarefa(chamado.id)}
+                                  className="rounded-lg gradient-primary px-4 py-2 text-primary-foreground transition-all hover:opacity-90"
+                                >
+                                  <Send className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </>
+                          )}
+
+                          {/* ── Solução ── */}
+                          {tab === "solucao" && (
+                            <div className="space-y-3">
+
+                              {/* Histórico de soluções anteriores (badge amarelo) */}
+                              {(chamado.reaberturas ?? []).map((r, i) =>
+                                r.solucaoAnterior ? (
+                                  <div key={i} className="rounded-lg border border-warning/40 bg-warning/5 px-4 py-3">
+                                    <div className="flex items-center gap-2 flex-wrap mb-1">
+                                      <RotateCcw className="h-3.5 w-3.5 text-warning shrink-0" />
+                                      <span className="text-xs font-medium text-warning">Solução anterior</span>
+                                      <span className="text-xs text-muted-foreground">— {r.solucaoAnterior.autor} · {r.solucaoAnterior.data}</span>
+                                    </div>
+                                    <p className="text-sm text-card-foreground italic mb-2">{r.solucaoAnterior.texto}</p>
+                                    <div className="flex items-start gap-1.5 border-t border-warning/20 pt-2 mt-1">
+                                      <span className="text-xs text-warning font-medium shrink-0">Motivo da reabertura:</span>
+                                      <span className="text-xs text-muted-foreground">{r.motivo}</span>
+                                    </div>
+                                  </div>
+                                ) : null
+                              )}
+
+                              {/* Solução ativa (verde) — apenas quando resolvido */}
+                              {chamado.solucao && (
+                                <div className="rounded-lg border border-success/30 bg-success/5 px-4 py-3">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <CheckCircle2 className="h-3.5 w-3.5 text-success" />
+                                      <span className="text-xs font-medium text-card-foreground">{chamado.solucao.autor}</span>
+                                      <span className="text-xs text-muted-foreground">{chamado.solucao.data}</span>
+                                    </div>
+                                    {podeEditarSolucao(chamado) && !(ed?.tipo === "solucao") && (
+                                      <button
+                                        type="button"
+                                        title="Editar solução"
+                                        onClick={() => iniciarEdicao(chamado.id, "solucao", 0, chamado.solucao!.texto)}
+                                        className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                  </div>
+                                  {ed?.tipo === "solucao" ? (
+                                    <div className="mt-2 space-y-2">
+                                      <textarea
+                                        rows={3}
+                                        value={ed.texto}
+                                        onChange={(e) =>
+                                          setEditando((prev) => ({
+                                            ...prev,
+                                            [chamado.id]: { ...ed, texto: e.target.value },
+                                          }))
+                                        }
+                                        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                                      />
+                                      <div className="flex gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => salvarEdicao(chamado.id)}
+                                          className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+                                        >
+                                          <CheckCircle2 className="h-3 w-3" /> Salvar
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => cancelarEdicao(chamado.id)}
+                                          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                                        >
+                                          <X className="h-3 w-3" /> Cancelar
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <p className="mt-1 text-sm text-card-foreground">{chamado.solucao.texto}</p>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Chamado sem solução alguma ainda */}
+                              {!chamado.solucao && chamado.status === "resolvido" && (chamado.reaberturas ?? []).length === 0 && (
+                                <p className="text-sm text-muted-foreground">Nenhuma solução registrada.</p>
+                              )}
+
+                              {/* Chamado aberto: textarea para nova solução (setape) */}
+                              {chamado.status === "aberto" && (
+                                isSetape ? (
+                                  <div className="space-y-2">
+                                    <p className="text-xs font-semibold text-muted-foreground">
+                                      {(chamado.reaberturas ?? []).length > 0 ? "Nova solução" : "Registrar solução"}
+                                    </p>
+                                    <textarea
+                                      rows={3}
+                                      placeholder="Descreva a solução aplicada..."
+                                      value={solucaoDraft[chamado.id] ?? ""}
+                                      onChange={(e) =>
+                                        setSolucaoDraft((d) => ({ ...d, [chamado.id]: e.target.value }))
+                                      }
+                                      className="w-full rounded-lg border border-input bg-background px-4 py-2.5 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => resolverChamado(chamado.id)}
+                                      className="flex items-center gap-2 rounded-lg bg-success px-4 py-2 text-sm font-medium text-success-foreground transition-all hover:opacity-90"
+                                    >
+                                      <CheckCircle2 className="h-4 w-4" />
+                                      Resolver chamado
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-muted-foreground">
+                                    A solução será registrada pela equipe de TI (Setape) quando o chamado for resolvido.
+                                  </p>
+                                )
+                              )}
+
+                              {/* Botão de reabertura (setape, apenas quando resolvido) */}
+                              {isSetape && chamado.status === "resolvido" && (
+                                <div className="pt-1">
+                                  {mostraReabertura[chamado.id] ? (
+                                    <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3">
+                                      <p className="text-xs font-medium text-warning">Reabrir chamado</p>
+                                      <textarea
+                                        rows={2}
+                                        placeholder="Motivo da reabertura..."
+                                        value={reaberturaDraft[chamado.id] ?? ""}
+                                        onChange={(e) =>
+                                          setReaberturaDraft((d) => ({ ...d, [chamado.id]: e.target.value }))
+                                        }
+                                        className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                                      />
+                                      <div className="flex gap-2">
+                                        <button
+                                          type="button"
+                                          onClick={() => reabrirChamado(chamado.id)}
+                                          className="flex items-center gap-1.5 rounded-lg bg-warning px-3 py-1.5 text-xs font-medium text-warning-foreground hover:opacity-90"
+                                        >
+                                          <RotateCcw className="h-3 w-3" /> Confirmar reabertura
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setMostraReabertura((d) => ({ ...d, [chamado.id]: false }))}
+                                          className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+                                        >
+                                          <X className="h-3 w-3" /> Cancelar
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setMostraReabertura((d) => ({ ...d, [chamado.id]: true }))}
+                                      className="flex items-center gap-2 rounded-lg border border-warning/40 px-3 py-2 text-xs font-medium text-warning hover:bg-warning/10 transition-colors"
+                                    >
+                                      <RotateCcw className="h-3.5 w-3.5" />
+                                      Reabrir chamado
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {filtered.length === 0 && (
+              <div className="py-12 text-center text-sm text-muted-foreground">
+                Nenhum chamado encontrado para o seu perfil ou para os filtros selecionados.
+              </div>
+            )}
           </>
         )}
       </div>

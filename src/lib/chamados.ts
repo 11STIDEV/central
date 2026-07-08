@@ -18,6 +18,13 @@ export type Chamado = {
   acompanhamentos: { autor: string; texto: string; data: string }[];
   tarefas: { autor: string; texto: string; data: string }[];
   solucao?: { autor: string; texto: string; data: string };
+  /** Histórico de reaberturas (setape). Cada entrada arquiva a solução que estava vigente. */
+  reaberturas?: {
+    autor: string;
+    data: string;
+    motivo: string;
+    solucaoAnterior?: { autor: string; texto: string; data: string };
+  }[];
   /** Campos extras para solicitação de filmagem de câmera. */
   solicitaFilmagem?: boolean;
   filmagemData?: string;

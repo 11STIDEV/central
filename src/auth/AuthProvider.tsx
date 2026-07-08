@@ -27,6 +27,20 @@ export type Papel =
   | "clat"
   | "almoxarifado"
   | "aluno"
+  /** Papéis de gerente por setor (sub-OU /Gerente dentro de cada setor). */
+  | "gerente_biblioteca"
+  | "gerente_direcao"
+  | "gerente_disciplinar"
+  | "gerente_dp"
+  | "gerente_faculdade"
+  | "gerente_financeiro"
+  | "gerente_publicidade"
+  | "gerente_secretaria"
+  | "gerente_servicosgerais"
+  | "gerente_setape"
+  | "gerente_primeirossocorros"
+  | "gerente_clat"
+  | "gerente_almoxarifado"
   /** Painel de senhas — alinhado a `OU_PAINEL_*` e ao `POST /api/painel/sync-profile`. */
   | "painel_atendente"
   | "painel_admin";
@@ -117,6 +131,20 @@ const OU_PARA_PAPEL = new Map<string, Papel>([
   [normalizarCaminhoOu("/Administrativo/Almoxarifado"), "almoxarifado"],
   [normalizarCaminhoOu("/Administrativo/Primeiros Socorros"), "primeirossocorros"],
   [normalizarCaminhoOu("/Administrativo/CLAT"), "clat"],
+  // Gerentes — sub-OU /Gerente dentro de cada setor
+  [normalizarCaminhoOu("/Administrativo/Biblioteca/Gerente"), "gerente_biblioteca"],
+  [normalizarCaminhoOu("/Administrativo/Direção/Gerente"), "gerente_direcao"],
+  [normalizarCaminhoOu("/Administrativo/Disciplinar/Gerente"), "gerente_disciplinar"],
+  [normalizarCaminhoOu("/Administrativo/DP/Gerente"), "gerente_dp"],
+  [normalizarCaminhoOu("/Administrativo/Faculdade/Gerente"), "gerente_faculdade"],
+  [normalizarCaminhoOu("/Administrativo/Financeiro/Gerente"), "gerente_financeiro"],
+  [normalizarCaminhoOu("/Administrativo/Publicidade/Gerente"), "gerente_publicidade"],
+  [normalizarCaminhoOu("/Administrativo/Secretaria/Gerente"), "gerente_secretaria"],
+  [normalizarCaminhoOu("/Administrativo/Serviços Gerais/Gerente"), "gerente_servicosgerais"],
+  [normalizarCaminhoOu("/Administrativo/Setape/Gerente"), "gerente_setape"],
+  [normalizarCaminhoOu("/Administrativo/Almoxarifado/Gerente"), "gerente_almoxarifado"],
+  [normalizarCaminhoOu("/Administrativo/Primeiros Socorros/Gerente"), "gerente_primeirossocorros"],
+  [normalizarCaminhoOu("/Administrativo/CLAT/Gerente"), "gerente_clat"],
   [normalizarCaminhoOu("/Professores FAC"), "professorfac"],
   [normalizarCaminhoOu("/Professores TECS"), "professortecs"],
   [normalizarCaminhoOu("/Professores REGULAR"), "professorregular"],
@@ -127,6 +155,23 @@ const OU_PARA_PAPEL = new Map<string, Papel>([
   [normalizarCaminhoOu("/portalcci.com.br/Alunos FACULDADE"), "aluno"],
   [normalizarCaminhoOu("/portalcci.com.br/Alunos TECSCCI"), "aluno"],
 ]);
+
+/** Mapa de papel gerente → papel base do setor (para que gerentes recebam os dois papéis). */
+const GERENTE_PARA_BASE: Partial<Record<Papel, Papel>> = {
+  gerente_biblioteca: "biblioteca",
+  gerente_direcao: "direcao",
+  gerente_disciplinar: "disciplinar",
+  gerente_dp: "dp",
+  gerente_faculdade: "faculdade",
+  gerente_financeiro: "financeiro",
+  gerente_publicidade: "publicidade",
+  gerente_secretaria: "secretaria",
+  gerente_servicosgerais: "servicosgerais",
+  gerente_setape: "setape",
+  gerente_almoxarifado: "almoxarifado",
+  gerente_primeirossocorros: "primeirossocorros",
+  gerente_clat: "clat",
+};
 
 /** Domínios Google permitidos a entrar na Central (OAuth). */
 const DOMINIOS_PERMITIDOS = [
@@ -159,6 +204,9 @@ function mapearPapeis(tokenPayload: any): Papel[] {
     }
     if (papelOu) {
       papeis.add(papelOu);
+      // Se é um papel de gerente, adiciona também o papel base do setor
+      const papelBase = GERENTE_PARA_BASE[papelOu];
+      if (papelBase) papeis.add(papelBase);
     }
     if (ouPainelAtendentePeloCaminho(chave)) {
       papeis.add("painel_atendente");
@@ -389,6 +437,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           /* ignore */
         }
       }
+      // Registra/atualiza o usuário no banco (nome + email + setor + is_gerente)
+      // Fire-and-forget: não bloqueia o login
+      void (async () => {
+        try {
+          await fetch(apiUrl("/api/usuarios/registrar"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ idToken, papeis }),
+          });
+        } catch {
+          /* registro de usuário é opcional — não falha o login */
+        }
+      })();
     },
     [],
   );

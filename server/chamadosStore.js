@@ -15,6 +15,7 @@ function rowToChamado(row) {
     acompanhamentos: Array.isArray(row.acompanhamentos) ? row.acompanhamentos : [],
     tarefas: Array.isArray(row.tarefas) ? row.tarefas : [],
     solucao: row.solucao && typeof row.solucao === "object" ? row.solucao : undefined,
+    reaberturas: Array.isArray(row.reaberturas) ? row.reaberturas : [],
     // Campos de filmagem
     solicitaFilmagem: row.solicita_filmagem ?? false,
     filmagemData: row.filmagem_data ?? undefined,
@@ -40,6 +41,7 @@ function chamadoToRow(chamado) {
     acompanhamentos: chamado.acompanhamentos ?? [],
     tarefas: chamado.tarefas ?? [],
     solucao: chamado.solucao ?? null,
+    reaberturas: chamado.reaberturas ?? [],
     // Campos de filmagem
     solicita_filmagem: chamado.solicitaFilmagem ?? false,
     filmagem_data: chamado.filmagemData ?? null,

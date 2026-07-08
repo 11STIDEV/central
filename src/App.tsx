@@ -31,6 +31,7 @@ import PortalDoFuncionario from "./pages/PortalDoFuncionario";
 import Avisos from "./pages/Avisos";
 import PublicarAviso from "./pages/PublicarAviso";
 import AdminPapeisManuais from "./pages/AdminPapeisManuais";
+import KanbanSetor from "./pages/KanbanSetor";
 import NotFound from "./pages/NotFound";
 import TrilhaConhecimento from "./pages/TrilhaConhecimento";
 import TrilhaDetalhe from "./pages/trilha/TrilhaDetalhe";
@@ -89,6 +90,7 @@ function CentralIntranetApp() {
               />
               <Route path="/chamados/novo" element={<AbrirChamado />} />
               <Route path="/chamados/gestao" element={<GestaoChamados />} />
+              <Route path="/kanban/:setor" element={<KanbanSetor />} />
               <Route path="/base-conhecimento" element={<BaseConhecimento />} />
               <Route
                 path="/ti-interno"
