@@ -31,6 +31,7 @@ import Avisos from "./pages/Avisos";
 import PublicarAviso from "./pages/PublicarAviso";
 import AdminPapeisManuais from "./pages/AdminPapeisManuais";
 import KanbanSetor from "./pages/KanbanSetor";
+import SetorVisaoGeralPage from "./pages/SetorVisaoGeralPage";
 import NotFound from "./pages/NotFound";
 import TrilhaConhecimento from "./pages/TrilhaConhecimento";
 import TrilhaDetalhe from "./pages/trilha/TrilhaDetalhe";
@@ -212,6 +213,14 @@ function CentralIntranetApp() {
                 element={
                   <RequireRouteAccess>
                     <SetorLinksPage setor="clat" />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/setores/:setor/visao-geral"
+                element={
+                  <RequireRouteAccess>
+                    <SetorVisaoGeralPage />
                   </RequireRouteAccess>
                 }
               />

@@ -80,6 +80,10 @@ type AppSidebarNavProps = {
   collapsed: boolean;
 };
 
+function getSectorSlugFromId(id: string): string {
+  return id.replace("setores-", "");
+}
+
 export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
   const { pathname } = useLocation();
 
@@ -225,36 +229,57 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
                 {section.label}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
-              {section.sectors.map((sector) => (
-                <DropdownMenuSub key={sector.id}>
-                  <DropdownMenuSubTrigger className="text-sm">{sector.label}</DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent className="w-52">
-                    {sector.items.map((item) => {
-                      const active = isNavActive(pathname, item.url);
-                      if (item.locked) {
+              {section.sectors.map((sector) => {
+                const slug = getSectorSlugFromId(sector.id);
+                const hasItems = sector.items.length > 0;
+                
+                if (!hasItems) {
+                  return (
+                    <DropdownMenuItem key={sector.id} asChild>
+                      <Link to={`/setores/${slug}/visao-geral`}>
+                        {sector.label}
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                }
+
+                return (
+                  <DropdownMenuSub key={sector.id}>
+                    <DropdownMenuSubTrigger className="text-sm">{sector.label}</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent className="w-52">
+                      <DropdownMenuItem asChild>
+                        <Link to={`/setores/${slug}/visao-geral`} className="font-medium">
+                          Visão Geral
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      {sector.items.map((item) => {
+                        const active = isNavActive(pathname, item.url);
+                        if (item.locked) {
+                          return (
+                            <DropdownMenuItem
+                              key={item.url}
+                              disabled
+                              title="Em breve — funcionalidade em revisão"
+                              className="flex items-center justify-between gap-2"
+                            >
+                              <span>{item.title}</span>
+                              <Lock className="h-3.5 w-3.5" />
+                            </DropdownMenuItem>
+                          );
+                        }
                         return (
-                          <DropdownMenuItem
-                            key={item.url}
-                            disabled
-                            title="Em breve — funcionalidade em revisão"
-                            className="flex items-center justify-between gap-2"
-                          >
-                            <span>{item.title}</span>
-                            <Lock className="h-3.5 w-3.5" />
+                          <DropdownMenuItem key={item.url} asChild>
+                            <Link to={item.url} className={active ? "bg-accent font-medium" : undefined}>
+                              {item.title}
+                            </Link>
                           </DropdownMenuItem>
                         );
-                      }
-                      return (
-                        <DropdownMenuItem key={item.url} asChild>
-                          <Link to={item.url} className={active ? "bg-accent font-medium" : undefined}>
-                            {item.title}
-                          </Link>
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              ))}
+                      })}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                );
+              })}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -282,35 +307,62 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
             )}
           </CollapsibleTrigger>
           <CollapsibleContent className="mt-1 space-y-1 pl-0">
-            {section.sectors.map((sector) => (
-              <Collapsible
-                key={sector.id}
-                open={sectorOpen[sector.id] ?? false}
-                onOpenChange={(open) => {
-                  setSectorOpen((p) => ({ ...p, [sector.id]: open }));
-                  writeBool(`sector-${sector.id}`, open);
-                }}
-              >
-                <CollapsibleTrigger
-                  className="flex w-full min-h-[44px] items-center justify-between gap-2 rounded-lg px-2 py-2 text-left text-xs font-semibold text-sidebar-foreground/90 transition-colors hover:bg-sidebar-accent/60 lg:min-h-0"
-                  type="button"
+            {section.sectors.map((sector) => {
+              const slug = getSectorSlugFromId(sector.id);
+              const hasItems = sector.items.length > 0;
+              const isOverviewActive = pathname === `/setores/${slug}/visao-geral`;
+
+              return (
+                <Collapsible
+                  key={sector.id}
+                  open={sectorOpen[sector.id] ?? false}
+                  onOpenChange={(open) => {
+                    setSectorOpen((p) => ({ ...p, [sector.id]: open }));
+                    writeBool(`sector-${sector.id}`, open);
+                  }}
                 >
-                  <span className="leading-snug">{sector.label}</span>
-                  {(sectorOpen[sector.id] ?? false) ? (
-                    <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-                  ) : (
-                    <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
-                  )}
-                </CollapsibleTrigger>
-                <CollapsibleContent>
-                  <ul className="space-y-0.5 pb-2 pl-1 pt-1">
-                    {[...sector.items]
-                      .sort((a, b) => a.title.localeCompare(b.title, "pt-BR"))
-                      .map((item) => renderLeaf(item, { collapsed: false }))}
-                  </ul>
-                </CollapsibleContent>
-              </Collapsible>
-            ))}
+                  <div className={`flex w-full min-h-[44px] items-center justify-between gap-2 rounded-lg px-2 py-1 text-left text-xs font-semibold transition-colors hover:bg-sidebar-accent/60 lg:min-h-0 ${isOverviewActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/90"}`}>
+                    <Link
+                      to={`/setores/${slug}/visao-geral`}
+                      className="flex-1 truncate py-1 hover:underline"
+                    >
+                      {sector.label}
+                    </Link>
+                    {hasItems && (
+                      <CollapsibleTrigger
+                        type="button"
+                        className="p-1 text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/80 rounded"
+                        title={sectorOpen[sector.id] ? "Recolher" : "Expandir"}
+                      >
+                        {(sectorOpen[sector.id] ?? false) ? (
+                          <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+                        ) : (
+                          <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
+                        )}
+                      </CollapsibleTrigger>
+                    )}
+                  </div>
+                  <CollapsibleContent>
+                    <ul className="space-y-0.5 pb-2 pl-1 pt-1">
+                      {/* For users with access, add Visão Geral as first option inside the submenu list for completeness */}
+                      <li key={`overview-${slug}`}>
+                        <NavLink
+                          to={`/setores/${slug}/visao-geral`}
+                          className={linkClass(isOverviewActive)}
+                          activeClassName=""
+                        >
+                          <Layers className={iconClass(isOverviewActive)} strokeWidth={1.75} />
+                          <span className="min-w-0 flex-1 leading-snug">Visão Geral</span>
+                        </NavLink>
+                      </li>
+                      {[...sector.items]
+                        .sort((a, b) => a.title.localeCompare(b.title, "pt-BR"))
+                        .map((item) => renderLeaf(item, { collapsed: false }))}
+                    </ul>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
           </CollapsibleContent>
         </Collapsible>
       </div>

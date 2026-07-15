@@ -89,6 +89,10 @@ export function hasRoleAccessToRoute(papeis: Papel[], pathname: string, email?: 
   const path = normalizarPath(pathname);
   if (papeis.includes("admin")) return true;
 
+  if (path.startsWith("/setores/") && path.endsWith("/visao-geral")) {
+    return true;
+  }
+
   if (papeis.includes("aluno") && ROTAS_BLOQUEADAS_ALUNO.has(path)) return false;
 
   if (isSomenteAluno(papeis)) {

@@ -289,12 +289,10 @@ export function filterNavByAccess(
       const items = sec.items.filter((i) => hasRoleAccessToRoute(papeis, i.url, email));
       if (items.length) out.push({ ...sec, items });
     } else {
-      const sectors = sec.sectors
-        .map((s) => ({
-          ...s,
-          items: s.items.filter((i) => hasRoleAccessToRoute(papeis, i.url, email)),
-        }))
-        .filter((s) => s.items.length > 0);
+      const sectors = sec.sectors.map((s) => ({
+        ...s,
+        items: s.items.filter((i) => hasRoleAccessToRoute(papeis, i.url, email)),
+      }));
       if (sectors.length) out.push({ ...sec, sectors });
     }
   }
