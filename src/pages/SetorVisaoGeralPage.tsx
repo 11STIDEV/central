@@ -2,9 +2,9 @@ import { useEffect, useState, useCallback } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { PageHero } from "@/components/PageHero";
-import { podeAcessarKanban, KANBAN_SETORES, listarKanbanCards, listarKanbanUsuarios, type KanbanCard, type KanbanUsuario } from "@/lib/kanban";
+import { listarKanbanUsuarios, type KanbanUsuario } from "@/lib/kanban";
 import { hasRoleAccessToRoute } from "@/auth/routeAccess";
-import { Users, LayoutDashboard, Link2, CheckCircle2, Clock, Circle, Loader2, Landmark } from "lucide-react";
+import { Users, Link2, Loader2, Landmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface SectorMeta {
@@ -23,7 +23,7 @@ const SECTOR_DESCRIPTIONS: Record<string, SectorMeta> = {
   },
   disciplinar: {
     title: "Disciplinar",
-    description: "Acompanhamento da conduct de alunos, controle de frequência e entrada/saída, organização do pátio e apoio à convivência escolar.",
+    description: "Acompanhamento da conduta de alunos, controle de frequência e entrada/saída, organização do pátio e apoio à convivência escolar.",
   },
   "dp-financeiro": {
     title: "DP e Financeiro",
@@ -76,7 +76,6 @@ export default function SetorVisaoGeralPage() {
   const { usuario, googleIdToken } = useAuth();
 
   const [usuarios, setUsuarios] = useState<KanbanUsuario[]>([]);
-  const [cards, setCards] = useState<KanbanCard[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -84,7 +83,6 @@ export default function SetorVisaoGeralPage() {
   const kanbanPapel = getKanbanPapelFromSlug(setor);
 
   // Permissões
-  const temAcessoKanban = !!usuario && podeAcessarKanban(usuario.papeis, kanbanPapel);
   const privateLinksRoute = `/setores/${setor}`;
   const temAcessoLinks = !!usuario && hasRoleAccessToRoute(usuario.papeis, privateLinksRoute);
 
@@ -93,12 +91,8 @@ export default function SetorVisaoGeralPage() {
     setLoading(true);
     setError(null);
     try {
-      const [u, c] = await Promise.all([
-        listarKanbanUsuarios(googleIdToken, kanbanPapel),
-        listarKanbanCards(googleIdToken, kanbanPapel),
-      ]);
+      const u = await listarKanbanUsuarios(googleIdToken, kanbanPapel);
       setUsuarios(u);
-      setCards(c);
     } catch (e) {
       console.error("Erro ao carregar visão geral do setor:", e);
       setError(e instanceof Error ? e.message : "Falha ao sincronizar dados do setor.");
@@ -117,108 +111,37 @@ export default function SetorVisaoGeralPage() {
 
   if (!meta) return null;
 
-  // Estatísticas do Kanban
-  const totalCards = cards.length;
-  const cardsTodo = cards.filter((c) => c.coluna === "todo").length;
-  const cardsDoing = cards.filter((c) => c.coluna === "doing").length;
-  const cardsDone = cards.filter((c) => c.coluna === "done").length;
-  const pctConcluido = totalCards > 0 ? Math.round((cardsDone / totalCards) * 100) : 0;
-
   return (
     <div className="animate-fade-in pb-12">
-      <PageHero title={`Visão Geral — ${meta.title}`} subtitle="Informações da equipe, estatísticas de atividades e acessos do setor." />
+      <PageHero title={`Visão Geral — ${meta.title}`} subtitle="Informações da equipe e links de acesso do setor." />
 
       <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 space-y-8">
         {/* Descrição do Setor e Botões de Acesso */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2 bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-            <div className="space-y-3">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-xs font-semibold text-primary border border-primary/20">
-                <Landmark className="w-3.5 h-3.5" />
-                Institucional
-              </div>
-              <h2 className="text-xl font-bold text-foreground">O que fazemos</h2>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                {meta.description}
-              </p>
+        <div className="w-full bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-xs font-semibold text-primary border border-primary/20">
+              <Landmark className="w-3.5 h-3.5" />
+              Institucional
             </div>
-            
-            <div className="mt-6 flex flex-wrap gap-3 pt-4 border-t border-border/40">
-              {temAcessoLinks ? (
-                <Button asChild className="flex items-center gap-2 rounded-xl">
-                  <Link to={privateLinksRoute}>
-                    <Link2 className="w-4 h-4" />
-                    Acessar Links do Setor
-                  </Link>
-                </Button>
-              ) : (
-                <div className="text-xs text-muted-foreground bg-muted p-2 rounded-xl border border-border/30 flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-red-400" />
-                  Página de links internos restrita a membros do setor.
-                </div>
-              )}
-
-              {temAcessoKanban && (
-                <Button asChild variant="outline" className="flex items-center gap-2 rounded-xl border-border">
-                  <Link to={`/kanban/${kanbanPapel}`}>
-                    <LayoutDashboard className="w-4 h-4" />
-                    Quadro Kanban
-                  </Link>
-                </Button>
-              )}
-            </div>
+            <h2 className="text-xl font-bold text-foreground">O que fazemos</h2>
+            <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl">
+              {meta.description}
+            </p>
           </div>
-
-          {/* Kanban status rápido */}
-          <div className="bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between">
-            <div>
-              <h2 className="text-base font-bold text-foreground flex items-center gap-2 mb-4">
-                <LayoutDashboard className="w-4.5 h-4.5 text-primary" />
-                Quadro de Atividades
-              </h2>
-
-              {loading ? (
-                <div className="flex items-center justify-center h-32">
-                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                </div>
-              ) : error ? (
-                <span className="text-xs text-muted-foreground/60 block py-8 text-center">Estatísticas indisponíveis.</span>
-              ) : (
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-muted-foreground font-medium flex items-center gap-1.5">
-                      <Circle className="w-3.5 h-3.5 text-blue-500" /> A fazer
-                    </span>
-                    <span className="font-bold text-foreground">{cardsTodo}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-muted-foreground font-medium flex items-center gap-1.5">
-                      <Clock className="w-3.5 h-3.5 text-amber-500" /> Em andamento
-                    </span>
-                    <span className="font-bold text-foreground">{cardsDoing}</span>
-                  </div>
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="text-muted-foreground font-medium flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Concluído
-                    </span>
-                    <span className="font-bold text-foreground">{cardsDone}</span>
-                  </div>
-
-                  <div className="pt-3 border-t border-border/40 space-y-1.5">
-                    <div className="flex justify-between text-xs font-semibold">
-                      <span className="text-muted-foreground">Progresso</span>
-                      <span className="text-foreground">{pctConcluido}%</span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-2 overflow-hidden border border-border/40">
-                      <div className="bg-primary h-2 rounded-full transition-all duration-500" style={{ width: `${pctConcluido}%` }} />
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {!loading && !error && totalCards === 0 && (
-              <span className="text-xs text-muted-foreground/60 italic text-center block pt-4">Nenhuma tarefa registrada.</span>
+          
+          <div className="mt-6 flex flex-wrap gap-3 pt-4 border-t border-border/40">
+            {temAcessoLinks ? (
+              <Button asChild className="flex items-center gap-2 rounded-xl">
+                <Link to={privateLinksRoute}>
+                  <Link2 className="w-4 h-4" />
+                  Acessar Links do Setor
+                </Link>
+              </Button>
+            ) : (
+              <div className="text-xs text-muted-foreground bg-muted p-2 rounded-xl border border-border/30 flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-red-400" />
+                Página de links internos restrita a membros do setor.
+              </div>
             )}
           </div>
         </div>

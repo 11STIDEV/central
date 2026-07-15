@@ -247,12 +247,6 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
                   <DropdownMenuSub key={sector.id}>
                     <DropdownMenuSubTrigger className="text-sm">{sector.label}</DropdownMenuSubTrigger>
                     <DropdownMenuSubContent className="w-52">
-                      <DropdownMenuItem asChild>
-                        <Link to={`/setores/${slug}/visao-geral`} className="font-medium">
-                          Visão Geral
-                        </Link>
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
                       {sector.items.map((item) => {
                         const active = isNavActive(pathname, item.url);
                         if (item.locked) {
@@ -344,17 +338,6 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
                   </div>
                   <CollapsibleContent>
                     <ul className="space-y-0.5 pb-2 pl-1 pt-1">
-                      {/* For users with access, add Visão Geral as first option inside the submenu list for completeness */}
-                      <li key={`overview-${slug}`}>
-                        <NavLink
-                          to={`/setores/${slug}/visao-geral`}
-                          className={linkClass(isOverviewActive)}
-                          activeClassName=""
-                        >
-                          <Layers className={iconClass(isOverviewActive)} strokeWidth={1.75} />
-                          <span className="min-w-0 flex-1 leading-snug">Visão Geral</span>
-                        </NavLink>
-                      </li>
                       {[...sector.items]
                         .sort((a, b) => a.title.localeCompare(b.title, "pt-BR"))
                         .map((item) => renderLeaf(item, { collapsed: false }))}
