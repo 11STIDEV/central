@@ -4,7 +4,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { PageHero } from "@/components/PageHero";
 import { listarKanbanUsuarios, type KanbanUsuario } from "@/lib/kanban";
 import { hasRoleAccessToRoute } from "@/auth/routeAccess";
-import { Users, Link2, Loader2, Landmark } from "lucide-react";
+import { Users, Link2, Loader2, Landmark, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface SectorMeta {
@@ -168,19 +168,29 @@ export default function SetorVisaoGeralPage() {
               {usuarios.map((u) => {
                 const iniciais = u.nome.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
                 return (
-                  <div key={u.email} className="flex items-center gap-3 p-3 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors">
-                    <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center font-bold text-white text-sm shrink-0 shadow-sm">
-                      {iniciais}
+                  <div key={u.email} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors group">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center font-bold text-white text-sm shrink-0 shadow-sm">
+                        {iniciais}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-foreground truncate leading-snug">{u.nome}</p>
+                        <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                        {u.isGerente && (
+                          <span className="inline-block mt-1 text-[9px] font-bold text-amber-600 bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
+                            Gerente
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-foreground truncate leading-snug">{u.nome}</p>
-                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                      {u.isGerente && (
-                        <span className="inline-block mt-1 text-[9px] font-bold text-amber-600 bg-amber-500/10 border border-amber-500/25 px-1.5 py-0.5 rounded-full uppercase tracking-wider">
-                          Gerente
-                        </span>
-                      )}
-                    </div>
+
+                    <a
+                      href={`mailto:${u.email}`}
+                      className="p-2 rounded-lg bg-card hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all shadow-sm border border-border/40 hover:border-primary/20 shrink-0"
+                      title={`Enviar e-mail para ${u.nome}`}
+                    >
+                      <Mail className="w-4 h-4" />
+                    </a>
                   </div>
                 );
               })}
