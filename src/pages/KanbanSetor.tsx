@@ -64,9 +64,10 @@ interface CardProps {
   onDragEnd: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onSelect: () => void;
 }
 
-function KanbanCardItem({ card, isGerente, emailUsuario, dragging, onDragStart, onDragEnd, onEdit, onDelete }: CardProps) {
+function KanbanCardItem({ card, isGerente, emailUsuario, dragging, onDragStart, onDragEnd, onEdit, onDelete, onSelect }: CardProps) {
   const podeArrastar = isGerente || (card.atribuidoA ?? []).includes(emailUsuario);
 
   return (
@@ -74,8 +75,10 @@ function KanbanCardItem({ card, isGerente, emailUsuario, dragging, onDragStart, 
       draggable={podeArrastar}
       onDragStart={podeArrastar ? onDragStart : undefined}
       onDragEnd={podeArrastar ? onDragEnd : undefined}
-      className={`group relative rounded-xl border bg-card p-3.5 transition-all duration-200
-        ${podeArrastar ? "cursor-grab active:cursor-grabbing hover:bg-accent/30 dark:hover:bg-white/[0.04] hover:shadow-md hover:-translate-y-0.5" : "cursor-default"}
+      onClick={onSelect}
+      className={`group relative rounded-xl border bg-card p-3.5 transition-all duration-200 cursor-pointer
+        hover:bg-accent/30 dark:hover:bg-white/[0.04] hover:shadow-md hover:-translate-y-0.5
+        ${podeArrastar ? "active:cursor-grabbing" : ""}
         ${dragging ? "opacity-30 scale-95 rotate-1 shadow-lg" : "shadow-sm"}
         border-border/60`}
     >
@@ -92,14 +95,14 @@ function KanbanCardItem({ card, isGerente, emailUsuario, dragging, onDragStart, 
         {isGerente && (
           <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
             <button
-              onClick={onEdit}
+              onClick={(e) => { e.stopPropagation(); onEdit(); }}
               className="p-1 rounded-lg hover:bg-blue-500/10 text-blue-500 dark:text-blue-400 transition-colors"
               title="Editar"
             >
               <Pencil className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={onDelete}
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
               className="p-1 rounded-lg hover:bg-red-500/10 text-red-500 dark:text-red-400 transition-colors"
               title="Excluir"
             >
@@ -163,10 +166,11 @@ interface ColunaProps {
   onDrop: (coluna: KanbanColuna) => void;
   onEdit: (card: KanbanCard) => void;
   onDelete: (card: KanbanCard) => void;
+  onSelect: (card: KanbanCard) => void;
   onNovaCard: () => void;
 }
 
-function KanbanColuna({ coluna, cards, isGerente, emailUsuario, draggingId, onDragStart, onDragEnd, onDrop, onEdit, onDelete, onNovaCard }: ColunaProps) {
+function KanbanColuna({ coluna, cards, isGerente, emailUsuario, draggingId, onDragStart, onDragEnd, onDrop, onEdit, onDelete, onSelect, onNovaCard }: ColunaProps) {
   const [dragOver, setDragOver] = useState(false);
   const icones: Record<string, React.ReactNode> = {
     todo:  <Circle className="w-4 h-4" />,
@@ -223,6 +227,7 @@ function KanbanColuna({ coluna, cards, isGerente, emailUsuario, draggingId, onDr
             onDragEnd={onDragEnd}
             onEdit={() => onEdit(card)}
             onDelete={() => onDelete(card)}
+            onSelect={() => onSelect(card)}
           />
         ))}
         {dragOver && (
@@ -439,6 +444,118 @@ function ModalConfirmar({ card, onConfirmar, onCancelar, excluindo }: {
   );
 }
 
+// ─── Modal de visualização de detalhes ───────────────────────────────────────
+
+interface ModalDetalhesProps {
+  card: KanbanCard;
+  onFechar: () => void;
+}
+
+function ModalDetalhes({ card, onFechar }: ModalDetalhesProps) {
+  const colInfo = COLUNAS.find((c) => c.key === card.coluna);
+  const icones: Record<string, React.ReactNode> = {
+    todo:  <Circle className="w-4 h-4" />,
+    doing: <Clock className="w-4 h-4" />,
+    done:  <CheckCircle2 className="w-4 h-4" />,
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fade-in" onClick={onFechar}>
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+      <div
+        className="relative w-full max-w-lg bg-card border border-border rounded-2xl shadow-2xl p-6 animate-in fade-in slide-in-from-bottom-4 duration-200"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between mb-5 pb-3 border-b border-border/40">
+          <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
+            <LayoutDashboard className="w-5 h-5 text-primary" />
+            Detalhes da Tarefa
+          </h2>
+          <button onClick={onFechar} className="p-2 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="space-y-4 text-sm max-h-[70vh] overflow-y-auto pr-1">
+          {/* Título */}
+          <div>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Título</span>
+            <p className="text-base font-bold text-foreground leading-snug">{card.titulo}</p>
+          </div>
+
+          {/* Descrição */}
+          <div>
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Descrição</span>
+            {card.descricao ? (
+              <p className="text-foreground leading-relaxed bg-muted/30 p-3 rounded-xl border border-border/40 whitespace-pre-wrap">
+                {card.descricao}
+              </p>
+            ) : (
+              <p className="text-muted-foreground/60 italic">Nenhuma descrição fornecida.</p>
+            )}
+          </div>
+
+          {/* Status + Prioridade + Data Limite */}
+          <div className="grid grid-cols-3 gap-3 pt-2">
+            <div>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Coluna</span>
+              {colInfo && (
+                <span className={`inline-flex items-center gap-1.5 font-semibold text-xs ${colInfo.cor}`}>
+                  {icones[card.coluna]}
+                  {colInfo.label}
+                </span>
+              )}
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Prioridade</span>
+              <PrioridadeBadge p={card.prioridade} />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-1">Data Limite</span>
+              <span className="inline-flex items-center gap-1 text-foreground">
+                <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+                {card.dataLimite || "Sem prazo"}
+              </span>
+            </div>
+          </div>
+
+          {/* Atribuição */}
+          <div className="pt-2">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">Atribuído a</span>
+            <div className="flex flex-wrap gap-2">
+              {(card.atribuidoNome ?? []).length > 0 ? (
+                (card.atribuidoNome ?? []).map((nome, idx) => (
+                  <div key={idx} className="flex items-center gap-2 bg-muted px-2.5 py-1.5 rounded-full border border-border/40 text-xs font-medium text-foreground">
+                    <Avatar nome={nome} size="sm" />
+                    <span>{nome}</span>
+                  </div>
+                ))
+              ) : (
+                <span className="text-muted-foreground/60 italic">Sem colaboradores atribuídos.</span>
+              )}
+            </div>
+          </div>
+
+          {/* Criado por / Metadata */}
+          <div className="pt-4 border-t border-border/40 text-xs text-muted-foreground flex flex-col gap-1">
+            <p>Criado por: <span className="text-foreground font-medium">{card.criadoPorNome || card.criadoPor}</span></p>
+            <p>Criado em: <span>{new Date(card.criadoEm).toLocaleString("pt-BR")}</span></p>
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-5 mt-4 border-t border-border/40">
+          <button
+            onClick={onFechar}
+            className="w-full py-2.5 rounded-xl bg-primary hover:bg-primary/95 text-primary-foreground text-sm font-semibold transition-all shadow-sm"
+          >
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Página principal ────────────────────────────────────────────────────────
 
 export default function KanbanSetor() {
@@ -458,6 +575,7 @@ export default function KanbanSetor() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [modalCard, setModalCard] = useState<Partial<KanbanCard> | null>(null);
   const [cardParaExcluir, setCardParaExcluir] = useState<KanbanCard | null>(null);
+  const [cardDetalhes, setCardDetalhes] = useState<KanbanCard | null>(null);
   const [salvando, setSalvando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
 
@@ -615,6 +733,7 @@ export default function KanbanSetor() {
                 onDrop={handleDrop}
                 onEdit={(card) => setModalCard(card)}
                 onDelete={(card) => setCardParaExcluir(card)}
+                onSelect={(card) => setCardDetalhes(card)}
                 onNovaCard={() => setModalCard({})}
               />
             ))}
@@ -651,6 +770,13 @@ export default function KanbanSetor() {
           excluindo={excluindo}
         />
       )}
+      {cardDetalhes && (
+        <ModalDetalhes
+          card={cardDetalhes}
+          onFechar={() => setCardDetalhes(null)}
+        />
+      )}
+
     </div>
   );
 }
