@@ -55,7 +55,16 @@ export default function TrilhaConhecimento() {
               <div className="flex items-center gap-3 mb-3">
                 {/* Avatar */}
                 <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-xl font-bold text-white shadow-lg shadow-amber-900/30">
-                  {primeiroNome[0]?.toUpperCase() ?? "U"}
+                  {usuario?.picture ? (
+                    <img
+                      src={usuario.picture}
+                      alt={usuario.nome}
+                      className="w-full h-full rounded-2xl object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    primeiroNome[0]?.toUpperCase() ?? "U"
+                  )}
                   {/* Level badge */}
                   <div className="absolute -bottom-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-600 text-[10px] font-black text-white ring-2 ring-[var(--background)]">
                     {atual.nivel}

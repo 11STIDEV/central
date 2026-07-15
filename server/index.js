@@ -444,7 +444,11 @@ async function verificarIdTokenUsuario(idToken) {
     throw err;
   }
 
-  return { email };
+  return {
+    email,
+    name: payload?.name || payload?.given_name,
+    picture: payload?.picture
+  };
 }
 
 function textoIndicaHdmi(...partes) {
@@ -2862,14 +2866,15 @@ app.post("/api/usuarios/registrar", async (req, res) => {
     const { idToken, papeis } = req.body || {};
     const payload = await verificarIdTokenUsuario(idToken);
     const email = payload?.email;
-    const nome = payload?.name ?? payload?.given_name ?? email ?? "Usuário";
+    const nome = payload?.name ?? email ?? "Usuário";
+    const fotoUrl = payload?.picture || null;
     if (!email) return res.status(400).json({ error: "Token inválido." });
 
     const supabase = getSupabaseAdmin();
     if (!supabase) return res.json({ ok: true, skipped: true }); // sem supabase, ignora silenciosamente
 
     const { setor, isGerente } = extrairSetorDePapeis(papeis);
-    await registrarOuAtualizarUsuario(supabase, { email, nome, setor, isGerente });
+    await registrarOuAtualizarUsuario(supabase, { email, nome, setor, isGerente, fotoUrl });
     return res.json({ ok: true });
   } catch (e) {
     if (e.status) return respostaErroIdToken(res, e);

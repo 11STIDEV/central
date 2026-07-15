@@ -26,8 +26,18 @@ import {
 
 // ─── Avatar ──────────────────────────────────────────────────────────────────
 
-function Avatar({ nome, size = "sm" }: { nome: string | null | undefined; size?: "sm" | "md" }) {
+function Avatar({ nome, fotoUrl, size = "sm" }: { nome: string | null | undefined; fotoUrl?: string | null; size?: "sm" | "md" }) {
   const cls = size === "sm" ? "w-7 h-7 text-xs" : "w-9 h-9 text-sm";
+  if (fotoUrl) {
+    return (
+      <img
+        src={fotoUrl}
+        alt={nome || ""}
+        className={`${cls} rounded-full object-cover shrink-0 shadow-sm`}
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
   return (
     <div
       className={`${cls} rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center font-bold text-white shrink-0 shadow-sm`}
@@ -60,6 +70,7 @@ interface CardProps {
   isGerente: boolean;
   emailUsuario: string;
   dragging: boolean;
+  usuarios: KanbanUsuario[];
   onDragStart: () => void;
   onDragEnd: () => void;
   onEdit: () => void;
@@ -67,7 +78,7 @@ interface CardProps {
   onSelect: () => void;
 }
 
-function KanbanCardItem({ card, isGerente, emailUsuario, dragging, onDragStart, onDragEnd, onEdit, onDelete, onSelect }: CardProps) {
+function KanbanCardItem({ card, isGerente, emailUsuario, dragging, usuarios, onDragStart, onDragEnd, onEdit, onDelete, onSelect }: CardProps) {
   const podeArrastar = isGerente || (card.atribuidoA ?? []).includes(emailUsuario);
 
   return (
@@ -128,9 +139,13 @@ function KanbanCardItem({ card, isGerente, emailUsuario, dragging, onDragStart, 
           )}
           <div className="flex items-center -space-x-1.5 overflow-hidden">
             {(card.atribuidoNome ?? []).length > 0 ? (
-              (card.atribuidoNome ?? []).map((nome, idx) => (
-                <Avatar key={idx} nome={nome} size="sm" />
-              ))
+              (card.atribuidoNome ?? []).map((nome, idx) => {
+                const email = (card.atribuidoA ?? [])[idx];
+                const colaborador = usuarios.find((u) => u.email === email);
+                return (
+                  <Avatar key={idx} nome={nome} fotoUrl={colaborador?.fotoUrl} size="sm" />
+                );
+              })
             ) : (
               <div className="w-7 h-7 rounded-full border border-dashed border-border flex items-center justify-center bg-muted/40">
                 <User className="w-3.5 h-3.5 text-muted-foreground/60" />
@@ -161,6 +176,7 @@ interface ColunaProps {
   isGerente: boolean;
   emailUsuario: string;
   draggingId: string | null;
+  usuarios: KanbanUsuario[];
   onDragStart: (id: string) => void;
   onDragEnd: () => void;
   onDrop: (coluna: KanbanColuna) => void;
@@ -170,7 +186,7 @@ interface ColunaProps {
   onNovaCard: () => void;
 }
 
-function KanbanColuna({ coluna, cards, isGerente, emailUsuario, draggingId, onDragStart, onDragEnd, onDrop, onEdit, onDelete, onSelect, onNovaCard }: ColunaProps) {
+function KanbanColuna({ coluna, cards, isGerente, emailUsuario, draggingId, usuarios, onDragStart, onDragEnd, onDrop, onEdit, onDelete, onSelect, onNovaCard }: ColunaProps) {
   const [dragOver, setDragOver] = useState(false);
   const icones: Record<string, React.ReactNode> = {
     todo:  <Circle className="w-4 h-4" />,
@@ -223,6 +239,7 @@ function KanbanColuna({ coluna, cards, isGerente, emailUsuario, draggingId, onDr
             isGerente={isGerente}
             emailUsuario={emailUsuario}
             dragging={draggingId === card.id}
+            usuarios={usuarios}
             onDragStart={() => onDragStart(card.id)}
             onDragEnd={onDragEnd}
             onEdit={() => onEdit(card)}
@@ -448,10 +465,11 @@ function ModalConfirmar({ card, onConfirmar, onCancelar, excluindo }: {
 
 interface ModalDetalhesProps {
   card: KanbanCard;
+  usuarios: KanbanUsuario[];
   onFechar: () => void;
 }
 
-function ModalDetalhes({ card, onFechar }: ModalDetalhesProps) {
+function ModalDetalhes({ card, usuarios, onFechar }: ModalDetalhesProps) {
   const colInfo = COLUNAS.find((c) => c.key === card.coluna);
   const icones: Record<string, React.ReactNode> = {
     todo:  <Circle className="w-4 h-4" />,
@@ -524,12 +542,16 @@ function ModalDetalhes({ card, onFechar }: ModalDetalhesProps) {
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider block mb-2">Atribuído a</span>
             <div className="flex flex-wrap gap-2">
               {(card.atribuidoNome ?? []).length > 0 ? (
-                (card.atribuidoNome ?? []).map((nome, idx) => (
-                  <div key={idx} className="flex items-center gap-2 bg-muted px-2.5 py-1.5 rounded-full border border-border/40 text-xs font-medium text-foreground">
-                    <Avatar nome={nome} size="sm" />
-                    <span>{nome}</span>
-                  </div>
-                ))
+                (card.atribuidoNome ?? []).map((nome, idx) => {
+                  const email = (card.atribuidoA ?? [])[idx];
+                  const colaborador = usuarios.find((u) => u.email === email);
+                  return (
+                    <div key={idx} className="flex items-center gap-2 bg-muted px-2.5 py-1.5 rounded-full border border-border/40 text-xs font-medium text-foreground">
+                      <Avatar nome={nome} fotoUrl={colaborador?.fotoUrl} size="sm" />
+                      <span>{nome}</span>
+                    </div>
+                  );
+                })
               ) : (
                 <span className="text-muted-foreground/60 italic">Sem colaboradores atribuídos.</span>
               )}
@@ -728,6 +750,7 @@ export default function KanbanSetor() {
                 isGerente={gerente}
                 emailUsuario={usuario?.email ?? ""}
                 draggingId={draggingId}
+                usuarios={usuarios}
                 onDragStart={setDraggingId}
                 onDragEnd={() => setDraggingId(null)}
                 onDrop={handleDrop}
@@ -773,6 +796,7 @@ export default function KanbanSetor() {
       {cardDetalhes && (
         <ModalDetalhes
           card={cardDetalhes}
+          usuarios={usuarios}
           onFechar={() => setCardDetalhes(null)}
         />
       )}

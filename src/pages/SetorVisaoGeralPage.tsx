@@ -170,9 +170,18 @@ export default function SetorVisaoGeralPage() {
                 return (
                   <div key={u.email} className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border/60 bg-muted/20 hover:bg-muted/40 transition-colors group">
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center font-bold text-white text-sm shrink-0 shadow-sm">
-                        {iniciais}
-                      </div>
+                      {u.fotoUrl ? (
+                        <img
+                          src={u.fotoUrl}
+                          alt={u.nome}
+                          className="w-9 h-9 rounded-full object-cover shrink-0 shadow-sm"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center font-bold text-white text-sm shrink-0 shadow-sm">
+                          {iniciais}
+                        </div>
+                      )}
                       <div className="min-w-0">
                         <p className="text-sm font-semibold text-foreground truncate leading-snug">{u.nome}</p>
                         <p className="text-xs text-muted-foreground truncate">{u.email}</p>

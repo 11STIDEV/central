@@ -26,6 +26,7 @@ export type KanbanUsuario = {
   email: string;
   nome: string;
   isGerente: boolean;
+  fotoUrl?: string | null;
 };
 
 // ─── Config de setores ───────────────────────────────────────────────────────
