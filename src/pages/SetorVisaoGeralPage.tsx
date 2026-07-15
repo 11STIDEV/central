@@ -185,9 +185,11 @@ export default function SetorVisaoGeralPage() {
                     </div>
 
                     <a
-                      href={`mailto:${u.email}`}
+                      href={`https://mail.google.com/mail/?view=cm&fs=1&to=${u.email}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                       className="p-2 rounded-lg bg-card hover:bg-primary/10 text-muted-foreground hover:text-primary transition-all shadow-sm border border-border/40 hover:border-primary/20 shrink-0"
-                      title={`Enviar e-mail para ${u.nome}`}
+                      title={`Enviar e-mail para ${u.nome} (via Gmail)`}
                     >
                       <Mail className="w-4 h-4" />
                     </a>
