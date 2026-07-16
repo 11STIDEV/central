@@ -16,7 +16,7 @@ import {
   RotateCcw,
 } from "lucide-react";
 import { Navigate, useLocation } from "react-router-dom";
-import { useAuth } from "@/auth/AuthProvider";
+import { useAuth, type Papel } from "@/auth/AuthProvider";
 import {
   type Chamado,
   podeVerChamado,
@@ -139,6 +139,13 @@ export default function GestaoChamados() {
 
   const [abaFluxo, setAbaFluxo] = useState<"recebidos" | "enviados">("recebidos");
   const [atribuindoSetor, setAtribuindoSetor] = useState<{ id: string; setor: string; justificativa: string } | null>(null);
+
+  const podeGerenciar = (c: Chamado) => {
+    if (!usuario) return false;
+    if (usuario.papeis.includes("admin") || usuario.papeis.includes("setape")) return true;
+    const dests = c.setorDestino ?? ["setape"];
+    return dests.some((d) => usuario.papeis.includes(d as Papel));
+  };
 
   const persistir = useCallback(
     async (lista: Chamado[], idAlterado: string) => {
@@ -691,7 +698,7 @@ export default function GestaoChamados() {
                             <>
                               <div className="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2">
                                 <EyeOff className="h-3.5 w-3.5 text-warning" />
-                                <span className="text-xs text-warning">Visível apenas para a equipe de {obterNomeAmigavelSetor(chamado.setorDestino)}</span>
+                                <span className="text-xs text-warning">Visível apenas para a equipe de {(chamado.setorDestino ?? ["setape"]).map(obterNomeAmigavelSetor).join(" & ")}</span>
                               </div>
                               {chamado.tarefas.map((t, i) => {
                                 const estaEditando = ed?.tipo === "tarefa" && ed.idx === i;
@@ -880,7 +887,7 @@ export default function GestaoChamados() {
                                   </div>
                                 ) : (
                                   <p className="text-sm text-muted-foreground">
-                                    A solução será registrada pela equipe de {obterNomeAmigavelSetor(chamado.setorDestino)} quando o chamado for resolvido.
+                                    A solução será registrada pela equipe de {(chamado.setorDestino ?? ["setape"]).map(obterNomeAmigavelSetor).join(" & ")} quando o chamado for resolvido.
                                   </p>
                                 )
                               )}

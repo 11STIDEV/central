@@ -47,6 +47,7 @@ export default function AbrirChamado() {
   const [enviando, setEnviando] = useState(false);
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
   const [termosAbertos, setTermosAbertos] = useState(false);
+  const [setoresMenuAberto, setSetoresMenuAberto] = useState(false);
 
   const [form, setForm] = useState({
     titulo: "",
@@ -184,54 +185,86 @@ export default function AbrirChamado() {
             </div>
 
             {/* Setor Destinatário */}
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-foreground">Setor(es) Destinatário(s) *</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-4 rounded-xl border border-border bg-muted/20">
-                {SECTORS.map((s) => {
-                  const selected = form.setorDestino.includes(s.value);
-                  return (
-                    <label
-                      key={s.value}
-                      className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer select-none transition-all ${
-                        selected
-                          ? "border-primary bg-primary/10 text-primary font-medium"
-                          : "border-border/60 bg-card hover:bg-muted/40 text-muted-foreground hover:text-foreground"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={(e) => {
-                          let nextDests = [...form.setorDestino];
-                          if (e.target.checked) {
-                            nextDests.push(s.value);
-                          } else {
-                            nextDests = nextDests.filter((x) => x !== s.value);
-                          }
-                          if (nextDests.length === 0) {
-                            // Garantir que pelo menos um setor esteja selecionado
-                            return;
-                          }
-                          const hasSetape = nextDests.includes("setape");
-                          setForm({
-                            ...form,
-                            setorDestino: nextDests,
-                            ...(!hasSetape && {
-                              solicitaFilmagem: false,
-                              filmagemData: "",
-                              filmagemHoraInicio: "",
-                              filmagemHoraFim: "",
-                              filmagemTermosAceitos: false,
-                            }),
-                          });
-                        }}
-                        className="h-4 w-4 rounded border-input accent-primary"
-                      />
-                      <span className="text-xs">{s.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
+            <div className="relative">
+              <label className="mb-1.5 block text-sm font-semibold text-foreground">Setor(es) Destinatário(s) *</label>
+              
+              {/* Botão do Menu Suspenso */}
+              <button
+                type="button"
+                onClick={() => setSetoresMenuAberto(!setoresMenuAberto)}
+                className="flex w-full items-center justify-between rounded-xl border border-input bg-card px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 transition-all hover:bg-muted/20"
+              >
+                <span className="truncate text-left font-medium">
+                  {form.setorDestino.length === 0
+                    ? "Selecione o(s) setor(es)..."
+                    : form.setorDestino
+                        .map((val) => SECTORS.find((s) => s.value === val)?.label || val)
+                        .join(" & ")}
+                </span>
+                {setoresMenuAberto ? (
+                  <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+              </button>
+
+              {/* Backdrop transparente para capturar cliques fora e fechar */}
+              {setoresMenuAberto && (
+                <div
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={() => setSetoresMenuAberto(false)}
+                />
+              )}
+
+              {/* Menu Suspenso Popover */}
+              {setoresMenuAberto && (
+                <div className="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-y-auto rounded-xl border border-border bg-card p-2 shadow-xl animate-fade-in space-y-0.5">
+                  {SECTORS.map((s) => {
+                    const selected = form.setorDestino.includes(s.value);
+                    return (
+                      <label
+                        key={s.value}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer select-none transition-colors ${
+                          selected
+                            ? "bg-primary/10 text-primary font-medium"
+                            : "hover:bg-muted/50 text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={(e) => {
+                            let nextDests = [...form.setorDestino];
+                            if (e.target.checked) {
+                              nextDests.push(s.value);
+                            } else {
+                              nextDests = nextDests.filter((x) => x !== s.value);
+                            }
+                            if (nextDests.length === 0) {
+                              // Garantir que pelo menos um setor esteja selecionado
+                              return;
+                            }
+                            const hasSetape = nextDests.includes("setape");
+                            setForm({
+                              ...form,
+                              setorDestino: nextDests,
+                              ...(!hasSetape && {
+                                solicitaFilmagem: false,
+                                filmagemData: "",
+                                filmagemHoraInicio: "",
+                                filmagemHoraFim: "",
+                                filmagemTermosAceitos: false,
+                              }),
+                            });
+                          }}
+                          className="h-4 w-4 rounded border-input accent-primary cursor-pointer"
+                        />
+                        <span className="text-xs">{s.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Categoria + Prioridade */}
