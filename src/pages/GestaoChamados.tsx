@@ -35,6 +35,39 @@ const statusConfig = {
   resolvido: { label: "Resolvido", icon: CheckCircle2, className: "bg-success/10 text-success" },
 };
 
+function obterNomeAmigavelSetor(setor?: string) {
+  const mapeamento: Record<string, string> = {
+    setape: "TI / Setape",
+    secretaria: "Secretaria",
+    financeiro: "Financeiro",
+    dp: "DP / Departamento de Pessoal",
+    direcao: "Direção",
+    disciplinar: "Disciplinar",
+    biblioteca: "Biblioteca",
+    servicosgerais: "Serviços Gerais",
+    almoxarifado: "Almoxarifado",
+    primeirossocorros: "Primeiros Socorros",
+    clat: "CLAT",
+    publicidade: "Publicidade",
+  };
+  return mapeamento[setor ?? ""] || setor || "TI / Setape";
+}
+
+const SECTORS_LIST = [
+  { value: "setape", label: "TI / Setape" },
+  { value: "secretaria", label: "Secretaria" },
+  { value: "financeiro", label: "Financeiro" },
+  { value: "dp", label: "DP / Departamento de Pessoal" },
+  { value: "direcao", label: "Direção" },
+  { value: "disciplinar", label: "Disciplinar" },
+  { value: "biblioteca", label: "Biblioteca" },
+  { value: "servicosgerais", label: "Serviços Gerais" },
+  { value: "almoxarifado", label: "Almoxarifado" },
+  { value: "primeirossocorros", label: "Primeiros Socorros" },
+  { value: "clat", label: "CLAT" },
+  { value: "publicidade", label: "Publicidade" },
+];
+
 type TabKey = "acompanhamentos" | "tarefas" | "solucao";
 
 type EditandoItem = {
@@ -143,9 +176,9 @@ export default function GestaoChamados() {
     });
   }, [visiveisBase, search, filter]);
 
-  const getTab = (id: string): TabKey => {
+  const getTab = (id: string, podeGerenciar: boolean): TabKey => {
     const raw = activeTab[id] ?? "acompanhamentos";
-    if (!isSetape && raw === "tarefas") return "acompanhamentos";
+    if (!podeGerenciar && raw === "tarefas") return "acompanhamentos";
     return raw;
   };
 
@@ -171,22 +204,23 @@ export default function GestaoChamados() {
 
   const adicionarTarefa = (id: string) => {
     const texto = (tarefaDraft[id] ?? "").trim();
-    if (!texto || !usuario || !isSetape) return;
-    atualizarChamado(id, (c) => ({
-      ...c,
-      tarefas: [...c.tarefas, { autor: usuario.nome, texto, data: agoraLegivel() }],
+    const c = chamados.find((x) => x.id === id);
+    if (!texto || !usuario || !c || !podeGerenciar(c)) return;
+    atualizarChamado(id, (item) => ({
+      ...item,
+      tarefas: [...item.tarefas, { autor: usuario.nome, texto, data: agoraLegivel() }],
     }));
     setTarefaDraft((d) => ({ ...d, [id]: "" }));
   };
 
   const resolverChamado = (id: string) => {
     const texto = (solucaoDraft[id] ?? "").trim();
-    if (!texto || !usuario || !isSetape) return;
-    atualizarChamado(id, (c) => ({
-      ...c,
+    const c = chamados.find((x) => x.id === id);
+    if (!texto || !usuario || !c || !podeGerenciar(c)) return;
+    atualizarChamado(id, (item) => ({
+      ...item,
       status: "resolvido" as const,
       solucao: { autor: usuario!.nome, texto, data: agoraLegivel() },
-      // soluções anteriores permanecem em reaberturas[].solucaoAnterior
     }));
     setSolucaoDraft((d) => ({ ...d, [id]: "" }));
   };
@@ -195,20 +229,19 @@ export default function GestaoChamados() {
 
   const reabrirChamado = (id: string) => {
     const motivo = (reaberturaDraft[id] ?? "").trim();
-    if (!motivo || !usuario || !isSetape) return;
-    atualizarChamado(id, (c) => ({
-      ...c,
+    const c = chamados.find((x) => x.id === id);
+    if (!motivo || !usuario || !c || !podeGerenciar(c)) return;
+    atualizarChamado(id, (item) => ({
+      ...item,
       status: "aberto" as const,
-      // Arquiva a solução atual em reaberturas e limpa solucao
-      // A UI exibe o histórico de reaberturas[].solucaoAnterior na aba Solução (badge amarelo)
       solucao: undefined,
       reaberturas: [
-        ...(c.reaberturas ?? []),
+        ...(item.reaberturas ?? []),
         {
           autor: usuario.nome,
           data: agoraLegivel(),
           motivo,
-          solucaoAnterior: c.solucao,
+          solucaoAnterior: item.solucao,
         },
       ],
     }));
@@ -263,10 +296,10 @@ export default function GestaoChamados() {
   // ── Permissões de edição ────────────────────────────────────────────────────
 
   const podeEditarAcompanhamento = (chamado: Chamado) =>
-    isSetape || chamado.solicitanteEmail.toLowerCase() === (usuario?.email ?? "").toLowerCase();
+    podeGerenciar(chamado) || chamado.solicitanteEmail.toLowerCase() === (usuario?.email ?? "").toLowerCase();
 
   const podeEditarSolucao = (chamado: Chamado) =>
-    isSetape || chamado.solicitanteEmail.toLowerCase() === (usuario?.email ?? "").toLowerCase();
+    podeGerenciar(chamado) || chamado.solicitanteEmail.toLowerCase() === (usuario?.email ?? "").toLowerCase();
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -347,15 +380,17 @@ export default function GestaoChamados() {
             <div className="space-y-3">
               {filtered.map((chamado) => {
                 const isExpanded = expanded === chamado.id;
-                const tab = getTab(chamado.id);
                 const sc = statusConfig[chamado.status];
                 const pc = prioridadeConfig[chamado.prioridade];
                 const ed = editando[chamado.id] ?? null;
                 const salvando = salvandoId === chamado.id;
 
+                const podeGerenciarEsse = podeGerenciar(chamado);
+                const tab = getTab(chamado.id, podeGerenciarEsse);
+
                 const tabsVisiveis: { key: TabKey; label: string; icon: typeof MessageSquare }[] = [
                   { key: "acompanhamentos", label: "Acompanhamentos", icon: MessageSquare },
-                  ...(isSetape ? [{ key: "tarefas" as const, label: "Tarefas (TI)", icon: ListChecks }] : []),
+                  ...(podeGerenciarEsse ? [{ key: "tarefas" as const, label: `Tarefas (${obterNomeAmigavelSetor(chamado.setorDestino)})`, icon: ListChecks }] : []),
                   { key: "solucao", label: "Solução", icon: CheckCircle2 },
                 ];
 
@@ -390,6 +425,36 @@ export default function GestaoChamados() {
                     {isExpanded && (
                       <div className="animate-fade-in border-t border-border px-6 py-4">
                         <p className="mb-4 text-sm text-card-foreground">{chamado.descricao}</p>
+
+                        {/* Setor Destinatário */}
+                        <div className="mb-4 flex flex-wrap items-center gap-4 text-xs border-b border-border/40 pb-4">
+                          <div>
+                            <span className="font-semibold text-muted-foreground block mb-1">Setor Destinatário</span>
+                            {podeGerenciarEsse ? (
+                              <select
+                                value={chamado.setorDestino ?? "setape"}
+                                onChange={(e) => {
+                                  const novoSetor = e.target.value;
+                                  atualizarChamado(chamado.id, (c) => ({
+                                    ...c,
+                                    setorDestino: novoSetor,
+                                  }));
+                                }}
+                                className="rounded-lg border border-input bg-card px-2.5 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                              >
+                                {SECTORS_LIST.map((s) => (
+                                  <option key={s.value} value={s.value}>
+                                    {s.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <span className="inline-block bg-muted px-2.5 py-1 rounded-lg border border-border/40 text-foreground font-medium">
+                                {obterNomeAmigavelSetor(chamado.setorDestino)}
+                              </span>
+                            )}
+                          </div>
+                        </div>
 
 
                         {/* Tabs */}
@@ -491,12 +556,12 @@ export default function GestaoChamados() {
                             </>
                           )}
 
-                          {/* ── Tarefas (TI) ── */}
-                          {tab === "tarefas" && isSetape && (
+                          {/* ── Tarefas (Setor Destinatário) ── */}
+                          {tab === "tarefas" && podeGerenciarEsse && (
                             <>
                               <div className="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2">
                                 <EyeOff className="h-3.5 w-3.5 text-warning" />
-                                <span className="text-xs text-warning">Visível apenas para a equipe de TI (Setape)</span>
+                                <span className="text-xs text-warning">Visível apenas para a equipe de {obterNomeAmigavelSetor(chamado.setorDestino)}</span>
                               </div>
                               {chamado.tarefas.map((t, i) => {
                                 const estaEditando = ed?.tipo === "tarefa" && ed.idx === i;
@@ -508,7 +573,7 @@ export default function GestaoChamados() {
                                         <span className="text-xs font-medium text-card-foreground">{t.autor}</span>
                                         <span className="text-xs text-muted-foreground">{t.data}</span>
                                       </div>
-                                      {isSetape && !estaEditando && (
+                                      {podeGerenciarEsse && !estaEditando && (
                                         <button
                                           type="button"
                                           title="Editar tarefa"
@@ -658,9 +723,9 @@ export default function GestaoChamados() {
                                 <p className="text-sm text-muted-foreground">Nenhuma solução registrada.</p>
                               )}
 
-                              {/* Chamado aberto: textarea para nova solução (setape) */}
+                              {/* Chamado aberto: textarea para nova solução (setor responsável) */}
                               {chamado.status === "aberto" && (
-                                isSetape ? (
+                                podeGerenciarEsse ? (
                                   <div className="space-y-2">
                                     <p className="text-xs font-semibold text-muted-foreground">
                                       {(chamado.reaberturas ?? []).length > 0 ? "Nova solução" : "Registrar solução"}
@@ -685,13 +750,13 @@ export default function GestaoChamados() {
                                   </div>
                                 ) : (
                                   <p className="text-sm text-muted-foreground">
-                                    A solução será registrada pela equipe de TI (Setape) quando o chamado for resolvido.
+                                    A solução será registrada pela equipe de {obterNomeAmigavelSetor(chamado.setorDestino)} quando o chamado for resolvido.
                                   </p>
                                 )
                               )}
 
-                              {/* Botão de reabertura (setape, apenas quando resolvido) */}
-                              {isSetape && chamado.status === "resolvido" && (
+                              {/* Botão de reabertura (setor responsável, apenas quando resolvido) */}
+                              {podeGerenciarEsse && chamado.status === "resolvido" && (
                                 <div className="pt-1">
                                   {mostraReabertura[chamado.id] ? (
                                     <div className="space-y-2 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3">

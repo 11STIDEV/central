@@ -35,6 +35,7 @@ export default function AbrirChamado() {
 
   const [form, setForm] = useState({
     titulo: "",
+    setorDestino: "setape",
     categoria: "",
     prioridade: "media" as "baixa" | "media" | "alta",
     descricao: "",
@@ -73,6 +74,7 @@ export default function AbrirChamado() {
     try {
       await criarChamado(googleIdToken, {
         titulo: form.titulo.trim(),
+        setorDestino: form.setorDestino,
         categoria: form.categoria,
         prioridade: form.prioridade,
         descricao: form.descricao.trim(),
@@ -89,6 +91,7 @@ export default function AbrirChamado() {
         setSubmitted(false);
         setForm({
           titulo: "",
+          setorDestino: "setape",
           categoria: "",
           prioridade: "media",
           descricao: "",
@@ -108,7 +111,7 @@ export default function AbrirChamado() {
 
   return (
     <div className="animate-fade-in">
-      <PageHero title="Abrir Chamado" subtitle="Solicite suporte da equipe de TI" />
+      <PageHero title="Abrir Chamado" subtitle="Solicite suporte dos setores da instituição" />
 
       <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
         {!usuario ? (
@@ -152,17 +155,41 @@ export default function AbrirChamado() {
               <p>Preencha todos os campos para abrir seu chamado.</p>
             </div>
 
-            {/* Título */}
+            {/* Solicitação */}
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Título</label>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Solicitação</label>
               <input
                 type="text"
                 required
                 value={form.titulo}
                 onChange={(e) => setForm({ ...form, titulo: e.target.value })}
-                placeholder="Descreva brevemente o problema"
+                placeholder="Descreva brevemente a sua solicitação"
                 className={inputClass}
               />
+            </div>
+
+            {/* Setor Destinatário */}
+            <div>
+              <label className="mb-1.5 block text-sm font-medium text-foreground">Setor Destinatário</label>
+              <select
+                required
+                value={form.setorDestino}
+                onChange={(e) => setForm({ ...form, setorDestino: e.target.value })}
+                className={inputClass}
+              >
+                <option value="setape">TI / Setape</option>
+                <option value="secretaria">Secretaria</option>
+                <option value="financeiro">Financeiro</option>
+                <option value="dp">DP / Departamento de Pessoal</option>
+                <option value="direcao">Direção</option>
+                <option value="disciplinar">Disciplinar</option>
+                <option value="biblioteca">Biblioteca</option>
+                <option value="servicosgerais">Serviços Gerais</option>
+                <option value="almoxarifado">Almoxarifado</option>
+                <option value="primeirossocorros">Primeiros Socorros</option>
+                <option value="clat">CLAT</option>
+                <option value="publicidade">Publicidade</option>
+              </select>
             </div>
 
             {/* Categoria + Prioridade */}

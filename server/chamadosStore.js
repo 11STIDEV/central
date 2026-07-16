@@ -4,6 +4,7 @@ function rowToChamado(row) {
   return {
     id: row.id,
     titulo: row.titulo,
+    setorDestino: row.setor_destino ?? "setape",
     solicitante: row.solicitante,
     solicitanteEmail: row.solicitante_email,
     papelAbertura: row.papel_abertura,
@@ -30,6 +31,7 @@ function chamadoToRow(chamado) {
   return {
     id: chamado.id,
     titulo: chamado.titulo,
+    setor_destino: chamado.setorDestino ?? "setape",
     solicitante: chamado.solicitante,
     solicitante_email: chamado.solicitanteEmail,
     papel_abertura: chamado.papelAbertura,

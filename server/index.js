@@ -17,6 +17,7 @@ import {
   mesclarPapeisManuais,
   papelPrincipalUsuario,
   podeVerChamado,
+  podeGerenciarChamado,
 } from "./chamadosAccess.js";
 import { registerSetorLinksRoutes } from "./setorLinks.js";
 import {
@@ -1322,10 +1323,28 @@ function respostaErroIdToken(res, e) {
   return res.status(st).json({ error: e.message });
 }
 
+function obterNomeAmigavelSetor(setor) {
+  const mapeamento = {
+    setape: "TI / Setape",
+    secretaria: "Secretaria",
+    financeiro: "Financeiro",
+    dp: "DP / Departamento de Pessoal",
+    direcao: "Direção",
+    disciplinar: "Disciplinar",
+    biblioteca: "Biblioteca",
+    servicosgerais: "Serviços Gerais",
+    almoxarifado: "Almoxarifado",
+    primeirossocorros: "Primeiros Socorros",
+    clat: "CLAT",
+    publicidade: "Publicidade",
+  };
+  return mapeamento[setor] || setor || "Suporte";
+}
+
 /**
  * Envia e-mail de notificação de solução de chamado via Gmail API (service account).
  * Disparado de forma assíncrona — não bloqueia a resposta HTTP.
- * @param {{ id: string, titulo: string, solicitante: string, solicitanteEmail: string, data: string, solucao: { autor: string, texto: string, data: string } }} chamado
+ * @param {{ id: string, titulo: string, solicitante: string, solicitanteEmail: string, data: string, setorDestino?: string, solucao: { autor: string, texto: string, data: string } }} chamado
  */
 async function enviarEmailSolucaoChamado(chamado) {
   const remetente = (
@@ -1356,7 +1375,8 @@ async function enviarEmailSolucaoChamado(chamado) {
   const destinatario = chamado.solicitanteEmail;
   const assunto = `✅ Seu chamado [${chamado.id}] foi resolvido`;
   const solucaoTexto = chamado.solucao?.texto || "";
-  const solucaoAutor = chamado.solucao?.autor || "Equipe Setape";
+  const nomeSetor = obterNomeAmigavelSetor(chamado.setorDestino);
+  const solucaoAutor = chamado.solucao?.autor || `Equipe ${nomeSetor}`;
   const _solucaoDataRaw = chamado.solucao?.data || "";
   let solucaoData = "";
   if (_solucaoDataRaw) {
@@ -1698,7 +1718,7 @@ app.post("/api/chamados/listar", async (req, res) => {
 app.post("/api/chamados/criar", async (req, res) => {
   try {
     const {
-      idToken, titulo, categoria, prioridade, descricao,
+      idToken, titulo, setorDestino, categoria, prioridade, descricao,
       solicitaFilmagem, filmagemData, filmagemHoraInicio,
       filmagemHoraFim, filmagemTermosAceitos,
     } = req.body || {};
@@ -1711,6 +1731,7 @@ app.post("/api/chamados/criar", async (req, res) => {
     }
 
     const tituloLimpo = typeof titulo === "string" ? titulo.trim() : "";
+    const setorDestinoLimpo = typeof setorDestino === "string" && setorDestino.trim() !== "" ? setorDestino.trim() : "setape";
     const categoriaLimpa = typeof categoria === "string" ? categoria.trim() : "";
     const descricaoLimpa = typeof descricao === "string" ? descricao.trim() : "";
     if (!tituloLimpo || !categoriaLimpa || !descricaoLimpa) {
@@ -1742,6 +1763,7 @@ app.post("/api/chamados/criar", async (req, res) => {
     const chamado = {
       id: `CHM-${Date.now()}`,
       titulo: tituloLimpo,
+      setorDestino: setorDestinoLimpo,
       solicitante: ctx.nome,
       solicitanteEmail: ctx.email,
       papelAbertura: papelPrincipalUsuario(ctx.papeis),
@@ -1799,13 +1821,16 @@ app.post("/api/chamados/atualizar", async (req, res) => {
       return res.status(403).json({ error: "Sem permissão para editar este chamado." });
     }
 
-    const isSetape = ctx.papeis.includes("setape");
+    const podeGerenciar = podeGerenciarChamado(ctx.viewer, existente);
     const atualizado = {
       ...existente,
       acompanhamentos: sanitizarListaEntradas(chamado.acompanhamentos),
     };
 
-    if (isSetape) {
+    if (podeGerenciar) {
+      if (typeof chamado.setorDestino === "string" && chamado.setorDestino.trim() !== "") {
+        atualizado.setorDestino = chamado.setorDestino.trim();
+      }
       const statusOk = chamado.status === "resolvido" ? "resolvido" : "aberto";
       atualizado.status = statusOk;
       atualizado.tarefas = sanitizarListaEntradas(chamado.tarefas);
