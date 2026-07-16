@@ -39,8 +39,8 @@ function obterNomeAmigavelSetor(setor?: string) {
   const mapeamento: Record<string, string> = {
     setape: "TI / Setape",
     secretaria: "Secretaria",
-    financeiro: "Financeiro",
-    dp: "DP / Departamento de Pessoal",
+    financeiro: "DP / Financeiro",
+    dp: "DP / Financeiro",
     direcao: "Direção",
     disciplinar: "Disciplinar",
     biblioteca: "Biblioteca",
@@ -56,8 +56,7 @@ function obterNomeAmigavelSetor(setor?: string) {
 const SECTORS_LIST = [
   { value: "setape", label: "TI / Setape" },
   { value: "secretaria", label: "Secretaria" },
-  { value: "financeiro", label: "Financeiro" },
-  { value: "dp", label: "DP / Departamento de Pessoal" },
+  { value: "dp", label: "DP / Financeiro" },
   { value: "direcao", label: "Direção" },
   { value: "disciplinar", label: "Disciplinar" },
   { value: "biblioteca", label: "Biblioteca" },
@@ -144,7 +143,12 @@ export default function GestaoChamados() {
     if (!usuario) return false;
     if (usuario.papeis.includes("admin") || usuario.papeis.includes("setape")) return true;
     const dests = c.setorDestino ?? ["setape"];
-    return dests.some((d) => usuario.papeis.includes(d as Papel));
+    return dests.some((d) => {
+      if (d === "dp" || d === "financeiro") {
+        return usuario.papeis.includes("dp") || usuario.papeis.includes("financeiro");
+      }
+      return usuario.papeis.includes(d as Papel);
+    });
   };
 
   const persistir = useCallback(
@@ -177,7 +181,12 @@ export default function GestaoChamados() {
     if (!usuario) return [];
     return visiveisBase.filter((c) => {
       const dests = c.setorDestino ?? ["setape"];
-      const isDest = dests.some((d) => usuario.papeis.includes(d as Papel));
+      const isDest = dests.some((d) => {
+        if (d === "dp" || d === "financeiro") {
+          return usuario.papeis.includes("dp") || usuario.papeis.includes("financeiro");
+        }
+        return usuario.papeis.includes(d as Papel);
+      });
       const isAdminOrSetape = usuario.papeis.includes("admin") || usuario.papeis.includes("setape");
       return isDest || isAdminOrSetape;
     });

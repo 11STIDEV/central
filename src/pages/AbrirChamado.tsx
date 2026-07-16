@@ -29,8 +29,7 @@ const inputClass =
 const SECTORS = [
   { value: "setape", label: "TI / Setape" },
   { value: "secretaria", label: "Secretaria" },
-  { value: "financeiro", label: "Financeiro" },
-  { value: "dp", label: "DP / Departamento de Pessoal" },
+  { value: "dp", label: "DP / Financeiro" },
   { value: "direcao", label: "Direção" },
   { value: "disciplinar", label: "Disciplinar" },
   { value: "biblioteca", label: "Biblioteca" },

@@ -1327,8 +1327,8 @@ function obterNomeAmigavelSetor(setor) {
   const mapeamento = {
     setape: "TI / Setape",
     secretaria: "Secretaria",
-    financeiro: "Financeiro",
-    dp: "DP / Departamento de Pessoal",
+    financeiro: "DP / Financeiro",
+    dp: "DP / Financeiro",
     direcao: "Direção",
     disciplinar: "Disciplinar",
     biblioteca: "Biblioteca",

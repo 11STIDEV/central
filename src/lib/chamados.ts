@@ -45,7 +45,12 @@ export function podeVerChamado(usuario: UsuarioLogado, chamado: Chamado): boolea
   if (usuario.papeis.includes("admin")) return true;
   if (usuario.papeis.includes("setape")) return true;
   const dests = chamado.setorDestino ?? ["setape"];
-  const belongsToDest = dests.some((d) => usuario.papeis.includes(d as Papel));
+  const belongsToDest = dests.some((d) => {
+    if (d === "dp" || d === "financeiro") {
+      return usuario.papeis.includes("dp") || usuario.papeis.includes("financeiro");
+    }
+    return usuario.papeis.includes(d as Papel);
+  });
   if (belongsToDest) return true;
   if (chamado.solicitanteEmail.toLowerCase() === usuario.email.toLowerCase()) return true;
   return chamado.papelAbertura === papelPrincipalUsuario(usuario.papeis);

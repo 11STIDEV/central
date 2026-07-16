@@ -81,7 +81,12 @@ export function podeVerChamado(viewer, chamado) {
   const dests = Array.isArray(chamado.setorDestino)
     ? chamado.setorDestino
     : [chamado.setorDestino || "setape"];
-  const belongsToDest = dests.some((d) => viewer.papeis.includes(d));
+  const belongsToDest = dests.some((d) => {
+    if (d === "dp" || d === "financeiro") {
+      return viewer.papeis.includes("dp") || viewer.papeis.includes("financeiro");
+    }
+    return viewer.papeis.includes(d);
+  });
   if (belongsToDest) return true;
   if (
     chamado.solicitanteEmail.toLowerCase() === viewer.email.toLowerCase()
@@ -97,7 +102,12 @@ export function podeGerenciarChamado(viewer, chamado) {
   const dests = Array.isArray(chamado.setorDestino)
     ? chamado.setorDestino
     : [chamado.setorDestino || "setape"];
-  return dests.some((d) => viewer.papeis.includes(d));
+  return dests.some((d) => {
+    if (d === "dp" || d === "financeiro") {
+      return viewer.papeis.includes("dp") || viewer.papeis.includes("financeiro");
+    }
+    return viewer.papeis.includes(d);
+  });
 }
 
 /** @param {string[]} papeis */
