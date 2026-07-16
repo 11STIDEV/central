@@ -73,13 +73,16 @@ export function papelPrincipalUsuario(papeis) {
 
 /**
  * @param {{ email: string, papeis: string[] }} viewer
- * @param {{ solicitanteEmail: string, papelAbertura: string, setorDestino?: string }} chamado
+ * @param {{ solicitanteEmail: string, papelAbertura: string, setorDestino?: string|string[] }} chamado
  */
 export function podeVerChamado(viewer, chamado) {
   if (viewer.papeis.includes("admin")) return true;
   if (viewer.papeis.includes("setape")) return true;
-  const dest = chamado.setorDestino ?? "setape";
-  if (viewer.papeis.includes(dest)) return true;
+  const dests = Array.isArray(chamado.setorDestino)
+    ? chamado.setorDestino
+    : [chamado.setorDestino || "setape"];
+  const belongsToDest = dests.some((d) => viewer.papeis.includes(d));
+  if (belongsToDest) return true;
   if (
     chamado.solicitanteEmail.toLowerCase() === viewer.email.toLowerCase()
   ) {
@@ -91,8 +94,10 @@ export function podeVerChamado(viewer, chamado) {
 export function podeGerenciarChamado(viewer, chamado) {
   if (viewer.papeis.includes("admin")) return true;
   if (viewer.papeis.includes("setape")) return true;
-  const dest = chamado.setorDestino ?? "setape";
-  return viewer.papeis.includes(dest);
+  const dests = Array.isArray(chamado.setorDestino)
+    ? chamado.setorDestino
+    : [chamado.setorDestino || "setape"];
+  return dests.some((d) => viewer.papeis.includes(d));
 }
 
 /** @param {string[]} papeis */

@@ -26,6 +26,21 @@ const priorities = [
 const inputClass =
   "w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground transition-shadow focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
+const SECTORS = [
+  { value: "setape", label: "TI / Setape" },
+  { value: "secretaria", label: "Secretaria" },
+  { value: "financeiro", label: "Financeiro" },
+  { value: "dp", label: "DP / Departamento de Pessoal" },
+  { value: "direcao", label: "Direção" },
+  { value: "disciplinar", label: "Disciplinar" },
+  { value: "biblioteca", label: "Biblioteca" },
+  { value: "servicosgerais", label: "Serviços Gerais" },
+  { value: "almoxarifado", label: "Almoxarifado" },
+  { value: "primeirossocorros", label: "Primeiros Socorros" },
+  { value: "clat", label: "CLAT" },
+  { value: "publicidade", label: "Publicidade" },
+];
+
 export default function AbrirChamado() {
   const { usuario, googleIdToken } = useAuth();
   const [submitted, setSubmitted] = useState(false);
@@ -35,7 +50,7 @@ export default function AbrirChamado() {
 
   const [form, setForm] = useState({
     titulo: "",
-    setorDestino: "setape",
+    setorDestino: ["setape"] as string[],
     categoria: "",
     prioridade: "media" as "baixa" | "media" | "alta",
     descricao: "",
@@ -91,7 +106,7 @@ export default function AbrirChamado() {
         setSubmitted(false);
         setForm({
           titulo: "",
-          setorDestino: "setape",
+          setorDestino: ["setape"],
           categoria: "",
           prioridade: "media",
           descricao: "",
@@ -170,26 +185,53 @@ export default function AbrirChamado() {
 
             {/* Setor Destinatário */}
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-foreground">Setor Destinatário</label>
-              <select
-                required
-                value={form.setorDestino}
-                onChange={(e) => setForm({ ...form, setorDestino: e.target.value })}
-                className={inputClass}
-              >
-                <option value="setape">TI / Setape</option>
-                <option value="secretaria">Secretaria</option>
-                <option value="financeiro">Financeiro</option>
-                <option value="dp">DP / Departamento de Pessoal</option>
-                <option value="direcao">Direção</option>
-                <option value="disciplinar">Disciplinar</option>
-                <option value="biblioteca">Biblioteca</option>
-                <option value="servicosgerais">Serviços Gerais</option>
-                <option value="almoxarifado">Almoxarifado</option>
-                <option value="primeirossocorros">Primeiros Socorros</option>
-                <option value="clat">CLAT</option>
-                <option value="publicidade">Publicidade</option>
-              </select>
+              <label className="mb-2 block text-sm font-semibold text-foreground">Setor(es) Destinatário(s) *</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 p-4 rounded-xl border border-border bg-muted/20">
+                {SECTORS.map((s) => {
+                  const selected = form.setorDestino.includes(s.value);
+                  return (
+                    <label
+                      key={s.value}
+                      className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer select-none transition-all ${
+                        selected
+                          ? "border-primary bg-primary/10 text-primary font-medium"
+                          : "border-border/60 bg-card hover:bg-muted/40 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(e) => {
+                          let nextDests = [...form.setorDestino];
+                          if (e.target.checked) {
+                            nextDests.push(s.value);
+                          } else {
+                            nextDests = nextDests.filter((x) => x !== s.value);
+                          }
+                          if (nextDests.length === 0) {
+                            // Garantir que pelo menos um setor esteja selecionado
+                            return;
+                          }
+                          const hasSetape = nextDests.includes("setape");
+                          setForm({
+                            ...form,
+                            setorDestino: nextDests,
+                            ...(!hasSetape && {
+                              solicitaFilmagem: false,
+                              filmagemData: "",
+                              filmagemHoraInicio: "",
+                              filmagemHoraFim: "",
+                              filmagemTermosAceitos: false,
+                            }),
+                          });
+                        }}
+                        className="h-4 w-4 rounded border-input accent-primary"
+                      />
+                      <span className="text-xs">{s.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Categoria + Prioridade */}
@@ -245,149 +287,153 @@ export default function AbrirChamado() {
             </div>
 
             {/* ── Toggle de Filmagem ── */}
-            <div className="rounded-xl border border-border bg-muted/30 p-4">
-              <label className="flex cursor-pointer items-center gap-3">
-                <div className="relative">
-                  <input
-                    id="solicita-filmagem"
-                    type="checkbox"
-                    checked={form.solicitaFilmagem}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        solicitaFilmagem: e.target.checked,
-                        // Limpa os campos ao desmarcar
-                        ...(e.target.checked === false && {
-                          filmagemData: "",
-                          filmagemHoraInicio: "",
-                          filmagemHoraFim: "",
-                          filmagemTermosAceitos: false,
-                        }),
-                      })
-                    }
-                    className="sr-only"
-                  />
-                  <div
-                    className={`h-6 w-11 rounded-full transition-colors ${
-                      form.solicitaFilmagem ? "bg-primary" : "bg-input"
-                    }`}
-                  />
-                  <div
-                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                      form.solicitaFilmagem ? "translate-x-5" : "translate-x-0.5"
-                    }`}
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Video className="h-4 w-4 text-muted-foreground" aria-hidden />
-                  <span className="text-sm font-medium text-foreground">
-                    Este chamado é para acesso a filmagens de câmera
-                  </span>
-                </div>
-              </label>
-            </div>
-
-            {/* ── Campos de Filmagem (aparece ao marcar o toggle) ── */}
-            {isFilmagem && (
-              <div className="animate-fade-in space-y-5 rounded-xl border border-primary/30 bg-primary/5 p-5">
-                <div className="flex items-center gap-2 text-sm font-semibold text-primary">
-                  <Video className="h-4 w-4" aria-hidden />
-                  Detalhes da filmagem solicitada
-                </div>
-
-                {/* Data */}
-                <div>
-                  <label htmlFor="filmagem-data" className="mb-1.5 block text-sm font-medium text-foreground">
-                    Data da filmagem
-                  </label>
-                  <input
-                    id="filmagem-data"
-                    type="date"
-                    required={isFilmagem}
-                    value={form.filmagemData}
-                    onChange={(e) => setForm({ ...form, filmagemData: e.target.value })}
-                    className={inputClass}
-                  />
-                </div>
-
-                {/* Hora início + Hora fim */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="filmagem-hora-inicio" className="mb-1.5 block text-sm font-medium text-foreground">
-                      Hora de início
-                    </label>
-                    <input
-                      id="filmagem-hora-inicio"
-                      type="time"
-                      required={isFilmagem}
-                      value={form.filmagemHoraInicio}
-                      onChange={(e) => setForm({ ...form, filmagemHoraInicio: e.target.value })}
-                      className={inputClass}
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="filmagem-hora-fim" className="mb-1.5 block text-sm font-medium text-foreground">
-                      Hora final
-                    </label>
-                    <input
-                      id="filmagem-hora-fim"
-                      type="time"
-                      required={isFilmagem}
-                      value={form.filmagemHoraFim}
-                      onChange={(e) => setForm({ ...form, filmagemHoraFim: e.target.value })}
-                      className={inputClass}
-                    />
-                  </div>
-                </div>
-
-                {/* Termos de responsabilidade */}
-                <div className="rounded-xl border border-border bg-card">
-                  <button
-                    type="button"
-                    onClick={() => setTermosAbertos((v) => !v)}
-                    className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/40"
-                  >
-                    <span>Termos de responsabilidade para acesso a filmagens</span>
-                    {termosAbertos ? (
-                      <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    )}
-                  </button>
-
-                  {termosAbertos && (
-                    <div className="border-t border-border px-4 py-4 text-sm leading-relaxed text-muted-foreground">
-                      {/* ── Conteúdo dos termos (placeholder até o usuário enviar o texto definitivo) ── */}
-                      <p className="italic text-muted-foreground/70">
-                        Os termos de responsabilidade serão adicionados aqui em breve.
-                      </p>
+            {form.setorDestino.includes("setape") && (
+              <>
+                <div className="rounded-xl border border-border bg-muted/30 p-4">
+                  <label className="flex cursor-pointer items-center gap-3">
+                    <div className="relative">
+                      <input
+                        id="solicita-filmagem"
+                        type="checkbox"
+                        checked={form.solicitaFilmagem}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            solicitaFilmagem: e.target.checked,
+                            // Limpa os campos ao desmarcar
+                            ...(e.target.checked === false && {
+                              filmagemData: "",
+                              filmagemHoraInicio: "",
+                              filmagemHoraFim: "",
+                              filmagemTermosAceitos: false,
+                            }),
+                          })
+                        }
+                        className="sr-only"
+                      />
+                      <div
+                        className={`h-6 w-11 rounded-full transition-colors ${
+                          form.solicitaFilmagem ? "bg-primary" : "bg-input"
+                        }`}
+                      />
+                      <div
+                        className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                          form.solicitaFilmagem ? "translate-x-5" : "translate-x-0.5"
+                        }`}
+                      />
                     </div>
-                  )}
+                    <div className="flex items-center gap-2">
+                      <Video className="h-4 w-4 text-muted-foreground" aria-hidden />
+                      <span className="text-sm font-medium text-foreground">
+                        Este chamado é para acesso a filmagens de câmera
+                      </span>
+                    </div>
+                  </label>
                 </div>
 
-                {/* Checkbox de aceite */}
-                <label className="flex cursor-pointer items-start gap-3">
-                  <input
-                    id="filmagem-termos"
-                    type="checkbox"
-                    required={isFilmagem}
-                    checked={form.filmagemTermosAceitos}
-                    onChange={(e) => setForm({ ...form, filmagemTermosAceitos: e.target.checked })}
-                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary"
-                  />
-                  <span className="text-sm text-foreground">
-                    Li e aceito os{" "}
-                    <button
-                      type="button"
-                      onClick={() => setTermosAbertos(true)}
-                      className="font-medium text-primary underline-offset-2 hover:underline"
-                    >
-                      termos de responsabilidade
-                    </button>{" "}
-                    para acesso às filmagens de câmera.
-                  </span>
-                </label>
-              </div>
+                {/* ── Campos de Filmagem (aparece ao marcar o toggle) ── */}
+                {isFilmagem && (
+                  <div className="animate-fade-in space-y-5 rounded-xl border border-primary/30 bg-primary/5 p-5">
+                    <div className="flex items-center gap-2 text-sm font-semibold text-primary">
+                      <Video className="h-4 w-4" aria-hidden />
+                      Detalhes da filmagem solicitada
+                    </div>
+
+                    {/* Data */}
+                    <div>
+                      <label htmlFor="filmagem-data" className="mb-1.5 block text-sm font-medium text-foreground">
+                        Data da filmagem
+                      </label>
+                      <input
+                        id="filmagem-data"
+                        type="date"
+                        required={isFilmagem}
+                        value={form.filmagemData}
+                        onChange={(e) => setForm({ ...form, filmagemData: e.target.value })}
+                        className={inputClass}
+                      />
+                    </div>
+
+                    {/* Hora início + Hora fim */}
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <div>
+                        <label htmlFor="filmagem-hora-inicio" className="mb-1.5 block text-sm font-medium text-foreground">
+                          Hora de início
+                        </label>
+                        <input
+                          id="filmagem-hora-inicio"
+                          type="time"
+                          required={isFilmagem}
+                          value={form.filmagemHoraInicio}
+                          onChange={(e) => setForm({ ...form, filmagemHoraInicio: e.target.value })}
+                          className={inputClass}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="filmagem-hora-fim" className="mb-1.5 block text-sm font-medium text-foreground">
+                          Hora final
+                        </label>
+                        <input
+                          id="filmagem-hora-fim"
+                          type="time"
+                          required={isFilmagem}
+                          value={form.filmagemHoraFim}
+                          onChange={(e) => setForm({ ...form, filmagemHoraFim: e.target.value })}
+                          className={inputClass}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Termos de responsabilidade */}
+                    <div className="rounded-xl border border-border bg-card">
+                      <button
+                        type="button"
+                        onClick={() => setTermosAbertos((v) => !v)}
+                        className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-foreground transition-colors hover:bg-muted/40"
+                      >
+                        <span>Termos de responsabilidade para acesso a filmagens</span>
+                        {termosAbertos ? (
+                          <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        )}
+                      </button>
+
+                      {termosAbertos && (
+                        <div className="border-t border-border px-4 py-4 text-sm leading-relaxed text-muted-foreground">
+                          {/* ── Conteúdo dos termos ── */}
+                          <p className="italic text-muted-foreground/70">
+                            Os termos de responsabilidade serão adicionados aqui em breve.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Checkbox de aceite */}
+                    <label className="flex cursor-pointer items-start gap-3">
+                      <input
+                        id="filmagem-termos"
+                        type="checkbox"
+                        required={isFilmagem}
+                        checked={form.filmagemTermosAceitos}
+                        onChange={(e) => setForm({ ...form, filmagemTermosAceitos: e.target.checked })}
+                        className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary"
+                      />
+                      <span className="text-sm text-foreground">
+                        Li e aceito os{" "}
+                        <button
+                          type="button"
+                          onClick={() => setTermosAbertos(true)}
+                          className="font-medium text-primary underline-offset-2 hover:underline"
+                        >
+                          termos de responsabilidade
+                        </button>{" "}
+                        para acesso às filmagens de câmera.
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </>
             )}
 
             <button

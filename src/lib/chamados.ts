@@ -6,7 +6,7 @@ export type ChamadoStatus = "aberto" | "resolvido";
 export type Chamado = {
   id: string;
   titulo: string;
-  setorDestino?: string;
+  setorDestino: string[];
   solicitante: string;
   solicitanteEmail: string;
   /** Papel (não-`usuario`) usado para agrupar visibilidade entre colegas do mesmo perfil. */
@@ -44,8 +44,9 @@ export function papelPrincipalUsuario(papeis: Papel[]): Papel {
 export function podeVerChamado(usuario: UsuarioLogado, chamado: Chamado): boolean {
   if (usuario.papeis.includes("admin")) return true;
   if (usuario.papeis.includes("setape")) return true;
-  const dest = chamado.setorDestino ?? "setape";
-  if (usuario.papeis.includes(dest as Papel)) return true;
+  const dests = chamado.setorDestino ?? ["setape"];
+  const belongsToDest = dests.some((d) => usuario.papeis.includes(d as Papel));
+  if (belongsToDest) return true;
   if (chamado.solicitanteEmail.toLowerCase() === usuario.email.toLowerCase()) return true;
   return chamado.papelAbertura === papelPrincipalUsuario(usuario.papeis);
 }
@@ -81,7 +82,7 @@ export async function listarChamados(idToken: string): Promise<Chamado[]> {
 
 export type CriarChamadoInput = {
   titulo: string;
-  setorDestino?: string;
+  setorDestino: string[];
   categoria: string;
   prioridade: "baixa" | "media" | "alta";
   descricao: string;

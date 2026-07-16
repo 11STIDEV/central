@@ -137,6 +137,9 @@ export default function GestaoChamados() {
   // Edição inline
   const [editando, setEditando] = useState<Record<string, EditandoItem>>({});
 
+  const [abaFluxo, setAbaFluxo] = useState<"recebidos" | "enviados">("recebidos");
+  const [atribuindoSetor, setAtribuindoSetor] = useState<{ id: string; setor: string; justificativa: string } | null>(null);
+
   const persistir = useCallback(
     async (lista: Chamado[], idAlterado: string) => {
       if (!googleIdToken) return;
@@ -158,15 +161,36 @@ export default function GestaoChamados() {
     [googleIdToken, recarregar],
   );
 
-  const isSetape = usuario?.papeis.includes("setape") ?? false;
-
   const visiveisBase = useMemo(() => {
     if (!usuario) return [];
     return chamados.filter((c) => podeVerChamado(usuario, c));
   }, [chamados, usuario]);
 
-  const filtered = useMemo(() => {
+  const chamadosRecebidos = useMemo(() => {
+    if (!usuario) return [];
     return visiveisBase.filter((c) => {
+      const dests = c.setorDestino ?? ["setape"];
+      const isDest = dests.some((d) => usuario.papeis.includes(d as Papel));
+      const isAdminOrSetape = usuario.papeis.includes("admin") || usuario.papeis.includes("setape");
+      return isDest || isAdminOrSetape;
+    });
+  }, [visiveisBase, usuario]);
+
+  const chamadosEnviados = useMemo(() => {
+    if (!usuario) return [];
+    return visiveisBase.filter((c) => {
+      const isSolicitante = c.solicitanteEmail.toLowerCase() === usuario.email.toLowerCase();
+      const isCriadorPapel = c.papelAbertura && usuario.papeis.includes(c.papelAbertura);
+      return isSolicitante || isCriadorPapel;
+    });
+  }, [visiveisBase, usuario]);
+
+  const listaAtiva = useMemo(() => {
+    return abaFluxo === "recebidos" ? chamadosRecebidos : chamadosEnviados;
+  }, [abaFluxo, chamadosRecebidos, chamadosEnviados]);
+
+  const filtered = useMemo(() => {
+    return listaAtiva.filter((c) => {
       const matchSearch =
         c.titulo.toLowerCase().includes(search.toLowerCase()) ||
         c.solicitante.toLowerCase().includes(search.toLowerCase()) ||
@@ -174,7 +198,7 @@ export default function GestaoChamados() {
       const matchFilter = filter === "todos" || c.status === filter;
       return matchSearch && matchFilter;
     });
-  }, [visiveisBase, search, filter]);
+  }, [listaAtiva, search, filter]);
 
   const getTab = (id: string, podeGerenciar: boolean): TabKey => {
     const raw = activeTab[id] ?? "acompanhamentos";
@@ -249,6 +273,34 @@ export default function GestaoChamados() {
     setMostraReabertura((d) => ({ ...d, [id]: false }));
   };
 
+  const confirmarAtribuicaoSetor = (id: string) => {
+    if (!usuario || !atribuindoSetor) return;
+    const { setor, justificativa } = atribuindoSetor;
+    if (!setor || !justificativa.trim()) return;
+
+    const c = chamados.find((x) => x.id === id);
+    if (!c) return;
+
+    const novosSetores = [...(c.setorDestino ?? [])];
+    if (!novosSetores.includes(setor)) {
+      novosSetores.push(setor);
+    }
+
+    const novoAcomp = {
+      autor: usuario.nome,
+      texto: `[Atribuição de Setor] Adicionado setor "${obterNomeAmigavelSetor(setor)}". Justificativa: ${justificativa.trim()}`,
+      data: agoraLegivel(),
+    };
+
+    atualizarChamado(id, (item) => ({
+      ...item,
+      setorDestino: novosSetores,
+      acompanhamentos: [...item.acompanhamentos, novoAcomp],
+    }));
+
+    setAtribuindoSetor(null);
+  };
+
   // ── Edição inline ───────────────────────────────────────────────────────────
 
   const iniciarEdicao = (
@@ -308,7 +360,7 @@ export default function GestaoChamados() {
   }
 
   const contagem = (s: "aberto" | "resolvido") =>
-    visiveisBase.filter((c) => c.status === s).length;
+    listaAtiva.filter((c) => c.status === s).length;
 
   return (
     <div className="animate-fade-in">
@@ -328,6 +380,37 @@ export default function GestaoChamados() {
           <div className="py-16 text-center text-sm text-muted-foreground">Carregando chamados...</div>
         ) : (
           <>
+            {/* Abas: Recebidos vs Enviados */}
+            <div className="mb-6 flex gap-4 border-b border-border pb-px">
+              <button
+                type="button"
+                onClick={() => {
+                  setAbaFluxo("recebidos");
+                  setExpanded(null);
+                }}
+                className={`pb-3 text-sm font-semibold border-b-2 transition-all ${
+                  abaFluxo === "recebidos"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                📥 Recebidos ({chamadosRecebidos.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAbaFluxo("enviados");
+                  setExpanded(null);
+                }}
+                className={`pb-3 text-sm font-semibold border-b-2 transition-all ${
+                  abaFluxo === "enviados"
+                    ? "border-primary text-primary"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                📤 Enviados ({chamadosEnviados.length})
+              </button>
+            </div>
             {/* Stats */}
             <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
               {(["aberto", "resolvido"] as const).map((s) => {
@@ -390,7 +473,7 @@ export default function GestaoChamados() {
 
                 const tabsVisiveis: { key: TabKey; label: string; icon: typeof MessageSquare }[] = [
                   { key: "acompanhamentos", label: "Acompanhamentos", icon: MessageSquare },
-                  ...(podeGerenciarEsse ? [{ key: "tarefas" as const, label: `Tarefas (${obterNomeAmigavelSetor(chamado.setorDestino)})`, icon: ListChecks }] : []),
+                  ...(podeGerenciarEsse ? [{ key: "tarefas" as const, label: `Tarefas (${(chamado.setorDestino ?? ["setape"]).map(obterNomeAmigavelSetor).join(" & ")})`, icon: ListChecks }] : []),
                   { key: "solucao", label: "Solução", icon: CheckCircle2 },
                 ];
 
@@ -426,34 +509,81 @@ export default function GestaoChamados() {
                       <div className="animate-fade-in border-t border-border px-6 py-4">
                         <p className="mb-4 text-sm text-card-foreground">{chamado.descricao}</p>
 
-                        {/* Setor Destinatário */}
-                        <div className="mb-4 flex flex-wrap items-center gap-4 text-xs border-b border-border/40 pb-4">
-                          <div>
-                            <span className="font-semibold text-muted-foreground block mb-1">Setor Destinatário</span>
-                            {podeGerenciarEsse ? (
-                              <select
-                                value={chamado.setorDestino ?? "setape"}
-                                onChange={(e) => {
-                                  const novoSetor = e.target.value;
-                                  atualizarChamado(chamado.id, (c) => ({
-                                    ...c,
-                                    setorDestino: novoSetor,
-                                  }));
-                                }}
-                                className="rounded-lg border border-input bg-card px-2.5 py-1 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                              >
-                                {SECTORS_LIST.map((s) => (
-                                  <option key={s.value} value={s.value}>
-                                    {s.label}
-                                  </option>
-                                ))}
-                              </select>
-                            ) : (
-                              <span className="inline-block bg-muted px-2.5 py-1 rounded-lg border border-border/40 text-foreground font-medium">
-                                {obterNomeAmigavelSetor(chamado.setorDestino)}
+                        {/* Setores Destinatários */}
+                        <div className="mb-4 text-xs border-b border-border/40 pb-4">
+                          <span className="font-semibold text-muted-foreground block mb-1.5 font-sans">Setor(es) Responsável(is)</span>
+                          <div className="flex flex-wrap gap-2 items-center">
+                            {(chamado.setorDestino ?? ["setape"]).map((dest) => (
+                              <span key={dest} className="inline-flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary px-2.5 py-1 rounded-lg font-medium animate-fade-in">
+                                {obterNomeAmigavelSetor(dest)}
                               </span>
+                            ))}
+
+                            {podeGerenciarEsse && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (atribuindoSetor?.id === chamado.id) {
+                                    setAtribuindoSetor(null);
+                                  } else {
+                                    setAtribuindoSetor({ id: chamado.id, setor: "", justificativa: "" });
+                                  }
+                                }}
+                                className="inline-flex items-center gap-1 bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground px-2.5 py-1 rounded-lg font-medium border border-border/60 transition-colors"
+                              >
+                                + Atribuir Setor
+                              </button>
                             )}
                           </div>
+
+                          {/* Formulário de atribuição de setor com justificativa */}
+                          {atribuindoSetor?.id === chamado.id && (
+                            <div className="mt-4 p-4 rounded-xl border border-primary/20 bg-primary/5 space-y-3 max-w-md animate-fade-in">
+                              <p className="font-semibold text-xs text-foreground">Atribuir Novo Setor ao Chamado</p>
+                              <div className="space-y-1">
+                                <label className="block text-[11px] font-semibold text-muted-foreground">Selecionar Setor</label>
+                                <select
+                                  value={atribuindoSetor.setor}
+                                  onChange={(e) => setAtribuindoSetor({ ...atribuindoSetor, setor: e.target.value })}
+                                  className="w-full rounded-lg border border-input bg-card px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                                >
+                                  <option value="">Selecione...</option>
+                                  {SECTORS_LIST.filter(s => !(chamado.setorDestino ?? ["setape"]).includes(s.value)).map((s) => (
+                                    <option key={s.value} value={s.value}>
+                                      {s.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div className="space-y-1">
+                                <label className="block text-[11px] font-semibold text-muted-foreground">Justificativa da Atribuição *</label>
+                                <textarea
+                                  rows={2}
+                                  placeholder="Explique o porquê este setor está sendo acionado..."
+                                  value={atribuindoSetor.justificativa}
+                                  onChange={(e) => setAtribuindoSetor({ ...atribuindoSetor, justificativa: e.target.value })}
+                                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring"
+                                />
+                              </div>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => confirmarAtribuicaoSetor(chamado.id)}
+                                  disabled={!atribuindoSetor.setor || !atribuindoSetor.justificativa.trim()}
+                                  className="rounded bg-primary px-3 py-1.5 text-white font-medium text-xs hover:opacity-90 disabled:opacity-50"
+                                >
+                                  Confirmar
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAtribuindoSetor(null)}
+                                  className="rounded border border-border px-3 py-1.5 text-muted-foreground hover:text-foreground text-xs bg-card"
+                                >
+                                  Cancelar
+                                </button>
+                              </div>
+                            </div>
+                          )}
                         </div>
 
 
