@@ -25,6 +25,14 @@ export const PORTAL_COLABORADOR_DEFAULT_GROUPS: SectorLinkGroup[] = [
         title: "Autoavaliação",
         url: "https://docs.google.com/forms/d/e/1FAIpQLSdZQ_Y-0AV5KJXMLqpkauLL8Qd2pOurq7yJFsvUNUSYtDA77g/viewform",
       },
+      {
+        title: "Solicitação de fotos e vídeos à publicidade",
+        url: "https://docs.google.com/forms/d/e/1FAIpQLScld4rn0nDjCdApAgqdGzaSLZuoPb80C60mdBq-xnsNbMOjww/viewform",
+      },
+      {
+        title: "Solicitação de arte à publicidade",
+        url: "https://docs.google.com/forms/d/e/1FAIpQLSc711bL5Hu08K4N4x0zEiiwpfRErVB4HvjFG1QGcILR_vk34w/viewform",
+      },
     ],
   },
 ];
