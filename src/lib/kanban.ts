@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/apiBase";
+import { apiUrl, centralFetch } from "@/lib/apiBase";
 import type { Papel } from "@/auth/AuthProvider";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ async function parseJson(res: Response) {
 }
 
 export async function listarKanbanCards(idToken: string, setor: string): Promise<KanbanCard[]> {
-  const res = await fetch(apiUrl("/api/kanban/cards/listar"), {
+  const res = await centralFetch(apiUrl("/api/kanban/cards/listar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken, setor }),
@@ -117,7 +117,7 @@ export async function listarKanbanCards(idToken: string, setor: string): Promise
 }
 
 export async function criarKanbanCard(idToken: string, card: Partial<KanbanCard>): Promise<KanbanCard> {
-  const res = await fetch(apiUrl("/api/kanban/cards/criar"), {
+  const res = await centralFetch(apiUrl("/api/kanban/cards/criar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken, card }),
@@ -128,7 +128,7 @@ export async function criarKanbanCard(idToken: string, card: Partial<KanbanCard>
 }
 
 export async function atualizarKanbanCard(idToken: string, id: string, patch: Partial<KanbanCard>): Promise<KanbanCard> {
-  const res = await fetch(apiUrl("/api/kanban/cards/atualizar"), {
+  const res = await centralFetch(apiUrl("/api/kanban/cards/atualizar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken, id, patch }),
@@ -139,7 +139,7 @@ export async function atualizarKanbanCard(idToken: string, id: string, patch: Pa
 }
 
 export async function excluirKanbanCard(idToken: string, id: string): Promise<void> {
-  const res = await fetch(apiUrl("/api/kanban/cards/excluir"), {
+  const res = await centralFetch(apiUrl("/api/kanban/cards/excluir"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken, id }),
@@ -149,7 +149,7 @@ export async function excluirKanbanCard(idToken: string, id: string): Promise<vo
 }
 
 export async function listarKanbanUsuarios(idToken: string, setor: string): Promise<KanbanUsuario[]> {
-  const res = await fetch(apiUrl("/api/kanban/usuarios"), {
+  const res = await centralFetch(apiUrl("/api/kanban/usuarios"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken, setor }),

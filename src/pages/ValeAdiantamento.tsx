@@ -1,48 +1,70 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { PageHero } from "@/components/PageHero";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { CheckCircle2, AlertCircle } from "lucide-react";
+import { CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
+import { ccipayCriarAdiantamento, ccipayMe } from "@/lib/ccipay";
 
 type Status = "idle" | "success" | "error";
 
 export default function ValeAdiantamento() {
-  const { usuario } = useAuth();
+  const { googleIdToken } = useAuth();
   const [pix, setPix] = useState("");
   const [valor, setValor] = useState("");
   const [status, setStatus] = useState<Status>("idle");
+  const [erroMsg, setErroMsg] = useState("");
+  const [disponivel, setDisponivel] = useState<number | null>(null);
+  const [enviando, setEnviando] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const carregarLimite = useCallback(async () => {
+    if (!googleIdToken) return;
+    try {
+      const r = await ccipayMe(googleIdToken);
+      setDisponivel(r.adiantamentoDisponivel);
+      if (r.funcionario.pixPadrao && !pix) setPix(r.funcionario.pixPadrao);
+    } catch {
+      /* ignore */
+    }
+  }, [googleIdToken, pix]);
+
+  useEffect(() => {
+    void carregarLimite();
+  }, [carregarLimite]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!googleIdToken) return;
 
     if (!pix.trim() || !valor) {
       setStatus("error");
+      setErroMsg("Informe Pix e valor.");
       return;
     }
 
     const valorNumero = Number(valor.replace(",", "."));
     if (Number.isNaN(valorNumero) || valorNumero <= 0) {
       setStatus("error");
+      setErroMsg("Valor inválido.");
       return;
     }
 
-    const dataSolicitacao = new Date().toISOString().slice(0, 10);
-
-    // Aqui futuramente vamos enviar para a API / banco
-    // e registrar para o financeiro avaliar.
-    console.log("Solicitação de vale-adiantamento:", {
-      nome: usuario?.nome ?? "",
-      email: usuario?.email ?? "",
-      dataSolicitacao,
-      pix,
-      valor: valorNumero,
-    });
-
-    setStatus("success");
-    setPix("");
-    setValor("");
+    setEnviando(true);
+    setStatus("idle");
+    try {
+      await ccipayCriarAdiantamento(googleIdToken, pix.trim(), valorNumero);
+      setStatus("success");
+      setPix("");
+      setValor("");
+      void carregarLimite();
+    } catch (err) {
+      setStatus("error");
+      setErroMsg(err instanceof Error ? err.message : "Falha ao enviar.");
+    } finally {
+      setEnviando(false);
+    }
   };
 
   return (
@@ -53,20 +75,26 @@ export default function ValeAdiantamento() {
       />
 
       <div className="mx-auto max-w-2xl px-4 py-8 md:px-8">
-        <div className="mb-6 rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
-          <p>
-            Informe a <strong>chave Pix</strong> de recebimento e o <strong>valor</strong> desejado.
-            Seu nome, e-mail e a data da solicitação são registrados automaticamente com base na
-            sua conta e na data de envio.
-          </p>
-        </div>
+        <Button asChild variant="ghost" size="sm" className="mb-4">
+          <Link to="/cci-pay">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Voltar ao CCI Pay
+          </Link>
+        </Button>
+
+        {disponivel != null && (
+          <div className="mb-4 rounded-xl border border-border bg-muted/30 p-4 text-sm">
+            Limite disponível nesta competência:{" "}
+            <strong>R$ {disponivel.toFixed(2)}</strong>
+          </div>
+        )}
 
         {status === "success" && (
           <Alert className="mb-4 border-emerald-500/40 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/10 dark:text-emerald-100">
             <CheckCircle2 className="h-4 w-4" />
             <AlertTitle>Solicitação enviada</AlertTitle>
             <AlertDescription>
-              Seu pedido de vale-adiantamento foi registrado e será analisado pelo setor financeiro.
+              Seu pedido foi registrado e será analisado pelo financeiro.
             </AlertDescription>
           </Alert>
         )}
@@ -74,10 +102,8 @@ export default function ValeAdiantamento() {
         {status === "error" && (
           <Alert variant="destructive" className="mb-4">
             <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Verifique os dados</AlertTitle>
-            <AlertDescription>
-              Informe uma chave Pix válida e um valor maior que zero.
-            </AlertDescription>
+            <AlertTitle>Erro</AlertTitle>
+            <AlertDescription>{erroMsg}</AlertDescription>
           </Alert>
         )}
 
@@ -86,11 +112,9 @@ export default function ValeAdiantamento() {
           className="space-y-4 rounded-xl border border-border bg-card p-6 shadow-card"
         >
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              Chave Pix para recebimento
-            </label>
+            <label className="text-xs font-medium text-muted-foreground">Chave Pix</label>
             <Input
-              placeholder="CPF, CNPJ, e-mail, telefone ou chave aleatória"
+              placeholder="CPF, e-mail, telefone ou chave aleatória"
               value={pix}
               onChange={(e) => {
                 setStatus("idle");
@@ -98,11 +122,8 @@ export default function ValeAdiantamento() {
               }}
             />
           </div>
-
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              Valor do vale-adiantamento (R$)
-            </label>
+            <label className="text-xs font-medium text-muted-foreground">Valor (R$)</label>
             <Input
               type="number"
               min={0}
@@ -114,15 +135,11 @@ export default function ValeAdiantamento() {
               }}
             />
           </div>
-
-          <div className="pt-2">
-            <Button type="submit">
-              Enviar solicitação
-            </Button>
-          </div>
+          <Button type="submit" disabled={enviando}>
+            {enviando ? "Enviando..." : "Enviar solicitação"}
+          </Button>
         </form>
       </div>
     </div>
   );
 }
-

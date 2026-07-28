@@ -20,6 +20,7 @@ import {
   podeGerenciarChamado,
 } from "./chamadosAccess.js";
 import { registerSetorLinksRoutes } from "./setorLinks.js";
+import { registerCcipayRoutes } from "./ccipayRoutes.js";
 import {
   listarTodosChamados,
   obterChamadoPorId,
@@ -239,7 +240,15 @@ const ARQUIVO_PAPEIS_MANUAIS = path.join(DATA_DIR, "papeis-manuais.json");
 const ARQUIVO_SETOR_LINKS = path.join(DATA_DIR, "setor-links.json");
 
 /** Papéis atribuíveis apenas via API admin (extensível). */
-const PAPEIS_MANUAIS_PERMITIDOS = ["admin", "painel_admin", "painel_atendente"];
+const PAPEIS_MANUAIS_PERMITIDOS = [
+  "admin",
+  "painel_admin",
+  "painel_atendente",
+  "ccipay_admin",
+  "ccipay_dp",
+  "ccipay_loja",
+  "ccipay_lancador",
+];
 
 /** Seed na primeira criação do arquivo (atribuição manual inicial). */
 const PAPEIS_MANUAIS_SEED = {
@@ -2054,6 +2063,13 @@ registerSetorLinksRoutes(app, {
   ensureDataDir,
   verificarIdTokenUsuario,
   emailTemPapelAdminNoArquivo,
+});
+
+registerCcipayRoutes(app, {
+  getSupabaseAdmin,
+  mensagemSupabaseNaoConfigurado,
+  resolverContextoUsuario: resolverContextoChamados,
+  respostaErroIdToken,
 });
 
 /**

@@ -1,5 +1,6 @@
 import { Users } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
+import { IntranetQuickLinksGrid } from "@/components/IntranetQuickLinksGrid";
 import { PortalColaboradorLinksSection } from "@/components/portal/PortalColaboradorLinksSection";
 
 export default function PortalDoFuncionario() {
@@ -10,7 +11,7 @@ export default function PortalDoFuncionario() {
         subtitle="Formulários e serviços do DP e Financeiro disponíveis para todos os colaboradores."
       />
 
-      <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 md:px-8">
+      <div className="mx-auto max-w-6xl space-y-10 px-4 py-8 md:px-8">
         <div className="flex flex-col gap-3 rounded-xl border border-border bg-card/80 px-4 py-4 shadow-card sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
@@ -26,6 +27,13 @@ export default function PortalDoFuncionario() {
             </div>
           </div>
         </div>
+
+        <IntranetQuickLinksGrid
+          title="Ferramentas internas"
+          subtitle="Acesso rápido às áreas da intranet."
+          excludeUrls={["/portal-do-funcionario"]}
+          columns="portal"
+        />
 
         <PortalColaboradorLinksSection />
       </div>

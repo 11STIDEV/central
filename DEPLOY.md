@@ -160,7 +160,15 @@ Modelo: [`server/data/setor-links.example.json`](server/data/setor-links.example
 
 Formulários externos em `/portal-do-funcionario` são editáveis por **admin** (Gerenciar atalhos / Organizar ordem), chave `portal-colaborador` no mesmo `setor-links.json`.
 
-O card **Solicitar Vale-Adiantamento** é fixo no código (`/vale-adiantamento`) e **não** pode ser alterado pela UI nem gravado no JSON (a API rejeita URLs com esse caminho).
+O card **CCI Pay** é fixo no código (`/cci-pay`) e **não** pode ser alterado pela UI nem gravado no JSON (a API rejeita URLs com esse caminho).
+
+## CCI Pay (adiantamentos, bonificações, loja)
+
+1. **Banco:** rodar [`scripts/ccipay-schema.sql`](scripts/ccipay-schema.sql) no Supabase SQL Editor (mesmo projeto do backend).
+2. **API:** rotas em `/api/ccipay/*` — exigem `SUPABASE_SERVICE_ROLE_KEY` válida (não anon).
+3. **Papéis manuais** (opcional): `ccipay_admin`, `ccipay_dp`, `ccipay_loja`, `ccipay_lancador` em `papeis-manuais.json` ou na tela Admin — Papéis manuais. Papéis `dp` e `financeiro` da OU já acessam funções de DP.
+4. **Alterdata:** cadastrar `alterdata_codigo` por funcionário em `/cci-pay/admin/funcionarios`; export CSV em `/cci-pay/relatorios/dp`.
+5. **E-mails:** hooks em [`server/ccipayEmail.js`](server/ccipayEmail.js) (`notificarEmailCcipay`) — implementação Gmail a cargo do Thiago; hoje apenas log no console.
 
 ## Desenvolvimento local (sem Docker)
 

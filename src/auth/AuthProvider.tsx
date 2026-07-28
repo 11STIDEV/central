@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { apiUrl, getApiBaseUrl } from "@/lib/apiBase";
+import { apiUrl, getApiBaseUrl, registerAuthExpiredHandler } from "@/lib/apiBase";
+import { idTokenAindaValido, marcarSessaoExpirada } from "@/lib/authSession";
 import { isCentralAdminEmail } from "@/auth/centralAdminEnv";
 import {
   ouPainelAdminPeloCaminho,
@@ -43,7 +44,12 @@ export type Papel =
   | "gerente_almoxarifado"
   /** Painel de senhas — alinhado a `OU_PAINEL_*` e ao `POST /api/painel/sync-profile`. */
   | "painel_atendente"
-  | "painel_admin";
+  | "painel_admin"
+  /** CCI Pay */
+  | "ccipay_admin"
+  | "ccipay_dp"
+  | "ccipay_loja"
+  | "ccipay_lancador";
 
 export type UsuarioLogado = {
   nome: string;
@@ -238,14 +244,6 @@ function decodeJwt(token: string): any | null {
     console.error("Falha ao decodificar JWT:", e);
     return null;
   }
-}
-
-/** ID token do Google expira (tipicamente ~1h); acima disso é preciso entrar de novo. */
-function idTokenAindaValido(token: string): boolean {
-  const payload = decodeJwt(token);
-  const exp = payload?.exp;
-  if (typeof exp !== "number" || !Number.isFinite(exp)) return false;
-  return exp * 1000 > Date.now() + 10_000;
 }
 
 declare global {
@@ -539,6 +537,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setGoogleIdToken(null);
     setOrganizacaoErro(null);
   }, []);
+
+  const expirarSessao = useCallback(() => {
+    marcarSessaoExpirada();
+    logout();
+  }, [logout]);
+
+  useEffect(() => {
+    registerAuthExpiredHandler(expirarSessao);
+    return () => registerAuthExpiredHandler(null);
+  }, [expirarSessao]);
+
+  useEffect(() => {
+    if (!googleIdToken) return;
+
+    const verificar = () => {
+      if (!idTokenAindaValido(googleIdToken)) {
+        expirarSessao();
+      }
+    };
+
+    verificar();
+    const intervalo = window.setInterval(verificar, 30_000);
+    return () => window.clearInterval(intervalo);
+  }, [googleIdToken, expirarSessao]);
 
   return (
     <AuthContext.Provider

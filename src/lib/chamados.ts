@@ -1,5 +1,5 @@
 import type { Papel, UsuarioLogado } from "@/auth/AuthProvider";
-import { apiUrl } from "@/lib/apiBase";
+import { apiUrl, centralFetch } from "@/lib/apiBase";
 
 export type ChamadoStatus = "aberto" | "resolvido";
 
@@ -72,7 +72,7 @@ function erroDaResposta(data: Record<string, unknown>, fallback: string): string
 
 /** Lista chamados visíveis para o usuário (Supabase via API). */
 export async function listarChamados(idToken: string): Promise<Chamado[]> {
-  const res = await fetch(apiUrl("/api/chamados/listar"), {
+  const res = await centralFetch(apiUrl("/api/chamados/listar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken }),
@@ -104,7 +104,7 @@ export async function criarChamado(
   idToken: string,
   input: CriarChamadoInput,
 ): Promise<Chamado> {
-  const res = await fetch(apiUrl("/api/chamados/criar"), {
+  const res = await centralFetch(apiUrl("/api/chamados/criar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken, ...input }),
@@ -125,7 +125,7 @@ export async function atualizarChamadoRemoto(
   idToken: string,
   chamado: Chamado,
 ): Promise<Chamado> {
-  const res = await fetch(apiUrl("/api/chamados/atualizar"), {
+  const res = await centralFetch(apiUrl("/api/chamados/atualizar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken, chamado }),

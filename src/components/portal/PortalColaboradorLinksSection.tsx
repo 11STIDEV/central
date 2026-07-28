@@ -17,9 +17,9 @@ import type { SectorLinkGroup } from "@/types/setorLinks";
 
 /** Card fixo do sistema — não entra no JSON editável. */
 const PORTAL_VALE_ADIANTAMENTO = {
-  title: "Solicitar Vale-Adiantamento",
-  description: "Pedido de vale para o financeiro",
-  url: "/vale-adiantamento",
+  title: "CCI Pay — Vale-Adiantamento",
+  description: "Adiantamentos, loja e extrato",
+  url: "/cci-pay",
 } as const;
 
 function cloneGroups(groups: SectorLinkGroup[]): SectorLinkGroup[] {

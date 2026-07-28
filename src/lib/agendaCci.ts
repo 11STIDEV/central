@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/apiBase";
+import { apiUrl, centralFetch } from "@/lib/apiBase";
 
 /** Modelo e persistência da Agenda CCI (reservas no navegador). */
 
@@ -383,7 +383,7 @@ export async function enviarReservasParaServidor(
   idToken: string,
 ): Promise<boolean> {
   try {
-    const res = await fetch(apiUrl("/api/agenda-cci/reservas"), {
+    const res = await centralFetch(apiUrl("/api/agenda-cci/reservas"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken, reservas: lista }),
@@ -399,7 +399,7 @@ export async function obterReservasDoServidor(
   idToken: string,
 ): Promise<ReservaAgendaCCI[] | null> {
   try {
-    const res = await fetch(apiUrl("/api/agenda-cci/reservas/obter"), {
+    const res = await centralFetch(apiUrl("/api/agenda-cci/reservas/obter"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken }),
@@ -420,7 +420,7 @@ export async function obterEventosGoogleCalendar(
   timeMax: string,
 ): Promise<any[] | null> {
   try {
-    const res = await fetch(apiUrl("/api/agenda-cci/google-events"), {
+    const res = await centralFetch(apiUrl("/api/agenda-cci/google-events"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ idToken, timeMin, timeMax }),

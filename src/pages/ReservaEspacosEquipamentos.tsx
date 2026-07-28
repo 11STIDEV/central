@@ -42,7 +42,7 @@ import {
   toYmdLocal,
   rangesOverlap,
 } from "@/lib/agendaCci";
-import { apiUrl } from "@/lib/apiBase";
+import { apiUrl, centralFetch } from "@/lib/apiBase";
 import { toast } from "@/components/ui/sonner";
 
 type LinhaEquipamento = { key: string; nome: string; quantidade: number };
@@ -139,7 +139,7 @@ export default function ReservaEspacosEquipamentos() {
     setAvisoChromebooks(null);
     (async () => {
       try {
-        const res = await fetch(apiUrl("/api/chromebooks"), {
+        const res = await centralFetch(apiUrl("/api/chromebooks"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ idToken: googleIdToken }),

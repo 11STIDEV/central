@@ -1,11 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { PageHero } from "@/components/PageHero";
+import { SetorFerramentasGrid } from "@/components/setores/SetorFerramentasGrid";
 import { listarKanbanUsuarios, type KanbanUsuario } from "@/lib/kanban";
-import { hasRoleAccessToRoute } from "@/auth/routeAccess";
-import { Users, Link2, Loader2, Landmark, Mail } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Users, Loader2, Landmark, Mail } from "lucide-react";
 
 interface SectorMeta {
   title: string;
@@ -16,6 +15,10 @@ const SECTOR_DESCRIPTIONS: Record<string, SectorMeta> = {
   biblioteca: {
     title: "Biblioteca",
     description: "Gerenciamento do acervo de livros, controle de empréstimos e devoluções, além do suporte a pesquisas acadêmicas e apoio pedagógico.",
+  },
+  professores: {
+    title: "Professores",
+    description: "Ferramentas, links e recursos para o corpo docente do Grupo CCI.",
   },
   direcao: {
     title: "Direção",
@@ -73,7 +76,7 @@ function getKanbanPapelFromSlug(setor: string): string {
 export default function SetorVisaoGeralPage() {
   const { setor = "" } = useParams<{ setor: string }>();
   const navigate = useNavigate();
-  const { usuario, googleIdToken } = useAuth();
+  const { googleIdToken } = useAuth();
 
   const [usuarios, setUsuarios] = useState<KanbanUsuario[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,10 +84,6 @@ export default function SetorVisaoGeralPage() {
 
   const meta = SECTOR_DESCRIPTIONS[setor];
   const kanbanPapel = getKanbanPapelFromSlug(setor);
-
-  // Permissões
-  const privateLinksRoute = `/setores/${setor}`;
-  const temAcessoLinks = !!usuario && hasRoleAccessToRoute(usuario.papeis, privateLinksRoute);
 
   const carregarInfo = useCallback(async () => {
     if (!googleIdToken || !meta) return;
@@ -117,34 +116,18 @@ export default function SetorVisaoGeralPage() {
 
       <div className="mx-auto max-w-6xl px-4 py-8 md:px-8 space-y-8">
         {/* Descrição do Setor e Botões de Acesso */}
-        <div className="w-full bg-card border border-border rounded-2xl p-6 shadow-sm flex flex-col justify-between">
+        <div className="w-full rounded-2xl border border-border bg-card p-6 shadow-sm">
           <div className="space-y-3">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 text-xs font-semibold text-primary border border-primary/20">
-              <Landmark className="w-3.5 h-3.5" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+              <Landmark className="h-3.5 w-3.5" />
               Institucional
             </div>
             <h2 className="text-xl font-bold text-foreground">O que fazemos</h2>
-            <p className="text-sm text-muted-foreground leading-relaxed max-w-3xl">
-              {meta.description}
-            </p>
-          </div>
-          
-          <div className="mt-6 flex flex-wrap gap-3 pt-4 border-t border-border/40">
-            {temAcessoLinks ? (
-              <Button asChild className="flex items-center gap-2 rounded-xl">
-                <Link to={privateLinksRoute}>
-                  <Link2 className="w-4 h-4" />
-                  Acessar Links do Setor
-                </Link>
-              </Button>
-            ) : (
-              <div className="text-xs text-muted-foreground bg-muted p-2 rounded-xl border border-border/30 flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-red-400" />
-                Página de links internos restrita a membros do setor.
-              </div>
-            )}
+            <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground">{meta.description}</p>
           </div>
         </div>
+
+        <SetorFerramentasGrid setorSlug={setor} />
 
         {/* Equipe do Setor */}
         <div className="bg-card border border-border rounded-2xl p-6 shadow-sm space-y-4">

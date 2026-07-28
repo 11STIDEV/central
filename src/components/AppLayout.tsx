@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, LogOut, Menu } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Menu, Search } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { AppSidebarNav } from "@/components/AppSidebarNav";
+import { IntranetCommandPalette } from "@/components/IntranetCommandPalette";
 import { SidebarBrandLogo } from "@/components/SidebarBrandLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { personalizeNavSetores } from "@/navigation/personalizeNav";
 import {
   INTRANET_NAV_SECTIONS,
   adjustNavSenhasLeafUrls,
@@ -17,6 +19,7 @@ import { useNavExtras } from "@/navigation/useNavExtras";
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { usuario, logout } = useAuth();
@@ -26,7 +29,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const email = usuario?.email;
     const fullSections = mergeNavExtras(INTRANET_NAV_SECTIONS, extras);
     const filtered = filterNavByAccess(papeis, fullSections, email);
-    const withBlocks = markNavTemporaryBlocks(papeis, filtered);
+    const personalized = personalizeNavSetores(filtered, papeis, email);
+    const withBlocks = markNavTemporaryBlocks(papeis, personalized);
     return adjustNavSenhasLeafUrls(papeis, email, withBlocks);
   }, [usuario?.papeis, usuario?.email, extras]);
 
@@ -50,6 +54,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen w-full bg-background">
+      <IntranetCommandPalette sections={navSections} open={commandOpen} onOpenChange={setCommandOpen} />
+
       {/* Mobile top bar */}
       <header className="fixed left-0 right-0 top-0 z-40 flex h-14 items-center gap-2 border-b border-sidebar-border bg-sidebar/95 px-3 backdrop-blur-xl lg:hidden">
         <button
@@ -63,6 +69,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="min-w-0 flex-1">
           <SidebarBrandLogo compact className="justify-start" />
         </div>
+        <button
+          type="button"
+          onClick={() => setCommandOpen(true)}
+          className="flex h-10 w-10 items-center justify-center rounded-lg text-sidebar-foreground hover:bg-sidebar-accent"
+          aria-label="Buscar na intranet"
+        >
+          <Search className="h-5 w-5" />
+        </button>
         <ThemeToggle className="shrink-0 text-sidebar-foreground hover:bg-sidebar-accent" />
       </header>
 
@@ -91,6 +105,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             collapsed={collapsed}
             className={collapsed ? "w-full justify-center" : "min-w-0 flex-1 animate-fade-in"}
           />
+        </div>
+
+        <div className="shrink-0 px-2 pt-3">
+          <button
+            type="button"
+            onClick={() => setCommandOpen(true)}
+            className={`flex w-full items-center gap-2 rounded-xl border border-sidebar-border/80 bg-sidebar-accent/40 px-2.5 py-2 text-left text-sm text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground ${collapsed ? "justify-center px-0" : ""}`}
+            aria-label="Buscar na intranet"
+            title="Buscar (Ctrl+K)"
+          >
+            <Search className="h-4 w-4 shrink-0" />
+            {!collapsed ? (
+              <>
+                <span className="flex-1 truncate">Buscar…</span>
+                <kbd className="hidden rounded border border-sidebar-border bg-sidebar px-1.5 py-0.5 font-mono text-[10px] text-sidebar-muted xl:inline">
+                  Ctrl+K
+                </kbd>
+              </>
+            ) : null}
+          </button>
         </div>
 
         <nav className="sidebar-scroll flex-1 overflow-y-auto overflow-x-hidden px-2 py-4">

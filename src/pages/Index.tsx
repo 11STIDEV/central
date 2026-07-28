@@ -1,25 +1,13 @@
 import { useEffect, useState } from "react";
-import { Ticket, MapPin, ArrowUpRight } from "lucide-react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
-import { canAccessRoute } from "@/auth/routeAccess";
 import { AvisosTimeline } from "@/components/avisos/AvisosTimeline";
 import { IntranetHero } from "@/components/IntranetHero";
+import { IntranetQuickLinksGrid } from "@/components/IntranetQuickLinksGrid";
 import { PageHeroEyebrow } from "@/components/PageHero";
 import { obterUltimosAvisos, type Aviso } from "@/lib/avisos";
 import { podeAcessarAvisos } from "@/lib/avisosAccess";
-
-/** Atalhos exibidos na home (ordem fixa; demais rotas ficam só no menu lateral). */
-const highlightedShortcuts = [
-  {
-    name: "Reserva de Equipamentos e Espaços",
-    url: "/reserva-espacos-equipamentos",
-    icon: MapPin,
-    description: "Chromebooks, equipamentos e espaços",
-  },
-  { name: "Abrir Chamado", url: "/chamados/novo", icon: Ticket, description: "Solicitar suporte de TI" },
-];
 
 function saudacao(): string {
   const h = new Date().getHours();
@@ -65,10 +53,6 @@ export default function Index() {
     };
   }, [exibeAvisos, googleIdToken, location.pathname, location.key]);
 
-  const visiveis = highlightedShortcuts.filter((a) =>
-    canAccessRoute(papeis, a.url, usuario?.email),
-  );
-
   const nome = primeiroNome(usuario?.nome);
 
   return (
@@ -96,51 +80,10 @@ export default function Index() {
       </IntranetHero>
 
       <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
-        {visiveis.length === 0 ? (
-          <p className="rounded-xl border border-dashed border-border bg-muted/30 px-6 py-12 text-center text-muted-foreground">
-            Nenhum atalho disponível para o seu perfil. Entre em contato com a TI se precisar de acesso.
-          </p>
-        ) : (
-          <>
-            <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold tracking-tight text-foreground md:text-2xl">Em destaque</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Atalhos rápidos; o menu lateral reúne todas as ferramentas.
-                </p>
-              </div>
-              {visiveis.length > 0 ? (
-                <span className="font-mono text-xs text-muted-foreground/80">
-                  {visiveis.length} {visiveis.length === 1 ? "atalho" : "atalhos"}
-                </span>
-              ) : null}
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {visiveis.map((action) => (
-                <Link
-                  key={action.url}
-                  to={action.url}
-                  className="group relative overflow-hidden rounded-xl border border-border/90 bg-card p-5 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
-                >
-                  <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
-                    Destaque
-                  </div>
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted/80 text-primary ring-1 ring-border/60 transition-colors group-hover:bg-primary/10 group-hover:ring-primary/20">
-                      <action.icon className="h-5 w-5" strokeWidth={1.75} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold leading-snug text-card-foreground group-hover:text-primary">{action.name}</p>
-                      <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-muted-foreground">{action.description}</p>
-                    </div>
-                    <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground/50 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </>
-        )}
+        <IntranetQuickLinksGrid
+          title="Em destaque"
+          subtitle="Atalhos rápidos; use Ctrl+K ou o menu lateral para ver tudo."
+        />
 
         {exibeAvisos ? <AvisosTimeline avisos={ultimosAvisos} titulo="Últimos avisos" /> : null}
 

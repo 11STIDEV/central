@@ -58,7 +58,15 @@ export function mapearPapeisDoOrgUnit(orgUnitPath) {
 /** @param {string[]} papeis @param {string[]} papeisManuais */
 export function mesclarPapeisManuais(papeis, papeisManuais) {
   const out = new Set(papeis);
-  const permitidos = new Set(["admin", "painel_admin", "painel_atendente"]);
+  const permitidos = new Set([
+    "admin",
+    "painel_admin",
+    "painel_atendente",
+    "ccipay_admin",
+    "ccipay_dp",
+    "ccipay_loja",
+    "ccipay_lancador",
+  ]);
   for (const p of papeisManuais || []) {
     if (typeof p === "string" && permitidos.has(p)) out.add(p);
   }

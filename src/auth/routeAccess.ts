@@ -20,6 +20,11 @@ const ROTAS_INTRANET_COMUM = new Set([
   "/reserva-espacos-equipamentos",
   "/documentos",
   "/ramais",
+  "/meu-setor",
+  "/cci-pay",
+  "/vale-adiantamento",
+  "/cci-pay/loja",
+  "/cci-pay/meus-pedidos",
 ]);
 
 const PAPEIS_PROFESSORES: Papel[] = ["professorfac", "professortecs", "professorregular"];
@@ -34,14 +39,21 @@ const ROTAS_BLOQUEADAS_ALUNO = new Set(["/avisos", "/avisos/publicar"]);
  */
 export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/admin/papeis-manuais": ["admin"],
-  /** Somente administradores podem publicar avisos. */
-  "/avisos/publicar": ["admin"],
+  "/setores": ["admin"],
+  /** Publicar avisos — TI / administração. */
+  "/avisos/publicar": ["admin", "setape"],
   "/ti-interno": ["setape"],
   "/controle-materiais-ti": ["setape"],
   "/ti/ischolar": ["setape"],
   "/controle-materiais-almoxarifado": ["almoxarifado"],
-  "/financeiro/vales-adiantamento": ["dp", "financeiro"],
-  "/vale-adiantamento": ["dp", "financeiro"],
+  "/financeiro/vales-adiantamento": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
+  "/cci-pay/financeiro": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
+  "/cci-pay/lancamentos": ["ccipay_lancador", "ccipay_admin"],
+  "/cci-pay/admin/funcionarios": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
+  "/cci-pay/admin/lojas": ["ccipay_admin"],
+  "/cci-pay/admin/lancadores": ["ccipay_admin"],
+  "/cci-pay/relatorios/dp": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
+  "/cci-pay/relatorios/loja": ["ccipay_loja", "ccipay_admin", "ccipay_dp"],
   "/agenda-cci/admin": ["setape"],
   "/achados-e-perdidos/admin": ["secretaria", "painel_admin"],
   "/setores/professores": PAPEIS_PROFESSORES,

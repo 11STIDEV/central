@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/apiBase";
+import { apiUrl, centralFetch } from "@/lib/apiBase";
 
 export type AvisoTipo = "aviso" | "informativo" | "urgente" | "tutorial" | "atualizacao";
 
@@ -86,7 +86,7 @@ function erroDaResposta(data: Record<string, unknown>, fallback: string): string
 
 /** Lista todos os avisos (Supabase via API). */
 export async function listarAvisos(idToken: string): Promise<Aviso[]> {
-  const res = await fetch(apiUrl("/api/avisos/listar"), {
+  const res = await centralFetch(apiUrl("/api/avisos/listar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken }),
@@ -113,7 +113,7 @@ export type CriarAvisoInput = {
 
 /** Publica um novo aviso no Supabase. */
 export async function criarAviso(idToken: string, input: CriarAvisoInput): Promise<Aviso> {
-  const res = await fetch(apiUrl("/api/avisos/criar"), {
+  const res = await centralFetch(apiUrl("/api/avisos/criar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken, ...input }),

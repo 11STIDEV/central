@@ -5,6 +5,7 @@
  *   nalguns ambientes devolve 405 a POST /api). Defina `VITE_USE_VITE_PROXY=1` no .env.local
  *   se quiser voltar ao proxy relativo a `/api`.
  */
+import { isAuthTokenErrorBody } from "@/lib/authSession";
 export function getApiBaseUrl(): string {
   if (import.meta.env.VITE_USE_VITE_PROXY === "1") {
     return "";
@@ -41,4 +42,31 @@ export function apiUrl(path: string): string {
   const base = getApiBaseUrl();
   if (!base) return p;
   return `${base}${p}`;
+}
+
+type AuthExpiredHandler = () => void;
+
+let authExpiredHandler: AuthExpiredHandler | null = null;
+
+/** Registrado pelo AuthProvider para encerrar sessão quando a API rejeitar o token. */
+export function registerAuthExpiredHandler(handler: AuthExpiredHandler | null): void {
+  authExpiredHandler = handler;
+}
+
+/**
+ * `fetch` com detecção de token Google expirado (401 + mensagem conhecida).
+ * Preferir em chamadas autenticadas com `idToken`.
+ */
+export async function centralFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const res = await fetch(input, init);
+  if (res.status === 401 && authExpiredHandler) {
+    const text = await res.clone().text().catch(() => "");
+    if (isAuthTokenErrorBody(text)) {
+      authExpiredHandler();
+    }
+  }
+  return res;
 }

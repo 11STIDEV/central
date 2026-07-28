@@ -9,7 +9,7 @@ import {
   labelTipoAviso,
   listarAvisos,
 } from "@/lib/avisos";
-import { setoresAvisoParaUsuario } from "@/lib/avisosAccess";
+import { podePublicarAvisos, setoresAvisoParaUsuario } from "@/lib/avisosAccess";
 import type { Aviso, AvisoSetor, AvisoTipo } from "@/lib/avisos";
 
 const tipoBadgeClass: Record<AvisoTipo, string> = {
@@ -82,7 +82,7 @@ export default function Avisos() {
       />
 
       <div className="mx-auto max-w-4xl px-4 py-8 md:px-8">
-        {usuario?.papeis.includes("admin") && (
+        {usuario && podePublicarAvisos(usuario.papeis) && (
           <div className="mb-6 flex justify-end">
             <Link
               to="/avisos/publicar"
@@ -182,7 +182,7 @@ export default function Avisos() {
                     ? "Ainda não há avisos publicados."
                     : "Nenhum aviso corresponde aos filtros selecionados."}
                 </p>
-                {avisos.length === 0 && usuario?.papeis.includes("admin") ? (
+                {avisos.length === 0 && usuario && podePublicarAvisos(usuario.papeis) ? (
                   <Link
                     to="/avisos/publicar"
                     className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"

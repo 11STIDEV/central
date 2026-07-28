@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { PageHero } from "@/components/PageHero";
 import {
   Table,
   TableBody,
-  TableCaption,
   TableCell,
   TableHead,
   TableHeader,
@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,265 +23,179 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckCircle2, XCircle, AlertCircle } from "lucide-react";
-type StatusVale = "pendente" | "aprovado" | "negado";
-
-type Vale = {
-  id: number;
-  nome: string;
-  email: string;
-  dataSolicitacao: string;
-  pix: string;
-  valor: number;
-  status: StatusVale;
-  justificativaNegacao?: string;
-};
+import { ArrowLeft } from "lucide-react";
+import { useAuth } from "@/auth/AuthProvider";
+import {
+  ccipayAprovarAdiantamento,
+  ccipayListarAdiantamentos,
+  labelStatusMovimento,
+  type CcipayMovimento,
+} from "@/lib/ccipay";
 
 export default function FinanceiroValesAdiantamento() {
-  const [vales, setVales] = useState<Vale[]>([
-    {
-      id: 1,
-      nome: "Colaborador Exemplo",
-      email: "colaborador@exemplo.com",
-      dataSolicitacao: "2026-03-11",
-      pix: "chave-pix-exemplo@exemplo.com",
-      valor: 500,
-      status: "pendente",
-    },
-  ]);
-
-  const [mensagem, setMensagem] = useState<{
-    tipo: "sucesso" | "erro" | null;
-    texto: string;
-  }>({
-    tipo: null,
-    texto: "",
-  });
-
-  const [dialogAberto, setDialogAberto] = useState(false);
-  const [acaoSelecionada, setAcaoSelecionada] = useState<Exclude<StatusVale, "pendente"> | null>(
-    null,
-  );
-  const [valeSelecionado, setValeSelecionado] = useState<Vale | null>(null);
+  const { googleIdToken } = useAuth();
+  const [vales, setVales] = useState<CcipayMovimento[]>([]);
+  const [erro, setErro] = useState<string | null>(null);
+  const [carregando, setCarregando] = useState(true);
   const [justificativa, setJustificativa] = useState("");
+  const [acaoSelecionada, setAcaoSelecionada] = useState<"aprovar" | "negar" | null>(null);
+  const [valeSelecionado, setValeSelecionado] = useState<CcipayMovimento | null>(null);
 
-  const abrirConfirmacao = (vale: Vale, acao: Exclude<StatusVale, "pendente">) => {
+  const carregar = useCallback(async () => {
+    if (!googleIdToken) return;
+    setCarregando(true);
+    setErro(null);
+    try {
+      const { movimentos } = await ccipayListarAdiantamentos(googleIdToken);
+      setVales(movimentos);
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Erro ao carregar vales.");
+    } finally {
+      setCarregando(false);
+    }
+  }, [googleIdToken]);
+
+  useEffect(() => {
+    void carregar();
+  }, [carregar]);
+
+  const abrirConfirmacao = (vale: CcipayMovimento, acao: "aprovar" | "negar") => {
     setValeSelecionado(vale);
     setAcaoSelecionada(acao);
     setJustificativa("");
-    setDialogAberto(true);
-    setMensagem({ tipo: null, texto: "" });
   };
 
-  const confirmarAcao = () => {
-    if (!valeSelecionado || !acaoSelecionada) return;
-
-    if (acaoSelecionada === "negado" && !justificativa.trim()) {
-      setMensagem({
-        tipo: "erro",
-        texto: "Para negar um vale é obrigatório informar uma justificativa.",
-      });
+  const confirmar = async () => {
+    if (!googleIdToken || !valeSelecionado || !acaoSelecionada) return;
+    if (acaoSelecionada === "negar" && !justificativa.trim()) {
+      setErro("Informe a justificativa para negar.");
       return;
     }
-
-    const id = valeSelecionado.id;
-    const justificativaFinal =
-      acaoSelecionada === "negado" ? justificativa.trim() : undefined;
-
-    setVales((prev) =>
-      prev.map((vale) =>
-        vale.id === id
-          ? { ...vale, status: acaoSelecionada, justificativaNegacao: justificativaFinal }
-          : vale,
-      ),
-    );
-
-    const vale = vales.find((v) => v.id === id);
-    if (!vale) {
-      setDialogAberto(false);
-      return;
+    try {
+      await ccipayAprovarAdiantamento(
+        googleIdToken,
+        valeSelecionado.id,
+        acaoSelecionada,
+        justificativa,
+      );
+      setValeSelecionado(null);
+      setAcaoSelecionada(null);
+      await carregar();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Falha ao processar.");
     }
-
-    console.log("Disparar e-mail para colaborador:", {
-      email: vale.email,
-      nome: vale.nome,
-      resultado: acaoSelecionada === "aprovado" ? "APROVADO" : "NEGADO",
-      valor: vale.valor,
-      justificativa: justificativaFinal,
-    });
-
-    setMensagem({
-      tipo: "sucesso",
-      texto:
-        acaoSelecionada === "aprovado"
-          ? `Vale de R$ ${vale.valor.toFixed(2)} para ${vale.nome} marcado como aprovado.`
-          : `Vale de R$ ${vale.valor.toFixed(2)} para ${vale.nome} marcado como negado.`,
-    });
-
-    setDialogAberto(false);
   };
 
-  const totalPendentes = vales.filter((v) => v.status === "pendente").length;
+  const pendentes = vales.filter((v) => v.status === "pendente").length;
 
   return (
     <div className="animate-fade-in">
       <PageHero
         title="Controle de Vales — Financeiro"
-        subtitle="Tela interna do financeiro para análise, aprovação e negativa de vales-adiantamento."
+        subtitle="Análise, aprovação e negativa de vales-adiantamento."
       />
 
-      <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
-        {mensagem.tipo === "sucesso" && (
-          <Alert className="mb-4 border-emerald-500/40 bg-emerald-50 text-emerald-900 dark:bg-emerald-900/10 dark:text-emerald-100">
-            <CheckCircle2 className="h-4 w-4" />
-            <AlertTitle>Ação registrada</AlertTitle>
-            <AlertDescription>{mensagem.texto}</AlertDescription>
-          </Alert>
-        )}
-        {mensagem.tipo === "erro" && (
+      <div className="mx-auto max-w-5xl px-4 py-8 md:px-8">
+        <Button asChild variant="ghost" size="sm" className="mb-4">
+          <Link to="/cci-pay">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            CCI Pay
+          </Link>
+        </Button>
+
+        {erro && (
           <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Atenção</AlertTitle>
-            <AlertDescription>{mensagem.texto}</AlertDescription>
+            <AlertDescription>{erro}</AlertDescription>
           </Alert>
         )}
 
-        <div className="mb-4 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-          <span>
-            Total de solicitações: <strong>{vales.length}</strong>
-          </span>
-          <span>
-            Pendentes: <strong>{totalPendentes}</strong>
-          </span>
-        </div>
+        <p className="mb-4 text-sm text-muted-foreground">
+          Pendentes: <strong>{pendentes}</strong> · Total: <strong>{vales.length}</strong>
+        </p>
 
-        <div className="rounded-xl border border-border bg-card p-6 shadow-card">
-          {vales.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Nenhuma solicitação de vale-adiantamento cadastrada.
-            </p>
-          ) : (
+        {carregando ? (
+          <p className="text-sm text-muted-foreground">Carregando...</p>
+        ) : vales.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Nenhuma solicitação.</p>
+        ) : (
+          <div className="rounded-xl border border-border bg-card overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Colaborador</TableHead>
+                  <TableHead>Funcionário</TableHead>
                   <TableHead>Pix</TableHead>
-                  <TableHead className="w-28">Data</TableHead>
-                  <TableHead className="w-28 text-right">Valor (R$)</TableHead>
-                  <TableHead className="w-24">Status</TableHead>
-                  <TableHead className="w-40 text-right">Ações</TableHead>
+                  <TableHead>Competência</TableHead>
+                  <TableHead>Valor</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {vales.map((vale) => (
                   <TableRow key={vale.id}>
                     <TableCell>
-                      <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-medium text-card-foreground">
-                          {vale.nome}
-                        </span>
-                        <span className="text-xs text-muted-foreground">{vale.email}</span>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{vale.funcionarioNome}</span>
+                        <span className="text-xs text-muted-foreground">{vale.funcionarioEmail}</span>
                       </div>
                     </TableCell>
+                    <TableCell className="text-xs">{String(vale.metadata?.pix ?? "—")}</TableCell>
+                    <TableCell>{vale.competencia}</TableCell>
+                    <TableCell>R$ {vale.valor.toFixed(2)}</TableCell>
                     <TableCell>
-                      <span className="text-xs text-muted-foreground">{vale.pix}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-xs text-muted-foreground">
-                        {vale.dataSolicitacao}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {vale.valor.toFixed(2)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          vale.status === "pendente"
-                            ? "secondary"
-                            : vale.status === "aprovado"
-                              ? "default"
-                              : "outline"
-                        }
-                      >
-                        {vale.status === "pendente"
-                          ? "Pendente"
-                          : vale.status === "aprovado"
-                            ? "Aprovado"
-                            : "Negado"}
+                      <Badge variant={vale.status === "pendente" ? "secondary" : "outline"}>
+                        {labelStatusMovimento(vale.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={vale.status !== "pendente"}
-                          onClick={() => abrirConfirmacao(vale, "aprovado")}
-                        >
-                          <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
-                          Aprovar
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          disabled={vale.status !== "pendente"}
-                          onClick={() => abrirConfirmacao(vale, "negado")}
-                        >
-                          <XCircle className="mr-1.5 h-3.5 w-3.5" />
-                          Negar
-                        </Button>
-                      </div>
+                    <TableCell className="text-right space-x-2">
+                      <Button
+                        size="sm"
+                        disabled={vale.status !== "pendente"}
+                        onClick={() => abrirConfirmacao(vale, "aprovar")}
+                      >
+                        Aprovar
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={vale.status !== "pendente"}
+                        onClick={() => abrirConfirmacao(vale, "negar")}
+                      >
+                        Negar
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
-              <TableCaption>
-                Tela interna de controle — futuramente integrada com o envio de e-mails e banco de dados.
-              </TableCaption>
             </Table>
-          )}
-        </div>
-
-        <AlertDialog open={dialogAberto} onOpenChange={setDialogAberto}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                {acaoSelecionada === "aprovado"
-                  ? "Confirmar aprovação"
-                  : "Confirmar negativa"}
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {acaoSelecionada === "aprovado"
-                  ? "Tem certeza de que deseja aprovar este vale-adiantamento?"
-                  : "Tem certeza de que deseja negar este vale-adiantamento? Informe abaixo o motivo da negativa."}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            {acaoSelecionada === "negado" && (
-              <div className="mt-3 space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">
-                  Justificativa da negativa
-                </label>
-                <Textarea
-                  rows={3}
-                  value={justificativa}
-                  onChange={(e) => setJustificativa(e.target.value)}
-                  placeholder="Ex: Solicitação fora da política de adiantamentos, inconsistência nos dados, etc."
-                />
-              </div>
-            )}
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction onClick={confirmarAcao}>
-                {acaoSelecionada === "aprovado"
-                  ? "Confirmar aprovação"
-                  : "Confirmar negativa"}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          </div>
+        )}
       </div>
+
+      <AlertDialog open={Boolean(valeSelecionado && acaoSelecionada)} onOpenChange={() => setValeSelecionado(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {acaoSelecionada === "aprovar" ? "Aprovar vale" : "Negar vale"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {acaoSelecionada === "negar" &&
+                "Informe o motivo da negativa (obrigatório)."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {acaoSelecionada === "negar" && (
+            <Textarea
+              value={justificativa}
+              onChange={(e) => setJustificativa(e.target.value)}
+              placeholder="Motivo da negativa"
+            />
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmar}>Confirmar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
-

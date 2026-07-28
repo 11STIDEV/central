@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { CalendarDays, ChevronDown, ChevronRight, Headphones, Layers, Lock, type LucideIcon } from "lucide-react";
+import { CalendarDays, ChevronDown, ChevronRight, CircleDollarSign, Layers, Lock, Ticket, type LucideIcon } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,17 +25,23 @@ import {
   type NavSectionFlat,
   type NavSectionNested,
   isNavActive,
+  navItemIsActive,
   nestedSectionHasActiveRoute,
   sectorHasActiveRoute,
+  sectorHubIsActive,
+  sectorTemVisaoGeral,
+  getSectorHubUrl,
 } from "@/navigation/intranetNavConfig";
 
 const STORAGE_PREFIX = "cci-intranet-nav";
 
 /** Ícone no menu quando a sidebar está recolhida (uma seção `nested`). */
 const NESTED_SECTION_ICONS: Record<string, LucideIcon> = {
-  suporte: Headphones,
+  atendimento: Ticket,
   agenda: CalendarDays,
   setores: Layers,
+  "setores-todos": Layers,
+  "cci-pay": CircleDollarSign,
 };
 
 function readBool(key: string, fallback: boolean): boolean {
@@ -146,7 +152,7 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
 
   function renderLeaf(item: NavLeaf, opts: { collapsed: boolean }) {
     const locked = Boolean(item.locked);
-    const active = !locked && isNavActive(pathname, item.url);
+    const active = !locked && navItemIsActive(pathname, item);
     if (locked) {
       return (
         <li key={item.url}>
@@ -186,8 +192,7 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
   }
 
   function renderFlatSection(section: NavSectionFlat) {
-    const items = [...section.items].sort((a, b) => a.title.localeCompare(b.title, "pt-BR"));
-    if (items.length === 0) return null;
+    if (section.items.length === 0) return null;
     return (
       <div key={section.id} className="mb-6 last:mb-2">
         {!collapsed && (
@@ -196,12 +201,105 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
           </p>
         )}
         {collapsed && section.id !== "portal" && <div className="mx-2 mb-2 h-px bg-sidebar-border" aria-hidden />}
-        <ul className="space-y-0.5">{items.map((item) => renderLeaf(item, { collapsed }))}</ul>
+        <ul className="space-y-0.5">{section.items.map((item) => renderLeaf(item, { collapsed }))}</ul>
+      </div>
+    );
+  }
+
+  function renderSetorHubLeaf(sector: NavSectionNested["sectors"][number]) {
+    const hubUrl = getSectorHubUrl(sector);
+    const active = sectorHubIsActive(pathname, sector);
+    const SectorIcon = sector.items[0]?.icon ?? Layers;
+    return (
+      <li key={sector.id}>
+        <NavLink
+          to={hubUrl}
+          title={collapsed ? sector.label : undefined}
+          className={linkClass(active)}
+          activeClassName=""
+        >
+          <SectorIcon className={iconClass(active)} strokeWidth={1.75} />
+          {!collapsed && <span className="min-w-0 flex-1 leading-snug">{sector.label}</span>}
+        </NavLink>
+      </li>
+    );
+  }
+
+  function renderSetoresHubSection(section: NavSectionNested) {
+    if (section.sectors.length === 0) return null;
+
+    const SectionIcon = NESTED_SECTION_ICONS[section.id] ?? Layers;
+    const outer = outerOpen[section.id] ?? false;
+
+    if (collapsed) {
+      const anyActive = nestedSectionHasActiveRoute(pathname, section);
+      return (
+        <div key={section.id} className="mb-6 last:mb-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={`h-11 w-full rounded-xl lg:h-10 ${anyActive ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"}`}
+                aria-label={section.label}
+                title={section.label}
+              >
+                <SectionIcon className="h-[1.125rem] w-[1.125rem] shrink-0" strokeWidth={1.75} />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="max-h-[min(70vh,24rem)] w-56 overflow-y-auto" align="start" side="right" sideOffset={8}>
+              <DropdownMenuLabel className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                {section.label}
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              {section.sectors.map((sector) => {
+                const hubUrl = getSectorHubUrl(sector);
+                const active = sectorHubIsActive(pathname, sector);
+                return (
+                  <DropdownMenuItem key={sector.id} asChild>
+                    <Link to={hubUrl} className={active ? "bg-accent font-medium" : undefined}>
+                      {sector.label}
+                    </Link>
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      );
+    }
+
+    return (
+      <div key={section.id} className="mb-6 last:mb-2">
+        <Collapsible
+          open={outer}
+          onOpenChange={(open) => {
+            setOuterOpen((p) => ({ ...p, [section.id]: open }));
+            writeBool(`${section.id}-open`, open);
+          }}
+        >
+          <CollapsibleTrigger
+            className="flex w-full min-h-[44px] items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-sidebar-muted transition-colors hover:bg-sidebar-accent/80 hover:text-sidebar-foreground lg:min-h-0"
+            type="button"
+          >
+            <span>{section.label}</span>
+            {outer ? (
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+            )}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-1 space-y-0.5 pl-0">
+            <ul className="space-y-0.5">{section.sectors.map((sector) => renderSetorHubLeaf(sector))}</ul>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     );
   }
 
   function renderNestedSection(section: NavSectionNested) {
+    if (section.id === "setores" || section.id === "setores-todos") return renderSetoresHubSection(section);
     if (section.sectors.length === 0) return null;
 
     const SectionIcon = NESTED_SECTION_ICONS[section.id] ?? Layers;
@@ -232,17 +330,17 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
               {section.sectors.map((sector) => {
                 const slug = getSectorSlugFromId(sector.id);
                 const hasItems = sector.items.length > 0;
-                
-                if (!hasItems) {
+                const temVisao = sectorTemVisaoGeral(sector.id);
+
+                if (!hasItems && temVisao) {
                   return (
                     <DropdownMenuItem key={sector.id} asChild>
-                      <Link to={`/setores/${slug}/visao-geral`}>
-                        {sector.label}
-                      </Link>
+                      <Link to={`/setores/${slug}/visao-geral`}>{sector.label}</Link>
                     </DropdownMenuItem>
                   );
                 }
 
+                if (!hasItems) return null;
                 return (
                   <DropdownMenuSub key={sector.id}>
                     <DropdownMenuSubTrigger className="text-sm">{sector.label}</DropdownMenuSubTrigger>
@@ -304,7 +402,8 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
             {section.sectors.map((sector) => {
               const slug = getSectorSlugFromId(sector.id);
               const hasItems = sector.items.length > 0;
-              const isOverviewActive = pathname === `/setores/${slug}/visao-geral`;
+              const temVisao = sectorTemVisaoGeral(sector.id);
+              const isOverviewActive = temVisao && pathname === `/setores/${slug}/visao-geral`;
 
               return (
                 <Collapsible
@@ -315,17 +414,23 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
                     writeBool(`sector-${sector.id}`, open);
                   }}
                 >
-                  <div className={`flex w-full min-h-[44px] items-center justify-between gap-2 rounded-lg px-2 py-1 text-left text-xs font-semibold transition-colors hover:bg-sidebar-accent/60 lg:min-h-0 ${isOverviewActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/90"}`}>
-                    <Link
-                      to={`/setores/${slug}/visao-geral`}
-                      className="flex-1 truncate py-1 hover:underline"
-                    >
-                      {sector.label}
-                    </Link>
-                    {hasItems && (
+                  <div
+                    className={`flex w-full min-h-[44px] items-center justify-between gap-2 rounded-lg px-2 py-1 text-left text-xs font-semibold transition-colors hover:bg-sidebar-accent/60 lg:min-h-0 ${isOverviewActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/90"}`}
+                  >
+                    {temVisao ? (
+                      <Link
+                        to={`/setores/${slug}/visao-geral`}
+                        className="flex-1 truncate py-1 hover:underline"
+                      >
+                        {sector.label}
+                      </Link>
+                    ) : (
+                      <span className="flex-1 truncate py-1">{sector.label}</span>
+                    )}
+                    {hasItems ? (
                       <CollapsibleTrigger
                         type="button"
-                        className="p-1 text-sidebar-muted hover:text-sidebar-foreground hover:bg-sidebar-accent/80 rounded"
+                        className="rounded p-1 text-sidebar-muted hover:bg-sidebar-accent/80 hover:text-sidebar-foreground"
                         title={sectorOpen[sector.id] ? "Recolher" : "Expandir"}
                       >
                         {(sectorOpen[sector.id] ?? false) ? (
@@ -334,13 +439,11 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
                           <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden />
                         )}
                       </CollapsibleTrigger>
-                    )}
+                    ) : null}
                   </div>
                   <CollapsibleContent>
                     <ul className="space-y-0.5 pb-2 pl-1 pt-1">
-                      {[...sector.items]
-                        .sort((a, b) => a.title.localeCompare(b.title, "pt-BR"))
-                        .map((item) => renderLeaf(item, { collapsed: false }))}
+                      {sector.items.map((item) => renderLeaf(item, { collapsed: false }))}
                     </ul>
                   </CollapsibleContent>
                 </Collapsible>
