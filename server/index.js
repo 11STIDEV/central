@@ -1458,6 +1458,111 @@ async function enviarEmailSolucaoChamado(chamado) {
   }
 }
 
+async function enviarEmailNovoChamado(chamado) {
+  const remetente = (
+    process.env.EMAIL_REMETENTE ||
+    process.env.GOOGLE_ADMIN_IMPERSONATE ||
+    ""
+  ).trim();
+
+  if (!remetente) {
+    console.warn("[email-novo-chamado] EMAIL_REMETENTE não configurado — e-mail de aviso de novo chamado não enviado.");
+    return;
+  }
+
+  const auth = getJwtParaEmail();
+  if (!auth) {
+    console.warn("[email-novo-chamado] Sem credenciais para enviar e-mail.");
+    return;
+  }
+
+  try {
+    await auth.authorize();
+  } catch (e) {
+    console.error("[email-novo-chamado] Falha ao autorizar JWT Gmail:", e.message);
+    return;
+  }
+
+  const destinatario = "setape@portalcci.com.br";
+  const assunto = `🔔 Novo chamado aberto: [${chamado.id}] - ${chamado.titulo}`;
+  
+  const dests = Array.isArray(chamado.setorDestino) ? chamado.setorDestino : [chamado.setorDestino || "setape"];
+  const nomesSetores = dests.map(obterNomeAmigavelSetor).join(" & ");
+  
+  const htmlBody = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; margin: 0; padding: 0; }
+    .container { max-width: 600px; margin: 32px auto; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+    .header { background: #eab308; padding: 24px 32px; }
+    .header h1 { color: #fff; margin: 0; font-size: 20px; }
+    .body { padding: 24px 32px; color: #333; }
+    .info-box { background: #fef9c3; border-left: 4px solid #eab308; border-radius: 4px; padding: 14px 18px; margin: 16px 0; }
+    .info-box p { margin: 4px 0; font-size: 14px; }
+    .desc-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 14px 18px; margin: 16px 0; white-space: pre-wrap; font-size: 14px; color: #374151; }
+    .footer { padding: 16px 32px; background: #f4f4f4; font-size: 12px; color: #888; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🔔 Novo Chamado Aberto</h1>
+    </div>
+    <div class="body">
+      <p>Um novo chamado foi aberto por <strong>${chamado.solicitante}</strong> (${chamado.solicitanteEmail}).</p>
+      
+      <div class="info-box">
+        <p><strong>📌 ID:</strong> ${chamado.id}</p>
+        <p><strong>📋 Solicitação:</strong> ${chamado.titulo}</p>
+        <p><strong>🏢 Setor Destino:</strong> ${nomesSetores}</p>
+        <p><strong>⚠️ Prioridade:</strong> ${chamado.prioridade ? chamado.prioridade.toUpperCase() : "MÉDIA"}</p>
+        <p><strong>📅 Data:</strong> ${chamado.data}</p>
+      </div>
+
+      <p><strong>📝 Descrição:</strong></p>
+      <div class="desc-box">${chamado.descricao || "Sem descrição."}</div>
+      
+      <p>Acesse a Gestão de Chamados na intranet para visualizar e interagir com este chamado.</p>
+    </div>
+    <div class="footer">Este é um e-mail automático da Intranet CCI. Não responda este e-mail.</div>
+  </div>
+</body>
+</html>`;
+
+  const rawMessage = [
+    `From: Intranet CCI <${remetente}>`,
+    `To: ${destinatario}`,
+    `Reply-To: ${remetente}`,
+    `Subject: =?UTF-8?B?${Buffer.from(assunto).toString("base64")}?=`,
+    "MIME-Version: 1.0",
+    'Content-Type: text/html; charset="UTF-8"',
+    "X-Mailer: Intranet-CCI/1.0",
+    "X-Auto-Submitted: auto-generated",
+    "Precedence: transactional",
+    "",
+    htmlBody,
+  ].join("\r\n");
+
+  const encoded = Buffer.from(rawMessage)
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+
+  try {
+    const gmail = google.gmail({ version: "v1", auth });
+    await gmail.users.messages.send({
+      userId: remetente,
+      requestBody: { raw: encoded },
+    });
+    console.log(`[email-novo-chamado] E-mail de notificação de novo chamado enviado para ${destinatario} (chamado ${chamado.id}).`);
+  } catch (e) {
+    console.error(`[email-novo-chamado] Falha ao enviar e-mail para ${destinatario}:`, e.message);
+  }
+}
+
 /**
  * Formata data no padrão ISO (yyyy-MM-dd) para dd/MM/yyyy.
  * Se já vier formatada, devolve como está.
@@ -1792,6 +1897,14 @@ app.post("/api/chamados/criar", async (req, res) => {
     };
 
     await inserirChamado(supabase, chamado);
+
+    // Dispara e-mail de notificação de forma assíncrona (não bloqueia a resposta)
+    setImmediate(() =>
+      enviarEmailNovoChamado(chamado).catch((e) =>
+        console.error("[email-novo-chamado] Erro inesperado:", e.message)
+      )
+    );
+
     return res.json({ ok: true, chamado });
   } catch (e) {
     if (e.status) return respostaErroIdToken(res, e);
