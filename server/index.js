@@ -1483,10 +1483,40 @@ async function enviarEmailNovoChamado(chamado) {
     return;
   }
 
-  const destinatario = "setape@portalcci.com.br";
+  const SETOR_EMAILS = {
+    setape: ["setape@portalcci.com.br"],
+    secretaria: ["atendimento@portalcci.com.br"],
+    dp: ["dp@portalcci.com.br", "financeiro@portalcci.com.br"],
+    financeiro: ["dp@portalcci.com.br", "financeiro@portalcci.com.br"],
+    direcao: ["dir@portalcci.com.br"],
+    disciplinar: ["disciplinar@portalcci.com.br"],
+    biblioteca: ["biblioteca@portalcci.com.br"],
+    servicosgerais: ["sgerais@portalcci.com.br"],
+    almoxarifado: ["almoxarifado@portalcci.com.br"],
+    primeirossocorros: ["enfermaria@portalcci.com.br"],
+    clat: ["equipeclat@clat.com.br"],
+    publicidade: ["publicidade@portalcci.com.br"],
+  };
+
+  const dests = Array.isArray(chamado.setorDestino) ? chamado.setorDestino : [chamado.setorDestino || "setape"];
+  
+  const emailsSetores = [];
+  for (const d of dests) {
+    const list = SETOR_EMAILS[d];
+    if (Array.isArray(list)) {
+      emailsSetores.push(...list);
+    }
+  }
+
+  const destinatariosUnicos = Array.from(new Set(emailsSetores));
+
+  if (destinatariosUnicos.length === 0) {
+    destinatariosUnicos.push("setape@portalcci.com.br");
+  }
+
+  const destinatarioStr = destinatariosUnicos.join(", ");
   const assunto = `🔔 Novo chamado aberto: [${chamado.id}] - ${chamado.titulo}`;
   
-  const dests = Array.isArray(chamado.setorDestino) ? chamado.setorDestino : [chamado.setorDestino || "setape"];
   const nomesSetores = dests.map(obterNomeAmigavelSetor).join(" & ");
   
   const htmlBody = `<!DOCTYPE html>
@@ -1533,7 +1563,7 @@ async function enviarEmailNovoChamado(chamado) {
 
   const rawMessage = [
     `From: Intranet CCI <${remetente}>`,
-    `To: ${destinatario}`,
+    `To: ${destinatarioStr}`,
     `Reply-To: ${remetente}`,
     `Subject: =?UTF-8?B?${Buffer.from(assunto).toString("base64")}?=`,
     "MIME-Version: 1.0",
@@ -1557,9 +1587,9 @@ async function enviarEmailNovoChamado(chamado) {
       userId: remetente,
       requestBody: { raw: encoded },
     });
-    console.log(`[email-novo-chamado] E-mail de notificação de novo chamado enviado para ${destinatario} (chamado ${chamado.id}).`);
+    console.log(`[email-novo-chamado] E-mail de notificação de novo chamado enviado para ${destinatarioStr} (chamado ${chamado.id}).`);
   } catch (e) {
-    console.error(`[email-novo-chamado] Falha ao enviar e-mail para ${destinatario}:`, e.message);
+    console.error(`[email-novo-chamado] Falha ao enviar e-mail para ${destinatarioStr}:`, e.message);
   }
 }
 
