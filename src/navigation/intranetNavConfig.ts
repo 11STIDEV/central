@@ -10,7 +10,6 @@ import {
   GraduationCap,
   Hash,
   HeartPulse,
-  Home,
   LayoutDashboard,
   MapPin,
   Megaphone,
@@ -74,7 +73,6 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     label: "Portal",
     type: "flat",
     items: [
-      { title: "Central de Informações", url: "/", icon: Home },
       { title: "Portal do Funcionário", url: "/portal-do-funcionario", icon: Users },
       { title: "Avisos", url: "/avisos", icon: Megaphone },
       { title: "Publicar aviso", url: "/avisos/publicar", icon: PenLine },
