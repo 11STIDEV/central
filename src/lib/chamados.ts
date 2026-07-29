@@ -1,5 +1,5 @@
 import type { Papel, UsuarioLogado } from "@/auth/AuthProvider";
-import { apiUrl, centralFetch } from "@/lib/apiBase";
+import { apiUrl, centralFetch, authJsonBody } from "@/lib/apiBase";
 
 export type ChamadoStatus = "aberto" | "resolvido";
 
@@ -71,11 +71,11 @@ function erroDaResposta(data: Record<string, unknown>, fallback: string): string
 }
 
 /** Lista chamados visíveis para o usuário (Supabase via API). */
-export async function listarChamados(idToken: string): Promise<Chamado[]> {
+export async function listarChamados(idToken?: string | null): Promise<Chamado[]> {
   const res = await centralFetch(apiUrl("/api/chamados/listar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken }),
+    body: authJsonBody({}, idToken),
   });
   const data = await parseJsonResponse(res);
   if (!res.ok) {
@@ -101,13 +101,13 @@ export type CriarChamadoInput = {
 
 /** Registra um novo chamado no Supabase. */
 export async function criarChamado(
-  idToken: string,
+  idToken?: string | null,
   input: CriarChamadoInput,
 ): Promise<Chamado> {
   const res = await centralFetch(apiUrl("/api/chamados/criar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, ...input }),
+    body: authJsonBody({ ...input }, idToken),
   });
   const data = await parseJsonResponse(res);
   if (!res.ok) {
@@ -122,13 +122,13 @@ export async function criarChamado(
 
 /** Atualiza acompanhamentos, tarefas e solução no Supabase. */
 export async function atualizarChamadoRemoto(
-  idToken: string,
+  idToken?: string | null,
   chamado: Chamado,
 ): Promise<Chamado> {
   const res = await centralFetch(apiUrl("/api/chamados/atualizar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, chamado }),
+    body: authJsonBody({ chamado }, idToken),
   });
   const data = await parseJsonResponse(res);
   if (!res.ok) {

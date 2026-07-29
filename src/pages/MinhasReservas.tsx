@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Clock3, XCircle } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { PageHero } from "@/components/PageHero";
@@ -36,6 +37,8 @@ function tipoLabel(r: ReservaAgendaCCI): string {
 }
 
 export default function MinhasReservas() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const { usuario, googleIdToken } = useAuth();
   const [reservas, setReservas] = useState<ReservaAgendaCCI[]>(() => carregarReservasAgenda());
   const [agoraTick, setAgoraTick] = useState(() => Date.now());
@@ -44,12 +47,21 @@ export default function MinhasReservas() {
   const [idCancelar, setIdCancelar] = useState<string | null>(null);
 
   useEffect(() => {
+    const st = location.state as { reservaConfirmada?: boolean; mensagem?: string } | null;
+    if (!st?.reservaConfirmada) return;
+    const msg = st.mensagem?.trim() || "Reserva confirmada com sucesso!";
+    setFeedback({ tipo: "sucesso", texto: msg });
+    toast.success(msg);
+    navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
+  useEffect(() => {
     const t = window.setInterval(() => setAgoraTick(Date.now()), 60_000);
     return () => window.clearInterval(t);
   }, []);
 
   useEffect(() => {
-    if (!googleIdToken || !usuario) return;
+    if (!usuario) return;
     let cancelado = false;
     (async () => {
       const listaServidor = await obterReservasDoServidor(googleIdToken);
@@ -64,7 +76,7 @@ export default function MinhasReservas() {
     return () => {
       cancelado = true;
     };
-  }, [googleIdToken, usuario]);
+  }, [usuario, googleIdToken]);
 
   const minhasReservas = useMemo(() => {
     if (!usuario) return [];
@@ -88,7 +100,7 @@ export default function MinhasReservas() {
     if (!idCancelar) return;
     const next = reservas.map((r) => (r.id === idCancelar ? { ...r, status: "cancelada" as const } : r));
     setReservas(next);
-    const ok = await salvarReservasAgenda(next, googleIdToken);
+    const { ok } = await salvarReservasAgenda(next, googleIdToken);
     setCancelDialogAberto(false);
     setIdCancelar(null);
     const msg = "Reserva cancelada com sucesso.";

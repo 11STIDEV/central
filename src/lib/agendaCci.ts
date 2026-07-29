@@ -1,4 +1,4 @@
-import { apiUrl, centralFetch } from "@/lib/apiBase";
+import { apiUrl, centralFetch, authJsonBody } from "@/lib/apiBase";
 
 /** Modelo e persistência da Agenda CCI (reservas no navegador). */
 
@@ -369,40 +369,41 @@ export function carregarReservasAgenda(): ReservaAgendaCCI[] {
   }
 }
 
+export type SalvarReservasResult = { ok: boolean; status?: number };
+
 export async function salvarReservasAgenda(
   lista: ReservaAgendaCCI[],
   idToken?: string | null,
-): Promise<boolean> {
+): Promise<SalvarReservasResult> {
   localStorage.setItem(STORAGE_KEY_AGENDA_CCI, JSON.stringify(lista));
-  if (idToken) return enviarReservasParaServidor(lista, idToken);
-  return true;
+  return enviarReservasParaServidor(lista, idToken);
 }
 
 export async function enviarReservasParaServidor(
   lista: ReservaAgendaCCI[],
-  idToken: string,
-): Promise<boolean> {
+  idToken?: string | null,
+): Promise<SalvarReservasResult> {
   try {
     const res = await centralFetch(apiUrl("/api/agenda-cci/reservas"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken, reservas: lista }),
+      body: authJsonBody({ reservas: lista }, idToken),
     });
-    return res.ok;
+    return { ok: res.ok, status: res.status };
   } catch {
-    return false;
+    return { ok: false };
   }
 }
 
 /** Substitui o localStorage pelas reservas do servidor (fonte de verdade para o worker). */
 export async function obterReservasDoServidor(
-  idToken: string,
+  idToken?: string | null,
 ): Promise<ReservaAgendaCCI[] | null> {
   try {
     const res = await centralFetch(apiUrl("/api/agenda-cci/reservas/obter"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken }),
+      body: authJsonBody({}, idToken),
     });
     if (!res.ok) return null;
     const j = (await res.json()) as { reservas?: ReservaAgendaCCI[] };
@@ -415,7 +416,7 @@ export async function obterReservasDoServidor(
 
 /** Busca eventos do Google Calendar vinculados à conta para o período. */
 export async function obterEventosGoogleCalendar(
-  idToken: string,
+  idToken?: string | null,
   timeMin: string,
   timeMax: string,
 ): Promise<any[] | null> {
@@ -423,7 +424,7 @@ export async function obterEventosGoogleCalendar(
     const res = await centralFetch(apiUrl("/api/agenda-cci/google-events"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken, timeMin, timeMax }),
+      body: authJsonBody({ timeMin, timeMax }, idToken),
     });
     if (!res.ok) return null;
     const j = (await res.json()) as { events?: any[] };

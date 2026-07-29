@@ -6,6 +6,45 @@
  *   se quiser voltar ao proxy relativo a `/api`.
  */
 import { isAuthTokenErrorBody } from "@/lib/authSession";
+export const SESSION_HEADER_NAME = "X-Central-Session";
+export const STORAGE_KEY_SERVER_SESSION = "central_server_session_id";
+
+let centralSessionId: string | null = null;
+
+export function getStoredSessionId(): string | null {
+  if (centralSessionId) return centralSessionId;
+  try {
+    return localStorage.getItem(STORAGE_KEY_SERVER_SESSION);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredSessionId(id: string | null): void {
+  centralSessionId = id;
+  try {
+    if (id) {
+      localStorage.setItem(STORAGE_KEY_SERVER_SESSION, id);
+    } else {
+      localStorage.removeItem(STORAGE_KEY_SERVER_SESSION);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Sincroniza ID de sessão em memória (dev cross-port 8080↔3001). */
+export function setCentralSessionId(id: string | null): void {
+  setStoredSessionId(id);
+}
+
+/** Inicializa sessão da memória a partir do localStorage (chamado no boot). */
+export function initCentralSessionFromStorage(): void {
+  centralSessionId = null;
+  const stored = getStoredSessionId();
+  if (stored) centralSessionId = stored;
+}
+
 export function getApiBaseUrl(): string {
   if (import.meta.env.VITE_USE_VITE_PROXY === "1") {
     return "";
@@ -53,15 +92,28 @@ export function registerAuthExpiredHandler(handler: AuthExpiredHandler | null): 
   authExpiredHandler = handler;
 }
 
+function authFetchInit(init?: RequestInit): RequestInit {
+  const headers = new Headers(init?.headers);
+  const sid = centralSessionId || getStoredSessionId();
+  if (sid) {
+    headers.set(SESSION_HEADER_NAME, sid);
+  }
+  return {
+    ...init,
+    credentials: "include",
+    headers,
+  };
+}
+
 /**
- * `fetch` com detecção de token Google expirado (401 + mensagem conhecida).
- * Preferir em chamadas autenticadas com `idToken`.
+ * `fetch` autenticado com cookie/header de sessão e detecção de 401.
+ * Preferir em chamadas autenticadas à API.
  */
 export async function centralFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const res = await fetch(input, init);
+  const res = await fetch(input, authFetchInit(init));
   if (res.status === 401 && authExpiredHandler) {
     const text = await res.clone().text().catch(() => "");
     if (isAuthTokenErrorBody(text)) {
@@ -69,4 +121,14 @@ export async function centralFetch(
     }
   }
   return res;
+}
+
+/** Corpo JSON para POST autenticados — idToken só como fallback legado. */
+export function authJsonBody(
+  fields: Record<string, unknown>,
+  idToken?: string | null,
+): string {
+  const body: Record<string, unknown> = { ...fields };
+  if (idToken) body.idToken = idToken;
+  return JSON.stringify(body);
 }

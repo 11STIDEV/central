@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import cookieParser from "cookie-parser";
 import cors from "cors";
 import express from "express";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
@@ -21,6 +22,14 @@ import {
 } from "./chamadosAccess.js";
 import { registerSetorLinksRoutes } from "./setorLinks.js";
 import { registerCcipayRoutes } from "./ccipayRoutes.js";
+import { createRequestAuth } from "./requestAuth.js";
+import {
+  encerrarSessaoRequest,
+  getContextoFromSessionRequest,
+  getSessionIdFromRequest,
+  iniciarSessaoUsuario,
+} from "./sessionAuth.js";
+import { resolverPapeisCompletos } from "./userContext.js";
 import {
   listarTodosChamados,
   obterChamadoPorId,
@@ -55,7 +64,8 @@ const PORT = process.env.PORT || 3001;
 /** Endereço de bind (Docker/rede: use 0.0.0.0 para aceitar conexões externas ao container). */
 const HOST = process.env.HOST || "0.0.0.0";
 
-app.use(cors({ origin: true }));
+app.use(cors({ origin: true, credentials: true }));
+app.use(cookieParser());
 app.use(express.json({ limit: "2mb" }));
 
 /** Um ou mais sufixos permitidos, separados por vírgula. Alinhar ao front (`AuthProvider`) e ao `server/.env.example`. */
@@ -1014,6 +1024,63 @@ function mensagemErroGoogle(err) {
 }
 
 /**
+ * POST /api/auth/session — troca ID token Google por sessão de servidor (~12h sliding).
+ * Body: { idToken }
+ */
+app.post("/api/auth/session", async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    const ctx = await resolverContextoFromRequest(req);
+    const session = iniciarSessaoUsuario(res, {
+      email: ctx.email,
+      nome: ctx.nome,
+      picture: ctx.picture,
+      papeis: ctx.papeis,
+      orgUnitPath: ctx.orgUnitPath ?? null,
+    });
+    return res.json({
+      ok: true,
+      sessionId: session.id,
+      user: {
+        nome: ctx.nome,
+        email: ctx.email,
+        picture: ctx.picture,
+        papeis: ctx.papeis,
+      },
+    });
+  } catch (e) {
+    return respostaErroIdToken(res, e);
+  }
+});
+
+/**
+ * GET /api/auth/me — restaura usuário da sessão (cookie ou header x-central-session).
+ */
+app.get("/api/auth/me", (req, res) => {
+  const ctx = getContextoFromSessionRequest(req);
+  if (!ctx) {
+    return res.status(401).json({ error: "Sessão expirada ou não autenticado." });
+  }
+  return res.json({
+    user: {
+      nome: ctx.nome,
+      email: ctx.email,
+      picture: ctx.picture,
+      papeis: ctx.papeis,
+    },
+    sessionId: getSessionIdFromRequest(req),
+  });
+});
+
+/**
+ * POST /api/auth/logout
+ */
+app.post("/api/auth/logout", (req, res) => {
+  encerrarSessaoRequest(req, res);
+  return res.json({ ok: true });
+});
+
+/**
  * POST /api/organizacao
  * Body: { idToken: "<google-id-token>" }
  * Valida o token, extrai o email e consulta o Google Admin SDK para retornar orgUnitPath.
@@ -1023,7 +1090,7 @@ app.post("/api/organizacao", async (req, res) => {
     const { idToken } = req.body || {};
     let email;
     try {
-      ({ email } = await verificarIdTokenUsuario(idToken));
+      ({ email } = await verificarAutenticacaoRequest(req));
     } catch (e) {
       const st = e.status || 500;
       if (st === 401 && e.audDoToken) {
@@ -1101,7 +1168,7 @@ app.post("/api/chromebooks", async (req, res) => {
   try {
     const { idToken } = req.body || {};
     try {
-      await verificarIdTokenUsuario(idToken);
+      await verificarAutenticacaoRequest(req);
     } catch (e) {
       const st = e.status || 500;
       if (st === 401 && e.audDoToken) {
@@ -1182,7 +1249,7 @@ app.post("/api/agenda-cci/reservas", async (req, res) => {
   try {
     const { idToken, reservas } = req.body || {};
     try {
-      await verificarIdTokenUsuario(idToken);
+      await verificarAutenticacaoRequest(req);
     } catch (e) {
       const st = e.status || 500;
       if (st === 401 && e.audDoToken) {
@@ -1209,6 +1276,34 @@ app.post("/api/agenda-cci/reservas", async (req, res) => {
 });
 
 /**
+ * POST /api/agenda-cci/aplicar-politica-chromebooks
+ * Body: { idToken } — força uma rodada de disable/reenable (setape ou admin).
+ */
+app.post("/api/agenda-cci/aplicar-politica-chromebooks", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    const pode =
+      ctx.papeis.includes("admin") ||
+      ctx.papeis.includes("setape");
+    if (!pode) {
+      return res.status(403).json({ error: "Acesso restrito a Setape ou administradores." });
+    }
+    if (!AGENDA_CCI_ENFORCE_DISABLE) {
+      return res.status(503).json({
+        error: "AGENDA_CCI_ENFORCE_DISABLE não está ativo no servidor.",
+      });
+    }
+    await aplicarPoliticaChromebooks();
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("Erro /api/agenda-cci/aplicar-politica-chromebooks:", msg);
+    return res.status(500).json({ error: msg || "Erro ao aplicar política." });
+  }
+});
+
+/**
  * POST /api/agenda-cci/reservas/obter
  * Body: { idToken }
  */
@@ -1216,7 +1311,7 @@ app.post("/api/agenda-cci/reservas/obter", async (req, res) => {
   try {
     const { idToken } = req.body || {};
     try {
-      await verificarIdTokenUsuario(idToken);
+      await verificarAutenticacaoRequest(req);
     } catch (e) {
       const st = e.status || 500;
       if (st === 401 && e.audDoToken) {
@@ -1244,7 +1339,7 @@ app.post("/api/agenda-cci/google-events", async (req, res) => {
   try {
     const { idToken, timeMin, timeMax } = req.body || {};
     try {
-      await verificarIdTokenUsuario(idToken);
+      await verificarAutenticacaoRequest(req);
     } catch (e) {
       return respostaErroIdToken(res, e);
     }
@@ -1767,22 +1862,33 @@ async function enviarEmailConfirmacaoReserva(reserva) {
 }
 
 async function resolverContextoChamados(idToken) {
-  const { email } = await verificarIdTokenUsuario(idToken);
+  const { email, name, picture } = await verificarIdTokenUsuario(idToken);
   const payload = decodeJwtPayloadUnsafe(idToken);
   const nome =
     (typeof payload?.name === "string" && payload.name) ||
+    (typeof name === "string" && name) ||
     (typeof payload?.given_name === "string" && payload.given_name) ||
     String(email).split("@")[0];
   const orgUnitPath = await obterOrgUnitPathUsuario(email);
   const manual = lerPapeisManuaisArquivo()[email.toLowerCase()] || [];
-  const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+  const papeis = resolverPapeisCompletos(orgUnitPath, email, manual, {
+    ouPainelAtendente: ouPainelAtendentePeloCaminho,
+    ouPainelAdmin: ouPainelAdminPeloCaminho,
+  });
   return {
     email,
     nome,
+    picture: picture || payload?.picture,
     papeis,
+    orgUnitPath,
     viewer: { email, papeis },
   };
 }
+
+const { verificarAutenticacaoRequest, resolverContextoFromRequest } = createRequestAuth({
+  verificarIdTokenUsuario,
+  resolverContextoChamados,
+});
 
 function sanitizarListaEntradas(arr) {
   if (!Array.isArray(arr)) return [];
@@ -1836,7 +1942,7 @@ function sanitizarReaberturas(arr) {
 app.post("/api/chamados/listar", async (req, res) => {
   try {
     const { idToken } = req.body || {};
-    const ctx = await resolverContextoChamados(idToken);
+    const ctx = await resolverContextoFromRequest(req);
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return res.status(503).json({
@@ -1867,7 +1973,7 @@ app.post("/api/chamados/criar", async (req, res) => {
       solicitaFilmagem, filmagemData, filmagemHoraInicio,
       filmagemHoraFim, filmagemTermosAceitos,
     } = req.body || {};
-    const ctx = await resolverContextoChamados(idToken);
+    const ctx = await resolverContextoFromRequest(req);
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return res.status(503).json({
@@ -1962,7 +2068,7 @@ app.post("/api/chamados/criar", async (req, res) => {
 app.post("/api/chamados/atualizar", async (req, res) => {
   try {
     const { idToken, chamado } = req.body || {};
-    const ctx = await resolverContextoChamados(idToken);
+    const ctx = await resolverContextoFromRequest(req);
     if (!chamado || typeof chamado !== "object" || typeof chamado.id !== "string") {
       return res.status(400).json({ error: "chamado.id é obrigatório." });
     }
@@ -2034,7 +2140,7 @@ app.post("/api/chamados/atualizar", async (req, res) => {
 app.post("/api/avisos/listar", async (req, res) => {
   try {
     const { idToken } = req.body || {};
-    const ctx = await resolverContextoChamados(idToken);
+    const ctx = await resolverContextoFromRequest(req);
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return res.status(503).json({
@@ -2059,7 +2165,7 @@ app.post("/api/avisos/listar", async (req, res) => {
 app.post("/api/avisos/criar", async (req, res) => {
   try {
     const { idToken, titulo, conteudo, tipo, setor } = req.body || {};
-    const ctx = await resolverContextoChamados(idToken);
+    const ctx = await resolverContextoFromRequest(req);
     const supabase = getSupabaseAdmin();
     if (!supabase) {
       return res.status(503).json({
@@ -2113,7 +2219,7 @@ app.post("/api/avisos/criar", async (req, res) => {
 app.post("/api/papeis-manuais/obter", async (req, res) => {
   try {
     const { idToken } = req.body || {};
-    const { email } = await verificarIdTokenUsuario(idToken);
+    const { email } = await verificarAutenticacaoRequest(req);
     const mapa = lerPapeisManuaisArquivo();
     const lista = mapa[email.toLowerCase()] || [];
     return res.json({ papeisManuais: lista });
@@ -2136,7 +2242,7 @@ app.post("/api/papeis-manuais/obter", async (req, res) => {
 app.post("/api/papeis-manuais/listar", async (req, res) => {
   try {
     const { idToken } = req.body || {};
-    const { email } = await verificarIdTokenUsuario(idToken);
+    const { email } = await verificarAutenticacaoRequest(req);
     if (!emailTemPapelAdminNoArquivo(email)) {
       return res.status(403).json({ error: "Acesso restrito a administradores." });
     }
@@ -2160,7 +2266,7 @@ app.post("/api/papeis-manuais/listar", async (req, res) => {
 app.post("/api/papeis-manuais/atualizar", async (req, res) => {
   try {
     const { idToken, emailAlvo, papeisManuais } = req.body || {};
-    const { email } = await verificarIdTokenUsuario(idToken);
+    const { email } = await verificarAutenticacaoRequest(req);
     if (!emailTemPapelAdminNoArquivo(email)) {
       return res.status(403).json({ error: "Acesso restrito a administradores." });
     }
@@ -2204,14 +2310,14 @@ app.post("/api/papeis-manuais/atualizar", async (req, res) => {
 registerSetorLinksRoutes(app, {
   arquivo: ARQUIVO_SETOR_LINKS,
   ensureDataDir,
-  verificarIdTokenUsuario,
+  verificarAutenticacaoRequest,
   emailTemPapelAdminNoArquivo,
 });
 
 registerCcipayRoutes(app, {
   getSupabaseAdmin,
   mensagemSupabaseNaoConfigurado,
-  resolverContextoUsuario: resolverContextoChamados,
+  resolverContextoFromRequest,
   respostaErroIdToken,
 });
 
@@ -2247,13 +2353,9 @@ async function obterOrgUnitPathUsuario(email) {
  */
 app.post("/api/painel/sync-profile", async (req, res) => {
   try {
-    const { idToken } = req.body || {};
-    const { email } = await verificarIdTokenUsuario(idToken);
-    const payload = decodeJwtPayloadUnsafe(idToken);
-    const fullName =
-      (typeof payload?.name === "string" && payload.name) ||
-      (typeof payload?.given_name === "string" && payload.given_name) ||
-      String(email).split("@")[0];
+    const ctx = await resolverContextoFromRequest(req);
+    const { email } = ctx;
+    const fullName = ctx.nome;
 
     const supabaseSrv = getSupabaseAdmin();
     if (!supabaseSrv) {
@@ -2365,7 +2467,7 @@ app.post("/api/painel/create-user", async (req, res) => {
     const body = req.body || {};
     const { idToken, email, password, full_name, role, service_window_id, school_id } = body;
 
-    const { email: callerEmail } = await verificarIdTokenUsuario(idToken);
+    const { email: callerEmail } = await verificarAutenticacaoRequest(req);
 
     if (!email || !password || !full_name || !school_id) {
       return res.status(400).json({ error: "Campos obrigatórios faltando." });
@@ -2842,7 +2944,7 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
 app.post("/api/ti/ischolar/webhook-logs", async (req, res) => {
   try {
     const { idToken } = req.body || {};
-    await verificarIdTokenUsuario(idToken);
+    await verificarAutenticacaoRequest(req);
     
     const logPath = path.join(__dirname, "webhook-logs.json");
     if (!fs.existsSync(logPath)) {
@@ -2860,7 +2962,7 @@ app.post("/api/ti/ischolar/webhook-logs", async (req, res) => {
 app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
   try {
     const { idToken, id_aluno, nome_aluno, turma, numero_re } = req.body || {};
-    await verificarIdTokenUsuario(idToken);
+    await verificarAutenticacaoRequest(req);
 
     if (!id_aluno) {
       return res.status(400).json({ error: "Parâmetro id_aluno é obrigatório." });
@@ -3001,7 +3103,7 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
 app.post("/api/ti/ischolar/webhook-logs/clear", async (req, res) => {
   try {
     const { idToken } = req.body || {};
-    await verificarIdTokenUsuario(idToken);
+    await verificarAutenticacaoRequest(req);
     
     const logPath = path.join(__dirname, "webhook-logs.json");
     fs.writeFileSync(logPath, JSON.stringify([], null, 2), "utf8");
@@ -3059,7 +3161,7 @@ function extrairSetorDePapeis(papeis) {
 app.post("/api/usuarios/registrar", async (req, res) => {
   try {
     const { idToken, papeis } = req.body || {};
-    const payload = await verificarIdTokenUsuario(idToken);
+    const payload = await verificarAutenticacaoRequest(req);
     const email = payload?.email;
     const nome = payload?.name ?? email ?? "Usuário";
     const fotoUrl = payload?.picture || null;
@@ -3084,7 +3186,7 @@ app.post("/api/usuarios/registrar", async (req, res) => {
 app.post("/api/kanban/usuarios", async (req, res) => {
   try {
     const { idToken, setor } = req.body || {};
-    await verificarIdTokenUsuario(idToken);
+    await verificarAutenticacaoRequest(req);
     if (!setor || typeof setor !== "string") {
       return res.status(400).json({ error: "setor é obrigatório." });
     }
@@ -3115,7 +3217,7 @@ app.post("/api/kanban/usuarios", async (req, res) => {
 app.post("/api/kanban/cards/listar", async (req, res) => {
   try {
     const { idToken, setor } = req.body || {};
-    const payload = await verificarIdTokenUsuario(idToken);
+    const payload = await verificarAutenticacaoRequest(req);
     if (!setor || typeof setor !== "string") {
       return res.status(400).json({ error: "setor é obrigatório." });
     }
@@ -3134,7 +3236,7 @@ app.post("/api/kanban/cards/listar", async (req, res) => {
 app.post("/api/kanban/cards/criar", async (req, res) => {
   try {
     const { idToken, card } = req.body || {};
-    const payload = await verificarIdTokenUsuario(idToken);
+    const payload = await verificarAutenticacaoRequest(req);
     if (!card || typeof card !== "object") {
       return res.status(400).json({ error: "card é obrigatório." });
     }
@@ -3151,7 +3253,7 @@ app.post("/api/kanban/cards/criar", async (req, res) => {
       atribuidoA: card.atribuidoA || null,
       atribuidoNome: card.atribuidoNome || null,
       criadoPor: payload.email,
-      criadoPorNome: payload.name ?? payload.given_name ?? payload.email,
+      criadoPorNome: payload.name ?? payload.email,
       prioridade: card.prioridade || "media",
       dataLimite: card.dataLimite || null,
     });
@@ -3167,7 +3269,7 @@ app.post("/api/kanban/cards/criar", async (req, res) => {
 app.post("/api/kanban/cards/atualizar", async (req, res) => {
   try {
     const { idToken, id, patch } = req.body || {};
-    await verificarIdTokenUsuario(idToken);
+    await verificarAutenticacaoRequest(req);
     if (!id || typeof id !== "string") {
       return res.status(400).json({ error: "id é obrigatório." });
     }
@@ -3186,7 +3288,7 @@ app.post("/api/kanban/cards/atualizar", async (req, res) => {
 app.post("/api/kanban/cards/excluir", async (req, res) => {
   try {
     const { idToken, id } = req.body || {};
-    await verificarIdTokenUsuario(idToken);
+    await verificarAutenticacaoRequest(req);
     if (!id || typeof id !== "string") {
       return res.status(400).json({ error: "id é obrigatório." });
     }

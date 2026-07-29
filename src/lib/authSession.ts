@@ -23,6 +23,12 @@ export function idTokenAindaValido(token: string): boolean {
   return exp * 1000 > Date.now() + 10_000;
 }
 
+/** Tenta renovar o token silenciosamente quando faltam ≤15 min. */
+export const RENOVAR_TOKEN_MS_ANTES = 15 * 60 * 1000;
+
+/** Avisa o usuário quando faltam ≤5 min (renovação automática pode falhar). */
+export const AVISO_EXPIRACAO_MS_ANTES = 5 * 60 * 1000;
+
 /** Tempo restante até expirar (ms); null se token inválido ou já expirado. */
 export function msAteExpirarToken(token: string): number | null {
   const payload = decodeJwtPayload(token);
@@ -38,6 +44,10 @@ export function isAuthTokenErrorBody(text: string): boolean {
     lower.includes("token used too late") ||
     lower.includes("jwt expired") ||
     lower.includes("token expirado") ||
+    lower.includes("sessão expirada") ||
+    lower.includes("sessao expirada") ||
+    lower.includes("não autenticado") ||
+    lower.includes("nao autenticado") ||
     (lower.includes("idtoken") && lower.includes("expir")) ||
     (lower.includes("id token") && lower.includes("expir"))
   );

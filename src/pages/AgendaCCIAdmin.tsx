@@ -99,7 +99,7 @@ export default function AgendaCCIAdmin() {
   }, []);
 
   useEffect(() => {
-    if (!googleIdToken || !usuario) return;
+    if (!usuario) return;
     let cancelado = false;
     (async () => {
       const r = await obterReservasDoServidor(googleIdToken);
@@ -161,7 +161,7 @@ export default function AgendaCCIAdmin() {
 
   async function persistir(lista: ReservaAgendaCCI[]) {
     setReservas(lista);
-    const ok = await salvarReservasAgenda(lista, googleIdToken);
+    const { ok } = await salvarReservasAgenda(lista, googleIdToken);
     if (!ok) {
       toast.warning(
         "Alteração salva neste navegador, mas a sincronização com o servidor falhou. Tente novamente.",

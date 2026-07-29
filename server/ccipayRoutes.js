@@ -47,12 +47,12 @@ export function registerCcipayRoutes(app, helpers) {
   const {
     getSupabaseAdmin,
     mensagemSupabaseNaoConfigurado,
-    resolverContextoUsuario,
+    resolverContextoFromRequest,
     respostaErroIdToken,
   } = helpers;
 
-  async function ctxFromToken(idToken) {
-    return resolverContextoUsuario(idToken);
+  async function ctxFromRequest(req) {
+    return resolverContextoFromRequest(req);
   }
 
   function supabaseOr503(res) {
@@ -80,7 +80,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/me", async (req, res) => {
     try {
       const { idToken } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
       await ensureFuncionario(supabase, ctx);
@@ -99,7 +99,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/adiantamentos/criar", async (req, res) => {
     try {
       const { idToken, pix, valor } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
 
@@ -148,7 +148,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/adiantamentos/listar", async (req, res) => {
     try {
       const { idToken } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
 
@@ -168,7 +168,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/adiantamentos/aprovar", async (req, res) => {
     try {
       const { idToken, movimentoId, acao, justificativa } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       if (!isCcipayDp(ctx.papeis)) {
         return res.status(403).json({ error: "Sem permissão para aprovar adiantamentos." });
       }
@@ -206,7 +206,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/bonificacoes/lancar", async (req, res) => {
     try {
       const { idToken, funcionarioEmail, valor, descricao } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
       if (!(await isCcipayLancador(supabase, ctx.email, ctx.papeis))) {
@@ -248,7 +248,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/deducoes/lancar", async (req, res) => {
     try {
       const { idToken, funcionarioEmail, valor, descricao } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
       if (!(await isCcipayLancador(supabase, ctx.email, ctx.papeis))) {
@@ -292,7 +292,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/funcionarios/listar", async (req, res) => {
     try {
       const { idToken } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       if (!isCcipayDp(ctx.papeis) && !isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Sem permissão." });
       }
@@ -309,7 +309,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/funcionarios/atualizar", async (req, res) => {
     try {
       const { idToken, email, patch } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       if (!isCcipayDp(ctx.papeis) && !isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Sem permissão." });
       }
@@ -328,7 +328,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/lojas/listar", async (req, res) => {
     try {
       const { idToken, apenasAtivas } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
 
@@ -348,7 +348,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/lojas/salvar", async (req, res) => {
     try {
       const { idToken, loja } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       if (!isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Somente admin CCI Pay." });
       }
@@ -367,7 +367,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/lojas/usuarios", async (req, res) => {
     try {
       const { idToken, lojaId, acao, email, nome } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       if (!isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Somente admin CCI Pay." });
       }
@@ -391,7 +391,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/lancadores/listar", async (req, res) => {
     try {
       const { idToken } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       if (!isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Sem permissão." });
       }
@@ -408,7 +408,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/lancadores/salvar", async (req, res) => {
     try {
       const { idToken, email, nome, ativo, acao } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       if (!isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Sem permissão." });
       }
@@ -432,7 +432,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/catalogo/listar", async (req, res) => {
     try {
       const { idToken, lojaId, apenasAtivos } = req.body || {};
-      await ctxFromToken(idToken);
+      await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
       const itens = await listarCatalogo(supabase, lojaId, { apenasAtivos: Boolean(apenasAtivos) });
@@ -446,7 +446,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/catalogo/salvar", async (req, res) => {
     try {
       const { idToken, item } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
       const ok = await isOperadorLoja(supabase, ctx.email, item?.lojaId, ctx.papeis);
@@ -466,7 +466,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/pedidos/criar", async (req, res) => {
     try {
       const { idToken, lojaId, itens, observacao } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
       await ensureFuncionario(supabase, ctx);
@@ -517,7 +517,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/pedidos/listar", async (req, res) => {
     try {
       const { idToken, lojaId, status } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
 
@@ -539,7 +539,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/pedidos/confirmar", async (req, res) => {
     try {
       const { idToken, pedidoId, acao } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
 
@@ -586,7 +586,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/relatorios/dp", async (req, res) => {
     try {
       const { idToken, competencia, exportarCsv } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       if (!isCcipayDp(ctx.papeis) && !isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Sem permissão." });
       }
@@ -628,7 +628,7 @@ export function registerCcipayRoutes(app, helpers) {
   app.post("/api/ccipay/relatorios/loja", async (req, res) => {
     try {
       const { idToken, lojaId, de, ate } = req.body || {};
-      const ctx = await ctxFromToken(idToken);
+      const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
 

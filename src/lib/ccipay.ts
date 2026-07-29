@@ -1,5 +1,5 @@
 import type { Papel } from "@/auth/AuthProvider";
-import { apiUrl, centralFetch } from "@/lib/apiBase";
+import { apiUrl, centralFetch, authJsonBody } from "@/lib/apiBase";
 
 export type CcipayMovimentoStatus =
   | "pendente"
@@ -98,11 +98,11 @@ function err(data: Record<string, unknown>, fallback: string): string {
   return typeof data.error === "string" ? data.error : fallback;
 }
 
-async function post<T>(path: string, idToken: string, body: Record<string, unknown> = {}): Promise<T> {
+async function post<T>(path: string, idToken?: string | null, body: Record<string, unknown> = {}): Promise<T> {
   const res = await centralFetch(apiUrl(path), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, ...body }),
+    body: authJsonBody({ ...body }, idToken),
   });
   const data = await parseJson(res);
   if (!res.ok) throw new Error(err(data, `Erro HTTP ${res.status}`));
@@ -124,7 +124,7 @@ export async function ccipayMe(idToken: string): Promise<CcipayResumo> {
   };
 }
 
-export async function ccipayCriarAdiantamento(idToken: string, pix: string, valor: number) {
+export async function ccipayCriarAdiantamento(idToken?: string | null, pix: string, valor: number) {
   return post<{ movimento: CcipayMovimento }>("/api/ccipay/adiantamentos/criar", idToken, { pix, valor });
 }
 
@@ -133,7 +133,7 @@ export async function ccipayListarAdiantamentos(idToken: string) {
 }
 
 export async function ccipayAprovarAdiantamento(
-  idToken: string,
+  idToken?: string | null,
   movimentoId: string,
   acao: "aprovar" | "negar",
   justificativa?: string,
@@ -146,7 +146,7 @@ export async function ccipayAprovarAdiantamento(
 }
 
 export async function ccipayLancarBonificacao(
-  idToken: string,
+  idToken?: string | null,
   funcionarioEmail: string,
   valor: number,
   descricao: string,
@@ -155,7 +155,7 @@ export async function ccipayLancarBonificacao(
 }
 
 export async function ccipayLancarDeducao(
-  idToken: string,
+  idToken?: string | null,
   funcionarioEmail: string,
   valor: number,
   descricao: string,
@@ -168,7 +168,7 @@ export async function ccipayListarFuncionarios(idToken: string) {
 }
 
 export async function ccipayAtualizarFuncionario(
-  idToken: string,
+  idToken?: string | null,
   email: string,
   patch: Partial<CcipayFuncionario>,
 ) {
@@ -185,16 +185,16 @@ export async function ccipayAtualizarFuncionario(
   });
 }
 
-export async function ccipayListarLojas(idToken: string, apenasAtivas = false) {
+export async function ccipayListarLojas(idToken?: string | null, apenasAtivas = false) {
   return post<{ lojas: CcipayLoja[] }>("/api/ccipay/lojas/listar", idToken, { apenasAtivas });
 }
 
-export async function ccipaySalvarLoja(idToken: string, loja: Partial<CcipayLoja> & { nome: string }) {
+export async function ccipaySalvarLoja(idToken?: string | null, loja: Partial<CcipayLoja> & { nome: string }) {
   return post<{ loja: CcipayLoja }>("/api/ccipay/lojas/salvar", idToken, { loja });
 }
 
 export async function ccipayLojaUsuarios(
-  idToken: string,
+  idToken?: string | null,
   lojaId: string,
   acao: "vincular" | "remover",
   email: string,
@@ -216,7 +216,7 @@ export async function ccipayListarLancadores(idToken: string) {
 }
 
 export async function ccipaySalvarLancador(
-  idToken: string,
+  idToken?: string | null,
   email: string,
   nome: string,
   acao?: "remover",
@@ -224,19 +224,19 @@ export async function ccipaySalvarLancador(
   return post("/api/ccipay/lancadores/salvar", idToken, { email, nome, acao });
 }
 
-export async function ccipayListarCatalogo(idToken: string, lojaId: string, apenasAtivos = true) {
+export async function ccipayListarCatalogo(idToken?: string | null, lojaId: string, apenasAtivos = true) {
   return post<{ itens: CcipayCatalogoItem[] }>("/api/ccipay/catalogo/listar", idToken, {
     lojaId,
     apenasAtivos,
   });
 }
 
-export async function ccipaySalvarCatalogoItem(idToken: string, item: Partial<CcipayCatalogoItem> & { lojaId: string; nome: string; preco: number }) {
+export async function ccipaySalvarCatalogoItem(idToken?: string | null, item: Partial<CcipayCatalogoItem> & { lojaId: string; nome: string; preco: number }) {
   return post<{ item: CcipayCatalogoItem }>("/api/ccipay/catalogo/salvar", idToken, { item });
 }
 
 export async function ccipayCriarPedido(
-  idToken: string,
+  idToken?: string | null,
   lojaId: string,
   itens: CcipayPedidoItem[],
   observacao?: string,
@@ -244,18 +244,18 @@ export async function ccipayCriarPedido(
   return post<{ pedido: CcipayPedido }>("/api/ccipay/pedidos/criar", idToken, { lojaId, itens, observacao });
 }
 
-export async function ccipayListarPedidos(idToken: string, lojaId?: string, status?: string) {
+export async function ccipayListarPedidos(idToken?: string | null, lojaId?: string, status?: string) {
   return post<{ pedidos: CcipayPedido[] }>("/api/ccipay/pedidos/listar", idToken, { lojaId, status });
 }
 
-export async function ccipayConfirmarPedido(idToken: string, pedidoId: string, acao: "entregar" | "cancelar") {
+export async function ccipayConfirmarPedido(idToken?: string | null, pedidoId: string, acao: "entregar" | "cancelar") {
   return post<{ pedido: CcipayPedido }>("/api/ccipay/pedidos/confirmar", idToken, {
     pedidoId,
     acao: acao === "cancelar" ? "cancelar" : "entregar",
   });
 }
 
-export async function ccipayRelatorioDp(idToken: string, competencia?: string, exportarCsv = false) {
+export async function ccipayRelatorioDp(idToken?: string | null, competencia?: string, exportarCsv = false) {
   return post<{ movimentos: CcipayMovimento[]; funcionarios?: CcipayFuncionario[]; csv?: string }>(
     "/api/ccipay/relatorios/dp",
     idToken,
@@ -263,7 +263,7 @@ export async function ccipayRelatorioDp(idToken: string, competencia?: string, e
   );
 }
 
-export async function ccipayRelatorioLoja(idToken: string, lojaId: string, de?: string, ate?: string) {
+export async function ccipayRelatorioLoja(idToken?: string | null, lojaId: string, de?: string, ate?: string) {
   return post<{ pedidos: CcipayPedido[]; totais: { pedidos: number; valorTotal: number; entregues: number } }>(
     "/api/ccipay/relatorios/loja",
     idToken,

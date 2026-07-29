@@ -10,6 +10,7 @@ import {
   GraduationCap,
   Hash,
   HeartPulse,
+  Home,
   LayoutDashboard,
   MapPin,
   Megaphone,
@@ -58,6 +59,8 @@ export type NavSectionFlat = {
   label: string;
   type: "flat";
   items: NavLeaf[];
+  /** Links fixos no topo da sidebar (Início, Avisos) — sem flyout. */
+  pinned?: boolean;
 };
 
 export type NavSectionNested = {
@@ -75,11 +78,12 @@ export type NavSection = NavSectionFlat | NavSectionNested;
  */
 export const INTRANET_NAV_SECTIONS: NavSection[] = [
   {
-    id: "portal",
+    id: "inicio",
     label: "Portal",
     type: "flat",
+    pinned: true,
     items: [
-      { title: "Portal do Funcionário", url: "/portal-do-funcionario", icon: Users },
+      { title: "Central de Informações", url: "/", icon: Home },
       { title: "Avisos", url: "/avisos", icon: Megaphone },
     ],
   },
@@ -282,6 +286,11 @@ export function navItemIsActive(pathname: string, item: NavLeaf): boolean {
 /** Retorna true se algum item do setor está ativo. */
 export function sectorHasActiveRoute(pathname: string, sector: NavSector): boolean {
   return sectorHubIsActive(pathname, sector);
+}
+
+/** Retorna true se algum link da seção plana contém a rota atual. */
+export function flatSectionHasActiveRoute(pathname: string, section: NavSectionFlat): boolean {
+  return section.items.some((item) => navItemIsActive(pathname, item));
 }
 
 /** Retorna true se algum link da seção aninhada contém a rota atual. */

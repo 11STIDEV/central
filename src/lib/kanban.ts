@@ -1,4 +1,4 @@
-import { apiUrl, centralFetch } from "@/lib/apiBase";
+import { apiUrl, centralFetch, authJsonBody } from "@/lib/apiBase";
 import type { Papel } from "@/auth/AuthProvider";
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
@@ -105,54 +105,54 @@ async function parseJson(res: Response) {
   try { return JSON.parse(text); } catch { return {}; }
 }
 
-export async function listarKanbanCards(idToken: string, setor: string): Promise<KanbanCard[]> {
+export async function listarKanbanCards(idToken?: string | null, setor: string): Promise<KanbanCard[]> {
   const res = await centralFetch(apiUrl("/api/kanban/cards/listar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, setor }),
+    body: authJsonBody({ setor }, idToken),
   });
   const data = await parseJson(res);
   if (!res.ok) throw new Error(data.error ?? "Erro ao listar cards.");
   return Array.isArray(data.cards) ? (data.cards as KanbanCard[]) : [];
 }
 
-export async function criarKanbanCard(idToken: string, card: Partial<KanbanCard>): Promise<KanbanCard> {
+export async function criarKanbanCard(idToken?: string | null, card: Partial<KanbanCard>): Promise<KanbanCard> {
   const res = await centralFetch(apiUrl("/api/kanban/cards/criar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, card }),
+    body: authJsonBody({ card }, idToken),
   });
   const data = await parseJson(res);
   if (!res.ok) throw new Error(data.error ?? "Erro ao criar card.");
   return data.card as KanbanCard;
 }
 
-export async function atualizarKanbanCard(idToken: string, id: string, patch: Partial<KanbanCard>): Promise<KanbanCard> {
+export async function atualizarKanbanCard(idToken?: string | null, id: string, patch: Partial<KanbanCard>): Promise<KanbanCard> {
   const res = await centralFetch(apiUrl("/api/kanban/cards/atualizar"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, id, patch }),
+    body: authJsonBody({ id, patch }, idToken),
   });
   const data = await parseJson(res);
   if (!res.ok) throw new Error(data.error ?? "Erro ao atualizar card.");
   return data.card as KanbanCard;
 }
 
-export async function excluirKanbanCard(idToken: string, id: string): Promise<void> {
+export async function excluirKanbanCard(idToken?: string | null, id: string): Promise<void> {
   const res = await centralFetch(apiUrl("/api/kanban/cards/excluir"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, id }),
+    body: authJsonBody({ id }, idToken),
   });
   const data = await parseJson(res);
   if (!res.ok) throw new Error(data.error ?? "Erro ao excluir card.");
 }
 
-export async function listarKanbanUsuarios(idToken: string, setor: string): Promise<KanbanUsuario[]> {
+export async function listarKanbanUsuarios(idToken?: string | null, setor: string): Promise<KanbanUsuario[]> {
   const res = await centralFetch(apiUrl("/api/kanban/usuarios"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ idToken, setor }),
+    body: authJsonBody({ setor }, idToken),
   });
   const data = await parseJson(res);
   if (!res.ok) throw new Error(data.error ?? "Erro ao listar usuários.");

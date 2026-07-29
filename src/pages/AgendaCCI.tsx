@@ -138,7 +138,7 @@ export default function AgendaCCI() {
 
   // 1. Buscar reservas locais
   useEffect(() => {
-    if (!googleIdToken || !usuario || location.pathname !== "/agenda-cci") return;
+    if (!usuario || location.pathname !== "/agenda-cci") return;
     let cancelado = false;
     
     (async () => {
@@ -159,7 +159,7 @@ export default function AgendaCCI() {
 
   // 2. Buscar eventos do Google Calendar ao mudar o período
   useEffect(() => {
-    if (!googleIdToken || !usuario || location.pathname !== "/agenda-cci") return;
+    if (!usuario || location.pathname !== "/agenda-cci") return;
     if (!dataInicio || !dataFim || dataInicio > dataFim) return;
     let cancelado = false;
     

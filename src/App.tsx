@@ -35,7 +35,6 @@ import CcipayAdminLancadores from "./pages/CcipayAdminLancadores";
 import CcipayRelatoriosDp from "./pages/CcipayRelatoriosDp";
 import CcipayRelatoriosLoja from "./pages/CcipayRelatoriosLoja";
 import { SetorLinksPage } from "./pages/SetorLinksPage";
-import PortalDoFuncionario from "./pages/PortalDoFuncionario";
 import Avisos from "./pages/Avisos";
 import PublicarAviso from "./pages/PublicarAviso";
 import AdminPapeisManuais from "./pages/AdminPapeisManuais";
@@ -79,7 +78,7 @@ function CentralIntranetApp() {
               <Route path="/" element={<Index />} />
               <Route path="/avisos" element={<Avisos />} />
               <Route path="/avisos/publicar" element={<PublicarAviso />} />
-              <Route path="/portal-do-funcionario" element={<PortalDoFuncionario />} />
+              <Route path="/portal-do-funcionario" element={<Navigate to="/" replace />} />
               <Route path="/meu-setor" element={<MeuSetorPage />} />
               <Route
                 path="/setores"

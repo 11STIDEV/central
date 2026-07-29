@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, LogOut, Menu, Search } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { AppSidebarNav } from "@/components/AppSidebarNav";
 import { IntranetCommandPalette } from "@/components/IntranetCommandPalette";
 import { SidebarBrandLogo } from "@/components/SidebarBrandLogo";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { cn } from "@/lib/utils";
 import { personalizeNavSetores } from "@/navigation/personalizeNav";
 import {
   INTRANET_NAV_SECTIONS,
@@ -101,10 +102,20 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         `}
       >
         <div className="flex h-16 shrink-0 items-center border-b border-sidebar-border px-3">
-          <SidebarBrandLogo
-            collapsed={collapsed}
-            className={collapsed ? "w-full justify-center" : "min-w-0 flex-1 animate-fade-in"}
-          />
+          <Link
+            to="/"
+            className={cn(
+              "min-w-0 rounded-lg outline-none ring-sidebar-ring focus-visible:ring-2",
+              collapsed ? "w-full" : "flex-1",
+            )}
+            aria-label="Central de Informações — Grupo CCI"
+            title="Central de Informações"
+          >
+            <SidebarBrandLogo
+              collapsed={collapsed}
+              className={collapsed ? "w-full justify-center" : "min-w-0 flex-1 animate-fade-in"}
+            />
+          </Link>
         </div>
 
         <div className="shrink-0 px-2 pt-3">

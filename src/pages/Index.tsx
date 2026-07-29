@@ -5,6 +5,7 @@ import { useAuth } from "@/auth/AuthProvider";
 import { AvisosTimeline } from "@/components/avisos/AvisosTimeline";
 import { IntranetHero } from "@/components/IntranetHero";
 import { IntranetQuickLinksGrid } from "@/components/IntranetQuickLinksGrid";
+import { PortalColaboradorLinksSection } from "@/components/portal/PortalColaboradorLinksSection";
 import { PageHeroEyebrow } from "@/components/PageHero";
 import { obterUltimosAvisos, type Aviso } from "@/lib/avisos";
 import { podeAcessarAvisos } from "@/lib/avisosAccess";
@@ -60,13 +61,12 @@ export default function Index() {
       <IntranetHero padding="comfortable">
         <div className="lg:flex lg:items-end lg:justify-between lg:gap-12">
           <div className="max-w-2xl">
-            <PageHeroEyebrow text="Intranet · Grupo CCI" />
+            <PageHeroEyebrow text="Central de Informações · Grupo CCI" />
             <h1 className="text-3xl font-bold tracking-tight text-hero-foreground md:text-4xl lg:text-[2.75rem] lg:leading-[1.1]">
               {saudacao()}, {nome}.
             </h1>
             <p className="mt-4 max-w-lg text-base leading-relaxed text-hero-muted md:text-lg">
-              Um só lugar para dúvidas, reservas, chamados e o que mais você precisar no dia a dia — rápido, organizado,
-              feito para quem trabalha junto.
+              Acesso unificado para colaboradores — chamados, agenda, formulários e ferramentas do dia a dia.
             </p>
           </div>
           <div className="mt-8 hidden shrink-0 lg:mt-0 lg:block">
@@ -79,15 +79,19 @@ export default function Index() {
         </div>
       </IntranetHero>
 
-      <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
+      <div className="mx-auto max-w-6xl space-y-10 px-4 py-10 md:px-8">
         <IntranetQuickLinksGrid
-          title="Em destaque"
-          subtitle="Atalhos rápidos; use Ctrl+K ou o menu lateral para ver tudo."
+          title="Ferramentas internas"
+          subtitle="Acesso rápido às áreas da Central de Informações."
+          excludeUrls={["/"]}
+          columns="portal"
         />
+
+        <PortalColaboradorLinksSection />
 
         {exibeAvisos ? <AvisosTimeline avisos={ultimosAvisos} titulo="Últimos avisos" /> : null}
 
-        <p className="mt-12 text-center font-mono text-[10px] uppercase tracking-[0.35em] text-muted-foreground/70">
+        <p className="text-center font-mono text-[10px] uppercase tracking-[0.35em] text-muted-foreground/70">
           Uso interno · Grupo CCI
         </p>
       </div>

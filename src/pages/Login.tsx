@@ -112,8 +112,8 @@ export default function Login() {
                 <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
                 <AlertTitle>Sessão expirada</AlertTitle>
                 <AlertDescription>
-                  Por segurança, o Google encerra o login após cerca de 1 hora. Entre novamente com
-                  sua conta institucional.
+                  Sua sessão expirou ou o servidor foi reiniciado. Entre novamente com sua conta
+                  @portalcci.com.br (ou domínios autorizados).
                 </AlertDescription>
               </Alert>
             )}
