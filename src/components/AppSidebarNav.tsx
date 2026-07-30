@@ -9,7 +9,6 @@ import {
   Layers,
   Lock,
   ShieldCheck,
-  Ticket,
   Trophy,
   UserCog,
   Users,
@@ -53,7 +52,6 @@ const STORAGE_PREFIX = "cci-intranet-nav";
 /** Ícone da seção no menu recolhido ou flyout. */
 const SECTION_ICONS: Record<string, LucideIcon> = {
   inicio: Home,
-  atendimento: Ticket,
   agenda: CalendarDays,
   "cci-pay": CircleDollarSign,
   ti: ShieldCheck,

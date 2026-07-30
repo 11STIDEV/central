@@ -7,15 +7,20 @@ import {
   HeartPulse,
   LayoutDashboard,
   Megaphone,
+  MonitorSpeaker,
   PenLine,
   School,
+  Search,
   ShieldCheck,
+  Ticket,
+  Tv,
   Warehouse,
   Wrench,
   type LucideIcon,
 } from "lucide-react";
 import type { Papel } from "@/auth/AuthProvider";
 import { hasRoleAccessToRoute } from "@/auth/routeAccess";
+import { setorSlugRecebeChamados, urlGestaoChamadosSetor } from "@/lib/chamadosSetores";
 import type { NavLeaf, NavSector } from "@/navigation/intranetNavConfig";
 
 const PAPEIS_PROFESSORES: Papel[] = ["professorfac", "professortecs", "professorregular"];
@@ -77,6 +82,10 @@ export const SETORES_CONFIG: SetorConfig[] = [
     temLinks: true,
     temKanban: true,
     descricao: "Atendimento, registros e sistemas acadêmicos.",
+    extras: [
+      { title: "Atendente", url: "/senhas/atendente", icon: MonitorSpeaker },
+      { title: "Achados e Perdidos", url: "/achados-e-perdidos", icon: Search },
+    ],
   },
   {
     id: "setores-servicos-gerais",
@@ -152,6 +161,9 @@ export const SETORES_CONFIG: SetorConfig[] = [
       { title: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes },
       { title: "iScholar", url: "/ti/ischolar", icon: GraduationCap },
       { title: "Publicar aviso", url: "/avisos/publicar", icon: PenLine },
+      { title: "Totem", url: "/senhas/totem", icon: Ticket },
+      { title: "Painel TV", url: "/senhas/painel", icon: Tv },
+      { title: "Administração — Senhas", url: "/senhas/admin", icon: LayoutDashboard },
     ],
   },
   {
@@ -266,6 +278,13 @@ export function buildNavItemsForSetor(setor: SetorConfig): NavLeaf[] {
   if (setor.extras?.length) {
     items.push(...setor.extras);
   }
+  if (setorSlugRecebeChamados(setor.slug)) {
+    items.push({
+      title: "Gestão de Chamados",
+      url: urlGestaoChamadosSetor(setor.slug),
+      icon: ClipboardList,
+    });
+  }
   return items;
 }
 
@@ -328,6 +347,12 @@ function shortToolLabel(fullTitle: string): string {
   if (fullTitle.includes("Controle Materiais (TI)")) return "Materiais TI";
   if (fullTitle.includes("Almoxarifado (Entrada")) return "Entrada/Saída";
   if (fullTitle === "iScholar") return "iScholar";
+  if (fullTitle === "Atendente") return "Atendente";
+  if (fullTitle === "Achados e Perdidos") return "Achados e Perdidos";
+  if (fullTitle === "Gestão de Chamados") return "Chamados";
+  if (fullTitle === "Totem") return "Totem";
+  if (fullTitle === "Painel TV") return "Painel TV";
+  if (fullTitle.startsWith("Administração")) return "Senhas admin";
   return fullTitle;
 }
 

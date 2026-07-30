@@ -3,12 +3,14 @@ import type { Papel } from "@/auth/AuthProvider";
 import type { NavSection } from "@/navigation/intranetNavConfig";
 import {
   buildSetorActivePrefixes,
+  getSetoresAcessiveis,
   getSetoresDoUsuario,
+  setorConfigToNavSector,
 } from "@/navigation/setoresConfig";
 
 /**
- * Substitui a seção "Setores" por links únicos para páginas de catálogo
- * ("Meu setor" e "Todos os setores") em vez de submenus longos.
+ * Substitui a seção "Setores" aninhada por "Meu setor" (atalhos) e, para admin,
+ * lista todos os setores acessíveis diretamente no menu.
  */
 export function personalizeNavSetores(sections: NavSection[], papeis: Papel[], email?: string | null): NavSection[] {
   const meusSetores = getSetoresDoUsuario(papeis);
@@ -40,20 +42,16 @@ export function personalizeNavSetores(sections: NavSection[], papeis: Papel[], e
       });
     }
 
-    if (isAdmin && sec.type === "nested" && sec.sectors.length > 0) {
-      out.push({
-        id: "setores-todos",
-        label: "Setores",
-        type: "flat",
-        items: [
-          {
-            title: "Todos os setores",
-            url: "/setores",
-            icon: Layers,
-            activePrefixes: ["/setores", "/kanban"],
-          },
-        ],
-      });
+    if (isAdmin) {
+      const todosSetores = getSetoresAcessiveis(papeis, email).map(setorConfigToNavSector);
+      if (todosSetores.length > 0) {
+        out.push({
+          id: "setores-todos",
+          label: "Setores",
+          type: "nested",
+          sectors: todosSetores,
+        });
+      }
     }
   }
 

@@ -15,7 +15,7 @@ import {
   X,
   RotateCcw,
 } from "lucide-react";
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation, useParams } from "react-router-dom";
 import { useAuth, type Papel } from "@/auth/AuthProvider";
 import {
   type Chamado,
@@ -23,6 +23,13 @@ import {
   listarChamados,
   atualizarChamadoRemoto,
 } from "@/lib/chamados";
+import {
+  CHAMADOS_DESTINOS,
+  canAccessGestaoChamadosSetor,
+  chamadoPertenceAoSetor,
+  getChamadosSetorBySlug,
+  obterNomeAmigavelDestinoChamado,
+} from "@/lib/chamadosSetores";
 
 const prioridadeConfig = {
   baixa: { label: "Baixa", className: "bg-success/10 text-success" },
@@ -34,38 +41,6 @@ const statusConfig = {
   aberto: { label: "Aberto", icon: AlertTriangle, className: "bg-destructive/10 text-destructive" },
   resolvido: { label: "Resolvido", icon: CheckCircle2, className: "bg-success/10 text-success" },
 };
-
-function obterNomeAmigavelSetor(setor?: string) {
-  const mapeamento: Record<string, string> = {
-    setape: "TI / Setape",
-    secretaria: "Secretaria",
-    financeiro: "DP / Financeiro",
-    dp: "DP / Financeiro",
-    direcao: "Direção",
-    disciplinar: "Disciplinar",
-    biblioteca: "Biblioteca",
-    servicosgerais: "Serviços Gerais",
-    almoxarifado: "Almoxarifado",
-    primeirossocorros: "Primeiros Socorros",
-    clat: "CLAT",
-    publicidade: "Publicidade",
-  };
-  return mapeamento[setor ?? ""] || setor || "TI / Setape";
-}
-
-const SECTORS_LIST = [
-  { value: "setape", label: "TI / Setape" },
-  { value: "secretaria", label: "Secretaria" },
-  { value: "dp", label: "DP / Financeiro" },
-  { value: "direcao", label: "Direção" },
-  { value: "disciplinar", label: "Disciplinar" },
-  { value: "biblioteca", label: "Biblioteca" },
-  { value: "servicosgerais", label: "Serviços Gerais" },
-  { value: "almoxarifado", label: "Almoxarifado" },
-  { value: "primeirossocorros", label: "Primeiros Socorros" },
-  { value: "clat", label: "CLAT" },
-  { value: "publicidade", label: "Publicidade" },
-];
 
 type TabKey = "acompanhamentos" | "tarefas" | "solucao";
 
@@ -89,13 +64,16 @@ function agoraLegivel(): string {
 export default function GestaoChamados() {
   const { usuario, googleIdToken } = useAuth();
   const location = useLocation();
+  const { setorSlug } = useParams<{ setorSlug?: string }>();
+  const modoSetor = Boolean(setorSlug);
+  const setorCfg = setorSlug ? getChamadosSetorBySlug(setorSlug) : undefined;
   const [chamados, setChamados] = useState<Chamado[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erroCarregar, setErroCarregar] = useState<string | null>(null);
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
 
   const recarregar = useCallback(async () => {
-    if (!googleIdToken) {
+    if (!usuario) {
       setChamados([]);
       setCarregando(false);
       return;
@@ -111,13 +89,13 @@ export default function GestaoChamados() {
     } finally {
       setCarregando(false);
     }
-  }, [googleIdToken]);
+  }, [usuario, googleIdToken]);
 
   useEffect(() => {
-    if (location.pathname === "/chamados/gestao") {
+    if (location.pathname.startsWith("/chamados/gestao")) {
       void recarregar();
     }
-  }, [location.pathname, recarregar]);
+  }, [location.pathname, setorSlug, recarregar]);
 
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -153,7 +131,7 @@ export default function GestaoChamados() {
 
   const persistir = useCallback(
     async (lista: Chamado[], idAlterado: string) => {
-      if (!googleIdToken) return;
+      if (!usuario) return;
       const chamado = lista.find((c) => c.id === idAlterado);
       if (!chamado) return;
 
@@ -169,7 +147,7 @@ export default function GestaoChamados() {
         setSalvandoId(null);
       }
     },
-    [googleIdToken, recarregar],
+    [usuario, googleIdToken, recarregar],
   );
 
   const visiveisBase = useMemo(() => {
@@ -179,27 +157,25 @@ export default function GestaoChamados() {
 
   const chamadosRecebidos = useMemo(() => {
     if (!usuario) return [];
-    return visiveisBase.filter((c) => {
-      const dests = c.setorDestino ?? ["setape"];
-      const isDest = dests.some((d) => {
-        if (d === "dp" || d === "financeiro") {
-          return usuario.papeis.includes("dp") || usuario.papeis.includes("financeiro");
-        }
-        return usuario.papeis.includes(d as Papel);
-      });
-      const isAdminOrSetape = usuario.papeis.includes("admin") || usuario.papeis.includes("setape");
-      return isDest || isAdminOrSetape;
-    });
-  }, [visiveisBase, usuario]);
+    if (modoSetor && setorSlug) {
+      return visiveisBase.filter((c) => chamadoPertenceAoSetor(c, setorSlug));
+    }
+    return visiveisBase;
+  }, [visiveisBase, usuario, modoSetor, setorSlug]);
 
   const chamadosEnviados = useMemo(() => {
     if (!usuario) return [];
     return visiveisBase.filter((c) => {
       const isSolicitante = c.solicitanteEmail.toLowerCase() === usuario.email.toLowerCase();
       const isCriadorPapel = c.papelAbertura && usuario.papeis.includes(c.papelAbertura);
-      return isSolicitante || isCriadorPapel;
+      const enviado = isSolicitante || isCriadorPapel;
+      if (!enviado) return false;
+      if (modoSetor && setorSlug) {
+        return chamadoPertenceAoSetor(c, setorSlug);
+      }
+      return true;
     });
-  }, [visiveisBase, usuario]);
+  }, [visiveisBase, usuario, modoSetor, setorSlug]);
 
   const listaAtiva = useMemo(() => {
     return abaFluxo === "recebidos" ? chamadosRecebidos : chamadosEnviados;
@@ -304,7 +280,7 @@ export default function GestaoChamados() {
 
     const novoAcomp = {
       autor: usuario.nome,
-      texto: `[Atribuição de Setor] Adicionado setor "${obterNomeAmigavelSetor(setor)}". Justificativa: ${justificativa.trim()}`,
+      texto: `[Atribuição de Setor] Adicionado setor "${obterNomeAmigavelDestinoChamado(setor)}". Justificativa: ${justificativa.trim()}`,
       data: agoraLegivel(),
     };
 
@@ -375,14 +351,30 @@ export default function GestaoChamados() {
     return <Navigate to="/login" replace />;
   }
 
+  if (modoSetor) {
+    if (!setorCfg || !canAccessGestaoChamadosSetor(usuario.papeis, setorSlug!)) {
+      return <Navigate to="/" replace />;
+    }
+  } else if (!usuario.papeis.includes("admin")) {
+    return <Navigate to="/" replace />;
+  }
+
   const contagem = (s: "aberto" | "resolvido") =>
     listaAtiva.filter((c) => c.status === s).length;
 
   return (
     <div className="animate-fade-in">
       <PageHero
-        title="Gestão de Chamados"
-        subtitle="Gerencie e resolva os chamados de suporte"
+        title={
+          modoSetor && setorCfg
+            ? `Gestão de Chamados — ${setorCfg.label}`
+            : "Gestão de Chamados — Todos"
+        }
+        subtitle={
+          modoSetor && setorCfg
+            ? `Chamados destinados a ${setorCfg.label}.`
+            : "Visão global de todos os chamados (administração)."
+        }
       />
 
       <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
@@ -489,7 +481,7 @@ export default function GestaoChamados() {
 
                 const tabsVisiveis: { key: TabKey; label: string; icon: typeof MessageSquare }[] = [
                   { key: "acompanhamentos", label: "Acompanhamentos", icon: MessageSquare },
-                  ...(podeGerenciarEsse ? [{ key: "tarefas" as const, label: `Tarefas (${(chamado.setorDestino ?? ["setape"]).map(obterNomeAmigavelSetor).join(" & ")})`, icon: ListChecks }] : []),
+                  ...(podeGerenciarEsse ? [{ key: "tarefas" as const, label: `Tarefas (${(chamado.setorDestino ?? ["setape"]).map(obterNomeAmigavelDestinoChamado).join(" & ")})`, icon: ListChecks }] : []),
                   { key: "solucao", label: "Solução", icon: CheckCircle2 },
                 ];
 
@@ -531,7 +523,7 @@ export default function GestaoChamados() {
                           <div className="flex flex-wrap gap-2 items-center">
                             {(chamado.setorDestino ?? ["setape"]).map((dest) => (
                               <span key={dest} className="inline-flex items-center gap-1.5 bg-primary/10 border border-primary/20 text-primary px-2.5 py-1 rounded-lg font-medium animate-fade-in">
-                                {obterNomeAmigavelSetor(dest)}
+                                {obterNomeAmigavelDestinoChamado(dest)}
                               </span>
                             ))}
 
@@ -564,7 +556,7 @@ export default function GestaoChamados() {
                                   className="w-full rounded-lg border border-input bg-card px-2.5 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
                                 >
                                   <option value="">Selecione...</option>
-                                  {SECTORS_LIST.filter(s => !(chamado.setorDestino ?? ["setape"]).includes(s.value)).map((s) => (
+                                  {CHAMADOS_DESTINOS.filter(s => !(chamado.setorDestino ?? ["setape"]).includes(s.value)).map((s) => (
                                     <option key={s.value} value={s.value}>
                                       {s.label}
                                     </option>
@@ -707,7 +699,7 @@ export default function GestaoChamados() {
                             <>
                               <div className="flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2">
                                 <EyeOff className="h-3.5 w-3.5 text-warning" />
-                                <span className="text-xs text-warning">Visível apenas para a equipe de {(chamado.setorDestino ?? ["setape"]).map(obterNomeAmigavelSetor).join(" & ")}</span>
+                                <span className="text-xs text-warning">Visível apenas para a equipe de {(chamado.setorDestino ?? ["setape"]).map(obterNomeAmigavelDestinoChamado).join(" & ")}</span>
                               </div>
                               {chamado.tarefas.map((t, i) => {
                                 const estaEditando = ed?.tipo === "tarefa" && ed.idx === i;
@@ -896,7 +888,7 @@ export default function GestaoChamados() {
                                   </div>
                                 ) : (
                                   <p className="text-sm text-muted-foreground">
-                                    A solução será registrada pela equipe de {(chamado.setorDestino ?? ["setape"]).map(obterNomeAmigavelSetor).join(" & ")} quando o chamado for resolvido.
+                                    A solução será registrada pela equipe de {(chamado.setorDestino ?? ["setape"]).map(obterNomeAmigavelDestinoChamado).join(" & ")} quando o chamado for resolvido.
                                   </p>
                                 )
                               )}

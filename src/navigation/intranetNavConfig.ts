@@ -8,7 +8,6 @@ import {
   ClipboardList,
   FileText,
   GraduationCap,
-  Hash,
   HeartPulse,
   Home,
   LayoutDashboard,
@@ -19,18 +18,17 @@ import {
   School,
   Shield,
   ShieldCheck,
-  Search,
   Ticket,
   Trophy,
+  Tv,
   UserCog,
-  UserRoundCheck,
   Users,
   Wallet,
   Warehouse,
   Wrench,
 } from "lucide-react";
 import type { Papel } from "@/auth/AuthProvider";
-import { hasRoleAccessToRoute, podePainelSenhasAdministracao } from "@/auth/routeAccess";
+import { hasRoleAccessToRoute } from "@/auth/routeAccess";
 import { isRotaBloqueadaParaUsuario } from "@/auth/routesTemporarilyBlocked";
 import { buildSetoresNavSectors } from "@/navigation/setoresConfig";
 
@@ -88,44 +86,11 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: "atendimento",
-    label: "Atendimento",
-    type: "nested",
-    sectors: [
-      {
-        id: "atendimento-chamados",
-        label: "Chamados",
-        items: [
-          { title: "Abrir Chamado", url: "/chamados/novo", icon: Ticket },
-          { title: "Gestão de Chamados", url: "/chamados/gestao", icon: ClipboardList },
-        ],
-      },
-      {
-        id: "atendimento-senhas",
-        label: "Painel de senhas",
-        items: [{ title: "Painel de senhas", url: "/senhas", icon: Hash }],
-      },
-      {
-        id: "atendimento-achados-perdidos",
-        label: "Achados e Perdidos",
-        items: [
-          { title: "Achados e Perdidos — Hub", url: "/achados-e-perdidos", icon: Search },
-        ],
-      },
-    ],
-  },
-  {
     id: "agenda",
     label: "Agenda",
     type: "flat",
     items: [
       { title: "Agenda CCI", url: "/agenda-cci", icon: CalendarDays },
-      {
-        title: "Reserva de Equipamentos e Espaços",
-        url: "/reserva-espacos-equipamentos",
-        icon: MapPin,
-      },
-      { title: "Minhas Reservas", url: "/minhas-reservas", icon: UserRoundCheck },
       { title: "Agenda CCI — Admin", url: "/agenda-cci/admin", icon: Shield },
     ],
   },
@@ -175,6 +140,9 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
       { title: "iScholar", url: "/ti/ischolar", icon: GraduationCap },
       { title: "Kanban — Setape/TI", url: "/kanban/setape", icon: LayoutDashboard },
       { title: "Publicar aviso", url: "/avisos/publicar", icon: PenLine },
+      { title: "Totem", url: "/senhas/totem", icon: Ticket },
+      { title: "Painel TV", url: "/senhas/painel", icon: Tv },
+      { title: "Administração — Senhas", url: "/senhas/admin", icon: LayoutDashboard },
     ],
   },
   {
@@ -197,29 +165,10 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     id: "admin",
     label: "Administração",
     type: "flat",
-    items: [{ title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog }],
+    items: [{ title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog },
+      { title: "Gestão de Chamados — Todos", url: "/chamados/gestao", icon: ClipboardList }],
   },
 ];
-
-/** Quem só tem atendente do painel (sem admin do painel) vê o link direto para `/senhas/atendente`. */
-export function adjustNavSenhasLeafUrls(
-  papeis: Papel[],
-  email: string | null | undefined,
-  sections: NavSection[],
-): NavSection[] {
-  const adminPainel = podePainelSenhasAdministracao(papeis, email);
-  const onlyAttendant =
-    (papeis.includes("painel_atendente") || papeis.includes("secretaria")) && !adminPainel;
-
-  return sections.map((sec) => {
-    if (sec.type !== "flat") return sec;
-    const items = sec.items.map((item) => {
-      if (item.url !== "/senhas" || !onlyAttendant) return item;
-      return { ...item, title: "Painel de senhas — Atendente", url: "/senhas/atendente" };
-    });
-    return { ...sec, items };
-  });
-}
 
 /** Remove itens/setores/seções que o utilizador não pode ver. */
 export function filterNavByAccess(

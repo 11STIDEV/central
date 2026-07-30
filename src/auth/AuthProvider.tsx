@@ -495,7 +495,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const sessao = await obterSessaoServidor();
         if (sessao) {
-          if (!cancelado) setUsuario(sessao);
+          if (!cancelado) {
+            setUsuario(sessao);
+            try {
+              const tok = localStorage.getItem(STORAGE_KEY_ID_TOKEN);
+              if (tok) setGoogleIdToken(tok);
+            } catch {
+              /* ignore */
+            }
+          }
           return;
         }
 

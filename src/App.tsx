@@ -109,6 +109,7 @@ function CentralIntranetApp() {
               />
               <Route path="/chamados/novo" element={<AbrirChamado />} />
               <Route path="/chamados/gestao" element={<GestaoChamados />} />
+              <Route path="/chamados/gestao/:setorSlug" element={<GestaoChamados />} />
               <Route path="/kanban/:setor" element={<KanbanSetor />} />
               <Route
                 path="/ti-interno"
