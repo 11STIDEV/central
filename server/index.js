@@ -1140,12 +1140,9 @@ app.post("/api/chromebooks", async (req, res) => {
         serialNumber: d.serialNumber || undefined,
         annotatedAssetId: d.annotatedAssetId || undefined,
         notes: notes || undefined,
-        label:
-          notes ||
-          [d.annotatedAssetId, d.serialNumber].filter(Boolean).join(" · ") ||
-          d.deviceId,
+        label: notes || d.deviceId,
         model: d.model || undefined,
-        hasHdmi: textoIndicaHdmi(notes, asset, loc, model),
+        hasHdmi: String(loc).toLowerCase().includes("com hdmi"),
         adminStatus: st || undefined,
       };
     });
@@ -2994,6 +2991,66 @@ app.post("/api/ti/ischolar/webhook-logs/clear", async (req, res) => {
     return res.status(500).json({ error: e.message });
   }
 });
+
+
+app.post("/api/ti/google-classroom/create-course", async (req, res) => {
+  try {
+    const { idToken, name, teacher } = req.body || {};
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+
+    // Verificar se o usuário autenticado pertence à TI (setape ou admin)
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    if (!name || String(name).trim() === "") {
+      return res.status(400).json({ error: "O nome da turma é obrigatório." });
+    }
+
+    const credentials = getServiceAccountCredentials();
+    if (!credentials) {
+      return res.status(500).json({ error: "Credenciais do Google não configuradas no servidor." });
+    }
+
+    // Impersonar o e-mail dev.fac@portalcci.com.br diretamente para evitar erros caso a conta do administrador não tenha o Classroom habilitado
+    const auth = new google.auth.JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
+      scopes: ["https://www.googleapis.com/auth/classroom.courses"],
+      subject: "dev.fac@portalcci.com.br",
+    });
+
+    const classroom = google.classroom({ version: "v1", auth });
+
+    const response = await classroom.courses.create({
+      requestBody: {
+        name: String(name).trim(),
+        section: teacher ? String(teacher).trim() : "",
+        ownerId: "me",
+        courseState: "ACTIVE",
+      },
+    });
+
+    return res.json({
+      ok: true,
+      id: response.data.id,
+      name: response.data.name,
+      section: response.data.section,
+      alternateLink: response.data.alternateLink,
+    });
+  } catch (e) {
+    console.error("[google-classroom-create] Falha ao criar turma. Erro completo:", e);
+    if (e.response?.data) {
+      console.error("[google-classroom-create] Detalhes do erro do Google:", JSON.stringify(e.response.data, null, 2));
+    }
+    const errMsg = e.response?.data?.error_description || e.response?.data?.error?.message || e.message;
+    return res.status(500).json({ error: errMsg });
+  }
+});
+
 
 
 // ─── Mapeamento server-side: setor a partir dos papeis ──────────────────────
