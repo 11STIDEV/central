@@ -770,11 +770,6 @@ export default function ReservaEspacosEquipamentos() {
                           </span>
                         )}
                         <span className="text-sm font-semibold text-card-foreground">{cb.label || "Chromebook"}</span>
-                        {cb.serialNumber && (
-                          <span className="text-[10px] text-muted-foreground">
-                            S/N: {cb.serialNumber}
-                          </span>
-                        )}
                         <span
                           className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                             cb.hasHdmi
