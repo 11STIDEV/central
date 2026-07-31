@@ -90,10 +90,10 @@ export default function CcipayLoja() {
 
   return (
     <div className="animate-fade-in">
-      <PageHero title="Loja CCI Pay" subtitle="Catálogo interno — pedidos descontados em folha." />
+      <PageHero title="Loja Advance-CCI" subtitle="Catálogo interno — pedidos descontados em folha." />
       <div className="mx-auto max-w-4xl space-y-4 px-4 py-8 md:px-8">
         <Button asChild variant="ghost" size="sm">
-          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />CCI Pay</Link>
+          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />Advance-CCI</Link>
         </Button>
         {erro && <Alert variant="destructive"><AlertDescription>{erro}</AlertDescription></Alert>}
         {msg && <Alert><AlertDescription>{msg}</AlertDescription></Alert>}

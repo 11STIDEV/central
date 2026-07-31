@@ -31,9 +31,21 @@ async function parseJson(res: Response): Promise<Record<string, unknown>> {
   }
 }
 
+const AUTH_FETCH_TIMEOUT_MS = 8_000;
+
+async function authFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), AUTH_FETCH_TIMEOUT_MS);
+  try {
+    return await centralFetch(input, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
 /** Troca ID token Google por sessão de servidor (~12h). */
 export async function criarSessaoServidor(idToken: string): Promise<UsuarioLogado | null> {
-  const res = await centralFetch(apiUrl("/api/auth/session"), {
+  const res = await authFetch(apiUrl("/api/auth/session"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken }),
@@ -55,7 +67,7 @@ export async function criarSessaoServidor(idToken: string): Promise<UsuarioLogad
 
 /** Restaura usuário da sessão de servidor (cookie ou header). */
 export async function obterSessaoServidor(): Promise<UsuarioLogado | null> {
-  const res = await centralFetch(apiUrl("/api/auth/me"), { method: "GET" });
+  const res = await authFetch(apiUrl("/api/auth/me"), { method: "GET" });
   if (res.status === 401) {
     setStoredSessionId(null);
     return null;

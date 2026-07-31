@@ -1,6 +1,7 @@
-/** Persistência CCI Pay no Supabase (service_role). */
+/** Persistência Advance-CCI no Supabase (service_role). */
 
 import { competenciaAtual } from "./ccipayAccess.js";
+import { emailSinteticoParceiro } from "./parceiroPassword.js";
 
 const STATUS_ADIANTAMENTO_ATIVOS = ["pendente", "aprovado", "pago", "descontado_folha"];
 
@@ -252,9 +253,68 @@ export async function listarUsuariosLoja(supabase, lojaId) {
     .select("*")
     .eq("loja_id", lojaId);
   if (error) throw new Error(`[ccipay] listar usuarios loja: ${error.message}`);
-  return (data || []).map((r) => ({ lojaId: r.loja_id, email: r.email, nome: r.nome }));
+  return (data || []).map((r) => ({
+    lojaId: r.loja_id,
+    email: r.email,
+    login: r.login ?? null,
+    nome: r.nome,
+    temSenha: Boolean(r.senha_hash),
+  }));
 }
 
+export async function obterOperadorPorLogin(supabase, login) {
+  const { data, error } = await supabase
+    .from("ccipay_loja_usuarios")
+    .select("*, ccipay_lojas(id, nome, descricao, ativa)")
+    .eq("login", String(login).toLowerCase())
+    .maybeSingle();
+  if (error) throw new Error(`[ccipay] obter operador: ${error.message}`);
+  if (!data) return null;
+  const loja = data.ccipay_lojas;
+  return {
+    lojaId: data.loja_id,
+    login: data.login,
+    nome: data.nome,
+    senhaHash: data.senha_hash ?? null,
+    loja: loja
+      ? { id: loja.id, nome: loja.nome, descricao: loja.descricao ?? "", ativa: loja.ativa ?? true }
+      : null,
+  };
+}
+
+export async function vincularOperadorLoja(supabase, lojaId, { login, senhaHash, nome }) {
+  const loginNorm = String(login).toLowerCase();
+  const { error } = await supabase.from("ccipay_loja_usuarios").upsert(
+    {
+      loja_id: lojaId,
+      login: loginNorm,
+      email: emailSinteticoParceiro(loginNorm),
+      nome: nome || loginNorm,
+      senha_hash: senhaHash,
+    },
+    { onConflict: "loja_id,email" },
+  );
+  if (error) throw new Error(`[ccipay] vincular operador: ${error.message}`);
+}
+
+export async function redefinirSenhaOperador(supabase, login, senhaHash) {
+  const { error } = await supabase
+    .from("ccipay_loja_usuarios")
+    .update({ senha_hash: senhaHash })
+    .eq("login", String(login).toLowerCase());
+  if (error) throw new Error(`[ccipay] redefinir senha operador: ${error.message}`);
+}
+
+export async function desvincularOperadorLoja(supabase, lojaId, login) {
+  const { error } = await supabase
+    .from("ccipay_loja_usuarios")
+    .delete()
+    .eq("loja_id", lojaId)
+    .eq("login", String(login).toLowerCase());
+  if (error) throw new Error(`[ccipay] desvincular operador: ${error.message}`);
+}
+
+/** @deprecated use vincularOperadorLoja */
 export async function vincularUsuarioLoja(supabase, lojaId, email, nome) {
   const { error } = await supabase.from("ccipay_loja_usuarios").upsert({
     loja_id: lojaId,
@@ -264,6 +324,7 @@ export async function vincularUsuarioLoja(supabase, lojaId, email, nome) {
   if (error) throw new Error(`[ccipay] vincular usuario loja: ${error.message}`);
 }
 
+/** @deprecated use desvincularOperadorLoja */
 export async function desvincularUsuarioLoja(supabase, lojaId, email) {
   const { error } = await supabase
     .from("ccipay_loja_usuarios")
@@ -457,4 +518,127 @@ export async function montarResumoFuncionario(supabase, email) {
     saldoBonificacao: saldoBon,
     movimentos: movimentos.slice(0, 50),
   };
+}
+
+// --- Vendas QR (portal parceiro) ---
+
+function rowToVendaQr(row, lojaNome = "") {
+  return {
+    id: row.id,
+    token: row.token,
+    lojaId: row.loja_id,
+    lojaNome,
+    valor: Number(row.valor),
+    descricao: row.descricao ?? "",
+    status: row.status,
+    funcionarioEmail: row.funcionario_email ?? null,
+    funcionarioNome: row.funcionario_nome ?? null,
+    movimentoId: row.movimento_id ?? null,
+    criadoPor: row.criado_por,
+    expiresAt: row.expires_at,
+    pagoEm: row.pago_em ?? null,
+    createdAt: row.created_at,
+  };
+}
+
+async function enriquecerVenda(supabase, row) {
+  const { data: loja } = await supabase
+    .from("ccipay_lojas")
+    .select("nome")
+    .eq("id", row.loja_id)
+    .maybeSingle();
+  return rowToVendaQr(row, loja?.nome ?? "");
+}
+
+export async function criarVendaQr(supabase, { lojaId, valor, descricao, criadoPor, token, expiresAt }) {
+  const now = new Date().toISOString();
+  const { data, error } = await supabase
+    .from("ccipay_vendas_qr")
+    .insert({
+      token,
+      loja_id: lojaId,
+      valor,
+      descricao: descricao || "",
+      status: "pendente",
+      criado_por: criadoPor,
+      expires_at: expiresAt,
+      created_at: now,
+    })
+    .select("*")
+    .single();
+  if (error) throw new Error(`[ccipay] criar venda qr: ${error.message}`);
+  return enriquecerVenda(supabase, data);
+}
+
+export async function obterVendaPorToken(supabase, token) {
+  const { data, error } = await supabase
+    .from("ccipay_vendas_qr")
+    .select("*")
+    .eq("token", String(token))
+    .maybeSingle();
+  if (error) throw new Error(`[ccipay] obter venda qr: ${error.message}`);
+  if (!data) return null;
+  return enriquecerVenda(supabase, data);
+}
+
+export async function obterVendaPorId(supabase, id) {
+  const { data, error } = await supabase
+    .from("ccipay_vendas_qr")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`[ccipay] obter venda qr: ${error.message}`);
+  if (!data) return null;
+  return enriquecerVenda(supabase, data);
+}
+
+export async function listarVendasQr(supabase, { lojaId, status, de, ate }) {
+  let q = supabase.from("ccipay_vendas_qr").select("*").eq("loja_id", lojaId);
+  if (status) q = q.eq("status", status);
+  if (de) q = q.gte("created_at", de);
+  if (ate) q = q.lte("created_at", ate);
+  const { data, error } = await q.order("created_at", { ascending: false });
+  if (error) throw new Error(`[ccipay] listar vendas qr: ${error.message}`);
+  const out = [];
+  for (const row of data || []) {
+    out.push(await enriquecerVenda(supabase, row));
+  }
+  return out;
+}
+
+export async function resumoVendasParceiro(supabase, lojaId) {
+  const comp = competenciaAtual();
+  const inicioMes = `${comp}-01T00:00:00.000Z`;
+  const vendas = await listarVendasQr(supabase, { lojaId, de: inicioMes });
+  let aReceber = 0;
+  let pendente = 0;
+  let totalMes = 0;
+  let qtdPendentes = 0;
+  for (const v of vendas) {
+    if (v.status === "pago") {
+      aReceber += v.valor;
+      totalMes += v.valor;
+    } else if (v.status === "pendente") {
+      pendente += v.valor;
+      qtdPendentes += 1;
+    }
+  }
+  return { aReceber, pendente, totalMes, qtdPendentes, vendasMes: vendas.length };
+}
+
+export async function atualizarVendaQr(supabase, id, patch) {
+  const row = {};
+  if (patch.status !== undefined) row.status = patch.status;
+  if (patch.funcionarioEmail !== undefined) row.funcionario_email = patch.funcionarioEmail;
+  if (patch.funcionarioNome !== undefined) row.funcionario_nome = patch.funcionarioNome;
+  if (patch.movimentoId !== undefined) row.movimento_id = patch.movimentoId;
+  if (patch.pagoEm !== undefined) row.pago_em = patch.pagoEm;
+  const { data, error } = await supabase
+    .from("ccipay_vendas_qr")
+    .update(row)
+    .eq("id", id)
+    .select("*")
+    .single();
+  if (error) throw new Error(`[ccipay] atualizar venda qr: ${error.message}`);
+  return enriquecerVenda(supabase, data);
 }

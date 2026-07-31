@@ -35,7 +35,7 @@ export default function CcipayRelatoriosLoja() {
       <PageHero title="Relatório Loja" subtitle="Pedidos e vendas por loja." />
       <div className="mx-auto max-w-xl space-y-4 px-4 py-8 md:px-8">
         <Button asChild variant="ghost" size="sm">
-          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />CCI Pay</Link>
+          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />Advance-CCI</Link>
         </Button>
         {lojas.length > 1 && (
           <select

@@ -160,15 +160,14 @@ Modelo: [`server/data/setor-links.example.json`](server/data/setor-links.example
 
 Formulários externos em `/portal-do-funcionario` são editáveis por **admin** (Gerenciar atalhos / Organizar ordem), chave `portal-colaborador` no mesmo `setor-links.json`.
 
-O card **CCI Pay** é fixo no código (`/cci-pay`) e **não** pode ser alterado pela UI nem gravado no JSON (a API rejeita URLs com esse caminho).
+O card **Advance-CCI** é fixo no código (`/cci-pay`) e **não** pode ser alterado pela UI nem gravado no JSON (a API rejeita URLs com esse caminho).
 
-## CCI Pay (adiantamentos, bonificações, loja)
+## Advance-CCI (adiantamentos, bonificações, loja)
 
-1. **Banco:** rodar [`scripts/ccipay-schema.sql`](scripts/ccipay-schema.sql) no Supabase SQL Editor (mesmo projeto do backend).
-2. **API:** rotas em `/api/ccipay/*` — exigem `SUPABASE_SERVICE_ROLE_KEY` válida (não anon).
-3. **Papéis manuais** (opcional): `ccipay_admin`, `ccipay_dp`, `ccipay_loja`, `ccipay_lancador` em `papeis-manuais.json` ou na tela Admin — Papéis manuais. Papéis `dp` e `financeiro` da OU já acessam funções de DP.
-4. **Alterdata:** cadastrar `alterdata_codigo` por funcionário em `/cci-pay/admin/funcionarios`; export CSV em `/cci-pay/relatorios/dp`.
-5. **E-mails:** hooks em [`server/ccipayEmail.js`](server/ccipayEmail.js) (`notificarEmailCcipay`) — implementação Gmail a cargo do Thiago; hoje apenas log no console.
+1. **Banco:** rodar [`scripts/ccipay-schema.sql`](scripts/ccipay-schema.sql), [`scripts/ccipay-vendas-qr-schema.sql`](scripts/ccipay-vendas-qr-schema.sql) e [`scripts/ccipay-parceiro-auth-schema.sql`](scripts/ccipay-parceiro-auth-schema.sql) no Supabase SQL Editor.
+2. **Portal parceiro:** subdomínio `parceiro.portalcci.com.br` (mesmo serviço Coolify da Central). Variável `VITE_PARCEIRO_PUBLIC_HOSTS=parceiro.portalcci.com.br`. Dev local: `?parceiroHost=1` na URL.
+3. **Operadores:** Admin → Lojas cadastra **usuário + senha**; parceiro acessa o portal parceiro (não a Central).
+4. **Pagamento QR:** colaborador escaneia na **Central** (`/cci-pay/pagar/:token`). Opcional: `VITE_CENTRAL_PUBLIC_URL` no build do portal parceiro para URL correta no QR.
 
 ## Desenvolvimento local (sem Docker)
 

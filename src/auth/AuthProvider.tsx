@@ -1,12 +1,19 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { apiUrl, centralFetch, getApiBaseUrl, initCentralSessionFromStorage, registerAuthExpiredHandler } from "@/lib/apiBase";
+import {
+  apiUrl,
+  centralFetch,
+  getApiBaseUrl,
+  getStoredSessionId,
+  initCentralSessionFromStorage,
+  registerAuthExpiredHandler,
+  setStoredSessionId,
+} from "@/lib/apiBase";
 import {
   criarSessaoServidor,
   encerrarSessaoServidor,
   obterSessaoServidor,
 } from "@/lib/sessionApi";
-import { getStoredSessionId } from "@/lib/apiBase";
 import {
   AVISO_EXPIRACAO_MS_ANTES,
   RENOVAR_TOKEN_MS_ANTES,
@@ -58,7 +65,7 @@ export type Papel =
   /** Painel de senhas — alinhado a `OU_PAINEL_*` e ao `POST /api/painel/sync-profile`. */
   | "painel_atendente"
   | "painel_admin"
-  /** CCI Pay */
+  /** Advance-CCI */
   | "ccipay_admin"
   | "ccipay_dp"
   | "ccipay_loja"
@@ -493,7 +500,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       try {
         initCentralSessionFromStorage();
 
-        const sessao = await obterSessaoServidor();
+        let sessao: Awaited<ReturnType<typeof obterSessaoServidor>> = null;
+        try {
+          sessao = await obterSessaoServidor();
+        } catch {
+          setStoredSessionId(null);
+        }
+
         if (sessao) {
           if (!cancelado) {
             setUsuario(sessao);
@@ -507,6 +520,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        setStoredSessionId(null);
+
         let armazenado: string | null = null;
         try {
           armazenado = localStorage.getItem(STORAGE_KEY_ID_TOKEN);
@@ -514,7 +529,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           armazenado = null;
         }
         if (armazenado && idTokenAindaValido(armazenado)) {
-          await aplicarCredencial(armazenado, { persistir: false });
+          try {
+            await aplicarCredencial(armazenado, { persistir: false });
+          } catch {
+            try {
+              localStorage.removeItem(STORAGE_KEY_ID_TOKEN);
+            } catch {
+              /* ignore */
+            }
+            setStoredSessionId(null);
+          }
         } else if (armazenado) {
           try {
             localStorage.removeItem(STORAGE_KEY_ID_TOKEN);

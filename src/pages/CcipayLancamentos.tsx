@@ -41,10 +41,10 @@ export default function CcipayLancamentos() {
 
   return (
     <div className="animate-fade-in">
-      <PageHero title="Lançamentos CCI Pay" subtitle="Bonificações e deduções manuais." />
+      <PageHero title="Lançamentos Advance-CCI" subtitle="Bonificações e deduções manuais." />
       <div className="mx-auto max-w-xl space-y-4 px-4 py-8 md:px-8">
         <Button asChild variant="ghost" size="sm">
-          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />CCI Pay</Link>
+          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />Advance-CCI</Link>
         </Button>
         {erro && <Alert variant="destructive"><AlertDescription>{erro}</AlertDescription></Alert>}
         {msg && <Alert><AlertDescription>{msg}</AlertDescription></Alert>}

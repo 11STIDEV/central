@@ -1,6 +1,7 @@
 import {
   Boxes,
   Briefcase,
+  CalendarDays,
   ClipboardList,
   FileText,
   GraduationCap,
@@ -160,6 +161,7 @@ export const SETORES_CONFIG: SetorConfig[] = [
       { title: "Área Interna TI", url: "/ti-interno", icon: ShieldCheck },
       { title: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes },
       { title: "iScholar", url: "/ti/ischolar", icon: GraduationCap },
+      { title: "Agenda CCI — Admin", url: "/agenda-cci/admin", icon: CalendarDays },
       { title: "Publicar aviso", url: "/avisos/publicar", icon: PenLine },
       { title: "Totem", url: "/senhas/totem", icon: Ticket },
       { title: "Painel TV", url: "/senhas/painel", icon: Tv },

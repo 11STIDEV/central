@@ -44,7 +44,7 @@ export default function CcipayRelatoriosDp() {
       <PageHero title="Relatório DP" subtitle="Movimentos e exportação para Alterdata." />
       <div className="mx-auto max-w-4xl space-y-4 px-4 py-8 md:px-8">
         <Button asChild variant="ghost" size="sm">
-          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />CCI Pay</Link>
+          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />Advance-CCI</Link>
         </Button>
         <div className="flex flex-wrap gap-2">
           <Input type="month" value={competencia} onChange={(e) => setCompetencia(e.target.value)} />

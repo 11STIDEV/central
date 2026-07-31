@@ -22,6 +22,7 @@ import {
 } from "./chamadosAccess.js";
 import { registerSetorLinksRoutes } from "./setorLinks.js";
 import { registerCcipayRoutes } from "./ccipayRoutes.js";
+import { registerCcipayParceiroRoutes } from "./ccipayParceiroRoutes.js";
 import { createRequestAuth } from "./requestAuth.js";
 import {
   encerrarSessaoRequest,
@@ -2316,6 +2317,12 @@ registerCcipayRoutes(app, {
   mensagemSupabaseNaoConfigurado,
   resolverContextoFromRequest,
   respostaErroIdToken,
+});
+
+registerCcipayParceiroRoutes(app, {
+  getSupabaseAdmin,
+  mensagemSupabaseNaoConfigurado,
+  resolverContextoFromRequest,
 });
 
 /**

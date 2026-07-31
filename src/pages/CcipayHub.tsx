@@ -10,7 +10,6 @@ import {
   isCcipayAdminPapel,
   isCcipayDpPapel,
   isCcipayLancadorPapel,
-  isCcipayLojaPapel,
 } from "@/lib/ccipay";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -31,14 +30,17 @@ export default function CcipayHub() {
   const [carregando, setCarregando] = useState(true);
 
   const carregar = useCallback(async () => {
-    if (!googleIdToken) return;
+    if (!googleIdToken) {
+      setCarregando(false);
+      return;
+    }
     setCarregando(true);
     setErro(null);
     try {
       const r = await ccipayMe(googleIdToken);
       setResumo(r);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Erro ao carregar CCI Pay.");
+      setErro(e instanceof Error ? e.message : "Erro ao carregar Advance-CCI.");
     } finally {
       setCarregando(false);
     }
@@ -53,7 +55,7 @@ export default function CcipayHub() {
   return (
     <div className="animate-fade-in">
       <PageHero
-        title="CCI Pay"
+        title="Advance-CCI"
         subtitle="Adiantamentos, vales, bonificações e loja interna."
       />
 
@@ -65,6 +67,12 @@ export default function CcipayHub() {
         )}
 
         {carregando && <p className="text-sm text-muted-foreground">Carregando...</p>}
+
+        {!carregando && !resumo && !erro && (
+          <p className="text-sm text-muted-foreground">
+            Não foi possível carregar seus dados. Tente recarregar a página.
+          </p>
+        )}
 
         {resumo && (
           <>
@@ -115,14 +123,6 @@ export default function CcipayHub() {
               {isCcipayLancadorPapel(papeis) && (
                 <Button asChild variant="outline">
                   <Link to="/cci-pay/lancamentos">Lançamentos</Link>
-                </Button>
-              )}
-              {(isCcipayLojaPapel(papeis) || isCcipayDpPapel(papeis)) && (
-                <Button asChild variant="outline">
-                  <Link to="/cci-pay/relatorios/loja">
-                    <FileText className="mr-2 h-4 w-4" />
-                    Relatório loja
-                  </Link>
                 </Button>
               )}
               {isCcipayDpPapel(papeis) && (

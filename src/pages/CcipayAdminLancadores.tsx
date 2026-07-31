@@ -39,7 +39,7 @@ export default function CcipayAdminLancadores() {
 
   return (
     <div className="animate-fade-in">
-      <PageHero title="Lançadores CCI Pay" subtitle="Quem pode lançar bonificações e deduções." />
+      <PageHero title="Lançadores Advance-CCI" subtitle="Quem pode lançar bonificações e deduções." />
       <div className="mx-auto max-w-xl space-y-4 px-4 py-8 md:px-8">
         <Button asChild variant="ghost" size="sm">
           <Link to="/cci-pay/admin/lojas"><ArrowLeft className="mr-2 h-4 w-4" />Lojas</Link>

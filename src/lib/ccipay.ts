@@ -84,6 +84,33 @@ export type CcipayResumo = {
   movimentos: CcipayMovimento[];
 };
 
+export type CcipayVendaQrStatus = "pendente" | "pago" | "expirado" | "cancelado";
+
+export type CcipayVendaQr = {
+  id: string;
+  token: string;
+  lojaId: string;
+  lojaNome: string;
+  valor: number;
+  descricao: string;
+  status: CcipayVendaQrStatus;
+  funcionarioEmail?: string | null;
+  funcionarioNome?: string | null;
+  movimentoId?: string | null;
+  criadoPor: string;
+  expiresAt: string;
+  pagoEm?: string | null;
+  createdAt?: string;
+};
+
+export type CcipayResumoParceiro = {
+  aReceber: number;
+  pendente: number;
+  totalMes: number;
+  qtdPendentes: number;
+  vendasMes: number;
+};
+
 async function parseJson(res: Response): Promise<Record<string, unknown>> {
   const text = await res.text();
   if (!text) return {};
@@ -196,16 +223,21 @@ export async function ccipaySalvarLoja(idToken?: string | null, loja: Partial<Cc
 export async function ccipayLojaUsuarios(
   idToken?: string | null,
   lojaId: string,
-  acao: "vincular" | "remover",
-  email: string,
-  nome?: string,
+  acao: "vincular" | "remover" | "listar",
+  opts: { login?: string; senha?: string; nome?: string; email?: string } = {},
 ) {
-  return post<{ usuarios: { email: string; nome: string }[] }>("/api/ccipay/lojas/usuarios", idToken, {
-    lojaId,
-    acao: acao === "remover" ? "remover" : undefined,
-    email,
-    nome,
-  });
+  return post<{ usuarios: { email: string; login?: string | null; nome: string; temSenha?: boolean }[] }>(
+    "/api/ccipay/lojas/usuarios",
+    idToken,
+    {
+      lojaId,
+      acao: acao === "remover" ? "remover" : acao === "listar" ? "listar" : undefined,
+      login: opts.login,
+      senha: opts.senha,
+      nome: opts.nome,
+      email: opts.email,
+    },
+  );
 }
 
 export async function ccipayListarLancadores(idToken: string) {
@@ -269,6 +301,65 @@ export async function ccipayRelatorioLoja(idToken?: string | null, lojaId: strin
     idToken,
     { lojaId, de, ate },
   );
+}
+
+export async function ccipayCriarVendaQr(
+  idToken: string,
+  lojaId: string,
+  valor: number,
+  descricao?: string,
+) {
+  return post<{ venda: CcipayVendaQr; token: string }>("/api/ccipay/vendas/criar", idToken, {
+    lojaId,
+    valor,
+    descricao,
+  });
+}
+
+export async function ccipayListarVendasQr(
+  idToken: string,
+  lojaId: string,
+  opts?: { status?: string; de?: string; ate?: string },
+) {
+  return post<{ vendas: CcipayVendaQr[] }>("/api/ccipay/vendas/listar", idToken, {
+    lojaId,
+    ...opts,
+  });
+}
+
+export async function ccipayResumoParceiro(idToken: string, lojaId: string) {
+  return post<CcipayResumoParceiro>("/api/ccipay/vendas/resumo", idToken, { lojaId });
+}
+
+export async function ccipayObterVendaQr(idToken: string, token: string) {
+  return post<{ venda: CcipayVendaQr }>("/api/ccipay/vendas/obter", idToken, { token });
+}
+
+export async function ccipayPagarVendaQr(idToken: string, token: string) {
+  return post<{ venda: CcipayVendaQr; movimento: CcipayMovimento }>(
+    "/api/ccipay/vendas/pagar",
+    idToken,
+    { token },
+  );
+}
+
+export async function ccipayCancelarVendaQr(idToken: string, vendaId: string) {
+  return post<{ venda: CcipayVendaQr }>("/api/ccipay/vendas/cancelar", idToken, { vendaId });
+}
+
+export function labelStatusVendaQr(status: CcipayVendaQrStatus): string {
+  const map: Record<CcipayVendaQrStatus, string> = {
+    pendente: "Aguardando pagamento",
+    pago: "Pago",
+    expirado: "Expirado",
+    cancelado: "Cancelado",
+  };
+  return map[status] ?? status;
+}
+
+export function urlPagamentoVendaQr(token: string): string {
+  if (typeof window === "undefined") return `/cci-pay/pagar/${token}`;
+  return `${window.location.origin}/cci-pay/pagar/${token}`;
 }
 
 const PAPEIS_CCIPAY_DP: Papel[] = [

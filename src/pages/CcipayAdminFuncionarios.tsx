@@ -29,10 +29,10 @@ export default function CcipayAdminFuncionarios() {
 
   return (
     <div className="animate-fade-in">
-      <PageHero title="Funcionários CCI Pay" subtitle="Limites e vínculo Alterdata." />
+      <PageHero title="Funcionários Advance-CCI" subtitle="Limites e vínculo Alterdata." />
       <div className="mx-auto max-w-4xl space-y-4 px-4 py-8 md:px-8">
         <Button asChild variant="ghost" size="sm">
-          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />CCI Pay</Link>
+          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />Advance-CCI</Link>
         </Button>
         {lista.map((f) => (
           <div key={f.email} className="grid gap-2 rounded-xl border border-border bg-card p-4 md:grid-cols-4">
