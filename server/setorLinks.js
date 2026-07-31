@@ -145,8 +145,8 @@ export function registerSetorLinksRoutes(app, deps) {
       if (!isValidSetorKey(setor)) {
         return res.status(400).json({ error: "Setor inválido." });
       }
-      const { idToken, groups } = req.body || {};
-      const { email } = await deps.verificarIdTokenUsuario(idToken);
+      const { groups } = req.body || {};
+      const { email } = await deps.verificarAutenticacaoRequest(req);
       if (!deps.emailTemPapelAdminNoArquivo(email)) {
         return res.status(403).json({ error: "Acesso restrito a administradores." });
       }

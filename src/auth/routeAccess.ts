@@ -2,6 +2,10 @@ import type { Papel } from "./AuthProvider";
 import { isPainelAdminEmail } from "@/painel/painelEnv";
 import { isRotaBloqueadaParaUsuario } from "./routesTemporarilyBlocked";
 import { podeAcessarKanban } from "@/lib/kanban";
+import {
+  canAccessGestaoChamadosSetor,
+  getChamadosSetorBySlug,
+} from "@/lib/chamadosSetores";
 
 /**
  * Rotas da intranet comum (funcionários; exclui perfil “somente aluno”).
@@ -14,12 +18,16 @@ const ROTAS_INTRANET_COMUM = new Set([
   "/avisos",
   "/portal-do-funcionario",
   "/chamados/novo",
-  "/chamados/gestao",
   "/agenda-cci",
   "/minhas-reservas",
   "/reserva-espacos-equipamentos",
   "/documentos",
   "/ramais",
+  "/meu-setor",
+  "/cci-pay",
+  "/vale-adiantamento",
+  "/cci-pay/loja",
+  "/cci-pay/meus-pedidos",
 ]);
 
 const PAPEIS_PROFESSORES: Papel[] = ["professorfac", "professortecs", "professorregular"];
@@ -34,14 +42,22 @@ const ROTAS_BLOQUEADAS_ALUNO = new Set(["/avisos", "/avisos/publicar"]);
  */
 export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/admin/papeis-manuais": ["admin"],
-  /** Somente administradores podem publicar avisos. */
-  "/avisos/publicar": ["admin"],
+  "/chamados/gestao": ["admin"],
+  "/setores": ["admin"],
+  /** Publicar avisos — TI / administração. */
+  "/avisos/publicar": ["admin", "setape"],
   "/ti-interno": ["setape"],
   "/controle-materiais-ti": ["setape"],
   "/ti/ischolar": ["setape"],
   "/controle-materiais-almoxarifado": ["almoxarifado"],
-  "/financeiro/vales-adiantamento": ["dp", "financeiro"],
-  "/vale-adiantamento": ["dp", "financeiro"],
+  "/financeiro/vales-adiantamento": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
+  "/cci-pay/financeiro": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
+  "/cci-pay/lancamentos": ["ccipay_lancador", "ccipay_admin"],
+  "/cci-pay/admin/funcionarios": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
+  "/cci-pay/admin/lojas": ["ccipay_admin"],
+  "/cci-pay/admin/lancadores": ["ccipay_admin"],
+  "/cci-pay/relatorios/dp": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
+  "/cci-pay/relatorios/loja": ["ccipay_loja", "ccipay_admin", "ccipay_dp"],
   "/agenda-cci/admin": ["setape"],
   "/achados-e-perdidos/admin": ["secretaria", "painel_admin"],
   "/setores/professores": PAPEIS_PROFESSORES,
@@ -108,6 +124,21 @@ export function hasRoleAccessToRoute(papeis: Papel[], pathname: string, email?: 
 
   if (path.startsWith("/senhas")) {
     return podeAcessoRotasSenhas(papeis, pathname, email);
+  }
+
+  if (path.startsWith("/cci-pay/pagar/")) {
+    return true;
+  }
+
+  if (path === "/chamados/gestao") {
+    return papeis.includes("admin");
+  }
+
+  const gestaoSetorMatch = path.match(/^\/chamados\/gestao\/([^/]+)$/);
+  if (gestaoSetorMatch) {
+    const slug = gestaoSetorMatch[1];
+    if (!getChamadosSetorBySlug(slug)) return false;
+    return canAccessGestaoChamadosSetor(papeis, slug);
   }
 
   if (ROTAS_INTRANET_COMUM.has(path)) return true;

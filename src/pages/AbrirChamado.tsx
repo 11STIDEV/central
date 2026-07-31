@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { PageHero } from "@/components/PageHero";
 import { useAuth } from "@/auth/AuthProvider";
 import { criarChamado } from "@/lib/chamados";
+import { CHAMADOS_DESTINOS } from "@/lib/chamadosSetores";
 
 const categories = [
   "Hardware",
@@ -26,19 +27,7 @@ const priorities = [
 const inputClass =
   "w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm text-foreground ring-offset-background placeholder:text-muted-foreground transition-shadow focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2";
 
-const SECTORS = [
-  { value: "setape", label: "TI / Setape" },
-  { value: "secretaria", label: "Secretaria" },
-  { value: "dp", label: "DP / Financeiro" },
-  { value: "direcao", label: "Direção" },
-  { value: "disciplinar", label: "Disciplinar" },
-  { value: "biblioteca", label: "Biblioteca" },
-  { value: "servicosgerais", label: "Serviços Gerais" },
-  { value: "almoxarifado", label: "Almoxarifado" },
-  { value: "primeirossocorros", label: "Primeiros Socorros" },
-  { value: "clat", label: "CLAT" },
-  { value: "publicidade", label: "Publicidade" },
-];
+const SECTORS = CHAMADOS_DESTINOS;
 
 export default function AbrirChamado() {
   const { usuario, googleIdToken } = useAuth();

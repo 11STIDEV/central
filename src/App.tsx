@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { AuthProvider } from "@/auth/AuthProvider";
 import { RequireAuth } from "@/auth/RequireAuth";
@@ -25,13 +25,24 @@ import ControleMateriaisTI from "./pages/ControleMateriaisTI";
 import ControleMateriaisAlmoxarifado from "./pages/ControleMateriaisAlmoxarifado";
 import ValeAdiantamento from "./pages/ValeAdiantamento";
 import FinanceiroValesAdiantamento from "./pages/FinanceiroValesAdiantamento";
+import CcipayHub from "./pages/CcipayHub";
+import CcipayLancamentos from "./pages/CcipayLancamentos";
+import CcipayLoja from "./pages/CcipayLoja";
+import CcipayMeusPedidos from "./pages/CcipayMeusPedidos";
+import CcipayAdminFuncionarios from "./pages/CcipayAdminFuncionarios";
+import CcipayAdminLojas from "./pages/CcipayAdminLojas";
+import CcipayAdminLancadores from "./pages/CcipayAdminLancadores";
+import CcipayRelatoriosDp from "./pages/CcipayRelatoriosDp";
+import CcipayRelatoriosLoja from "./pages/CcipayRelatoriosLoja";
+import CcipayPagarQr from "./pages/ccipay/CcipayPagarQr";
 import { SetorLinksPage } from "./pages/SetorLinksPage";
-import PortalDoFuncionario from "./pages/PortalDoFuncionario";
 import Avisos from "./pages/Avisos";
 import PublicarAviso from "./pages/PublicarAviso";
 import AdminPapeisManuais from "./pages/AdminPapeisManuais";
 import KanbanSetor from "./pages/KanbanSetor";
 import SetorVisaoGeralPage from "./pages/SetorVisaoGeralPage";
+import MeuSetorPage from "./pages/MeuSetorPage";
+import SetoresCatalogPage from "./pages/SetoresCatalogPage";
 import NotFound from "./pages/NotFound";
 import TrilhaConhecimento from "./pages/TrilhaConhecimento";
 import TrilhaDetalhe from "./pages/trilha/TrilhaDetalhe";
@@ -53,6 +64,8 @@ import AchadosPerdidosHubPage from "./pages/achadosperdidos/AchadosPerdidosHubPa
 import AchadosPerdidosAdminPage from "./pages/achadosperdidos/AchadosPerdidosAdminPage";
 import { isLostFoundPublicHost } from "@/achadosperdidos/publicHost";
 import { LostFoundPublicHostApp } from "@/achadosperdidos/public/LostFoundPublicHostApp";
+import { isParceiroPublicHost } from "@/parceiro/publicHost";
+import { ParceiroHostApp } from "@/parceiro/ParceiroHostApp";
 
 const queryClient = new QueryClient();
 
@@ -68,7 +81,16 @@ function CentralIntranetApp() {
               <Route path="/" element={<Index />} />
               <Route path="/avisos" element={<Avisos />} />
               <Route path="/avisos/publicar" element={<PublicarAviso />} />
-              <Route path="/portal-do-funcionario" element={<PortalDoFuncionario />} />
+              <Route path="/portal-do-funcionario" element={<Navigate to="/" replace />} />
+              <Route path="/meu-setor" element={<MeuSetorPage />} />
+              <Route
+                path="/setores"
+                element={
+                  <RequireRouteAccess>
+                    <SetoresCatalogPage />
+                  </RequireRouteAccess>
+                }
+              />
               <Route
                 path="/admin/papeis-manuais"
                 element={
@@ -90,6 +112,7 @@ function CentralIntranetApp() {
               />
               <Route path="/chamados/novo" element={<AbrirChamado />} />
               <Route path="/chamados/gestao" element={<GestaoChamados />} />
+              <Route path="/chamados/gestao/:setorSlug" element={<GestaoChamados />} />
               <Route path="/kanban/:setor" element={<KanbanSetor />} />
               <Route
                 path="/ti-interno"
@@ -136,14 +159,70 @@ function CentralIntranetApp() {
                 }
               />
               <Route path="/vale-adiantamento" element={<ValeAdiantamento />} />
+              <Route path="/cci-pay" element={<CcipayHub />} />
+              <Route path="/cci-pay/loja" element={<CcipayLoja />} />
+              <Route path="/cci-pay/meus-pedidos" element={<CcipayMeusPedidos />} />
               <Route
-                path="/financeiro/vales-adiantamento"
+                path="/cci-pay/financeiro"
                 element={
                   <RequireRouteAccess>
                     <FinanceiroValesAdiantamento />
                   </RequireRouteAccess>
                 }
               />
+              <Route
+                path="/financeiro/vales-adiantamento"
+                element={<Navigate to="/cci-pay/financeiro" replace />}
+              />
+              <Route
+                path="/cci-pay/lancamentos"
+                element={
+                  <RequireRouteAccess>
+                    <CcipayLancamentos />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/cci-pay/admin/funcionarios"
+                element={
+                  <RequireRouteAccess>
+                    <CcipayAdminFuncionarios />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/cci-pay/admin/lojas"
+                element={
+                  <RequireRouteAccess>
+                    <CcipayAdminLojas />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/cci-pay/admin/lancadores"
+                element={
+                  <RequireRouteAccess>
+                    <CcipayAdminLancadores />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/cci-pay/relatorios/dp"
+                element={
+                  <RequireRouteAccess>
+                    <CcipayRelatoriosDp />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/cci-pay/relatorios/loja"
+                element={
+                  <RequireRouteAccess>
+                    <CcipayRelatoriosLoja />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route path="/cci-pay/pagar/:token" element={<CcipayPagarQr />} />
               <Route
                 path="/setores/professores"
                 element={
@@ -252,6 +331,22 @@ function CentralIntranetApp() {
 }
 
 const App = () => {
+  if (isParceiroPublicHost()) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <ParceiroHostApp />
+            </BrowserRouter>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    );
+  }
+
   if (isLostFoundPublicHost()) {
     return (
       <QueryClientProvider client={queryClient}>

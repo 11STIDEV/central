@@ -1,35 +1,30 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BookOpen,
-  Boxes,
   Briefcase,
   CalendarDays,
   CircleDollarSign,
   ClipboardList,
   FileText,
-  GraduationCap,
-  Hash,
   HeartPulse,
-  LayoutDashboard,
+  Home,
   MapPin,
   Megaphone,
-  PenLine,
   Phone,
   School,
   Shield,
-  ShieldCheck,
-  Search,
   Ticket,
   Trophy,
   UserCog,
-  UserRoundCheck,
   Users,
+  Wallet,
   Warehouse,
   Wrench,
 } from "lucide-react";
 import type { Papel } from "@/auth/AuthProvider";
-import { hasRoleAccessToRoute, podePainelSenhasAdministracao } from "@/auth/routeAccess";
+import { hasRoleAccessToRoute } from "@/auth/routeAccess";
 import { isRotaBloqueadaParaUsuario } from "@/auth/routesTemporarilyBlocked";
+import { buildSetoresNavSectors } from "@/navigation/setoresConfig";
 
 /** Item de menu que aponta para uma rota da intranet. */
 export type NavLeaf = {
@@ -37,6 +32,8 @@ export type NavLeaf = {
   url: string;
   icon: LucideIcon;
   locked?: boolean;
+  /** Prefixos de rota que mantêm o item destacado (ex.: catálogo de setores). */
+  activePrefixes?: string[];
 };
 
 /** Subgrupo dentro de uma seção `nested` (Setores, Suporte, Agenda, etc.). */
@@ -45,6 +42,8 @@ export type NavSector = {
   id: string;
   label: string;
   items: NavLeaf[];
+  /** Página hub do setor (padrão: `/setores/:slug/visao-geral`). */
+  hubUrl?: string;
 };
 
 export type NavSectionFlat = {
@@ -52,6 +51,8 @@ export type NavSectionFlat = {
   label: string;
   type: "flat";
   items: NavLeaf[];
+  /** Links fixos no topo da sidebar (Início, Avisos) — sem flyout. */
+  pinned?: boolean;
 };
 
 export type NavSectionNested = {
@@ -69,40 +70,13 @@ export type NavSection = NavSectionFlat | NavSectionNested;
  */
 export const INTRANET_NAV_SECTIONS: NavSection[] = [
   {
-    id: "portal",
+    id: "inicio",
     label: "Portal",
     type: "flat",
+    pinned: true,
     items: [
-      { title: "Portal do Funcionário", url: "/portal-do-funcionario", icon: Users },
+      { title: "Central de Informações", url: "/", icon: Home },
       { title: "Avisos", url: "/avisos", icon: Megaphone },
-      { title: "Publicar aviso", url: "/avisos/publicar", icon: PenLine },
-    ],
-  },
-  {
-    id: "atendimento",
-    label: "Atendimento",
-    type: "nested",
-    sectors: [
-      {
-        id: "atendimento-chamados",
-        label: "Chamados",
-        items: [
-          { title: "Abrir Chamado", url: "/chamados/novo", icon: Ticket },
-          { title: "Gestão de Chamados", url: "/chamados/gestao", icon: ClipboardList },
-        ],
-      },
-      {
-        id: "atendimento-senhas",
-        label: "Painel de senhas",
-        items: [{ title: "Painel de senhas", url: "/senhas", icon: Hash }],
-      },
-      {
-        id: "atendimento-achados-perdidos",
-        label: "Achados e Perdidos",
-        items: [
-          { title: "Achados e Perdidos — Hub", url: "/achados-e-perdidos", icon: Search },
-        ],
-      },
     ],
   },
   {
@@ -110,139 +84,70 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     label: "Agenda",
     type: "flat",
     items: [
-      { title: "Agenda CCI", url: "/agenda-cci", icon: CalendarDays },
       {
-        title: "Reserva de Equipamentos e Espaços",
-        url: "/reserva-espacos-equipamentos",
-        icon: MapPin,
+        title: "Agenda CCI",
+        url: "/agenda-cci",
+        icon: CalendarDays,
+        activePrefixes: ["/agenda-cci"],
       },
-      { title: "Minhas Reservas", url: "/minhas-reservas", icon: UserRoundCheck },
-      { title: "Agenda CCI — Admin", url: "/agenda-cci/admin", icon: Shield },
     ],
   },
   {
-    id: "operacao-interna",
-    label: "Operação interna",
+    id: "trilha-conhecimento",
+    label: "Trilha de Conhecimento",
     type: "flat",
-    items: [
-      { title: "Trilha de Conhecimento", url: "/trilha-conhecimento", icon: Trophy },
-      { title: "Documentos", url: "/documentos", icon: FileText },
-      { title: "Ramais", url: "/ramais", icon: Phone },
-    ],
+    items: [{ title: "Trilha de Conhecimento", url: "/trilha-conhecimento", icon: Trophy }],
+  },
+  {
+    id: "documentos",
+    label: "Documentos",
+    type: "flat",
+    items: [{ title: "Documentos", url: "/documentos", icon: FileText }],
+  },
+  {
+    id: "ramais",
+    label: "Ramais",
+    type: "flat",
+    items: [{ title: "Ramais", url: "/ramais", icon: Phone }],
   },
   {
     id: "setores",
     label: "Setores",
     type: "nested",
+    sectors: buildSetoresNavSectors(),
+  },
+  {
+    id: "cci-pay",
+    label: "Advance-CCI",
+    type: "nested",
     sectors: [
       {
-        id: "setores-biblioteca",
-        label: "Biblioteca",
+        id: "ccipay-colaborador",
+        label: "Meu Advance-CCI",
         items: [
-          { title: "Kanban — Biblioteca", url: "/kanban/biblioteca", icon: LayoutDashboard },
+          { title: "Início / Extrato", url: "/cci-pay", icon: Wallet },
+          { title: "Solicitar vale", url: "/vale-adiantamento", icon: CircleDollarSign },
+          { title: "Loja", url: "/cci-pay/loja", icon: MapPin },
+          { title: "Meus pedidos", url: "/cci-pay/meus-pedidos", icon: ClipboardList },
         ],
       },
       {
-        id: "setores-professores",
-        label: "Professores",
-        items: [{ title: "Links dos Professores", url: "/setores/professores", icon: GraduationCap }],
-      },
-      {
-        id: "setores-disciplinar",
-        label: "Disciplinar",
+        id: "ccipay-operacao",
+        label: "Operação",
         items: [
-          { title: "Links do Disciplinar", url: "/setores/disciplinar", icon: ClipboardList },
-          { title: "Kanban — Disciplinar", url: "/kanban/disciplinar", icon: LayoutDashboard },
+          { title: "Aprovar vales", url: "/cci-pay/financeiro", icon: Briefcase },
+          { title: "Lançamentos", url: "/cci-pay/lancamentos", icon: FileText },
+          { title: "Relatório DP", url: "/cci-pay/relatorios/dp", icon: FileText },
+          { title: "Relatório loja", url: "/cci-pay/relatorios/loja", icon: FileText },
         ],
       },
       {
-        id: "setores-secretaria",
-        label: "Secretaria",
+        id: "ccipay-admin",
+        label: "Administração",
         items: [
-          { title: "Links da Secretaria", url: "/setores/secretaria", icon: FileText },
-          { title: "Kanban — Secretaria", url: "/kanban/secretaria", icon: LayoutDashboard },
-        ],
-      },
-      {
-        id: "setores-servicos-gerais",
-        label: "Serviços Gerais",
-        items: [
-          { title: "Links de Serviços Gerais", url: "/setores/servicos-gerais", icon: Wrench },
-          { title: "Kanban — Serviços Gerais", url: "/kanban/servicosgerais", icon: LayoutDashboard },
-        ],
-      },
-      {
-        id: "setores-publicidade",
-        label: "Publicidade",
-        items: [
-          { title: "Links da Publicidade", url: "/setores/publicidade", icon: Megaphone },
-          { title: "Kanban — Publicidade", url: "/kanban/publicidade", icon: LayoutDashboard },
-        ],
-      },
-      {
-        id: "setores-dp-financeiro",
-        label: "DP e Financeiro",
-        items: [
-          { title: "Links DP e Financeiro", url: "/setores/dp-financeiro", icon: Briefcase },
-          {
-            title: "Financeiro — Vales",
-            url: "/financeiro/vales-adiantamento",
-            icon: CircleDollarSign,
-          },
-          { title: "Kanban — DP e Financeiro", url: "/kanban/dp-financeiro", icon: LayoutDashboard },
-        ],
-      },
-      {
-        id: "setores-primeiros-socorros",
-        label: "Primeiros Socorros",
-        items: [
-          { title: "Links de Primeiros Socorros", url: "/setores/primeiros-socorros", icon: HeartPulse },
-          { title: "Kanban — Primeiros Socorros", url: "/kanban/primeirossocorros", icon: LayoutDashboard },
-        ],
-      },
-      {
-        id: "setores-direcao",
-        label: "Direção",
-        items: [
-          { title: "Links da Direção", url: "/setores/direcao", icon: School },
-          { title: "Kanban — Direção", url: "/kanban/direcao", icon: LayoutDashboard },
-        ],
-      },
-      {
-        id: "setores-clat",
-        label: "CLAT",
-        items: [
-          { title: "Links do CLAT", url: "/setores/clat", icon: ClipboardList },
-          { title: "Kanban — CLAT", url: "/kanban/clat", icon: LayoutDashboard },
-        ],
-      },
-      {
-        id: "setores-ti",
-        label: "TI",
-        items: [
-          { title: "Área Interna TI", url: "/ti-interno", icon: ShieldCheck },
-          { title: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes },
-          { title: "iScholar", url: "/ti/ischolar", icon: GraduationCap },
-          { title: "Kanban — Setape/TI", url: "/kanban/setape", icon: LayoutDashboard },
-        ],
-      },
-      {
-        id: "setores-almoxarifado",
-        label: "Almoxarifado",
-        items: [
-          {
-            title: "Almoxarifado (Entrada/Saída)",
-            url: "/controle-materiais-almoxarifado",
-            icon: Warehouse,
-          },
-          { title: "Kanban — Almoxarifado", url: "/kanban/almoxarifado", icon: LayoutDashboard },
-        ],
-      },
-      {
-        id: "setores-faculdade",
-        label: "Faculdade",
-        items: [
-          { title: "Kanban — Faculdade", url: "/kanban/faculdade", icon: LayoutDashboard },
+          { title: "Funcionários", url: "/cci-pay/admin/funcionarios", icon: UserCog },
+          { title: "Lojas", url: "/cci-pay/admin/lojas", icon: Warehouse },
+          { title: "Lançadores", url: "/cci-pay/admin/lancadores", icon: Shield },
         ],
       },
     ],
@@ -251,29 +156,10 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     id: "admin",
     label: "Administração",
     type: "flat",
-    items: [{ title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog }],
+    items: [{ title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog },
+      { title: "Gestão de Chamados — Todos", url: "/chamados/gestao", icon: ClipboardList }],
   },
 ];
-
-/** Quem só tem atendente do painel (sem admin do painel) vê o link direto para `/senhas/atendente`. */
-export function adjustNavSenhasLeafUrls(
-  papeis: Papel[],
-  email: string | null | undefined,
-  sections: NavSection[],
-): NavSection[] {
-  const adminPainel = podePainelSenhasAdministracao(papeis, email);
-  const onlyAttendant =
-    (papeis.includes("painel_atendente") || papeis.includes("secretaria")) && !adminPainel;
-
-  return sections.map((sec) => {
-    if (sec.type !== "flat") return sec;
-    const items = sec.items.map((item) => {
-      if (item.url !== "/senhas" || !onlyAttendant) return item;
-      return { ...item, title: "Painel de senhas — Atendente", url: "/senhas/atendente" };
-    });
-    return { ...sec, items };
-  });
-}
 
 /** Remove itens/setores/seções que o utilizador não pode ver. */
 export function filterNavByAccess(
@@ -287,10 +173,12 @@ export function filterNavByAccess(
       const items = sec.items.filter((i) => hasRoleAccessToRoute(papeis, i.url, email));
       if (items.length) out.push({ ...sec, items });
     } else {
-      const sectors = sec.sectors.map((s) => ({
-        ...s,
-        items: s.items.filter((i) => hasRoleAccessToRoute(papeis, i.url, email)),
-      }));
+      const sectors = sec.sectors
+        .map((s) => ({
+          ...s,
+          items: s.items.filter((i) => hasRoleAccessToRoute(papeis, i.url, email)),
+        }))
+        .filter((s) => s.items.length > 0);
       if (sectors.length) out.push({ ...sec, sectors });
     }
   }
@@ -325,9 +213,24 @@ export function isNavActive(pathname: string, itemUrl: string): boolean {
   return pathname === itemUrl;
 }
 
+/** Destaque do item considerando `activePrefixes` opcional. */
+export function navItemIsActive(pathname: string, item: NavLeaf): boolean {
+  if (item.activePrefixes?.length) {
+    return item.activePrefixes.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    );
+  }
+  return isNavActive(pathname, item.url);
+}
+
 /** Retorna true se algum item do setor está ativo. */
 export function sectorHasActiveRoute(pathname: string, sector: NavSector): boolean {
-  return sector.items.some((i) => isNavActive(pathname, i.url));
+  return sectorHubIsActive(pathname, sector);
+}
+
+/** Retorna true se algum link da seção plana contém a rota atual. */
+export function flatSectionHasActiveRoute(pathname: string, section: NavSectionFlat): boolean {
+  return section.items.some((item) => navItemIsActive(pathname, item));
 }
 
 /** Retorna true se algum link da seção aninhada contém a rota atual. */
@@ -339,6 +242,66 @@ export function nestedSectionHasActiveRoute(pathname: string, section: NavSectio
  * Mescla links extras nos setores correspondentes (`sectorId`).
  * Itens extras são acrescentados após os estáticos.
  */
+/** Setores com página de visão geral em `/setores/:slug/visao-geral`. */
+export function sectorTemVisaoGeral(sectorId: string): boolean {
+  return sectorId.startsWith("setores-");
+}
+
+export function getSectorSlugFromNavId(sectorId: string): string {
+  return sectorId.replace("setores-", "");
+}
+
+/** URL hub do setor no menu (visão geral ou override). */
+export function getSectorHubUrl(sector: NavSector): string {
+  if (sector.hubUrl) return sector.hubUrl;
+  if (sectorTemVisaoGeral(sector.id)) {
+    return `/setores/${getSectorSlugFromNavId(sector.id)}/visao-geral`;
+  }
+  return sector.items[0]?.url ?? "/";
+}
+
+/** Itens de navegação estáticos de um setor (para a página hub). Reexportado de setoresConfig. */
+export { getSetorNavItemsBySlug } from "@/navigation/setoresConfig";
+
+/** Setor ativo quando o usuário está no hub ou em qualquer ferramenta do setor. */
+export function sectorHubIsActive(pathname: string, sector: NavSector): boolean {
+  const hub = getSectorHubUrl(sector);
+  if (pathname === hub) return true;
+  if (hub !== "/" && pathname.startsWith(`${hub}/`)) return true;
+  return sector.items.some((item) => isNavActive(pathname, item.url));
+}
+
+export type NavSearchEntry = {
+  title: string;
+  url: string;
+  group: string;
+  locked?: boolean;
+};
+
+/** Lista plana para busca global (Cmd+K). */
+export function flattenNavForSearch(sections: NavSection[]): NavSearchEntry[] {
+  const out: NavSearchEntry[] = [];
+  for (const sec of sections) {
+    if (sec.type === "flat") {
+      for (const item of sec.items) {
+        out.push({ title: item.title, url: item.url, group: sec.label, locked: item.locked });
+      }
+    } else {
+      for (const sector of sec.sectors) {
+        for (const item of sector.items) {
+          out.push({
+            title: item.title,
+            url: item.url,
+            group: `${sec.label} · ${sector.label}`,
+            locked: item.locked,
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
 export function mergeNavExtras(sections: NavSection[], extras: NavExtraLink[]): NavSection[] {
   if (!extras.length) return sections;
   return sections.map((sec) => {

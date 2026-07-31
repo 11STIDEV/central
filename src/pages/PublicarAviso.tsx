@@ -72,7 +72,7 @@ export default function PublicarAviso() {
     <div className="animate-fade-in">
       <PageHero
         title="Publicar aviso"
-        subtitle="Publique comunicados para toda a instituição ou setores específicos. Restrito a administradores."
+        subtitle="Publique comunicados para toda a instituição ou setores específicos. Restrito à TI e administração."
       />
 
       <div className="mx-auto max-w-3xl px-4 py-8 md:px-8">
@@ -107,7 +107,7 @@ export default function PublicarAviso() {
             </div>
             <h2 className="text-lg font-semibold text-card-foreground">Acesso restrito</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Apenas administradores podem publicar avisos. Se você precisa de acesso, entre em contato com o administrador do sistema.
+              Apenas a TI e a administração podem publicar avisos. Se você precisa de acesso, entre em contato com o setor de TI.
             </p>
             <Link
               to="/avisos"

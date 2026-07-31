@@ -1,8 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "@/auth/AuthProvider";
 import { destinoAposLogin } from "@/auth/RequireAuth";
 import { canAccessRoute, destinoPadraoAposLogin } from "@/auth/routeAccess";
+import { consumirSessaoExpirada } from "@/lib/authSession";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { CciLogoBranca } from "@/painel/components/CciLogoBranca";
@@ -17,10 +18,17 @@ export default function Login() {
     (location.state as { from?: string } | null)?.from,
   );
   const googleButtonRef = useRef<HTMLDivElement>(null);
+  const [sessaoExpirada, setSessaoExpirada] = useState(false);
   const origemAtual =
     typeof window !== "undefined" ? window.location.origin : "";
   const urlAtual = typeof window !== "undefined" ? window.location.href : "";
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+
+  useEffect(() => {
+    if (consumirSessaoExpirada()) {
+      setSessaoExpirada(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (carregando || carregandoGoogle || !googleButtonRef.current) return;
@@ -97,6 +105,17 @@ export default function Login() {
                   {clientId ?? "(não configurado)"}
                 </div>
               </div>
+            )}
+
+            {sessaoExpirada && (
+              <Alert className="mb-4 border-amber-500/40 bg-amber-500/10 text-foreground">
+                <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <AlertTitle>Sessão expirada</AlertTitle>
+                <AlertDescription>
+                  Sua sessão expirou ou o servidor foi reiniciado. Entre novamente com sua conta
+                  @portalcci.com.br (ou domínios autorizados).
+                </AlertDescription>
+              </Alert>
             )}
 
             {erro && (

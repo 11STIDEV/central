@@ -1,4 +1,4 @@
-import { apiUrl } from "@/lib/apiBase";
+import { apiUrl, centralFetch, authJsonBody } from "@/lib/apiBase";
 import type { SectorLinkGroup, SectorPageKey } from "@/types/setorLinks";
 
 export type FetchSetorLinksResult =
@@ -8,7 +8,7 @@ export type FetchSetorLinksResult =
 
 export async function fetchSetorLinks(setor: SectorPageKey): Promise<FetchSetorLinksResult> {
   try {
-    const res = await fetch(apiUrl(`/api/setor-links/${encodeURIComponent(setor)}`));
+    const res = await centralFetch(apiUrl(`/api/setor-links/${encodeURIComponent(setor)}`));
     const data = (await res.json().catch(() => ({}))) as {
       groups?: SectorLinkGroup[];
       notFound?: boolean;
@@ -31,14 +31,14 @@ export async function fetchSetorLinks(setor: SectorPageKey): Promise<FetchSetorL
 
 export async function saveSetorLinks(
   setor: SectorPageKey,
-  idToken: string,
+  idToken?: string | null,
   groups: SectorLinkGroup[],
 ): Promise<{ ok: true; groups: SectorLinkGroup[] } | { ok: false; error: string }> {
   try {
-    const res = await fetch(apiUrl(`/api/setor-links/${encodeURIComponent(setor)}`), {
+    const res = await centralFetch(apiUrl(`/api/setor-links/${encodeURIComponent(setor)}`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ idToken, groups }),
+      body: authJsonBody({ groups }, idToken),
     });
     const data = (await res.json().catch(() => ({}))) as {
       groups?: SectorLinkGroup[];

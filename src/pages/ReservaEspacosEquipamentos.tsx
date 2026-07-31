@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Calendar, Check, Laptop, Package, MapPin, Plus, Trash2 } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { useAuth } from "@/auth/AuthProvider";
@@ -42,7 +42,7 @@ import {
   toYmdLocal,
   rangesOverlap,
 } from "@/lib/agendaCci";
-import { apiUrl } from "@/lib/apiBase";
+import { apiUrl, authJsonBody, centralFetch } from "@/lib/apiBase";
 import { toast } from "@/components/ui/sonner";
 
 type LinhaEquipamento = { key: string; nome: string; quantidade: number };
@@ -68,6 +68,7 @@ type Feedback = { tipo: "erro" | "sucesso"; texto: string } | null;
 
 export default function ReservaEspacosEquipamentos() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { usuario, googleIdToken } = useAuth();
   const papelAluno = usuario?.papeis.includes("aluno") ?? false;
   const [titulo, setTitulo] = useState("");
@@ -115,7 +116,7 @@ export default function ReservaEspacosEquipamentos() {
   const [destinoCalendar, setDestinoCalendar] = useState<"salas_labs" | "agenda_cci">("salas_labs");
 
   useEffect(() => {
-    if (!googleIdToken || !usuario || location.pathname !== "/reserva-espacos-equipamentos") return;
+    if (!usuario || location.pathname !== "/reserva-espacos-equipamentos") return;
     let cancelado = false;
     (async () => {
       const r = await obterReservasDoServidor(googleIdToken);
@@ -130,19 +131,19 @@ export default function ReservaEspacosEquipamentos() {
     return () => {
       cancelado = true;
     };
-  }, [googleIdToken, usuario, location.pathname]);
+  }, [usuario, googleIdToken, location.pathname]);
 
   useEffect(() => {
-    if (!googleIdToken || !usuario) return;
+    if (!usuario) return;
     let cancelado = false;
     setCarregandoChromebooks(true);
     setAvisoChromebooks(null);
     (async () => {
       try {
-        const res = await fetch(apiUrl("/api/chromebooks"), {
+        const res = await centralFetch(apiUrl("/api/chromebooks"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ idToken: googleIdToken }),
+          body: authJsonBody({}, googleIdToken),
         });
         const text = await res.text();
         let body: {
@@ -194,7 +195,7 @@ export default function ReservaEspacosEquipamentos() {
     return () => {
       cancelado = true;
     };
-  }, [googleIdToken, usuario]);
+  }, [usuario, googleIdToken]);
 
   useEffect(() => {
     const ids = new Set(chromebooksCatalogo.map((c) => c.id));
@@ -419,22 +420,34 @@ export default function ReservaEspacosEquipamentos() {
 
   async function confirmarReservaNoDialog() {
     if (!reservaPendente) return;
+    const anterior = reservas;
     const next = [reservaPendente, ...reservas];
     setReservas(next);
-    const ok = await salvarReservasAgenda(next, googleIdToken);
+    const { ok, status } = await salvarReservasAgenda(next, googleIdToken);
     setDialogConfirmarAberto(false);
     setReservaPendente(null);
-    resetAposSucesso();
-    const msgOk =
-      "Reserva registrada com sucesso. Você pode acompanhar em Minhas reservas.";
-    setFeedback({ tipo: "sucesso", texto: msgOk });
-    toast.success(msgOk);
+
     if (!ok) {
-      toast.warning(
-        "A reserva foi salva neste navegador, mas não foi possível sincronizar com o servidor. Verifique a conexão ou tente novamente.",
-        { duration: 8000 },
-      );
+      setReservas(anterior);
+      try {
+        localStorage.setItem(STORAGE_KEY_AGENDA_CCI, JSON.stringify(anterior));
+      } catch {
+        /* ignore */
+      }
+      if (status === 401) {
+        toast.error("Sessão expirada. Faça login novamente e tente confirmar a reserva.");
+      } else {
+        toast.error("Não foi possível confirmar a reserva. Verifique a conexão e tente novamente.");
+      }
+      return;
     }
+
+    resetAposSucesso();
+    const msgOk = "Reserva confirmada com sucesso!";
+    toast.success(msgOk);
+    navigate("/minhas-reservas", {
+      state: { reservaConfirmada: true, mensagem: msgOk },
+    });
   }
 
   const resumoLinhas = useMemo(() => {
@@ -757,11 +770,6 @@ export default function ReservaEspacosEquipamentos() {
                           </span>
                         )}
                         <span className="text-sm font-semibold text-card-foreground">{cb.label || "Chromebook"}</span>
-                        {cb.serialNumber && (
-                          <span className="text-[10px] text-muted-foreground">
-                            S/N: {cb.serialNumber}
-                          </span>
-                        )}
                         <span
                           className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold ${
                             cb.hasHdmi

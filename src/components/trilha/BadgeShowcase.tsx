@@ -43,7 +43,15 @@ export function BadgeShowcase({ badges, maxVisible = 8 }: BadgeShowcaseProps) {
                     : "bg-white/8"
                 }`}
               >
-                {desbloqueado ? badge.icone : "?"}
+                {desbloqueado ? (
+                  badge.icone.startsWith("/") || badge.icone.endsWith(".png") ? (
+                    <img src={badge.icone} alt={badge.nome} className="h-7 w-7 object-contain" />
+                  ) : (
+                    badge.icone
+                  )
+                ) : (
+                  "?"
+                )}
               </div>
 
               {/* Name */}

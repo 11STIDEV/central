@@ -1,5 +1,26 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { apiUrl, getApiBaseUrl } from "@/lib/apiBase";
+import { toast } from "sonner";
+import {
+  apiUrl,
+  centralFetch,
+  getApiBaseUrl,
+  getStoredSessionId,
+  initCentralSessionFromStorage,
+  registerAuthExpiredHandler,
+  setStoredSessionId,
+} from "@/lib/apiBase";
+import {
+  criarSessaoServidor,
+  encerrarSessaoServidor,
+  obterSessaoServidor,
+} from "@/lib/sessionApi";
+import {
+  AVISO_EXPIRACAO_MS_ANTES,
+  RENOVAR_TOKEN_MS_ANTES,
+  idTokenAindaValido,
+  marcarSessaoExpirada,
+  msAteExpirarToken,
+} from "@/lib/authSession";
 import { isCentralAdminEmail } from "@/auth/centralAdminEnv";
 import {
   ouPainelAdminPeloCaminho,
@@ -43,7 +64,12 @@ export type Papel =
   | "gerente_almoxarifado"
   /** Painel de senhas — alinhado a `OU_PAINEL_*` e ao `POST /api/painel/sync-profile`. */
   | "painel_atendente"
-  | "painel_admin";
+  | "painel_admin"
+  /** Advance-CCI */
+  | "ccipay_admin"
+  | "ccipay_dp"
+  | "ccipay_loja"
+  | "ccipay_lancador";
 
 export type UsuarioLogado = {
   nome: string;
@@ -240,14 +266,6 @@ function decodeJwt(token: string): any | null {
   }
 }
 
-/** ID token do Google expira (tipicamente ~1h); acima disso é preciso entrar de novo. */
-function idTokenAindaValido(token: string): boolean {
-  const payload = decodeJwt(token);
-  const exp = payload?.exp;
-  if (typeof exp !== "number" || !Number.isFinite(exp)) return false;
-  return exp * 1000 > Date.now() + 10_000;
-}
-
 declare global {
   interface Window {
     google?: any;
@@ -262,6 +280,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [erro, setErro] = useState<string | undefined>(undefined);
   const [organizacaoErro, setOrganizacaoErro] = useState<string | null>(null);
   const inicializadoRef = useRef(false);
+  const googleIdTokenRef = useRef<string | null>(null);
+  const ultimaTentativaRenovarRef = useRef(0);
+  const avisoExpiracaoMostradoRef = useRef(false);
+  const graceLogoutTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    googleIdTokenRef.current = googleIdToken;
+  }, [googleIdToken]);
 
   useEffect(() => {
     const script = document.createElement("script");
@@ -304,7 +330,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       let orgUnitPath: string | undefined;
       try {
-        const res = await fetch(apiUrl("/api/organizacao"), {
+        const res = await centralFetch(apiUrl("/api/organizacao"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ idToken }),
@@ -400,7 +426,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           : payload;
       let papeis = mapearPapeis(payloadComOU);
       try {
-        const res = await fetch(apiUrl("/api/papeis-manuais/obter"), {
+        const res = await centralFetch(apiUrl("/api/papeis-manuais/obter"), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ idToken }),
@@ -422,12 +448,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isCentralAdminEmail(payload.email)) {
         papeis = Array.from(new Set([...papeis, "admin"]));
       }
-      setUsuario({
+
+      const usuarioLocal: UsuarioLogado = {
         nome: payload.name ?? payload.given_name ?? "Usuário",
         email: payload.email,
         picture: payload.picture,
         papeis,
-      });
+      };
+
+      let usuarioFinal = usuarioLocal;
+      try {
+        const doServidor = await criarSessaoServidor(idToken);
+        if (doServidor) usuarioFinal = doServidor;
+      } catch (e) {
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn("[auth/session] não foi possível criar sessão no servidor:", e);
+        }
+      }
+
+      setUsuario(usuarioFinal);
       setGoogleIdToken(idToken);
       setErro(undefined);
       if (persistir) {
@@ -441,10 +481,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Fire-and-forget: não bloqueia o login
       void (async () => {
         try {
-          await fetch(apiUrl("/api/usuarios/registrar"), {
+          await centralFetch(apiUrl("/api/usuarios/registrar"), {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ idToken, papeis }),
+            body: JSON.stringify({ papeis: usuarioFinal.papeis }),
           });
         } catch {
           /* registro de usuário é opcional — não falha o login */
@@ -458,6 +498,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelado = false;
     (async () => {
       try {
+        initCentralSessionFromStorage();
+
+        let sessao: Awaited<ReturnType<typeof obterSessaoServidor>> = null;
+        try {
+          sessao = await obterSessaoServidor();
+        } catch {
+          setStoredSessionId(null);
+        }
+
+        if (sessao) {
+          if (!cancelado) {
+            setUsuario(sessao);
+            try {
+              const tok = localStorage.getItem(STORAGE_KEY_ID_TOKEN);
+              if (tok) setGoogleIdToken(tok);
+            } catch {
+              /* ignore */
+            }
+          }
+          return;
+        }
+
+        setStoredSessionId(null);
+
         let armazenado: string | null = null;
         try {
           armazenado = localStorage.getItem(STORAGE_KEY_ID_TOKEN);
@@ -465,7 +529,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           armazenado = null;
         }
         if (armazenado && idTokenAindaValido(armazenado)) {
-          await aplicarCredencial(armazenado, { persistir: false });
+          try {
+            await aplicarCredencial(armazenado, { persistir: false });
+          } catch {
+            try {
+              localStorage.removeItem(STORAGE_KEY_ID_TOKEN);
+            } catch {
+              /* ignore */
+            }
+            setStoredSessionId(null);
+          }
         } else if (armazenado) {
           try {
             localStorage.removeItem(STORAGE_KEY_ID_TOKEN);
@@ -485,9 +558,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const handleCredentialResponse = useCallback(
     async (response: any) => {
       if (!response?.credential) return;
+      avisoExpiracaoMostradoRef.current = false;
+      if (graceLogoutTimerRef.current !== null) {
+        window.clearTimeout(graceLogoutTimerRef.current);
+        graceLogoutTimerRef.current = null;
+      }
       await aplicarCredencial(response.credential, { persistir: true });
     },
     [aplicarCredencial],
+  );
+
+  const inicializarGoogleIdentity = useCallback(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+    if (!clientId || !window.google?.accounts?.id || inicializadoRef.current) return false;
+    inicializadoRef.current = true;
+    window.google.accounts.id.initialize({
+      client_id: clientId,
+      callback: handleCredentialResponse,
+      auto_select: false,
+      cancel_on_tap_outside: true,
+      ux_mode: "popup",
+      context: "signin",
+    });
+    return true;
+  }, [handleCredentialResponse]);
+
+  useEffect(() => {
+    if (!carregandoGoogle) {
+      inicializarGoogleIdentity();
+    }
+  }, [carregandoGoogle, inicializarGoogleIdentity]);
+
+  const logout = useCallback(() => {
+    void encerrarSessaoServidor();
+    try {
+      localStorage.removeItem(STORAGE_KEY_ID_TOKEN);
+    } catch {
+      /* ignore */
+    }
+    setUsuario(null);
+    setGoogleIdToken(null);
+    setOrganizacaoErro(null);
+  }, []);
+
+  const expirarSessao = useCallback(() => {
+    if (graceLogoutTimerRef.current !== null) {
+      window.clearTimeout(graceLogoutTimerRef.current);
+      graceLogoutTimerRef.current = null;
+    }
+    marcarSessaoExpirada();
+    logout();
+  }, [logout]);
+
+  const tentarRenovarSessao = useCallback(
+    (motivo: "preventivo" | "expirado" = "preventivo") => {
+      const agora = Date.now();
+      if (agora - ultimaTentativaRenovarRef.current < 120_000) return;
+      if (!inicializarGoogleIdentity()) return;
+
+      ultimaTentativaRenovarRef.current = agora;
+      try {
+        window.google.accounts.id.prompt((notification: {
+          isNotDisplayed?: () => boolean;
+          isSkippedMoment?: () => boolean;
+        }) => {
+          const falhou =
+            notification.isNotDisplayed?.() || notification.isSkippedMoment?.();
+          if (falhou && motivo === "expirado") {
+            const token = googleIdTokenRef.current;
+            if (token && !idTokenAindaValido(token) && graceLogoutTimerRef.current === null) {
+              graceLogoutTimerRef.current = window.setTimeout(() => {
+                graceLogoutTimerRef.current = null;
+                const atual = googleIdTokenRef.current;
+                if (!atual || !idTokenAindaValido(atual)) {
+                  expirarSessao();
+                }
+              }, 90_000);
+            }
+          }
+        });
+      } catch {
+        /* ignore */
+      }
+    },
+    [inicializarGoogleIdentity, expirarSessao],
   );
 
   const renderGoogleButton = useCallback(
@@ -505,17 +659,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (!inicializadoRef.current) {
-        inicializadoRef.current = true;
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleCredentialResponse,
-          auto_select: false,
-          cancel_on_tap_outside: true,
-          ux_mode: "popup",
-          context: "signin",
-        });
-      }
+      inicializarGoogleIdentity();
 
       container.innerHTML = "";
       window.google.accounts.id.renderButton(container, {
@@ -526,19 +670,83 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         width: 320,
       });
     },
-    [handleCredentialResponse],
+    [inicializarGoogleIdentity],
   );
 
-  const logout = useCallback(() => {
-    try {
-      localStorage.removeItem(STORAGE_KEY_ID_TOKEN);
-    } catch {
-      /* ignore */
-    }
-    setUsuario(null);
-    setGoogleIdToken(null);
-    setOrganizacaoErro(null);
-  }, []);
+  const aoTokenRejeitado = useCallback(() => {
+    void (async () => {
+      if (getStoredSessionId()) {
+        let token = googleIdTokenRef.current;
+        if (!token) {
+          try {
+            token = localStorage.getItem(STORAGE_KEY_ID_TOKEN);
+          } catch {
+            token = null;
+          }
+        }
+        if (token && idTokenAindaValido(token)) {
+          try {
+            const usuarioRenovado = await criarSessaoServidor(token);
+            if (usuarioRenovado) {
+              setUsuario(usuarioRenovado);
+              setGoogleIdToken(token);
+              return;
+            }
+          } catch {
+            /* tenta logout abaixo */
+          }
+        }
+        expirarSessao();
+        return;
+      }
+      const tokenAtual = googleIdTokenRef.current;
+      if (tokenAtual && idTokenAindaValido(tokenAtual)) return;
+      tentarRenovarSessao("expirado");
+    })();
+  }, [tentarRenovarSessao, expirarSessao]);
+
+  useEffect(() => {
+    registerAuthExpiredHandler(aoTokenRejeitado);
+    return () => registerAuthExpiredHandler(null);
+  }, [aoTokenRejeitado]);
+
+  useEffect(() => {
+    // Com sessão de servidor ativa, não forçar logout pelo TTL de 1h do ID token Google.
+    if (!googleIdToken || getStoredSessionId()) return;
+
+    const verificar = () => {
+      const token = googleIdTokenRef.current;
+      if (!token) return;
+
+      const restante = msAteExpirarToken(token);
+
+      if (restante === null) {
+        tentarRenovarSessao("expirado");
+        return;
+      }
+
+      if (restante <= RENOVAR_TOKEN_MS_ANTES) {
+        tentarRenovarSessao("preventivo");
+      }
+
+      if (restante <= AVISO_EXPIRACAO_MS_ANTES && !avisoExpiracaoMostradoRef.current) {
+        avisoExpiracaoMostradoRef.current = true;
+        const minutos = Math.max(1, Math.ceil(restante / 60_000));
+        toast.warning("Sua sessão expira em breve", {
+          description: `Em cerca de ${minutos} min o Google pedirá para renovar o login. Continue salvando seu trabalho.`,
+          duration: 20_000,
+          action: {
+            label: "Renovar agora",
+            onClick: () => tentarRenovarSessao("preventivo"),
+          },
+        });
+      }
+    };
+
+    verificar();
+    const intervalo = window.setInterval(verificar, 30_000);
+    return () => window.clearInterval(intervalo);
+  }, [googleIdToken, tentarRenovarSessao]);
 
   return (
     <AuthContext.Provider

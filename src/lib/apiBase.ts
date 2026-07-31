@@ -5,6 +5,46 @@
  *   nalguns ambientes devolve 405 a POST /api). Defina `VITE_USE_VITE_PROXY=1` no .env.local
  *   se quiser voltar ao proxy relativo a `/api`.
  */
+import { isAuthTokenErrorBody } from "@/lib/authSession";
+export const SESSION_HEADER_NAME = "X-Central-Session";
+export const STORAGE_KEY_SERVER_SESSION = "central_server_session_id";
+
+let centralSessionId: string | null = null;
+
+export function getStoredSessionId(): string | null {
+  if (centralSessionId) return centralSessionId;
+  try {
+    return localStorage.getItem(STORAGE_KEY_SERVER_SESSION);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredSessionId(id: string | null): void {
+  centralSessionId = id;
+  try {
+    if (id) {
+      localStorage.setItem(STORAGE_KEY_SERVER_SESSION, id);
+    } else {
+      localStorage.removeItem(STORAGE_KEY_SERVER_SESSION);
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Sincroniza ID de sessão em memória (dev cross-port 8080↔3001). */
+export function setCentralSessionId(id: string | null): void {
+  setStoredSessionId(id);
+}
+
+/** Inicializa sessão da memória a partir do localStorage (chamado no boot). */
+export function initCentralSessionFromStorage(): void {
+  centralSessionId = null;
+  const stored = getStoredSessionId();
+  if (stored) centralSessionId = stored;
+}
+
 export function getApiBaseUrl(): string {
   if (import.meta.env.VITE_USE_VITE_PROXY === "1") {
     return "";
@@ -41,4 +81,54 @@ export function apiUrl(path: string): string {
   const base = getApiBaseUrl();
   if (!base) return p;
   return `${base}${p}`;
+}
+
+type AuthExpiredHandler = () => void;
+
+let authExpiredHandler: AuthExpiredHandler | null = null;
+
+/** Registrado pelo AuthProvider para encerrar sessão quando a API rejeitar o token. */
+export function registerAuthExpiredHandler(handler: AuthExpiredHandler | null): void {
+  authExpiredHandler = handler;
+}
+
+function authFetchInit(init?: RequestInit): RequestInit {
+  const headers = new Headers(init?.headers);
+  const sid = centralSessionId || getStoredSessionId();
+  if (sid) {
+    headers.set(SESSION_HEADER_NAME, sid);
+  }
+  return {
+    ...init,
+    credentials: "include",
+    headers,
+  };
+}
+
+/**
+ * `fetch` autenticado com cookie/header de sessão e detecção de 401.
+ * Preferir em chamadas autenticadas à API.
+ */
+export async function centralFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const res = await fetch(input, authFetchInit(init));
+  if (res.status === 401 && authExpiredHandler) {
+    const text = await res.clone().text().catch(() => "");
+    if (isAuthTokenErrorBody(text)) {
+      authExpiredHandler();
+    }
+  }
+  return res;
+}
+
+/** Corpo JSON para POST autenticados — idToken só como fallback legado. */
+export function authJsonBody(
+  fields: Record<string, unknown>,
+  idToken?: string | null,
+): string {
+  const body: Record<string, unknown> = { ...fields };
+  if (idToken) body.idToken = idToken;
+  return JSON.stringify(body);
 }

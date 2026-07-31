@@ -69,10 +69,14 @@ export function podeVerAviso(viewer, aviso) {
   return permitidos.includes(aviso.setor);
 }
 
+/** @param {string[]} papeis */
+export function podePublicarAvisos(papeis) {
+  return papeis.includes("admin") || papeis.includes("setape");
+}
+
 /** @param {string[]} papeis @param {string} setor */
 export function podePublicarNoSetor(papeis, setor) {
   if (!AVISO_SETORES_VALIDOS.includes(setor)) return false;
-  // Regra de negócio: somente administradores podem publicar avisos.
-  return papeis.includes("admin");
+  return podePublicarAvisos(papeis);
 }
 

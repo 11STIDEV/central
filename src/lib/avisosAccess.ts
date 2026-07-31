@@ -55,19 +55,22 @@ export function podeVerAviso(papeis: Papel[], aviso: Aviso): boolean {
   return permitidos.includes(aviso.setor);
 }
 
-export function podePublicarNoSetor(papeis: Papel[], setor: AvisoSetor): boolean {
-  // Somente administradores podem publicar avisos.
-  if (!papeis.includes("admin")) return false;
-  const permitidos = setoresVisiveisParaPapeis(papeis);
-  if (permitidos === null) return true;
-  return permitidos.includes(setor);
+export function podePublicarAvisos(papeis: Papel[]): boolean {
+  return papeis.includes("admin") || papeis.includes("setape");
 }
 
-/** Opções de setor para filtros e formulário de publicação.
- * Retorna lista não-vazia apenas para administradores.
- */
+export function podePublicarNoSetor(papeis: Papel[], setor: AvisoSetor): boolean {
+  if (!podePublicarAvisos(papeis)) return false;
+  if (papeis.includes("admin")) {
+    const permitidos = setoresVisiveisParaPapeis(papeis);
+    if (permitidos === null) return true;
+    return permitidos.includes(setor);
+  }
+  return true;
+}
+
+/** Opções de setor para filtros e formulário de publicação. */
 export function setoresAvisoParaUsuario(papeis: Papel[]) {
-  // Somente admin pode publicar avisos.
-  if (!papeis.includes("admin")) return [];
+  if (!podePublicarAvisos(papeis)) return [];
   return AVISO_SETORES;
 }
