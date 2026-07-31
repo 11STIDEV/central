@@ -3055,6 +3055,979 @@ app.post("/api/ti/google-classroom/create-course", async (req, res) => {
 });
 
 
+// ─── iScholar & Google Classroom Ensalamento Persistence ────────────────────
+const CLASSROOM_MAPPING_FILE = path.join(__dirname, "data", "classroomMapping.json");
+
+function lerMapeamentosClassroom() {
+  try {
+    if (!fs.existsSync(CLASSROOM_MAPPING_FILE)) {
+      return {};
+    }
+    const raw = fs.readFileSync(CLASSROOM_MAPPING_FILE, "utf-8");
+    return JSON.parse(raw || "{}");
+  } catch (e) {
+    console.error("[classroom-mapping] Erro ao ler arquivo de mapeamento:", e);
+    return {};
+  }
+}
+
+function salvarMapeamentosClassroom(mapeamentos) {
+  try {
+    const dir = path.dirname(CLASSROOM_MAPPING_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(CLASSROOM_MAPPING_FILE, JSON.stringify(mapeamentos, null, 2), "utf-8");
+  } catch (e) {
+    console.error("[classroom-mapping] Erro ao salvar arquivo de mapeamento:", e);
+  }
+}
+
+async function safeFetchIscholarJson(url, options = {}) {
+  const response = await fetch(url, options);
+  const text = await response.text();
+  if (!text || !text.trim()) {
+    return { ok: false, status: response.status, data: null, error: `Resposta vazia da API do iScholar (HTTP ${response.status})` };
+  }
+  try {
+    const data = JSON.parse(text);
+    return { ok: response.ok, status: response.status, data, rawText: text };
+  } catch (e) {
+    return { ok: false, status: response.status, data: null, rawText: text, error: `Formato de resposta do iScholar inválido: ${text.slice(0, 100)}` };
+  }
+}
+
+async function obterUnidadesIscholar() {
+  const { codigoEscola, token } = obterCredenciaisIscholar();
+  if (!codigoEscola || !token) {
+    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+  }
+
+  const headers = {
+    "X-Codigo-Escola": codigoEscola,
+    "X-Autorizacao": token,
+    "Content-Type": "application/json"
+  };
+
+  const result = await safeFetchIscholarJson("https://api.ischolar.app/unidades/listar_unidades", { method: "GET", headers });
+  if (!result.ok || !result.data) {
+    console.error("[ischolar-unidades] Erro ao listar unidades:", result.error);
+    return [];
+  }
+
+  const lista = result.data.dados || result.data.unidades || (Array.isArray(result.data) ? result.data : []);
+  return lista.map(u => ({
+    id_unidade: String(u.id_unidade || u.id),
+    nome_unidade: u.nome_unidade || u.nome || u.unidade || `Unidade ${u.id_unidade || u.id}`
+  }));
+}
+
+async function obterTurmasIscholar() {
+  const { codigoEscola, token } = obterCredenciaisIscholar();
+  if (!codigoEscola || !token) {
+    throw new Error("Credenciais do iScholar não configuradas no servidor (ISCHOLAR_CODIGO_ESCOLA e ISCHOLAR_TOKEN).");
+  }
+
+  const headers = {
+    "X-Codigo-Escola": codigoEscola,
+    "X-Autorizacao": token,
+    "Content-Type": "application/json"
+  };
+
+  // 1. Buscar unidades cadastradas
+  const unidades = await obterUnidadesIscholar();
+  let rawTurmas = [];
+
+  if (Array.isArray(unidades) && unidades.length > 0) {
+    for (const u of unidades) {
+      try {
+        const url = `https://api.ischolar.app/turma/lista?unidade_id=${u.id_unidade}`;
+        const res = await safeFetchIscholarJson(url, { method: "GET", headers });
+        if (res.ok && res.data) {
+          const raw = res.data.dados || res.data.turmas || res.data.lista || res.data;
+          const items = Array.isArray(raw) ? raw : (typeof raw === "object" && raw !== null ? Object.values(raw) : []);
+          items.forEach(t => {
+            if (t && typeof t === "object") {
+              rawTurmas.push({ ...t, id_unidade_ref: u.id_unidade, nome_unidade_ref: u.nome_unidade });
+            }
+          });
+        }
+      } catch (e) {
+        console.error(`[ischolar-turmas] Erro ao buscar turmas da unidade ${u.id_unidade}:`, e);
+      }
+    }
+  }
+
+  // 2. Fallback direto se unidades retornou vazio
+  if (rawTurmas.length === 0) {
+    const url = `https://api.ischolar.app/turma/lista`;
+    const res = await safeFetchIscholarJson(url, { method: "GET", headers });
+    if (res.ok && res.data) {
+      const raw = res.data.dados || res.data.turmas || res.data.lista || res.data;
+      rawTurmas = Array.isArray(raw) ? raw : (typeof raw === "object" && raw !== null ? Object.values(raw) : []);
+    }
+  }
+
+  const normalizar = (str) => (str || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+  const todasAsTurmas = (Array.isArray(rawTurmas) ? rawTurmas : []).map(t => {
+    if (!t || typeof t !== "object") return null;
+    const nome = extrairStringValor(t.nome_turma) || extrairStringValor(t.nome) || extrairStringValor(t.turma) || `Turma ${t.id_turma || t.id || ""}`;
+    const curso = extrairStringValor(t.nome_curso) || extrairStringValor(t.curso) || "";
+    
+    let periodo = extrairStringValor(t.periodo_letivo) ||
+                  extrairStringValor(t.periodo) ||
+                  extrairStringValor(t.ano_letivo) ||
+                  extrairStringValor(t.semestre) ||
+                  "2026.1";
+
+    const norm = normalizar(String(nome) + " " + String(curso) + " " + String(t.nome_unidade_ref || ""));
+    
+    let unidade = t.nome_unidade_ref || "Todas as Unidades";
+    if (norm.includes("TECNICO") || norm.includes("TECSCCI")) {
+      unidade = "TecsCCI Escola Técnica";
+    } else if (norm.includes("FACULDADE") || norm.includes("GRADUACAO") || norm.includes("FAC")) {
+      unidade = "Faculdade CCI";
+    }
+
+    return {
+      id_turma: String(t.id_turma || t.id || t.codigo || ""),
+      nome_turma: String(nome),
+      curso: String(curso),
+      periodo_letivo: String(periodo),
+      unidade: String(unidade),
+      id_unidade: String(t.id_unidade || t.id_unidade_ref || "")
+    };
+  }).filter(Boolean);
+
+  return todasAsTurmas;
+}
+
+function extrairStringValor(val) {
+  if (!val) return "";
+  if (typeof val === "string" || typeof val === "number") return String(val).trim();
+  if (typeof val === "object") {
+    const res = val.disciplina_nome ||
+                val.nome_disciplina ||
+                val.nome_turma ||
+                val.nome ||
+                val.periodo_letivo ||
+                val.periodo ||
+                val.descricao ||
+                val.ano_letivo ||
+                val.ano ||
+                val.semestre ||
+                val.disciplina ||
+                val.titulo ||
+                val.id_disciplina ||
+                val.id ||
+                "";
+    if (res && typeof res === "object") return extrairStringValor(res);
+    return String(res || "").trim();
+  }
+  return "";
+}
+
+function extrairEmailDoObjeto(obj) {
+  if (!obj || typeof obj !== "object") return "";
+  const campos = [
+    obj.email,
+    obj.email_aluno,
+    obj.email_institucional,
+    obj.aluno_email,
+    obj.email_contato,
+    obj.mail,
+    obj.aluno?.email,
+    obj.aluno?.email_aluno,
+    obj.aluno?.email_institucional,
+    obj.dados_aluno?.email,
+    obj.pessoa?.email,
+    obj.usuario?.email
+  ];
+
+  for (const c of campos) {
+    if (typeof c === "string" && c.trim().includes("@")) {
+      return c.trim();
+    }
+  }
+  return "";
+}
+
+async function obterFuncionariosUnidadeIscholar(idUnidade) {
+  const { codigoEscola, token } = obterCredenciaisIscholar();
+  if (!codigoEscola || !token) return [];
+
+  const headers = {
+    "X-Codigo-Escola": codigoEscola,
+    "X-Autorizacao": token,
+    "Content-Type": "application/json"
+  };
+
+  const idU = String(idUnidade || "").trim();
+  const tentativas = [
+    idU ? { url: `https://api.ischolar.app/funcionarios/listar?id_unidade=${idU}`, method: "GET" } : null,
+    idU ? { url: `https://api.ischolar.app/funcionarios/listar?unidade_id=${idU}`, method: "GET" } : null,
+    { url: "https://api.ischolar.app/funcionarios/listar", method: "GET" },
+    { url: "https://api.ischolar.app/funcionarios/listar", method: "POST", body: JSON.stringify({ id_unidade: idU, unidade_id: idU }) },
+    { url: "https://api.ischolar.app/funcionario/listar", method: "GET" },
+    { url: "https://api.ischolar.app/funcionario/lista", method: "GET" },
+    { url: "https://api.ischolar.app/professores/listar", method: "GET" },
+    { url: "https://api.ischolar.app/professor/listar", method: "GET" }
+  ].filter(Boolean);
+
+  for (const item of tentativas) {
+    try {
+      const opts = { method: item.method, headers };
+      if (item.body) opts.body = item.body;
+
+      const result = await safeFetchIscholarJson(item.url, opts);
+      if (result.ok && result.data) {
+        const raw = result.data.dados || result.data.funcionarios || result.data.professores || result.data;
+        const list = Array.isArray(raw) ? raw : (typeof raw === "object" && raw !== null ? Object.values(raw) : []);
+        if (list.length > 0) {
+          console.log(`[ischolar-funcionarios] Encontrados ${list.length} funcionários via: ${item.method} ${item.url}`);
+          return list;
+        }
+      }
+    } catch (e) {
+      console.error(`[ischolar-funcionarios] Erro no endpoint ${item.url}:`, e.message);
+    }
+  }
+
+  return [];
+}
+
+function buscarEmailProfessorPorNomeDirect(nomeProfessor, funcionariosLista) {
+  if (!nomeProfessor || typeof nomeProfessor !== "string" || !nomeProfessor.trim()) {
+    return "";
+  }
+
+  const normalizar = (str) => (str || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+  const targetNorm = normalizar(nomeProfessor);
+
+  // 1. Comparar se o nome do funcionário em /funcionarios/listar é idêntico ao nome_professor
+  for (const f of funcionariosLista) {
+    if (!f || typeof f !== "object") continue;
+    const nomeFunc = extrairStringValor(f.nome || f.nome_funcionario || f.funcionario || f.nome_completo);
+    
+    if (normalizar(nomeFunc) === targetNorm) {
+      let email = extrairEmailDoObjeto(f);
+      if (email) {
+        console.log(`[ischolar-professor] Sucesso! Nome idêntico '${nomeProfessor}' -> E-mail: ${email}`);
+        return email;
+      }
+    }
+  }
+
+  // 2. Tentar busca caso haja variação de acentuação ou caixa
+  for (const f of funcionariosLista) {
+    if (!f || typeof f !== "object") continue;
+    const nomeFunc = extrairStringValor(f.nome || f.nome_funcionario || f.funcionario || f.nome_completo);
+    const funcNorm = normalizar(nomeFunc);
+    if (targetNorm.length > 5 && (funcNorm.includes(targetNorm) || targetNorm.includes(funcNorm))) {
+      let email = extrairEmailDoObjeto(f);
+      if (email) {
+        console.log(`[ischolar-professor] Sucesso (aproximado)! '${nomeProfessor}' ~ '${nomeFunc}' -> E-mail: ${email}`);
+        return email;
+      }
+    }
+  }
+
+  // 3. Fallback institucional se não houver e-mail cadastrado
+  const local = gerarEmailLocalPart(nomeProfessor, "prof");
+  return `${local}@portalcci.com.br`;
+}
+
+function extrairNomeProfessor(d) {
+  if (!d || typeof d !== "object") return "";
+
+  // Primeiro verifica dentro do objeto 'professores' (padrão iScholar)
+  const prof = extrairProfessoresObj(d);
+  if (prof) {
+    const nomeFromProf = extrairStringValor(prof.nome_professor || prof.nome || prof.funcionario || prof.nome_completo);
+    if (nomeFromProf && nomeFromProf.length > 1) return nomeFromProf;
+  }
+
+  // Fallback: campos diretos na disciplina
+  const campos = [
+    d.nome_professor,
+    d.professor_nome,
+    d.nome_docente,
+    d.docente_nome,
+    d.nome_funcionario
+  ];
+
+  for (const c of campos) {
+    const str = extrairStringValor(c);
+    if (str && str.length > 1 && str !== "Disciplina") return str;
+  }
+  return "";
+}
+
+function extrairProfessoresObj(d) {
+  if (!d || typeof d !== "object") return null;
+  // O iScholar retorna o professor dentro de 'professores' (objeto ou array)
+  const p = d.professores;
+  if (!p) return null;
+  if (Array.isArray(p)) return p.length > 0 ? p[0] : null;
+  if (typeof p === "object") return p;
+  return null;
+}
+
+function extrairIdProfessor(d) {
+  if (!d || typeof d !== "object") return "";
+
+  // Primeiro verifica dentro do objeto 'professores' (padrão iScholar)
+  const prof = extrairProfessoresObj(d);
+  if (prof) {
+    const idFromProf = prof.id_professor || prof.id_funcionario || prof.id_usuario || prof.id;
+    if (idFromProf !== undefined && idFromProf !== null) {
+      const val = String(idFromProf).trim();
+      if (val && /^\d+$/.test(val)) return val;
+    }
+  }
+
+  // Fallback: campos diretos na disciplina
+  const candidatos = [
+    d.id_professor,
+    d.professor_id,
+    d.id_funcionario,
+    d.funcionario_id,
+    d.id_usuario,
+    d.id_docente
+  ];
+
+  for (const c of candidatos) {
+    if (c !== undefined && c !== null) {
+      if (typeof c === "number") return String(c);
+      if (typeof c === "string") {
+        const val = c.trim();
+        if (val && /^\d+$/.test(val)) return val;
+      }
+    }
+  }
+  return "";
+}
+
+async function buscarFuncionarioPorIdIscholar(idFuncionario, cacheFuncMap) {
+  if (!idFuncionario || typeof idFuncionario !== "string" || !idFuncionario.trim()) {
+    return { nome: "", email: "" };
+  }
+
+  const key = String(idFuncionario).trim();
+  if (cacheFuncMap && cacheFuncMap.has(key)) {
+    return cacheFuncMap.get(key);
+  }
+
+  const { codigoEscola, token } = obterCredenciaisIscholar();
+  if (!codigoEscola || !token) return { nome: "", email: "" };
+
+  const headers = {
+    "X-Codigo-Escola": codigoEscola,
+    "X-Autorizacao": token,
+    "Content-Type": "application/json"
+  };
+
+  try {
+    const url = `https://api.ischolar.app/funcionarios/busca?id_funcionario=${encodeURIComponent(key)}`;
+    const result = await safeFetchIscholarJson(url, { method: "GET", headers });
+    if (result.ok && result.data) {
+      const d = result.data.dados || result.data.funcionario || result.data;
+      const nome = extrairStringValor(d.nome_funcionario || d.nome || d.funcionario || d.nome_completo || d.usuario_nome);
+      let email = extrairEmailDoObjeto(d) || extrairEmailDoObjeto(result.data);
+
+      if (!email && nome) {
+        const local = gerarEmailLocalPart(nome, key);
+        email = `${local}@portalcci.com.br`;
+      }
+
+      const resObj = { nome, email };
+      if (cacheFuncMap) cacheFuncMap.set(key, resObj);
+      console.log(`[ischolar-funcionario-busca] id_funcionario=${key} -> nome='${nome}', email='${email}'`);
+      return resObj;
+    }
+  } catch (e) {
+    console.error(`[ischolar-funcionario-busca] Erro ao buscar id_funcionario ${key}:`, e.message);
+  }
+
+  return { nome: "", email: "" };
+}
+
+async function obterDisciplinasTurmaIscholar(idTurma, idUnidadeInput = "") {
+  const { codigoEscola, token } = obterCredenciaisIscholar();
+  if (!codigoEscola || !token) {
+    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+  }
+
+  const headers = {
+    "X-Codigo-Escola": codigoEscola,
+    "X-Autorizacao": token,
+    "Content-Type": "application/json"
+  };
+
+  const url = `https://api.ischolar.app/turma/disciplinas?id_turma=${idTurma}`;
+  const result = await safeFetchIscholarJson(url, { method: "GET", headers });
+
+  if (!result.ok || !result.data) {
+    console.error(`[ischolar-disciplinas] Erro ao buscar disciplinas da turma ${idTurma}:`, result.error);
+    return [];
+  }
+
+  const rawDados = result.data.dados || result.data.disciplinas || result.data;
+  const listaDisc = Array.isArray(rawDados) ? rawDados : (typeof rawDados === "object" && rawDados !== null ? Object.values(rawDados) : []);
+
+  if (listaDisc.length > 0) {
+    console.log("[ischolar-disciplinas] Amostra do registro de disciplina:", JSON.stringify(listaDisc[0], null, 2));
+  }
+
+  const cacheFuncMap = new Map();
+
+  const discPromises = (Array.isArray(listaDisc) ? listaDisc : []).map(async (d) => {
+    if (!d || typeof d !== "object") return null;
+
+    let nomeDisc = extrairStringValor(d.disciplina_nome) ||
+                   extrairStringValor(d.nome_disciplina) ||
+                   extrairStringValor(d.nome) ||
+                   extrairStringValor(d.disciplina) ||
+                   extrairStringValor(d.titulo) ||
+                   extrairStringValor(d.descricao) ||
+                   "Disciplina";
+
+    let idDisc = String(d.id_disciplina || d.id || d.disciplina_id || d.codigo_disciplina || d.codigo || "");
+    let codDisc = extrairStringValor(d.codigo_disciplina) || extrairStringValor(d.codigo) || "";
+    let periodo = extrairStringValor(d.periodo_letivo) || extrairStringValor(d.periodo) || extrairStringValor(d.ano_letivo) || "";
+
+    // id_professor da disciplina serve como id_funcionario no iScholar (ex: id 47)
+    let idProf = extrairIdProfessor(d);
+    let nomeProf = extrairNomeProfessor(d); // nome já vem de d.professores.nome_professor
+    let emailProf = extrairEmailDoObjeto(d);
+
+    // Se temos o id_professor, usa /funcionarios/busca apenas para obter o e-mail
+    // (o nome já vem correto do objeto 'professores' na disciplina)
+    if (idProf && !emailProf) {
+      const dadosProf = await buscarFuncionarioPorIdIscholar(idProf, cacheFuncMap);
+      // Só usa o nome do /funcionarios/busca se não tínhamos nome ainda
+      if (!nomeProf && dadosProf.nome) nomeProf = dadosProf.nome;
+      if (dadosProf.email) emailProf = dadosProf.email;
+    }
+
+    // Fallback de e-mail institucional
+    if (nomeProf && !emailProf) {
+      const local = gerarEmailLocalPart(nomeProf, idProf || "prof");
+      emailProf = `${local}@portalcci.com.br`;
+    }
+
+    return {
+      id_disciplina: idDisc,
+      nome_disciplina: nomeDisc,
+      codigo_disciplina: codDisc,
+      periodo_letivo: periodo,
+      id_professor: idProf,
+      nome_professor: nomeProf,
+      email_professor: emailProf
+    };
+  });
+
+  const disciplinas = await Promise.all(discPromises);
+  return disciplinas.filter(Boolean);
+}
+
+async function obterAlunosTurmaIscholar(idTurma) {
+  const { codigoEscola, token } = obterCredenciaisIscholar();
+  if (!codigoEscola || !token) {
+    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+  }
+
+  const headers = {
+    "X-Codigo-Escola": codigoEscola,
+    "X-Autorizacao": token,
+    "Content-Type": "application/json"
+  };
+
+  const url = `https://api.ischolar.app/matricula/listar?id_turma=${idTurma}`;
+  const result = await safeFetchIscholarJson(url, { method: "GET", headers });
+
+  if (!result.ok || !result.data) {
+    console.error(`[ischolar-alunos] Erro ao buscar alunos da turma ${idTurma}:`, result.error);
+    return [];
+  }
+
+  const rawLista = result.data.dados || result.data.matriculas || result.data.alunos || result.data;
+  const lista = Array.isArray(rawLista) ? rawLista : (typeof rawLista === "object" && rawLista !== null ? Object.values(rawLista) : []);
+
+  if (lista.length > 0) {
+    console.log("[ischolar-alunos] Registro de amostra de matricula:", JSON.stringify(lista[0], null, 2));
+  }
+
+  const alunosPromises = (Array.isArray(lista) ? lista : []).map(async (m) => {
+    if (!m || typeof m !== "object") return null;
+
+    const nomeAluno = extrairStringValor(m.nome_aluno || m.aluno || m.nome || m.nome_completo);
+    const idAluno = String(m.id_aluno || m.id || m.aluno_id || "");
+
+    let email = extrairEmailDoObjeto(m);
+
+    // Se o e-mail não veio na listagem da matrícula, busca no perfil do aluno (/aluno/busca)
+    if (!email && idAluno) {
+      try {
+        const resAluno = await safeFetchIscholarJson(`https://api.ischolar.app/aluno/busca?id_aluno=${idAluno}`, { method: "GET", headers });
+        if (resAluno.ok && resAluno.data) {
+          const dAluno = resAluno.data.dados || resAluno.data.aluno || resAluno.data;
+          email = extrairEmailDoObjeto(dAluno) || extrairEmailDoObjeto(resAluno.data);
+        }
+      } catch (e) {
+        console.error(`[ischolar-alunos] Erro ao buscar perfil do aluno ID ${idAluno}:`, e.message);
+      }
+    }
+
+    // Fallback apenas se não existir e-mail cadastrado
+    if (!email && nomeAluno && idAluno) {
+      const isTecnico = (m.nome_turma || m.curso || "").toUpperCase().includes("TECNICO");
+      const dom = isTecnico ? "@tecscci.com.br" : "@portalcci.com.br";
+      const local = gerarEmailLocalPart(nomeAluno, idAluno);
+      email = `${local}${dom}`;
+    }
+
+    return {
+      id_aluno: idAluno,
+      nome_aluno: nomeAluno,
+      email: email
+    };
+  });
+
+  const alunos = await Promise.all(alunosPromises);
+  return alunos.filter(Boolean);
+}
+
+app.get("/api/ti/ischolar/debug-turmas", async (req, res) => {
+  try {
+    const { codigoEscola, token } = obterCredenciaisIscholar();
+    if (!codigoEscola || !token) {
+      return res.status(400).json({
+        ok: false,
+        error: "Credenciais do iScholar ausentes no ambiente. Defina ISCHOLAR_CODIGO_ESCOLA e ISCHOLAR_TOKEN no server/.env."
+      });
+    }
+
+    const headers = {
+      "X-Codigo-Escola": codigoEscola,
+      "X-Autorizacao": token,
+      "Content-Type": "application/json"
+    };
+
+    // ID de turma vindo na querystring ou detectado dinamicamente
+    let idTurmaExemplo = req.query.id_turma ? String(req.query.id_turma) : "";
+    if (!idTurmaExemplo) {
+      try {
+        const resTurmas = await safeFetchIscholarJson("https://api.ischolar.app/turma/lista?unidade_id=1", { method: "GET", headers });
+        if (resTurmas.ok && resTurmas.data) {
+          const list = resTurmas.data.dados || resTurmas.data.turmas || resTurmas.data;
+          if (Array.isArray(list) && list.length > 0 && (list[0].id_turma || list[0].id)) {
+            idTurmaExemplo = String(list[0].id_turma || list[0].id);
+          }
+        }
+      } catch (e) {}
+    }
+    if (!idTurmaExemplo) idTurmaExemplo = "1052";
+
+    let idFuncionarioExemplo = req.query.id_funcionario ? String(req.query.id_funcionario) : "1";
+
+    const testes = [
+      { url: "https://api.ischolar.app/unidades/listar_unidades", method: "GET" },
+      { url: "https://api.ischolar.app/turma/lista?unidade_id=1", method: "GET" },
+      { url: `https://api.ischolar.app/turma/disciplinas?id_turma=${idTurmaExemplo}`, method: "GET" },
+      { url: `https://api.ischolar.app/funcionarios/busca?id_funcionario=${idFuncionarioExemplo}`, method: "GET" },
+      { url: "https://api.ischolar.app/funcionarios/listar", method: "GET" }
+    ];
+
+    const resultados = [];
+
+    for (const t of testes) {
+      try {
+        const opts = { method: t.method, headers };
+        if (t.body) opts.body = t.body;
+
+        const response = await fetch(t.url, opts);
+        const text = await response.text();
+
+        let jsonParsed = null;
+        try { jsonParsed = JSON.parse(text); } catch (e) {}
+
+        resultados.push({
+          url: t.url,
+          method: t.method,
+          status: response.status,
+          statusText: response.statusText,
+          bodyLength: text ? text.length : 0,
+          isJson: !!jsonParsed,
+          jsonSnippet: jsonParsed ? jsonParsed : text.slice(0, 300)
+        });
+      } catch (e) {
+        resultados.push({
+          url: t.url,
+          method: t.method,
+          error: e.message
+        });
+      }
+    }
+
+    return res.json({
+      ok: true,
+      credenciaisConfiguradas: {
+        codigoEscola: codigoEscola ? `${codigoEscola.slice(0, 3)}***` : "AUSENTE",
+        tokenPresente: !!token
+      },
+      idTurmaTestada: idTurmaExemplo,
+      resultados
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/ti/ischolar/turmas", async (req, res) => {
+  try {
+    const turmas = await obterTurmasIscholar();
+    return res.json({ ok: true, turmas });
+  } catch (e) {
+    console.error("[ischolar-turmas] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/ti/ischolar/turmas/:idTurma/disciplinas", async (req, res) => {
+  try {
+    const { idTurma } = req.params;
+    const { idUnidade } = req.query || {};
+    const disciplinas = await obterDisciplinasTurmaIscholar(idTurma, idUnidade);
+    const mapeamentos = lerMapeamentosClassroom();
+    return res.json({ ok: true, disciplinas, mapeamentos });
+  } catch (e) {
+    console.error("[ischolar-disciplinas] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Endpoint de diagnóstico: retorna dados crus e processados para uma turma/disciplina
+app.get("/api/ti/ischolar/debug-disciplina/:idTurma", async (req, res) => {
+  try {
+    const { idTurma } = req.params;
+    const { codigoEscola, token } = obterCredenciaisIscholar();
+    if (!codigoEscola || !token) return res.status(400).json({ error: "Sem credenciais" });
+
+    const headers = {
+      "X-Codigo-Escola": codigoEscola,
+      "X-Autorizacao": token,
+      "Content-Type": "application/json"
+    };
+
+    // 1. Raw do endpoint de disciplinas
+    const rawResp = await fetch(`https://api.ischolar.app/turma/disciplinas?id_turma=${idTurma}`, { method: "GET", headers });
+    const rawText = await rawResp.text();
+    let rawJson = null;
+    try { rawJson = JSON.parse(rawText); } catch (e) {}
+
+    // 2. Resultado processado pela função
+    const disciplinasProcessadas = await obterDisciplinasTurmaIscholar(idTurma);
+
+    // 3. Para a disc 490 (ou a primeira), testar a busca de funcionário diretamente
+    const primeiraDisc = disciplinasProcessadas[0] || null;
+    let testeFuncionario = null;
+    if (primeiraDisc && primeiraDisc.id_professor) {
+      const urlFunc = `https://api.ischolar.app/funcionarios/busca?id_funcionario=${primeiraDisc.id_professor}`;
+      const funcResp = await fetch(urlFunc, { method: "GET", headers });
+      const funcText = await funcResp.text();
+      try { testeFuncionario = { url: urlFunc, status: funcResp.status, data: JSON.parse(funcText) }; } catch (e) {
+        testeFuncionario = { url: urlFunc, status: funcResp.status, text: funcText.slice(0, 300) };
+      }
+    }
+
+    return res.json({
+      ok: true,
+      idTurma,
+      raw_ischolar: rawJson || rawText.slice(0, 500),
+      disciplinas_processadas: disciplinasProcessadas,
+      teste_funcionario: testeFuncionario
+    });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/ti/ischolar/turmas/:idTurma/alunos", async (req, res) => {
+  try {
+    const { idTurma } = req.params;
+    const alunos = await obterAlunosTurmaIscholar(idTurma);
+    return res.json({ ok: true, alunos });
+  } catch (e) {
+    console.error("[ischolar-alunos] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.get("/api/ti/google-classroom/mapeamento", (req, res) => {
+  const mapeamentos = lerMapeamentosClassroom();
+  return res.json({ ok: true, mapeamentos });
+});
+
+async function criarGoogleClassroomClientAuth() {
+  const credentials = getServiceAccountCredentials();
+  if (!credentials) {
+    throw new Error("Credenciais do Google não configuradas no servidor.");
+  }
+
+  // 1. Tentativa com escopos de cursos e listas usando o e-mail delegado oficial dev.fac@portalcci.com.br
+  try {
+    const auth1 = new google.auth.JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
+      scopes: [
+        "https://www.googleapis.com/auth/classroom.courses",
+        "https://www.googleapis.com/auth/classroom.rosters"
+      ],
+      subject: "dev.fac@portalcci.com.br",
+    });
+    await auth1.authorize();
+    return google.classroom({ version: "v1", auth: auth1 });
+  } catch (e1) {
+    console.warn("[google-classroom-auth] Falha na delegação de rosters, alternando para courses:", e1.message);
+  }
+
+  // 2. Tentativa com o escopo primário classroom.courses
+  const auth2 = new google.auth.JWT({
+    email: credentials.client_email,
+    key: credentials.private_key,
+    scopes: ["https://www.googleapis.com/auth/classroom.courses"],
+    subject: "dev.fac@portalcci.com.br",
+  });
+  await auth2.authorize();
+  return google.classroom({ version: "v1", auth: auth2 });
+}
+
+app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) => {
+  try {
+    const { idToken, idTurma, periodoLetivo, disciplinas } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    if (!idTurma || !disciplinas || !Array.isArray(disciplinas) || disciplinas.length === 0) {
+      return res.status(400).json({ error: "idTurma e lista de disciplinas são obrigatórios." });
+    }
+
+    const classroom = await criarGoogleClassroomClientAuth();
+    const mapeamentos = lerMapeamentosClassroom();
+    const resultados = [];
+
+    const periodoFormatado = String(periodoLetivo || "2026.1").trim();
+
+    for (const disc of disciplinas) {
+      const idDisc = String(disc.id_disciplina || disc.id).trim();
+      const nomeDisc = String(disc.nome_disciplina || disc.nome).trim();
+      const nomeProf = String(disc.nome_professor || disc.professor || "").trim();
+      const emailProf = String(disc.email_professor || disc.professor_email || "").trim();
+      const chaveMapeamento = `${idTurma}_${idDisc}`;
+
+      // Padrão de Nomenclatura Solicitado: [Nome da Disciplina] - [Periodo Letivo]
+      const nomeSalaClassroom = `${nomeDisc} - ${periodoFormatado}`;
+
+      try {
+        const response = await classroom.courses.create({
+          requestBody: {
+            name: nomeSalaClassroom,
+            section: nomeProf || "Sem Docente Definido",
+            ownerId: "me",
+            courseState: "ACTIVE",
+          },
+        });
+
+        let profEnsalado = false;
+        let avisoProfessor = null;
+
+        if (emailProf && emailProf.includes("@")) {
+          try {
+            await classroom.courses.teachers.create({
+              courseId: response.data.id,
+              requestBody: {
+                userId: emailProf
+              }
+            });
+            profEnsalado = true;
+            console.log(`[classroom-professor] Professor ${emailProf} ensalado como docente da sala ${response.data.id}`);
+          } catch (errProf) {
+            const msgErrProf = errProf.response?.data?.error?.message || errProf.message;
+            console.error(`[classroom-professor] Aviso/Erro de permissão ao adicionar docente ${emailProf}:`, msgErrProf);
+            avisoProfessor = `Permissão insuficiente no Google Workspace para adicionar docente (${emailProf}): ${msgErrProf}`;
+          }
+        }
+
+        const dadosCriacao = {
+          google_course_id: response.data.id,
+          google_course_name: response.data.name,
+          alternateLink: response.data.alternateLink,
+          id_turma: String(idTurma),
+          id_disciplina: idDisc,
+          nome_disciplina: nomeDisc,
+          periodo_letivo: periodoFormatado,
+          id_professor: disc.id_professor || "",
+          nome_professor: nomeProf,
+          email_professor: emailProf,
+          professor_ensalado: profEnsalado,
+          aviso_professor: avisoProfessor,
+          created_at: new Date().toISOString()
+        };
+
+        mapeamentos[chaveMapeamento] = dadosCriacao;
+        resultados.push({ ...dadosCriacao, status: "sucesso" });
+      } catch (errDisc) {
+        console.error(`[google-classroom-create-disc] Erro ao criar disciplina ${nomeDisc}:`, errDisc);
+        const errMsg = errDisc.response?.data?.error?.message || errDisc.message;
+        resultados.push({
+          id_disciplina: idDisc,
+          nome_disciplina: nomeDisc,
+          status: "erro",
+          erro: errMsg
+        });
+      }
+    }
+
+    salvarMapeamentosClassroom(mapeamentos);
+
+    const sucessos = resultados.filter(r => r.status === "sucesso");
+    const erros = resultados.filter(r => r.status === "erro");
+
+    if (sucessos.length === 0 && erros.length > 0) {
+      const primeiroErro = erros[0].erro || "Erro ao criar salas no Google Classroom.";
+      return res.status(400).json({
+        ok: false,
+        error: `Falha na criação no Google Classroom: ${primeiroErro}`,
+        criadas: resultados,
+        mapeamentos
+      });
+    }
+
+    return res.json({
+      ok: true,
+      criadas: resultados,
+      mapeamentos
+    });
+  } catch (e) {
+    console.error("[google-classroom-criar-salas-disciplinas] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
+  try {
+    const { idToken, idTurma } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    if (!idTurma) {
+      return res.status(400).json({ error: "idTurma é obrigatório." });
+    }
+
+    const mapeamentos = lerMapeamentosClassroom();
+    const prefixo = `${idTurma}_`;
+    const salasMapeadas = Object.keys(mapeamentos)
+      .filter(k => k.startsWith(prefixo))
+      .map(k => mapeamentos[k]);
+
+    if (salasMapeadas.length === 0) {
+      return res.status(400).json({
+        error: `Nenhuma sala do Google Classroom foi criada/mapeada para a Turma ID ${idTurma} ainda. Crie as salas das disciplinas primeiro.`
+      });
+    }
+
+    const alunos = await obterAlunosTurmaIscholar(idTurma);
+    if (alunos.length === 0) {
+      return res.status(400).json({ error: `Nenhum aluno encontrado para a Turma ID ${idTurma} no iScholar.` });
+    }
+
+    const classroom = await criarGoogleClassroomClientAuth();
+
+    const relatorio = {
+      totalAlunos: alunos.length,
+      totalSalas: salasMapeadas.length,
+      sucessos: 0,
+      jaMatriculados: 0,
+      falhas: 0,
+      detalhes: []
+    };
+
+    for (const aluno of alunos) {
+      const emailAluno = aluno.email;
+      if (!emailAluno) continue;
+
+      for (const sala of salasMapeadas) {
+        try {
+          await classroom.courses.students.create({
+            courseId: sala.google_course_id,
+            requestBody: {
+              userId: emailAluno
+            }
+          });
+
+          relatorio.sucessos++;
+          relatorio.detalhes.push({
+            aluno: aluno.nome_aluno,
+            email: emailAluno,
+            sala: sala.google_course_name,
+            status: "matriculado"
+          });
+        } catch (errStudent) {
+          const status = errStudent.response?.status;
+          const msg = errStudent.response?.data?.error?.message || errStudent.message;
+
+          if (status === 409 || (msg && msg.includes("already exists"))) {
+            relatorio.jaMatriculados++;
+            relatorio.detalhes.push({
+              aluno: aluno.nome_aluno,
+              email: emailAluno,
+              sala: sala.google_course_name,
+              status: "ja_existia"
+            });
+          } else {
+            relatorio.falhas++;
+            relatorio.detalhes.push({
+              aluno: aluno.nome_aluno,
+              email: emailAluno,
+              sala: sala.google_course_name,
+              status: "erro",
+              erro: msg
+            });
+          }
+        }
+        await new Promise(r => setTimeout(r, 150));
+      }
+    }
+
+    return res.json({
+      ok: true,
+      relatorio
+    });
+  } catch (e) {
+    console.error("[google-classroom-ensalar-turma] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+
 
 // ─── Mapeamento server-side: setor a partir dos papeis ──────────────────────
 
