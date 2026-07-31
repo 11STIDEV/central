@@ -2,6 +2,7 @@ import {
   isCcipayAdmin,
   isCcipayDp,
   isCcipayLancador,
+  isCcipayModuloLiberado,
   isOperadorLoja,
   isOperadorParceiro,
   lojasDoLogin,
@@ -65,6 +66,25 @@ export function registerCcipayRoutes(app, helpers) {
   async function ctxFromRequest(req) {
     return resolverContextoFromRequest(req);
   }
+
+  app.use("/api/ccipay", async (req, res, next) => {
+    if (req.path.startsWith("/parceiro")) return next();
+    try {
+      const parceiro = getParceiroFromRequest(req);
+      if (parceiro) return next();
+      const ctx = await ctxFromRequest(req);
+      if (!isCcipayModuloLiberado(ctx.papeis)) {
+        return res.status(403).json({
+          error: "Advance-CCI em revisão. Acesso liberado apenas para administradores de papéis.",
+        });
+      }
+      next();
+    } catch (e) {
+      if (e.status) return respostaErroIdToken(res, e);
+      const msg = e instanceof Error ? e.message : String(e);
+      return res.status(500).json({ error: msg });
+    }
+  });
 
   async function ctxOrParceiro(req) {
     const parceiro = getParceiroFromRequest(req);

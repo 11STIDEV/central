@@ -126,10 +126,6 @@ export function hasRoleAccessToRoute(papeis: Papel[], pathname: string, email?: 
     return podeAcessoRotasSenhas(papeis, pathname, email);
   }
 
-  if (path.startsWith("/cci-pay/pagar/")) {
-    return true;
-  }
-
   if (path === "/chamados/gestao") {
     return papeis.includes("admin");
   }
