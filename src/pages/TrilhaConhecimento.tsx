@@ -9,6 +9,7 @@ import {
   USER_PROGRESS_MOCK,
   getNivelInfo,
   type UserProgress,
+  obterMedalhaTempoUsuario,
 } from "@/data/trilhasMock";
 import { TrilhaCard } from "@/components/trilha/TrilhaCard";
 import { XPBar } from "@/components/trilha/XPBar";
@@ -21,6 +22,7 @@ export default function TrilhaConhecimento() {
   const [progress] = useState<UserProgress>(USER_PROGRESS_MOCK);
 
   const { atual } = getNivelInfo(progress.xpTotal);
+  const medalhaTempo = obterMedalhaTempoUsuario(progress.anosDeEmpresa ?? 3);
 
   // Find next recommended mission
   const proximaMissao = (() => {
@@ -72,7 +74,18 @@ export default function TrilhaConhecimento() {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Bem-vindo de volta,</p>
-                  <h1 className="text-xl font-bold text-foreground">{primeiroNome}! {atual.icone}</h1>
+                  <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
+                    <span>{primeiroNome}!</span>
+                    {medalhaTempo && (
+                      <img
+                        src={`${medalhaTempo.icone}?v=2`}
+                        alt={medalhaTempo.nome}
+                        title={`${medalhaTempo.nome}: ${medalhaTempo.descricao}`}
+                        className="h-6 w-6 object-contain inline-block hover:scale-110 transition-transform duration-200"
+                      />
+                    )}
+                    <span className="text-lg">{atual.icone}</span>
+                  </h1>
                 </div>
               </div>
 
@@ -85,8 +98,8 @@ export default function TrilhaConhecimento() {
             <div className="flex flex-wrap gap-3 md:gap-4">
               <StatChip
                 icon={<Flame className="h-4 w-4 text-orange-400" />}
-                label="Streak"
-                value={`${progress.streakDias}d`}
+                label="Ofensiva"
+                value={`${progress.ofensivaDias}d`}
                 glow="orange"
               />
               <StatChip
@@ -225,7 +238,7 @@ export default function TrilhaConhecimento() {
                   <p className="text-xs font-semibold text-indigo-400 mb-1">Dica do dia</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Faça pelo menos <strong className="text-foreground">uma missão por dia</strong> para
-                    manter seu streak ativo e multiplicar seu XP semanal!
+                    manter sua ofensiva ativa e multiplicar seu XP semanal!
                   </p>
                 </div>
               </div>
@@ -238,7 +251,7 @@ export default function TrilhaConhecimento() {
               </h3>
               <XPBar xpTotal={progress.xpTotal} />
               <div className="grid grid-cols-2 gap-2 pt-2">
-                <MiniStat label="Streak" value={`🔥 ${progress.streakDias} dias`} />
+                <MiniStat label="Ofensiva" value={`🔥 ${progress.ofensivaDias} dias`} />
                 <MiniStat label="Missões" value={`✅ ${progress.missoesCompletas}`} />
                 <MiniStat
                   label="Badges"

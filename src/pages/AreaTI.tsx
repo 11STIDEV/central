@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHero } from "@/components/PageHero";
-import { BookOpen, Key, Eye, EyeOff, Copy, Search, Plus, Lock, School, Upload, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { BookOpen, Key, Eye, EyeOff, Copy, Search, Plus, Lock, School, Upload, CheckCircle2, XCircle, Loader2, Users, RefreshCw, AlertCircle, Check } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { apiUrl } from "@/lib/apiBase";
 
@@ -43,11 +43,32 @@ export default function AreaTI() {
   const [search, setSearch] = useState("");
   const [selectedTutorial, setSelectedTutorial] = useState<number | null>(null);
 
-  // Estados para criação automática de turmas no Google Classroom
+  // Sub-aba do Classroom: "ischolar" (Automação iScholar) vs "manual" (CSV legado)
+  const [classroomSubTab, setClassroomSubTab] = useState<"ischolar" | "manual">("ischolar");
+
+  // Estados para criação por CSV legado
   const [coursesList, setCoursesList] = useState<Array<{ name: string; teacher: string; status: "pending" | "processing" | "success" | "error"; errorMsg?: string; classroomLink?: string }>>([]);
   const [isProcessingCourses, setIsProcessingCourses] = useState(false);
   const [currentProcessingIndex, setCurrentProcessingIndex] = useState<number | null>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  // Estados para Ensalamento Automático iScholar
+  const [selectedUnidade, setSelectedUnidade] = useState<"Todas as Unidades" | "Faculdade CCI" | "TecsCCI Escola Técnica">("Todas as Unidades");
+  const [turmasIscholar, setTurmasIscholar] = useState<Array<{ id_turma: string; nome_turma: string; curso: string; periodo_letivo: string; unidade: string }>>([]);
+  const [selectedTurmaId, setSelectedTurmaId] = useState<string>("");
+  const [disciplinasTurma, setDisciplinasTurma] = useState<Array<{ id_disciplina: string; nome_disciplina: string; codigo_disciplina: string; periodo_letivo: string; id_professor?: string; nome_professor?: string; email_professor?: string }>>([]);
+  const [alunosTurma, setAlunosTurma] = useState<Array<{ id_aluno: string; nome_aluno: string; email: string }>>([]);
+  const [mapeamentos, setMapeamentos] = useState<Record<string, any>>({});
+  
+  const [isLoadingTurmas, setIsLoadingTurmas] = useState(false);
+  const [isLoadingDisciplinas, setIsLoadingDisciplinas] = useState(false);
+  const [isCreatingSalas, setIsCreatingSalas] = useState(false);
+  const [isEnsalando, setIsEnsalando] = useState(false);
+  const [relatorioEnsalamento, setRelatorioEnsalamento] = useState<any | null>(null);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [errorMsgIscholar, setErrorMsgIscholar] = useState<string | null>(null);
+  const [debugResults, setDebugResults] = useState<any | null>(null);
+  const [isDebuging, setIsDebuging] = useState(false);
 
   const parseCSV = (text: string) => {
     const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
@@ -120,6 +141,10 @@ export default function AreaTI() {
 
   const startCreation = async () => {
     if (coursesList.length === 0) return;
+    if (!googleIdToken) {
+      alert("Atenção: É necessário estar autenticado com uma conta do Google para criar turmas no Google Classroom. Por favor, faça login usando o botão do Google no topo da página.");
+      return;
+    }
     setIsProcessingCourses(true);
     
     const updated = [...coursesList];
@@ -178,6 +203,181 @@ export default function AreaTI() {
     link.download = "modelo_classroom.xlsx";
     link.click();
   };
+
+  const safeFetchJson = async (url: string, options?: RequestInit) => {
+    try {
+      const res = await fetch(url, options);
+      const text = await res.text();
+      if (!text || !text.trim()) {
+        return { ok: res.ok, json: { error: `Resposta vazia do servidor (HTTP ${res.status}).` } };
+      }
+      try {
+        const json = JSON.parse(text);
+        return { ok: res.ok, json };
+      } catch (e) {
+        return { ok: false, json: { error: `Erro no formato de resposta: ${text.slice(0, 150)}` } };
+      }
+    } catch (e: any) {
+      return { ok: false, json: { error: e.message || "Falha na conexão de rede." } };
+    }
+  };
+
+  const executarDiagnosticoIscholar = async () => {
+    setIsDebuging(true);
+    setDebugResults(null);
+    try {
+      const { ok, json } = await safeFetchJson(apiUrl("/api/ti/ischolar/debug-turmas"));
+      setDebugResults(json);
+    } catch (e: any) {
+      setDebugResults({ error: e.message });
+    } finally {
+      setIsDebuging(false);
+    }
+  };
+
+  const carregarTurmasIscholar = async () => {
+    setIsLoadingTurmas(true);
+    setErrorMsgIscholar(null);
+    try {
+      const { ok, json } = await safeFetchJson(apiUrl("/api/ti/ischolar/turmas"));
+      if (ok && json.ok) {
+        setTurmasIscholar(json.turmas || []);
+      } else {
+        setErrorMsgIscholar(json.error || "Falha ao buscar turmas no iScholar.");
+      }
+    } catch (e: any) {
+      setErrorMsgIscholar(e.message || "Erro de conexão ao carregar turmas.");
+    } finally {
+      setIsLoadingTurmas(false);
+    }
+  };
+
+  const selecionarTurma = async (idTurma: string) => {
+    setSelectedTurmaId(idTurma);
+    setDisciplinasTurma([]);
+    setAlunosTurma([]);
+    setRelatorioEnsalamento(null);
+    setStatusMsg(null);
+    if (!idTurma) return;
+
+    setIsLoadingDisciplinas(true);
+    setErrorMsgIscholar(null);
+    try {
+      const turmaAtual = turmasIscholar.find(t => t.id_turma === idTurma);
+      const idUnidade = turmaAtual?.id_unidade || "";
+      const urlDisc = apiUrl(`/api/ti/ischolar/turmas/${idTurma}/disciplinas${idUnidade ? `?idUnidade=${encodeURIComponent(idUnidade)}` : ""}`);
+
+      const [resDisc, resAlu] = await Promise.all([
+        safeFetchJson(urlDisc),
+        safeFetchJson(apiUrl(`/api/ti/ischolar/turmas/${idTurma}/alunos`))
+      ]);
+
+      if (resDisc.ok && resDisc.json.ok) {
+        const discArray = resDisc.json.disciplinas || [];
+        console.log("[DEBUG-AreaTI] Disciplinas recebidas do backend:", JSON.stringify(discArray.slice(0, 3), null, 2));
+        setDisciplinasTurma(discArray);
+        if (resDisc.json.mapeamentos) {
+          setMapeamentos(resDisc.json.mapeamentos);
+        }
+      } else if (resDisc.json.error) {
+        setErrorMsgIscholar(resDisc.json.error);
+      }
+
+      if (resAlu.ok && resAlu.json.ok) {
+        setAlunosTurma(resAlu.json.alunos || []);
+      }
+    } catch (e: any) {
+      setErrorMsgIscholar(e.message || "Erro ao carregar detalhes da turma.");
+    } finally {
+      setIsLoadingDisciplinas(false);
+    }
+  };
+
+  const handleCriarSalasDisciplinas = async () => {
+    if (!selectedTurmaId || disciplinasTurma.length === 0) return;
+    if (!googleIdToken) {
+      alert("Atenção: É necessário estar autenticado com uma conta do Google para criar salas no Google Classroom.");
+      return;
+    }
+    setIsCreatingSalas(true);
+    setStatusMsg("Criando salas das disciplinas no Google Classroom...");
+    setErrorMsgIscholar(null);
+
+    const turmaAtual = turmasIscholar.find(t => t.id_turma === selectedTurmaId);
+    const periodoLetivo = turmaAtual?.periodo_letivo || "2026.1";
+
+    try {
+      const { ok, json } = await safeFetchJson(apiUrl("/api/ti/google-classroom/criar-salas-disciplinas"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken: googleIdToken,
+          idTurma: selectedTurmaId,
+          periodoLetivo: periodoLetivo,
+          disciplinas: disciplinasTurma
+        })
+      });
+      if (ok && json.ok) {
+        setMapeamentos(json.mapeamentos || {});
+        const criadas = json.criadas || [];
+        const sucessos = criadas.filter((c: any) => c.status === "sucesso");
+        const erros = criadas.filter((c: any) => c.status === "erro");
+
+        if (erros.length > 0) {
+          const detalhe = erros.map((e: any) => `${e.nome_disciplina}: ${e.erro || 'Falha'}`).join(" | ");
+          setErrorMsgIscholar(`Atenção: ${sucessos.length} salas criadas, mas ${erros.length} apresentaram erro: ${detalhe}`);
+        } else {
+          setStatusMsg(`Sucesso! ${sucessos.length} salas criadas e mapeadas no Google Classroom!`);
+        }
+      } else {
+        setErrorMsgIscholar(json.error || "Erro ao criar salas no Google Classroom.");
+      }
+    } catch (e: any) {
+      setErrorMsgIscholar(e.message || "Erro de rede ao criar salas.");
+    } finally {
+      setIsCreatingSalas(false);
+    }
+  };
+
+  const handleEnsalarAlunosTurma = async () => {
+    if (!selectedTurmaId) return;
+    if (!googleIdToken) {
+      alert("Atenção: É necessário estar autenticado com uma conta do Google para ensalar os alunos.");
+      return;
+    }
+
+    setIsEnsalando(true);
+    setStatusMsg("Matriculando alunos nas salas de aula do Google Classroom...");
+    setErrorMsgIscholar(null);
+    setRelatorioEnsalamento(null);
+
+    try {
+      const { ok, json } = await safeFetchJson(apiUrl("/api/ti/google-classroom/ensalar-turma"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken: googleIdToken,
+          idTurma: selectedTurmaId
+        })
+      });
+      if (ok && json.ok) {
+        setRelatorioEnsalamento(json.relatorio);
+        setStatusMsg("Ensalamento concluído com sucesso!");
+      } else {
+        setErrorMsgIscholar(json.error || "Erro ao realizar o ensalamento.");
+      }
+    } catch (e: any) {
+      setErrorMsgIscholar(e.message || "Erro de comunicação no ensalamento.");
+    } finally {
+      setIsEnsalando(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === "classroom" && classroomSubTab === "ischolar" && turmasIscholar.length === 0) {
+      carregarTurmasIscholar();
+    }
+  }, [tab, classroomSubTab]);
 
 
   const togglePassword = (id: number) => {
@@ -333,169 +533,573 @@ export default function AreaTI() {
 
         {tab === "classroom" && (
           <div className="space-y-6 animate-fade-in">
-            {coursesList.length === 0 ? (
-              <div
-                onDragEnter={handleDrag}
-                onDragOver={handleDrag}
-                onDragLeave={handleDrag}
-                onDrop={handleDrop}
-                className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 transition-all ${
-                  dragActive ? "border-primary bg-primary/5" : "border-border bg-card"
+            {/* Sub-navegação dentro do Classroom */}
+            <div className="flex gap-2 border-b border-border pb-3">
+              <button
+                onClick={() => setClassroomSubTab("ischolar")}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                  classroomSubTab === "ischolar"
+                    ? "bg-primary text-primary-foreground shadow"
+                    : "bg-card border border-border text-muted-foreground hover:bg-muted"
                 }`}
               >
-                <Upload className="mb-4 h-12 w-12 text-muted-foreground" />
-                <p className="text-sm font-semibold text-card-foreground">
-                  Selecione ou arraste o arquivo CSV das turmas
-                </p>
-                <p className="mt-1 text-xs text-muted-foreground text-center max-w-md">
-                  O CSV deve conter cabeçalhos identificando o nome da turma e o nome do professor (que será adicionado no campo "seção"). Delimitadores suportados: vírgula (,) ou ponto e vírgula (;).
-                </p>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={(e) => e.target.files && handleFile(e.target.files[0])}
-                  className="hidden"
-                  id="csv-file-input"
-                />
-                <div className="mt-6 flex flex-wrap gap-3 justify-center">
-                  <button
-                    onClick={() => document.getElementById("csv-file-input")?.click()}
-                    className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90 hover:scale-[1.01]"
-                  >
-                    Selecionar Arquivo
-                  </button>
-                  <button
-                    onClick={downloadTemplateExcel}
-                    className="rounded-lg border border-border bg-card px-5 py-2 text-sm font-semibold text-card-foreground shadow-sm transition-all hover:bg-muted"
-                  >
-                    Baixar Modelo Excel (.xlsx)
-                  </button>
+                <School className="h-4 w-4" />
+                Ensalamento Automático (iScholar)
+              </button>
+              <button
+                onClick={() => setClassroomSubTab("manual")}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                  classroomSubTab === "manual"
+                    ? "bg-primary text-primary-foreground shadow"
+                    : "bg-card border border-border text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <Upload className="h-4 w-4" />
+                Criação por Planilha CSV (Manual)
+              </button>
+            </div>
+
+            {!googleIdToken && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200 text-sm flex items-center gap-3 shadow-sm">
+                <Lock className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                <div>
+                  <p className="font-semibold">Autenticação do Google requerida</p>
+                  <p className="text-xs opacity-90">
+                    Você não está autenticado com uma conta do Google. Faça login no canto superior direito do site antes de executar as ações do Classroom.
+                  </p>
                 </div>
               </div>
-            ) : (
-              <div className="rounded-xl border border-border bg-card p-6 shadow-card">
-                <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-lg font-bold text-card-foreground">Turmas Carregadas</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Revise a lista abaixo antes de iniciar o processo de criação automática.
-                    </p>
+            )}
+
+            {/* ABAS DO ISCHOLAR */}
+            {classroomSubTab === "ischolar" && (
+              <div className="space-y-6">
+                {/* Filtro de Unidade Escolar */}
+                <div className="rounded-xl border border-border bg-card p-6 shadow-card space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-base font-bold text-card-foreground">1. Selecionar Unidade Escolar & Turma</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Escopo exclusivo para a Faculdade CCI e TecsCCI Escola Técnica.
+                      </p>
+                    </div>
+
+                    {/* Selector de Unidade */}
+                    <div className="flex rounded-lg border border-border bg-muted p-1 gap-1">
+                      <button
+                        onClick={() => { setSelectedUnidade("Todas as Unidades" as any); setSelectedTurmaId(""); setDisciplinasTurma([]); setAlunosTurma([]); }}
+                        className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                          selectedUnidade === ("Todas as Unidades" as any) ? "bg-card text-card-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Todas as Unidades
+                      </button>
+                      <button
+                        onClick={() => { setSelectedUnidade("Faculdade CCI"); setSelectedTurmaId(""); setDisciplinasTurma([]); setAlunosTurma([]); }}
+                        className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                          selectedUnidade === "Faculdade CCI" ? "bg-card text-card-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        Faculdade CCI
+                      </button>
+                      <button
+                        onClick={() => { setSelectedUnidade("TecsCCI Escola Técnica"); setSelectedTurmaId(""); setDisciplinasTurma([]); setAlunosTurma([]); }}
+                        className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-all ${
+                          selectedUnidade === "TecsCCI Escola Técnica" ? "bg-card text-card-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        TecsCCI Escola Técnica
+                      </button>
+                    </div>
                   </div>
-                  
-                  <div className="flex gap-2">
-                    <button
-                      disabled={isProcessingCourses}
-                      onClick={() => setCoursesList([])}
-                      className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-muted disabled:opacity-50"
-                    >
-                      Limpar / Voltar
-                    </button>
-                    <button
-                      disabled={isProcessingCourses || coursesList.length === 0}
-                      onClick={startCreation}
-                      className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow transition-all hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      {isProcessingCourses ? (
-                        <>
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          Criando Turmas...
-                        </>
-                      ) : (
-                        "Iniciar Criação"
-                      )}
-                    </button>
+
+                  {/* Seletor de Turmas do iScholar & Campo de Busca por ID Direto */}
+                  <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+                    <div className="flex-1">
+                      <select
+                        value={selectedTurmaId}
+                        onChange={(e) => selecionarTurma(e.target.value)}
+                        disabled={isLoadingTurmas}
+                        className="w-full rounded-lg border border-input bg-card py-2.5 px-3 text-sm font-medium text-card-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20 disabled:opacity-50"
+                      >
+                        <option value="">
+                          -- Selecione uma turma ({selectedUnidade === ("Todas as Unidades" as any) ? turmasIscholar.length : turmasIscholar.filter(t => t.unidade === selectedUnidade).length} encontrada(s)) --
+                        </option>
+                        {(selectedUnidade === ("Todas as Unidades" as any) ? turmasIscholar : turmasIscholar.filter(t => t.unidade === selectedUnidade))
+                          .map((t) => (
+                            <option key={t.id_turma} value={t.id_turma}>
+                              {t.nome_turma} {t.curso ? `(${t.curso})` : ""} — Período: {t.periodo_letivo} (ID: {t.id_turma})
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder="Digitar ID da Turma..."
+                        value={selectedTurmaId}
+                        onChange={(e) => setSelectedTurmaId(e.target.value)}
+                        className="w-36 rounded-lg border border-input bg-card py-2 px-3 text-sm font-mono text-card-foreground focus:border-primary focus:outline-none"
+                      />
+                      <button
+                        onClick={() => selecionarTurma(selectedTurmaId)}
+                        disabled={!selectedTurmaId || isLoadingDisciplinas}
+                        className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        Buscar ID
+                      </button>
+                      <button
+                        onClick={carregarTurmasIscholar}
+                        disabled={isLoadingTurmas}
+                        className="flex items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-3 py-2 text-xs font-medium text-card-foreground shadow-sm hover:bg-muted disabled:opacity-50"
+                        title="Atualizar lista do iScholar"
+                      >
+                        {isLoadingTurmas ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                        Atualizar Lista
+                      </button>
+                      <button
+                        onClick={executarDiagnosticoIscholar}
+                        disabled={isDebuging}
+                        className="flex items-center justify-center gap-1 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-800 dark:text-amber-300 shadow-sm hover:bg-amber-500/20 disabled:opacity-50"
+                        title="Diagnosticar endpoints da API do iScholar"
+                      >
+                        {isDebuging ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                        Diagnosticar API
+                      </button>
+                    </div>
                   </div>
+
+                  {debugResults && (
+                    <div className="rounded-lg border border-border bg-muted/60 p-4 text-xs space-y-3 animate-fade-in">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-card-foreground">Resultado do Diagnóstico iScholar API</h4>
+                        <button onClick={() => setDebugResults(null)} className="text-[11px] text-muted-foreground hover:underline">Fechar</button>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Credenciais: Código Escola: {debugResults.credenciaisConfiguradas?.codigoEscola || "—"} | Token: {debugResults.credenciaisConfiguradas?.tokenPresente ? "OK" : "Ausente"}
+                      </p>
+                      <div className="max-h-[220px] overflow-y-auto space-y-2 font-mono">
+                        {debugResults.resultados?.map((res: any, idx: number) => (
+                          <div key={idx} className="rounded border border-border bg-card p-2 text-[11px]">
+                            <p className="font-bold text-card-foreground">{res.method} {res.url}</p>
+                            <p className={res.status === 200 ? "text-emerald-600 font-semibold" : "text-destructive font-semibold"}>
+                              Status HTTP: {res.status} {res.statusText || ""} | Tam. Corpo: {res.bodyLength} bytes
+                            </p>
+                            {res.jsonSnippet && (
+                              <pre className="mt-1 overflow-x-auto text-[10px] text-muted-foreground bg-muted p-1 rounded max-h-24">
+                                {typeof res.jsonSnippet === "object" ? JSON.stringify(res.jsonSnippet, null, 2) : String(res.jsonSnippet)}
+                              </pre>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {errorMsgIscholar && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs font-medium text-destructive flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>{errorMsgIscholar}</span>
+                    </div>
+                  )}
+
+                  {statusMsg && (
+                    <div className="rounded-lg border border-success/30 bg-success/10 p-3 text-xs font-medium text-success flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 shrink-0" />
+                      <span>{statusMsg}</span>
+                    </div>
+                  )}
                 </div>
 
-                {isProcessingCourses && (
-                  <div className="mb-6 rounded-lg bg-muted p-4 border border-border">
-                    <div className="mb-2 flex items-center justify-between text-xs font-semibold">
-                      <span className="text-muted-foreground">Progresso de Criação</span>
-                      <span className="text-card-foreground">
-                        {coursesList.filter(c => c.status === "success" || c.status === "error").length} de {coursesList.length} ({coursesList.length > 0 ? Math.round((coursesList.filter(c => c.status === "success" || c.status === "error").length / coursesList.length) * 100) : 0}%)
-                      </span>
+                {/* PAINEL DE DISCIPLINAS E ALUNOS */}
+                {selectedTurmaId && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* CARD DISCIPLINAS */}
+                    <div className="rounded-xl border border-border bg-card p-6 shadow-card flex flex-col justify-between space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h4 className="text-base font-bold text-card-foreground">Disciplinas da Turma</h4>
+                            <p className="text-xs text-muted-foreground">Padrão: Nome da Disciplina - Período Letivo</p>
+                          </div>
+                          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">
+                            {disciplinasTurma.length} Disciplina(s)
+                          </span>
+                        </div>
+
+                        {isLoadingDisciplinas ? (
+                          <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
+                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                            Buscando disciplinas no iScholar...
+                          </div>
+                        ) : disciplinasTurma.length === 0 ? (
+                          <p className="py-6 text-center text-xs text-muted-foreground italic">
+                            Nenhuma disciplina encontrada para esta turma.
+                          </p>
+                        ) : (
+                          <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
+                            {disciplinasTurma.map((d) => {
+                              const chave = `${selectedTurmaId}_${d.id_disciplina}`;
+                              const mapItem = mapeamentos[chave];
+                              const turmaAtual = turmasIscholar.find(t => t.id_turma === selectedTurmaId);
+                              
+                              const formatarStr = (val: any): string => {
+                                if (!val) return "";
+                                if (typeof val === "string") return val.trim();
+                                if (typeof val === "number") return String(val).trim();
+                                if (typeof val === "object") {
+                                  const inner = val.disciplina_nome || val.nome_disciplina || val.nome || val.periodo_letivo || val.periodo || val.descricao || val.ano_letivo || val.disciplina || val.titulo || "";
+                                  if (inner && typeof inner === "object") return formatarStr(inner);
+                                  return String(inner || "").trim();
+                                }
+                                return String(val).trim();
+                              };
+
+                              const nomeLimpo = formatarStr(d.nome_disciplina) || "Disciplina";
+                              const periodoStr = formatarStr(turmaAtual?.periodo_letivo) || formatarStr(d.periodo_letivo) || '2026.1';
+                              const nomePadrao = `${nomeLimpo} - ${periodoStr}`;
+
+                              return (
+                                <div key={d.id_disciplina} className="flex items-center justify-between rounded-lg border border-border bg-muted/40 p-3 text-xs">
+                                  <div>
+                                    <p className="font-semibold text-card-foreground">{nomePadrao}</p>
+                                    {(() => {
+                                      const nomeDocenteExibicao = d.nome_professor || (d.id_professor ? `Docente (ID: ${d.id_professor})` : "Pendente / Não informado");
+                                      return (
+                                        <p className="text-[11px] text-muted-foreground">
+                                          ID: {d.id_disciplina}
+                                          <span className="ml-1.5 font-medium text-foreground">
+                                            • Docente: {nomeDocenteExibicao} {d.email_professor ? `(${d.email_professor})` : ""}
+                                          </span>
+                                        </p>
+                                      );
+                                    })()}
+                                  </div>
+
+                                  {mapItem ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">
+                                        <Check className="h-3 w-3" />
+                                        Criada
+                                      </span>
+                                      {mapItem.alternateLink && (
+                                        <a
+                                          href={mapItem.alternateLink}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-[11px] font-medium text-primary hover:underline"
+                                        >
+                                          Ver
+                                        </a>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                      Pendente
+                                    </span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={handleCriarSalasDisciplinas}
+                        disabled={isCreatingSalas || isLoadingDisciplinas || disciplinasTurma.length === 0}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow transition-all hover:bg-primary/90 disabled:opacity-50"
+                      >
+                        {isCreatingSalas ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Criando Salas no Classroom...
+                          </>
+                        ) : (
+                          <>
+                            <School className="h-4 w-4" />
+                            1. Criar Salas das Disciplinas no Classroom
+                          </>
+                        )}
+                      </button>
                     </div>
-                    <div className="h-2.5 w-full overflow-hidden rounded-full bg-border">
-                      <div
-                        className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${coursesList.length > 0 ? Math.round((coursesList.filter(c => c.status === "success" || c.status === "error").length / coursesList.length) * 100) : 0}%` }}
-                      />
+
+                    {/* CARD ALUNOS E ENSALAMENTO */}
+                    <div className="rounded-xl border border-border bg-card p-6 shadow-card flex flex-col justify-between space-y-4">
+                      <div>
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h4 className="text-base font-bold text-card-foreground">Alunos Matriculados</h4>
+                            <p className="text-xs text-muted-foreground">Alunos a serem ensalados nas disciplinas</p>
+                          </div>
+                          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">
+                            {alunosTurma.length} Aluno(s)
+                          </span>
+                        </div>
+
+                        {isLoadingDisciplinas ? (
+                          <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
+                            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                            Carregando alunos...
+                          </div>
+                        ) : alunosTurma.length === 0 ? (
+                          <p className="py-6 text-center text-xs text-muted-foreground italic">
+                            Nenhum aluno encontrado nesta turma.
+                          </p>
+                        ) : (
+                          <div className="max-h-[300px] overflow-y-auto space-y-2 pr-1">
+                            {alunosTurma.map((a) => (
+                              <div key={a.id_aluno} className="flex items-center justify-between rounded-lg border border-border bg-muted/40 p-2.5 text-xs">
+                                <div>
+                                  <p className="font-semibold text-card-foreground">{a.nome_aluno}</p>
+                                  <p className="text-[11px] font-mono text-muted-foreground">{a.email}</p>
+                                </div>
+                                <Users className="h-4 w-4 text-muted-foreground shrink-0" />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <button
+                        onClick={handleEnsalarAlunosTurma}
+                        disabled={isEnsalando || isLoadingDisciplinas || alunosTurma.length === 0}
+                        className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow transition-all hover:bg-emerald-700 disabled:opacity-50"
+                      >
+                        {isEnsalando ? (
+                          <>
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Ensalando Alunos...
+                          </>
+                        ) : (
+                          <>
+                            <Users className="h-4 w-4" />
+                            2. Ensalar Alunos Automático
+                          </>
+                        )}
+                      </button>
                     </div>
-                    <p className="mt-2 text-[11px] text-muted-foreground">
-                      Processando de forma sequencial para garantir o controle e evitar timeouts no servidor.
-                    </p>
                   </div>
                 )}
 
-                <div className="max-h-[450px] overflow-y-auto rounded-lg border border-border">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/50 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                        <th className="px-6 py-3">Status</th>
-                        <th className="px-6 py-3">Nome da Turma</th>
-                        <th className="px-6 py-3">Professor (Seção)</th>
-                        <th className="px-6 py-3 text-right">Ação / Detalhe</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {coursesList.map((course, idx) => (
-                        <tr
-                          key={idx}
-                          className={`transition-colors hover:bg-muted/10 ${
-                            idx === currentProcessingIndex ? "bg-primary/5 font-medium" : ""
-                          }`}
+                {/* RELATÓRIO DE ENSALAMENTO */}
+                {relatorioEnsalamento && (
+                  <div className="rounded-xl border border-border bg-card p-6 shadow-card space-y-4 animate-fade-in">
+                    <h4 className="text-base font-bold text-card-foreground">Relatório de Ensalamento Automático</h4>
+                    
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
+                      <div className="rounded-lg bg-muted p-3">
+                        <p className="text-xs text-muted-foreground font-semibold">Total Alunos</p>
+                        <p className="text-xl font-bold text-card-foreground">{relatorioEnsalamento.totalAlunos}</p>
+                      </div>
+                      <div className="rounded-lg bg-emerald-500/10 text-emerald-900 dark:text-emerald-300 p-3">
+                        <p className="text-xs font-semibold">Inseridos</p>
+                        <p className="text-xl font-bold text-emerald-600">{relatorioEnsalamento.sucessos}</p>
+                      </div>
+                      <div className="rounded-lg bg-blue-500/10 text-blue-900 dark:text-blue-300 p-3">
+                        <p className="text-xs font-semibold">Já Existiam</p>
+                        <p className="text-xl font-bold text-blue-600">{relatorioEnsalamento.jaMatriculados}</p>
+                      </div>
+                      <div className="rounded-lg bg-destructive/10 text-destructive p-3">
+                        <p className="text-xs font-semibold">Falhas</p>
+                        <p className="text-xl font-bold text-destructive">{relatorioEnsalamento.falhas}</p>
+                      </div>
+                    </div>
+
+                    <div className="max-h-[250px] overflow-y-auto rounded-lg border border-border">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/50 text-left font-semibold text-muted-foreground">
+                            <th className="px-4 py-2">Aluno</th>
+                            <th className="px-4 py-2">E-mail</th>
+                            <th className="px-4 py-2">Sala de Aula</th>
+                            <th className="px-4 py-2">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {relatorioEnsalamento.detalhes?.map((item: any, idx: number) => (
+                            <tr key={idx}>
+                              <td className="px-4 py-2 font-medium text-card-foreground">{item.aluno}</td>
+                              <td className="px-4 py-2 font-mono text-muted-foreground">{item.email}</td>
+                              <td className="px-4 py-2 text-card-foreground">{item.sala}</td>
+                              <td className="px-4 py-2">
+                                {item.status === "matriculado" && (
+                                  <span className="text-emerald-600 font-semibold">Inscrito</span>
+                                )}
+                                {item.status === "ja_existia" && (
+                                  <span className="text-blue-600 font-semibold">Já estava na sala</span>
+                                )}
+                                {item.status === "erro" && (
+                                  <span className="text-destructive font-semibold" title={item.erro}>Erro: {item.erro}</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ABA MANUAL (CSV LEGADO) */}
+            {classroomSubTab === "manual" && (
+              <div className="space-y-6">
+                {coursesList.length === 0 ? (
+                  <div
+                    onDragEnter={handleDrag}
+                    onDragOver={handleDrag}
+                    onDragLeave={handleDrag}
+                    onDrop={handleDrop}
+                    className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-12 transition-all ${
+                      dragActive ? "border-primary bg-primary/5" : "border-border bg-card"
+                    }`}
+                  >
+                    <Upload className="mb-4 h-12 w-12 text-muted-foreground" />
+                    <p className="text-sm font-semibold text-card-foreground">
+                      Selecione ou arraste o arquivo CSV das turmas
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground text-center max-w-md">
+                      O CSV deve conter cabeçalhos identificando o nome da turma e o nome do professor.
+                    </p>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => e.target.files && handleFile(e.target.files[0])}
+                      className="hidden"
+                      id="csv-file-input"
+                    />
+                    <div className="mt-6 flex flex-wrap gap-3 justify-center">
+                      <button
+                        onClick={() => document.getElementById("csv-file-input")?.click()}
+                        className="rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition-all hover:bg-primary/90"
+                      >
+                        Selecionar Arquivo
+                      </button>
+                      <button
+                        onClick={downloadTemplateExcel}
+                        className="rounded-lg border border-border bg-card px-5 py-2 text-sm font-semibold text-card-foreground shadow-sm transition-all hover:bg-muted"
+                      >
+                        Baixar Modelo Excel (.xlsx)
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-border bg-card p-6 shadow-card">
+                    <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+                      <div>
+                        <h3 className="text-lg font-bold text-card-foreground">Turmas Carregadas</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Revise a lista abaixo antes de iniciar o processo de criação automática.
+                        </p>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <button
+                          disabled={isProcessingCourses}
+                          onClick={() => setCoursesList([])}
+                          className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground transition-all hover:bg-muted disabled:opacity-50"
                         >
-                          <td className="whitespace-nowrap px-6 py-4">
-                            {course.status === "pending" && (
-                              <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                                Pendente
-                              </span>
-                            )}
-                            {course.status === "processing" && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                                Criando
-                              </span>
-                            )}
-                            {course.status === "success" && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-medium text-success">
-                                <CheckCircle2 className="h-3 w-3" />
-                                Sucesso
-                              </span>
-                            )}
-                            {course.status === "error" && (
-                              <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2.5 py-0.5 text-xs font-medium text-destructive">
-                                <XCircle className="h-3 w-3" />
-                                Erro
-                              </span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm font-semibold text-card-foreground">{course.name}</p>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-muted-foreground">{course.teacher || "—"}</td>
-                          <td className="px-6 py-4 text-right">
-                            {course.status === "success" && course.classroomLink && (
-                              <a
-                                href={course.classroomLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-primary shadow-sm transition-all hover:bg-muted"
-                              >
-                                Ver Sala de Aula
-                              </a>
-                            )}
-                            {course.status === "error" && course.errorMsg && (
-                              <span className="inline-block max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap text-xs text-destructive font-medium" title={course.errorMsg}>
-                                {course.errorMsg}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                          Limpar / Voltar
+                        </button>
+                        <button
+                          disabled={isProcessingCourses || coursesList.length === 0}
+                          onClick={startCreation}
+                          className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow transition-all hover:bg-primary/90 disabled:opacity-50"
+                        >
+                          {isProcessingCourses ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Criando Turmas...
+                            </>
+                          ) : (
+                            "Iniciar Criação"
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    {isProcessingCourses && (
+                      <div className="mb-6 rounded-lg bg-muted p-4 border border-border">
+                        <div className="mb-2 flex items-center justify-between text-xs font-semibold">
+                          <span className="text-muted-foreground">Progresso de Criação</span>
+                          <span className="text-card-foreground">
+                            {coursesList.filter(c => c.status === "success" || c.status === "error").length} de {coursesList.length} ({coursesList.length > 0 ? Math.round((coursesList.filter(c => c.status === "success" || c.status === "error").length / coursesList.length) * 100) : 0}%)
+                          </span>
+                        </div>
+                        <div className="h-2.5 w-full overflow-hidden rounded-full bg-border">
+                          <div
+                            className="h-full bg-primary transition-all duration-300"
+                            style={{ width: `${coursesList.length > 0 ? Math.round((coursesList.filter(c => c.status === "success" || c.status === "error").length / coursesList.length) * 100) : 0}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="max-h-[450px] overflow-y-auto rounded-lg border border-border">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-border bg-muted/50 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                            <th className="px-6 py-3">Status</th>
+                            <th className="px-6 py-3">Nome da Turma</th>
+                            <th className="px-6 py-3">Professor (Seção)</th>
+                            <th className="px-6 py-3 text-right">Ação / Detalhe</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border">
+                          {coursesList.map((course, idx) => (
+                            <tr key={idx} className={idx === currentProcessingIndex ? "bg-primary/5 font-medium" : ""}>
+                              <td className="whitespace-nowrap px-6 py-4">
+                                {course.status === "pending" && (
+                                  <span className="inline-flex items-center rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                                    Pendente
+                                  </span>
+                                )}
+                                {course.status === "processing" && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                    Criando
+                                  </span>
+                                )}
+                                {course.status === "success" && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2.5 py-0.5 text-xs font-medium text-success">
+                                    <CheckCircle2 className="h-3 w-3" />
+                                    Sucesso
+                                  </span>
+                                )}
+                                {course.status === "error" && (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-destructive/15 px-2.5 py-0.5 text-xs font-medium text-destructive">
+                                    <XCircle className="h-3 w-3" />
+                                    Erro
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-6 py-4 font-semibold text-card-foreground">{course.name}</td>
+                              <td className="px-6 py-4 text-sm text-muted-foreground">{course.teacher || "—"}</td>
+                              <td className="px-6 py-4 text-right">
+                                {course.status === "success" && course.classroomLink && (
+                                  <a
+                                    href={course.classroomLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="inline-flex items-center rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold text-primary shadow-sm hover:bg-muted"
+                                  >
+                                    Ver Sala de Aula
+                                  </a>
+                                )}
+                                {course.status === "error" && course.errorMsg && (
+                                  <span className="text-xs text-destructive font-medium">{course.errorMsg}</span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

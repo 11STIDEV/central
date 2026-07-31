@@ -31,9 +31,7 @@ export default function TrilhaDetalhe() {
   const totalCompletas = missoesCompletas.length;
   const total = trilha.missoes.length;
   const pct = Math.round((totalCompletas / total) * 100);
-  const xpGanho = trilha.missoes
-    .filter((m) => missoesCompletas.includes(m.id))
-    .reduce((acc, m) => acc + m.xpRecompensa, 0);
+  const xpGanho = (totalCompletas * 5) + (totalCompletas === total ? 10 : 0);
 
   function getMissaoStatus(missaoId: string, ordem: number) {
     if (missoesCompletas.includes(missaoId)) return "completed";
