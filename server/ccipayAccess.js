@@ -1,5 +1,13 @@
 /** Permissões Advance-CCI — espelha regras do frontend. */
 
+/** Módulo em revisão na Central — APIs bloqueadas exceto para admin (portal parceiro continua). */
+export const CCIPAY_MODULO_BLOQUEADO = true;
+
+export function isCcipayModuloLiberado(papeis) {
+  if (!CCIPAY_MODULO_BLOQUEADO) return true;
+  return (papeis || []).includes("admin");
+}
+
 const PAPEIS_CCIPAY_DP = new Set([
   "admin",
   "ccipay_admin",
