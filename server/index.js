@@ -2996,6 +2996,9 @@ app.post("/api/ti/ischolar/webhook-logs/clear", async (req, res) => {
 app.post("/api/ti/google-classroom/create-course", async (req, res) => {
   try {
     const { idToken, name, teacher } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "Você precisa estar autenticado com uma conta do Google (idToken ausente). Faça login no topo do site." });
+    }
     const { email: userEmail } = await verificarIdTokenUsuario(idToken);
 
     // Verificar se o usuário autenticado pertence à TI (setape ou admin)

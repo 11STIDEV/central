@@ -120,6 +120,10 @@ export default function AreaTI() {
 
   const startCreation = async () => {
     if (coursesList.length === 0) return;
+    if (!googleIdToken) {
+      alert("Atenção: É necessário estar autenticado com uma conta do Google para criar turmas no Google Classroom. Por favor, faça login usando o botão do Google no topo da página.");
+      return;
+    }
     setIsProcessingCourses(true);
     
     const updated = [...coursesList];
@@ -333,6 +337,17 @@ export default function AreaTI() {
 
         {tab === "classroom" && (
           <div className="space-y-6 animate-fade-in">
+            {!googleIdToken && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200 text-sm flex items-center gap-3 shadow-sm">
+                <Lock className="h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                <div>
+                  <p className="font-semibold">Autenticação do Google requerida</p>
+                  <p className="text-xs opacity-90">
+                    Você não está autenticado com uma conta do Google. Para criar as turmas no Google Classroom, clique no botão de login do Google no canto superior direito da tela antes de iniciar.
+                  </p>
+                </div>
+              </div>
+            )}
             {coursesList.length === 0 ? (
               <div
                 onDragEnter={handleDrag}

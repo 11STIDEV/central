@@ -1,16 +1,16 @@
 import { useState } from "react";
-import { FileText, Download, Search, Folder, File, Calendar } from "lucide-react";
+import { FileText, ExternalLink, Search, Folder, File, Calendar } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 
 const documentos = [
-  { id: 1, nome: "Regimento Interno", categoria: "Institucional", tamanho: "2.4 MB", data: "15/01/2026", tipo: "PDF" },
-  { id: 2, nome: "Política de Segurança da Informação", categoria: "TI", tamanho: "1.8 MB", data: "10/01/2026", tipo: "PDF" },
-  { id: 3, nome: "Manual do Colaborador", categoria: "RH", tamanho: "5.1 MB", data: "05/01/2026", tipo: "PDF" },
-  { id: 4, nome: "Organograma Institucional", categoria: "Institucional", tamanho: "890 KB", data: "20/12/2025", tipo: "PDF" },
-  { id: 5, nome: "Plano de Cargos e Salários", categoria: "RH", tamanho: "3.2 MB", data: "01/12/2025", tipo: "PDF" },
-  { id: 6, nome: "Política de Uso de Recursos de TI", categoria: "TI", tamanho: "1.1 MB", data: "15/11/2025", tipo: "PDF" },
-  { id: 7, nome: "Código de Ética", categoria: "Institucional", tamanho: "1.5 MB", data: "01/11/2025", tipo: "PDF" },
-  { id: 8, nome: "Plano de Contingência", categoria: "TI", tamanho: "4.0 MB", data: "10/10/2025", tipo: "PDF" },
+  { id: 1, nome: "Regimento Interno", categoria: "Institucional", tamanho: "2.4 MB", data: "15/01/2026", tipo: "PDF", url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" },
+  { id: 2, nome: "Política de Segurança da Informação", categoria: "TI", tamanho: "1.8 MB", data: "10/01/2026", tipo: "PDF", url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" },
+  { id: 3, nome: "Manual do Colaborador", categoria: "RH", tamanho: "5.1 MB", data: "05/01/2026", tipo: "PDF", url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" },
+  { id: 4, nome: "Organograma Institucional", categoria: "Institucional", tamanho: "890 KB", data: "20/12/2025", tipo: "PDF", url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" },
+  { id: 5, nome: "Plano de Cargos e Salários", categoria: "RH", tamanho: "3.2 MB", data: "01/12/2025", tipo: "PDF", url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" },
+  { id: 6, nome: "Política de Uso de Recursos de TI", categoria: "TI", tamanho: "1.1 MB", data: "15/11/2025", tipo: "PDF", url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" },
+  { id: 7, nome: "Código de Ética", categoria: "Institucional", tamanho: "1.5 MB", data: "01/11/2025", tipo: "PDF", url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" },
+  { id: 8, nome: "Plano de Contingência", categoria: "TI", tamanho: "4.0 MB", data: "10/10/2025", tipo: "PDF", url: "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf" },
 ];
 
 const categorias = [...new Set(documentos.map((d) => d.categoria))];
@@ -86,9 +86,15 @@ export default function Documentos() {
                   <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{doc.data}</span>
                 </div>
               </div>
-              <button className="shrink-0 rounded-lg border border-border p-2.5 text-muted-foreground transition-all hover:bg-primary hover:text-primary-foreground hover:border-primary">
-                <Download className="h-4 w-4" />
-              </button>
+              <a
+                href={doc.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Abrir no navegador"
+                className="shrink-0 rounded-lg border border-border p-2.5 text-muted-foreground transition-all hover:bg-primary hover:text-primary-foreground hover:border-primary flex items-center justify-center"
+              >
+                <ExternalLink className="h-4 w-4" />
+              </a>
             </div>
           ))}
         </div>
