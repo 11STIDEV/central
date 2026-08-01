@@ -8,6 +8,8 @@ import express from "express";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
+import multer from "multer";
+import * as XLSX from "xlsx";
 import {
   agoraLocalParts,
   estaEmJanelaReservaAtiva,
@@ -3963,6 +3965,71 @@ app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) =>
       // Padrão de Nomenclatura Solicitado: [Nome da Disciplina] - [Periodo Letivo]
       const nomeSalaClassroom = `${nomeDisc} - ${periodoFormatado}`;
 
+      // 1. Verificar se a disciplina JÁ foi criada anteriormente para o mesmo período letivo
+      //    Deduplicação por NOME NORMALIZADO (permite reutilização cross-turma e cross-curso)
+      const nomeNorm = normalizarNomeDisc(nomeDisc);
+      const mapeamentoExistente = Object.values(mapeamentos).find(
+        (m) =>
+          m &&
+          m.google_course_id &&
+          normalizarNomeDisc(m.nome_disciplina || "") === nomeNorm &&
+          String(m.periodo_letivo || "").trim() === periodoFormatado
+      );
+
+      if (mapeamentoExistente) {
+        console.log(
+          `[google-classroom-create-disc] Reaproveitando sala existente para disciplina ${idDisc} (${nomeDisc}): ${mapeamentoExistente.google_course_id}`
+        );
+
+        let profEnsalado = mapeamentoExistente.professor_ensalado || false;
+        let avisoProfessor = mapeamentoExistente.aviso_professor || null;
+
+        if (emailProf && emailProf.includes("@")) {
+          try {
+            await classroom.courses.teachers.create({
+              courseId: mapeamentoExistente.google_course_id,
+              requestBody: {
+                userId: emailProf,
+              },
+            });
+            profEnsalado = true;
+            console.log(
+              `[classroom-professor] Docente adicional ${emailProf} ensalado na sala reutilizada ${mapeamentoExistente.google_course_id}`
+            );
+          } catch (errProf) {
+            const msgErrProf = errProf.response?.data?.error?.message || errProf.message;
+            if (errProf.response?.status !== 409 && !msgErrProf?.includes("already exists")) {
+              console.warn(
+                `[classroom-professor] Erro ao adicionar docente adicional ${emailProf}:`,
+                msgErrProf
+              );
+              avisoProfessor = `Permissão insuficiente no Google Workspace para adicionar docente (${emailProf}): ${msgErrProf}`;
+            }
+          }
+        }
+
+        const dadosReaproveitados = {
+          google_course_id: mapeamentoExistente.google_course_id,
+          google_course_name: mapeamentoExistente.google_course_name,
+          alternateLink: mapeamentoExistente.alternateLink,
+          id_turma: String(idTurma),
+          id_disciplina: idDisc,
+          nome_disciplina: nomeDisc,
+          periodo_letivo: periodoFormatado,
+          id_professor: disc.id_professor || "",
+          nome_professor: nomeProf,
+          email_professor: emailProf,
+          professor_ensalado: profEnsalado,
+          aviso_professor: avisoProfessor,
+          reaproveitada: true,
+          created_at: new Date().toISOString(),
+        };
+
+        mapeamentos[chaveMapeamento] = dadosReaproveitados;
+        resultados.push({ ...dadosReaproveitados, status: "sucesso" });
+        continue;
+      }
+
       try {
         const response = await classroom.courses.create({
           requestBody: {
@@ -4466,4 +4533,503 @@ app.listen(PORT, HOST, () => {
 });
 
 // Trigger reload for reading env variables
+
+// ─────────────────────────────────────────────────────────────
+// HELPERS: Grade Horária Excel
+// ─────────────────────────────────────────────────────────────
+
+/** Normaliza nome de disciplina para comparação de deduplicação */
+function normalizarNomeDisc(nome) {
+  return String(nome || "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Sheets de cursos que o parser deve processar */
+const SHEETS_CURSOS = ["ADS", "BIOMEDICINA", "DIREITO ", "ENFERMAGEM", "FONOAUDIOLOGIA", "PEDAGOGIA", "PSICOLOGIA", "TÉC ENF ", "TÉC SAÚDE BUCAL"];
+
+/** Extrai o número de período de uma string como '1º Período', '2º Período' etc */
+function extrairNumeroPeriodo(str) {
+  const m = String(str).match(/(\d+)[ºo°]?\s*[–-]?\s*período/i);
+  if (m) return parseInt(m[1], 10);
+  // Fallback: primeiro número isolado
+  const n = String(str).match(/(\d+)/);
+  return n ? parseInt(n[1], 10) : null;
+}
+
+/**
+ * Parseia o arquivo Excel da grade horária.
+ * Retorna array de objetos: { nomeTurma, curso, periodo, periodoLetivo, disciplinas: [{nome, professor}] }
+ */
+function parseGradeHorariaExcel(buffer) {
+  const wb = XLSX.read(buffer, { type: "buffer" });
+  const turmas = [];
+
+  for (const sheetName of SHEETS_CURSOS) {
+    const ws = wb.Sheets[sheetName];
+    if (!ws) continue;
+
+    const curso = sheetName.trim();
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+    let turmaAtual = null;
+    let disciplinasRows = []; // linhas de disciplinas coletadas
+    let professoresRow = null;
+    let numColunas = 6;
+
+    const flushTurma = () => {
+      if (!turmaAtual) return;
+      // Coletamos todas as disciplinas das rows antes do 'Professores'
+      // professoresRow mapeia col → professor
+      const discMap = {}; // col → [nome, ...]
+      for (const row of disciplinasRows) {
+        for (let col = 1; col < numColunas + 1; col++) {
+          const val = String(row[col] || "").trim();
+          if (!val) continue;
+          if (!discMap[col]) discMap[col] = [];
+          // Separar disciplinas concatenadas por '+'
+          const parts = val.split("+").map(p => p.trim()).filter(Boolean);
+          discMap[col].push(...parts);
+        }
+      }
+      // Montar lista final de disciplinas
+      const listaDisc = [];
+      const nomesVistos = new Set();
+      for (let col = 1; col <= numColunas; col++) {
+        const nomes = discMap[col] || [];
+        const prof = professoresRow ? String(professoresRow[col] || "").trim() : "";
+        // Limpa prefixo 'Profº', 'Profª', 'Prof.'
+        const profLimpo = prof.replace(/^(Prof[oaºª.]+\s*)/i, "").trim();
+        for (const nome of nomes) {
+          if (!nome || nomesVistos.has(normalizarNomeDisc(nome))) continue;
+          nomesVistos.add(normalizarNomeDisc(nome));
+          listaDisc.push({ nome: nome.trim(), professor: profLimpo });
+        }
+      }
+      if (listaDisc.length > 0) {
+        turmas.push({ ...turmaAtual, disciplinas: listaDisc });
+      }
+      turmaAtual = null;
+      disciplinasRows = [];
+      professoresRow = null;
+    };
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const col0 = String(row[0] || "").trim();
+
+      // Detecta linha de turma (ex: 'Biomedicina - 1º Período 2026')
+      const ehLinhaTurma =
+        col0 &&
+        !col0.startsWith("1º - 19h") &&
+        !col0.startsWith("1ª - 19h") &&
+        !col0.toLowerCase().startsWith("horário") &&
+        !col0.toLowerCase().startsWith("professor") &&
+        !col0.toLowerCase().startsWith("sala") &&
+        !col0.toLowerCase().startsWith("class") &&
+        !col0.toLowerCase().startsWith("observ") &&
+        !col0.toLowerCase().startsWith("grade") &&
+        !col0.toLowerCase().startsWith("curso") &&
+        col0.match(/(1º|2º|3º|4º|5º|6º|7º|8º|9º|10º|1°|2°|\d+[ºo°])/i);
+
+      if (ehLinhaTurma) {
+        flushTurma();
+        // Extrai período letivo do nome (ex: 2026.2)
+        const periodoLetMatch = col0.match(/(\d{4}\.\d)/i);
+        const periodoLet = periodoLetMatch ? periodoLetMatch[1] : "2026.2";
+        const numPeriodo = extrairNumeroPeriodo(col0);
+        // Conta colunas de dias na próxima linha (header de dias)
+        const headerRow = data[i + 1] || [];
+        numColunas = Math.max(1, headerRow.slice(1).filter(c => String(c).trim() !== "").length);
+        turmaAtual = {
+          nomeTurma: col0,
+          curso,
+          periodo: numPeriodo,
+          periodoLetivo: periodoLet,
+        };
+        i++; // pula header de dias
+        continue;
+      }
+
+      if (!turmaAtual) continue;
+
+      // Linha de disciplinas (col A vazia ou col A = horário)
+      if (
+        col0 === "" ||
+        col0.startsWith("1º - 19h") ||
+        col0.startsWith("1ª - 19h")
+      ) {
+        const temConteudo = row.slice(1).some(c => String(c).trim() !== "");
+        if (temConteudo) disciplinasRows.push(row);
+        continue;
+      }
+
+      // Linha de professores
+      if (col0.toLowerCase().startsWith("professor")) {
+        professoresRow = row;
+        continue;
+      }
+
+      // Linha de sala, observação, classroom → flush e próxima turma
+      if (
+        col0.toLowerCase().startsWith("sala") ||
+        col0.toLowerCase().startsWith("class") ||
+        col0.toLowerCase().startsWith("observ")
+      ) {
+        // não faz flush aqui; espera a próxima turma ou fim do sheet
+        continue;
+      }
+    }
+
+    flushTurma(); // flush da última turma do sheet
+  }
+
+  return turmas;
+}
+
+/**
+ * Algoritmo de matching entre turma do Excel e turmas do iScholar.
+ * Retorna score 0-100.
+ */
+function calcularScoreMatch(excelTurma, ischolarTurma) {
+  const nomeTurmaIsch = normalizarNomeDisc(ischolarTurma.nome_turma || ischolarTurma.nome || "");
+  const cursoNorm = normalizarNomeDisc(excelTurma.curso);
+  const periodo = excelTurma.periodo;
+  const periodoLetivo = String(excelTurma.periodoLetivo || "").trim();
+
+  let score = 0;
+
+  // Verifica se contém o nome do curso
+  // Mapeamento de abreviações
+  const abrevMap = {
+    "ADS": ["ADS", "ANALISE E DESENVOLVIMENTO DE SISTEMAS", "ANALISE"],
+    "BIOMEDICINA": ["BIOMEDICINA", "BIOMED"],
+    "DIREITO": ["DIREITO", "DIR"],
+    "ENFERMAGEM": ["ENFERMAGEM", "ENF"],
+    "FONOAUDIOLOGIA": ["FONOAUDIOLOGIA", "FONO"],
+    "PEDAGOGIA": ["PEDAGOGIA", "PED"],
+    "PSICOLOGIA": ["PSICOLOGIA", "PSI"],
+    "TEC ENF": ["TECNICO EM ENFERMAGEM", "TEC ENF", "ENF TEC"],
+    "TEC SAUDE BUCAL": ["TECNICO EM SAUDE BUCAL", "TEC SAUDE BUCAL", "SAUDE BUCAL"],
+  };
+  const aliases = abrevMap[cursoNorm] || [cursoNorm];
+  const cursoEncontrado = aliases.some(a => nomeTurmaIsch.includes(a));
+  if (cursoEncontrado) score += 50;
+
+  // Verifica número de período
+  if (periodo !== null) {
+    const numNome = extrairNumeroPeriodo(nomeTurmaIsch);
+    if (numNome === periodo) score += 35;
+  }
+
+  // Verifica período letivo
+  const periodoIsch = String(ischolarTurma.periodo_letivo || "").trim();
+  if (periodoLetivo && periodoIsch && periodoIsch.includes(periodoLetivo.replace(".", ""))) {
+    score += 15;
+  } else if (periodoLetivo && periodoIsch === periodoLetivo) {
+    score += 15;
+  }
+
+  return score;
+}
+
+// ─────────────────────────────────────────────────────────────
+// ENDPOINT: POST /api/ti/grade/parse-excel
+// Recebe arquivo Excel (multipart), retorna turmas + disciplinas
+// ─────────────────────────────────────────────────────────────
+const uploadGrade = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+app.post("/api/ti/grade/parse-excel", uploadGrade.single("arquivo"), async (req, res) => {
+  try {
+    const idToken = req.body?.idToken || req.headers["x-id-token"];
+    if (!idToken) return res.status(400).json({ error: "idToken ausente." });
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    if (!req.file) return res.status(400).json({ error: "Arquivo Excel não enviado." });
+
+    const turmas = parseGradeHorariaExcel(req.file.buffer);
+    return res.json({ ok: true, turmas });
+  } catch (e) {
+    console.error("[grade-parse-excel] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// ENDPOINT: POST /api/ti/grade/match-turmas
+// Recebe turmas do Excel, busca turmas iScholar, faz matching
+// ─────────────────────────────────────────────────────────────
+app.post("/api/ti/grade/match-turmas", async (req, res) => {
+  try {
+    const { idToken, turmasExcel } = req.body || {};
+    if (!idToken) return res.status(400).json({ error: "idToken ausente." });
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    if (!Array.isArray(turmasExcel) || turmasExcel.length === 0) {
+      return res.status(400).json({ error: "turmasExcel ausente ou vazio." });
+    }
+
+    // Busca todas as turmas do iScholar
+    const { codigoEscola, token } = obterCredenciaisIscholar();
+    if (!codigoEscola || !token) {
+      return res.status(500).json({ error: "Credenciais do iScholar não configuradas." });
+    }
+    const headers = { "X-Codigo-Escola": codigoEscola, "X-Autorizacao": token, "Content-Type": "application/json" };
+    const urlTurmas = `https://api.ischolar.app/turma/listar`;
+    const resultTurmas = await safeFetchIscholarJson(urlTurmas, { method: "GET", headers });
+
+    if (!resultTurmas.ok || !resultTurmas.data) {
+      return res.status(500).json({ error: "Falha ao buscar turmas do iScholar." });
+    }
+
+    const rawTurmas = resultTurmas.data.dados || resultTurmas.data.turmas || resultTurmas.data;
+    const turmasIscholar = Array.isArray(rawTurmas) ? rawTurmas : Object.values(rawTurmas || {});
+
+    // Faz matching
+    const pares = turmasExcel.map(excelTurma => {
+      let melhorMatch = null;
+      let melhorScore = 0;
+
+      for (const ischTurma of turmasIscholar) {
+        const score = calcularScoreMatch(excelTurma, ischTurma);
+        if (score > melhorScore) {
+          melhorScore = score;
+          melhorMatch = ischTurma;
+        }
+      }
+
+      return {
+        turmaExcel: excelTurma,
+        turmaIscholar: melhorScore >= 70 ? melhorMatch : null,
+        score: melhorScore,
+        status: melhorScore >= 70 ? "matched" : "sem_correspondencia",
+        aviso: melhorScore < 70 ? `Nenhuma turma do iScholar com correspondência suficiente (score ${melhorScore}/100). Selecione manualmente.` : null,
+        turmasCandidatas: turmasIscholar
+          .map(t => ({ ...t, score: calcularScoreMatch(excelTurma, t) }))
+          .filter(t => t.score >= 30)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5),
+      };
+    });
+
+    return res.json({ ok: true, pares });
+  } catch (e) {
+    console.error("[grade-match-turmas] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────
+// ENDPOINT: POST /api/ti/grade/criar-salas
+// Cria salas no Classroom a partir da grade Excel confirmada.
+// Disciplinas com mesmo nome (normalizado) no mesmo periodoLetivo
+// compartilham a mesma sala (cross-turma e cross-curso).
+// ─────────────────────────────────────────────────────────────
+app.post("/api/ti/grade/criar-salas", async (req, res) => {
+  try {
+    const { idToken, paresConfirmados, periodoLetivo } = req.body || {};
+    if (!idToken) return res.status(400).json({ error: "idToken ausente." });
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    if (!Array.isArray(paresConfirmados) || paresConfirmados.length === 0) {
+      return res.status(400).json({ error: "paresConfirmados ausente ou vazio." });
+    }
+
+    const periodoFormatado = String(periodoLetivo || "2026.2").trim();
+    const classroom = await criarGoogleClassroomClientAuth();
+    const mapeamentos = lerMapeamentosClassroom();
+    const resultadosPorTurma = [];
+
+    for (const par of paresConfirmados) {
+      const { turmaExcel, turmaIscholar } = par;
+      if (!turmaIscholar || !turmaIscholar.id_turma) {
+        resultadosPorTurma.push({
+          nomeTurma: turmaExcel.nomeTurma,
+          status: "sem_correspondencia",
+          aviso: "Turma sem correspondência no iScholar — ignorada.",
+          disciplinas: [],
+        });
+        continue;
+      }
+
+      const idTurma = String(turmaIscholar.id_turma);
+      const disciplinasExcel = turmaExcel.disciplinas || [];
+      const resultados = [];
+
+      for (const disc of disciplinasExcel) {
+        const nomeDisc = String(disc.nome || "").trim();
+        const nomeProf = String(disc.professor || "").trim();
+        if (!nomeDisc) continue;
+
+        const nomeNorm = normalizarNomeDisc(nomeDisc);
+        const nomeSalaClassroom = `${nomeDisc} - ${periodoFormatado}`;
+        // Chave de mapeamento: turma + nome normalizado (sem id_disciplina)
+        const chaveMapeamento = `${idTurma}_${nomeNorm}`;
+
+        // Busca e-mail do professor pelo nome no iScholar
+        let emailProf = "";
+        if (nomeProf) {
+          try {
+            const { codigoEscola, token } = obterCredenciaisIscholar();
+            const headers = { "X-Codigo-Escola": codigoEscola, "X-Autorizacao": token, "Content-Type": "application/json" };
+            const urlFunc = `https://api.ischolar.app/funcionarios/listar`;
+            const resultFunc = await safeFetchIscholarJson(urlFunc, { method: "GET", headers });
+            if (resultFunc.ok && resultFunc.data) {
+              const rawFunc = resultFunc.data.dados || resultFunc.data.funcionarios || resultFunc.data;
+              const listaFunc = Array.isArray(rawFunc) ? rawFunc : Object.values(rawFunc || {});
+              const nomeParts = normalizarNomeDisc(nomeProf).split(" ").filter(Boolean);
+              const match = listaFunc.find(f => {
+                const nomeCompleto = normalizarNomeDisc(`${f.nome || ""} ${f.sobrenome || ""}`);
+                return nomeParts.every(p => nomeCompleto.includes(p));
+              });
+              if (match && match.email) emailProf = match.email;
+            }
+          } catch (eProf) {
+            console.warn(`[grade-criar-salas] Não encontrou e-mail para professor ${nomeProf}:`, eProf.message);
+          }
+        }
+
+        // Deduplicação por nome normalizado
+        const mapeamentoExistente = Object.values(mapeamentos).find(
+          (m) =>
+            m &&
+            m.google_course_id &&
+            normalizarNomeDisc(m.nome_disciplina || "") === nomeNorm &&
+            String(m.periodo_letivo || "").trim() === periodoFormatado
+        );
+
+        if (mapeamentoExistente) {
+          // Reaproveita sala existente
+          if (emailProf && emailProf.includes("@")) {
+            try {
+              await classroom.courses.teachers.create({
+                courseId: mapeamentoExistente.google_course_id,
+                requestBody: { userId: emailProf },
+              });
+            } catch (errProf) {
+              const msgErrProf = errProf.response?.data?.error?.message || errProf.message;
+              if (!msgErrProf?.includes("already exists") && errProf.response?.status !== 409) {
+                console.warn(`[grade-criar-salas] Docente ${emailProf} não adicionado:`, msgErrProf);
+              }
+            }
+          }
+
+          const dadosReap = {
+            google_course_id: mapeamentoExistente.google_course_id,
+            google_course_name: mapeamentoExistente.google_course_name,
+            alternateLink: mapeamentoExistente.alternateLink,
+            id_turma: idTurma,
+            id_disciplina: "",
+            nome_disciplina: nomeDisc,
+            periodo_letivo: periodoFormatado,
+            nome_professor: nomeProf,
+            email_professor: emailProf,
+            professor_ensalado: !!emailProf,
+            reaproveitada: true,
+            fonte: "excel",
+            created_at: new Date().toISOString(),
+          };
+          mapeamentos[chaveMapeamento] = dadosReap;
+          resultados.push({ ...dadosReap, status: "sucesso" });
+          continue;
+        }
+
+        // Cria nova sala no Classroom
+        try {
+          const response = await classroom.courses.create({
+            requestBody: {
+              name: nomeSalaClassroom,
+              section: nomeProf || "Sem Docente Definido",
+              ownerId: "me",
+              courseState: "ACTIVE",
+            },
+          });
+
+          let profEnsalado = false;
+          let avisoProfessor = null;
+
+          if (emailProf && emailProf.includes("@")) {
+            try {
+              await classroom.courses.teachers.create({
+                courseId: response.data.id,
+                requestBody: { userId: emailProf },
+              });
+              profEnsalado = true;
+            } catch (errProf) {
+              const msgErrProf = errProf.response?.data?.error?.message || errProf.message;
+              avisoProfessor = `Não foi possível adicionar o docente (${emailProf}): ${msgErrProf}`;
+            }
+          }
+
+          const dadosCriacao = {
+            google_course_id: response.data.id,
+            google_course_name: response.data.name,
+            alternateLink: response.data.alternateLink,
+            id_turma: idTurma,
+            id_disciplina: "",
+            nome_disciplina: nomeDisc,
+            periodo_letivo: periodoFormatado,
+            nome_professor: nomeProf,
+            email_professor: emailProf,
+            professor_ensalado: profEnsalado,
+            aviso_professor: avisoProfessor,
+            reaproveitada: false,
+            fonte: "excel",
+            created_at: new Date().toISOString(),
+          };
+
+          mapeamentos[chaveMapeamento] = dadosCriacao;
+          resultados.push({ ...dadosCriacao, status: "sucesso" });
+        } catch (errDisc) {
+          const errMsg = errDisc.response?.data?.error?.message || errDisc.message;
+          console.error(`[grade-criar-salas] Erro ao criar ${nomeDisc}:`, errMsg);
+          resultados.push({ nome_disciplina: nomeDisc, status: "erro", erro: errMsg });
+        }
+      }
+
+      salvarMapeamentosClassroom(mapeamentos);
+      resultadosPorTurma.push({
+        nomeTurma: turmaExcel.nomeTurma,
+        idTurmaIscholar: idTurma,
+        status: "concluido",
+        disciplinas: resultados,
+      });
+    }
+
+    const totalCriadas = resultadosPorTurma.flatMap(t => t.disciplinas).filter(d => d.status === "sucesso" && !d.reaproveitada).length;
+    const totalReaproveitadas = resultadosPorTurma.flatMap(t => t.disciplinas).filter(d => d.reaproveitada).length;
+    const totalErros = resultadosPorTurma.flatMap(t => t.disciplinas).filter(d => d.status === "erro").length;
+
+    return res.json({
+      ok: true,
+      resumo: { totalCriadas, totalReaproveitadas, totalErros },
+      resultadosPorTurma,
+    });
+  } catch (e) {
+    console.error("[grade-criar-salas] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
 

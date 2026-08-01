@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { PageHero } from "@/components/PageHero";
-import { BookOpen, Key, Eye, EyeOff, Copy, Search, Plus, Lock, School, Upload, CheckCircle2, XCircle, Loader2, Users, RefreshCw, AlertCircle, Check } from "lucide-react";
+import { BookOpen, Key, Eye, EyeOff, Copy, Search, Plus, Lock, School, Upload, CheckCircle2, XCircle, Loader2, Users, RefreshCw, AlertCircle, Check, FileText, ChevronDown, FileSpreadsheet } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { apiUrl } from "@/lib/apiBase";
 
@@ -43,8 +43,21 @@ export default function AreaTI() {
   const [search, setSearch] = useState("");
   const [selectedTutorial, setSelectedTutorial] = useState<number | null>(null);
 
-  // Sub-aba do Classroom: "ischolar" (Automação iScholar) vs "manual" (CSV legado)
-  const [classroomSubTab, setClassroomSubTab] = useState<"ischolar" | "manual">("ischolar");
+  // Sub-aba do Classroom: "ischolar" | "manual" | "grade"
+  const [classroomSubTab, setClassroomSubTab] = useState<"ischolar" | "manual" | "grade">("ischolar");
+
+  // Estados para Grade Horária Excel
+  const gradeFileRef = useRef<HTMLInputElement>(null);
+  const [gradeStep, setGradeStep] = useState<"upload" | "matching" | "criando" | "resultado">("upload");
+  const [gradeIsUploading, setGradeIsUploading] = useState(false);
+  const [gradeIsMatching, setGradeIsMatching] = useState(false);
+  const [gradeIsCriando, setGradeIsCriando] = useState(false);
+  const [gradePares, setGradePares] = useState<any[]>([]);
+  const [gradeResultado, setGradeResultado] = useState<any | null>(null);
+  const [gradeError, setGradeError] = useState<string | null>(null);
+  const [gradePeriodo, setGradePeriodo] = useState("2026.2");
+  // Turma iScholar selecionada manualmente por par (para casos sem match automático)
+  const [gradeManualSelects, setGradeManualSelects] = useState<Record<number, any>>({});
 
   // Estados para criação por CSV legado
   const [coursesList, setCoursesList] = useState<Array<{ name: string; teacher: string; status: "pending" | "processing" | "success" | "error"; errorMsg?: string; classroomLink?: string }>>([]);
@@ -379,6 +392,85 @@ export default function AreaTI() {
     }
   }, [tab, classroomSubTab]);
 
+  // ── Grade Horária handlers ──────────────────────────────
+  const handleGradeUpload = async (file: File) => {
+    if (!googleIdToken) {
+      setGradeError("Você precisa estar autenticado com o Google antes de continuar.");
+      return;
+    }
+    setGradeError(null);
+    setGradeIsUploading(true);
+    setGradeStep("upload");
+    try {
+      const formData = new FormData();
+      formData.append("arquivo", file);
+      formData.append("idToken", googleIdToken);
+      const res = await fetch(apiUrl("/api/ti/grade/parse-excel"), { method: "POST", body: formData });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || "Erro ao processar o arquivo.");
+
+      // Após parse, faz matching automático
+      setGradeIsMatching(true);
+      const resMatch = await fetch(apiUrl("/api/ti/grade/match-turmas"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken: googleIdToken, turmasExcel: json.turmas }),
+      });
+      const jsonMatch = await resMatch.json();
+      if (!resMatch.ok || !jsonMatch.ok) throw new Error(jsonMatch.error || "Erro ao fazer matching.");
+
+      setGradePares(jsonMatch.pares || []);
+      setGradeManualSelects({});
+      setGradeStep("matching");
+    } catch (e: any) {
+      setGradeError(e.message || "Erro inesperado.");
+    } finally {
+      setGradeIsUploading(false);
+      setGradeIsMatching(false);
+    }
+  };
+
+  const handleCriarSalasGrade = async () => {
+    if (!googleIdToken) {
+      setGradeError("Autenticação Google necessária.");
+      return;
+    }
+    setGradeError(null);
+    setGradeIsCriando(true);
+    setGradeStep("criando");
+    try {
+      // Mescla matches automáticos com seleções manuais
+      const paresConfirmados = gradePares.map((par: any, idx: number) => ({
+        turmaExcel: par.turmaExcel,
+        turmaIscholar: gradeManualSelects[idx] !== undefined ? gradeManualSelects[idx] : par.turmaIscholar,
+      }));
+
+      const res = await fetch(apiUrl("/api/ti/grade/criar-salas"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ idToken: googleIdToken, paresConfirmados, periodoLetivo: gradePeriodo }),
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) throw new Error(json.error || "Erro ao criar salas.");
+      setGradeResultado(json);
+      setGradeStep("resultado");
+    } catch (e: any) {
+      setGradeError(e.message || "Erro inesperado.");
+      setGradeStep("matching");
+    } finally {
+      setGradeIsCriando(false);
+    }
+  };
+
+  const resetGrade = () => {
+    setGradeStep("upload");
+    setGradePares([]);
+    setGradeResultado(null);
+    setGradeError(null);
+    setGradeManualSelects({});
+    if (gradeFileRef.current) gradeFileRef.current.value = "";
+  };
+
 
   const togglePassword = (id: number) => {
     const next = new Set(visiblePasswords);
@@ -534,7 +626,7 @@ export default function AreaTI() {
         {tab === "classroom" && (
           <div className="space-y-6 animate-fade-in">
             {/* Sub-navegação dentro do Classroom */}
-            <div className="flex gap-2 border-b border-border pb-3">
+            <div className="flex gap-2 border-b border-border pb-3 flex-wrap">
               <button
                 onClick={() => setClassroomSubTab("ischolar")}
                 className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
@@ -545,6 +637,17 @@ export default function AreaTI() {
               >
                 <School className="h-4 w-4" />
                 Ensalamento Automático (iScholar)
+              </button>
+              <button
+                onClick={() => setClassroomSubTab("grade")}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                  classroomSubTab === "grade"
+                    ? "bg-emerald-600 text-white shadow"
+                    : "bg-card border border-border text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                Grade Horária (Excel)
               </button>
               <button
                 onClick={() => setClassroomSubTab("manual")}
@@ -781,7 +884,7 @@ export default function AreaTI() {
                                     <div className="flex items-center gap-2">
                                       <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">
                                         <Check className="h-3 w-3" />
-                                        Criada
+                                        {mapItem.reaproveitada ? "Compartilhada" : "Criada"}
                                       </span>
                                       {mapItem.alternateLink && (
                                         <a
@@ -938,6 +1041,281 @@ export default function AreaTI() {
                           ))}
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* ABA GRADE HORÁRIA */}
+            {classroomSubTab === "grade" && (
+              <div className="space-y-6 animate-fade-in">
+
+                {/* Erro global */}
+                {gradeError && (
+                  <div className="flex items-start gap-3 rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-red-700 dark:text-red-300 text-sm">
+                    <XCircle className="h-5 w-5 flex-shrink-0 mt-0.5" />
+                    <span>{gradeError}</span>
+                  </div>
+                )}
+
+                {/* STEP 1: Upload */}
+                {gradeStep === "upload" && (
+                  <div className="rounded-xl border border-border bg-card p-6 shadow-card space-y-5">
+                    <div>
+                      <h3 className="text-base font-bold text-card-foreground flex items-center gap-2">
+                        <FileSpreadsheet className="h-5 w-5 text-emerald-500" />
+                        Criar Salas via Grade Horária
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Faça upload do Excel da grade horária semestral. O sistema irá extrair as turmas e disciplinas e fazer a correspondência automática com o iScholar.
+                      </p>
+                    </div>
+
+                    {/* Campo de período */}
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm font-medium text-card-foreground whitespace-nowrap">Período Letivo:</label>
+                      <input
+                        type="text"
+                        value={gradePeriodo}
+                        onChange={e => setGradePeriodo(e.target.value)}
+                        placeholder="Ex: 2026.2"
+                        className="w-32 rounded-lg border border-input bg-background px-3 py-1.5 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                      />
+                    </div>
+
+                    {/* Drop zone */}
+                    <label
+                      htmlFor="grade-excel-upload"
+                      className="flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed border-emerald-400/60 bg-emerald-50/30 dark:bg-emerald-950/20 p-10 cursor-pointer transition-all hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-950/30"
+                    >
+                      {gradeIsUploading || gradeIsMatching ? (
+                        <div className="flex flex-col items-center gap-2">
+                          <Loader2 className="h-10 w-10 animate-spin text-emerald-500" />
+                          <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
+                            {gradeIsMatching ? "Fazendo correspondência com o iScholar..." : "Processando arquivo Excel..."}
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <FileSpreadsheet className="h-12 w-12 text-emerald-500" />
+                          <div className="text-center">
+                            <p className="text-sm font-semibold text-card-foreground">Clique para selecionar o arquivo Excel</p>
+                            <p className="text-xs text-muted-foreground mt-1">ou arraste e solte aqui · Formato: .xlsx ou .xls</p>
+                          </div>
+                        </>
+                      )}
+                      <input
+                        id="grade-excel-upload"
+                        ref={gradeFileRef}
+                        type="file"
+                        accept=".xlsx,.xls"
+                        className="hidden"
+                        disabled={gradeIsUploading || gradeIsMatching}
+                        onChange={e => {
+                          const f = e.target.files?.[0];
+                          if (f) handleGradeUpload(f);
+                        }}
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {/* STEP 2: Tabela de correspondências */}
+                {gradeStep === "matching" && (
+                  <div className="space-y-4">
+                    <div className="rounded-xl border border-border bg-card p-5 shadow-card">
+                      <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div>
+                          <h3 className="text-base font-bold text-card-foreground">Confirmar Correspondências</h3>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            Verifique os pares identificados automaticamente. Turmas sem correspondência precisam de seleção manual.
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={resetGrade}
+                            className="flex items-center gap-1.5 rounded-lg border border-border bg-muted px-3 py-2 text-xs font-medium text-muted-foreground hover:bg-muted/80 transition-colors"
+                          >
+                            <RefreshCw className="h-3.5 w-3.5" /> Recomeçar
+                          </button>
+                          <button
+                            onClick={handleCriarSalasGrade}
+                            disabled={gradeIsCriando}
+                            className="flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white px-4 py-2 text-sm font-semibold shadow transition-colors"
+                          >
+                            {gradeIsCriando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                            Criar Salas no Classroom
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Resumo */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="rounded-xl border border-border bg-card p-4 shadow-sm text-center">
+                        <p className="text-2xl font-bold text-card-foreground">{gradePares.length}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Turmas no Excel</p>
+                      </div>
+                      <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 shadow-sm text-center">
+                        <p className="text-2xl font-bold text-emerald-600">{gradePares.filter((p: any) => (gradeManualSelects[gradePares.indexOf(p)] ?? p.turmaIscholar) !== null).length}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Com correspondência</p>
+                      </div>
+                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 shadow-sm text-center">
+                        <p className="text-2xl font-bold text-amber-600">{gradePares.filter((p: any, i: number) => (gradeManualSelects[i] ?? p.turmaIscholar) === null).length}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">Sem correspondência</p>
+                      </div>
+                    </div>
+
+                    {/* Tabela de pares */}
+                    <div className="rounded-xl border border-border bg-card shadow-card overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-border bg-muted/50">
+                              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Turma no Excel</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Turma no iScholar</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Disciplinas</th>
+                              <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {gradePares.map((par: any, idx: number) => {
+                              const ischolarAtual = gradeManualSelects[idx] !== undefined ? gradeManualSelects[idx] : par.turmaIscholar;
+                              const matched = ischolarAtual !== null;
+                              return (
+                                <tr key={idx} className={`border-b border-border last:border-0 transition-colors ${!matched ? "bg-amber-50/30 dark:bg-amber-950/10" : "hover:bg-muted/20"}`}>
+                                  <td className="px-4 py-3">
+                                    <p className="font-medium text-card-foreground">{par.turmaExcel.nomeTurma}</p>
+                                    <p className="text-xs text-muted-foreground">{par.turmaExcel.curso} · Período {par.turmaExcel.periodo}</p>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {par.turmasCandidatas && par.turmasCandidatas.length > 0 ? (
+                                      <select
+                                        value={ischolarAtual ? ischolarAtual.id_turma : ""}
+                                        onChange={e => {
+                                          const val = e.target.value;
+                                          if (val === "") {
+                                            setGradeManualSelects(prev => ({ ...prev, [idx]: null }));
+                                          } else {
+                                            const found = par.turmasCandidatas.find((c: any) => String(c.id_turma) === val);
+                                            setGradeManualSelects(prev => ({ ...prev, [idx]: found || null }));
+                                          }
+                                        }}
+                                        className="w-full rounded-lg border border-input bg-background px-2 py-1.5 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-ring/20"
+                                      >
+                                        <option value="">— Sem correspondência —</option>
+                                        {par.turmasCandidatas.map((c: any) => (
+                                          <option key={c.id_turma} value={c.id_turma}>
+                                            [{c.score}pts] {c.nome_turma || c.nome} ({c.periodo_letivo})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground italic">Nenhuma candidata encontrada</span>
+                                    )}
+                                    {ischolarAtual && (
+                                      <p className="text-xs text-emerald-600 mt-0.5 font-medium">ID: {ischolarAtual.id_turma}</p>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <div className="flex flex-wrap gap-1 max-w-xs">
+                                      {(par.turmaExcel.disciplinas || []).slice(0, 5).map((d: any, di: number) => (
+                                        <span key={di} className="inline-block rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">{d.nome}</span>
+                                      ))}
+                                      {(par.turmaExcel.disciplinas || []).length > 5 && (
+                                        <span className="inline-block rounded-md bg-muted px-2 py-0.5 text-xs text-muted-foreground">+{(par.turmaExcel.disciplinas || []).length - 5} mais</span>
+                                      )}
+                                    </div>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    {matched ? (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 px-2.5 py-1 text-xs font-semibold">
+                                        <Check className="h-3 w-3" /> Correspondida
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 px-2.5 py-1 text-xs font-semibold">
+                                        <AlertCircle className="h-3 w-3" /> Sem match
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* STEP 3: Criando */}
+                {gradeStep === "criando" && (
+                  <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card p-16 shadow-card">
+                    <Loader2 className="h-12 w-12 animate-spin text-emerald-500" />
+                    <p className="text-base font-semibold text-card-foreground">Criando salas no Google Classroom...</p>
+                    <p className="text-xs text-muted-foreground">Isso pode levar alguns minutos. Não feche esta página.</p>
+                  </div>
+                )}
+
+                {/* STEP 4: Resultado */}
+                {gradeStep === "resultado" && gradeResultado && (
+                  <div className="space-y-4 animate-fade-in">
+                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-5 shadow-card">
+                      <div className="flex items-center justify-between flex-wrap gap-3">
+                        <div>
+                          <h3 className="text-base font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+                            <CheckCircle2 className="h-5 w-5" /> Salas criadas com sucesso!
+                          </h3>
+                          <div className="flex gap-4 mt-2 text-sm">
+                            <span className="text-card-foreground font-semibold">{gradeResultado.resumo?.totalCriadas ?? 0} <span className="font-normal text-muted-foreground">novas salas</span></span>
+                            <span className="text-card-foreground font-semibold">{gradeResultado.resumo?.totalReaproveitadas ?? 0} <span className="font-normal text-muted-foreground">reaproveitadas</span></span>
+                            {(gradeResultado.resumo?.totalErros ?? 0) > 0 && (
+                              <span className="text-red-600 font-semibold">{gradeResultado.resumo.totalErros} <span className="font-normal">erros</span></span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={resetGrade}
+                          className="flex items-center gap-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 text-sm font-semibold shadow transition-colors"
+                        >
+                          <RefreshCw className="h-4 w-4" /> Novo Upload
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Resultado por turma */}
+                    <div className="space-y-3">
+                      {(gradeResultado.resultadosPorTurma || []).map((turma: any, ti: number) => (
+                        <div key={ti} className={`rounded-xl border p-4 shadow-sm ${turma.status === "sem_correspondencia" ? "border-amber-500/30 bg-amber-500/5" : "border-border bg-card"}`}>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-semibold text-card-foreground">{turma.nomeTurma}</p>
+                            {turma.status === "sem_correspondencia" ? (
+                              <span className="text-xs text-amber-600 font-medium">⚠ Sem correspondência no iScholar</span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">ID iScholar: {turma.idTurmaIscholar}</span>
+                            )}
+                          </div>
+                          {turma.disciplinas && turma.disciplinas.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5">
+                              {turma.disciplinas.map((d: any, di: number) => (
+                                <span
+                                  key={di}
+                                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
+                                    d.status === "erro" ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300" :
+                                    d.reaproveitada ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" :
+                                    "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                                  }`}
+                                  title={d.alternateLink || d.erro || ""}
+                                >
+                                  {d.status === "erro" ? <XCircle className="h-3 w-3" /> : d.reaproveitada ? <RefreshCw className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
+                                  {d.nome_disciplina}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
