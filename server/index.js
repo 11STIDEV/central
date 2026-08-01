@@ -4785,21 +4785,8 @@ app.post("/api/ti/grade/match-turmas", async (req, res) => {
       return res.status(400).json({ error: "turmasExcel ausente ou vazio." });
     }
 
-    // Busca todas as turmas do iScholar
-    const { codigoEscola, token } = obterCredenciaisIscholar();
-    if (!codigoEscola || !token) {
-      return res.status(500).json({ error: "Credenciais do iScholar não configuradas." });
-    }
-    const headers = { "X-Codigo-Escola": codigoEscola, "X-Autorizacao": token, "Content-Type": "application/json" };
-    const urlTurmas = `https://api.ischolar.app/turma/listar`;
-    const resultTurmas = await safeFetchIscholarJson(urlTurmas, { method: "GET", headers });
-
-    if (!resultTurmas.ok || !resultTurmas.data) {
-      return res.status(500).json({ error: "Falha ao buscar turmas do iScholar." });
-    }
-
-    const rawTurmas = resultTurmas.data.dados || resultTurmas.data.turmas || resultTurmas.data;
-    const turmasIscholar = Array.isArray(rawTurmas) ? rawTurmas : Object.values(rawTurmas || {});
+    // Busca todas as turmas do iScholar via função auxiliar testada
+    const turmasIscholar = await obterTurmasIscholar();
 
     // Faz matching
     const pares = turmasExcel.map(excelTurma => {
