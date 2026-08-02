@@ -4552,13 +4552,30 @@ function normalizarNomeDisc(nome) {
 /** Sheets de cursos que o parser deve processar */
 const SHEETS_CURSOS = ["ADS", "BIOMEDICINA", "DIREITO ", "ENFERMAGEM", "FONOAUDIOLOGIA", "PEDAGOGIA", "PSICOLOGIA", "TÉC ENF ", "TÉC SAÚDE BUCAL"];
 
-/** Extrai o número de período de uma string como '1º Período', '2º Período' etc */
+/** Converte número romano para inteiro */
+function romanToNum(str) {
+  const s = String(str || "").toUpperCase().trim();
+  const romanMap = { "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10 };
+  if (romanMap[s]) return romanMap[s];
+  const m = s.match(/\b(I|II|III|IV|V|VI|VII|VIII|IX|X)\b/);
+  return m ? romanMap[m[1]] : null;
+}
+
+/** Extrai o número de período/módulo de uma string */
 function extrairNumeroPeriodo(str) {
-  const m = String(str).match(/(\d+)[ºo°]?\s*[–-]?\s*período/i);
+  const s = String(str || "").trim();
+  const m = s.match(/(\d+)[ºo°]?\s*[–-]?\s*(?:período|módulo|mód)/i);
   if (m) return parseInt(m[1], 10);
-  // Fallback: primeiro número isolado
-  const n = String(str).match(/(\d+)/);
-  return n ? parseInt(n[1], 10) : null;
+  const r = romanToNum(s);
+  if (r) return r;
+  const nums = s.match(/(\d+)/g);
+  if (nums) {
+    for (const n of nums) {
+      const val = parseInt(n, 10);
+      if (val < 20) return val;
+    }
+  }
+  return null;
 }
 
 /**
@@ -4577,32 +4594,26 @@ function parseGradeHorariaExcel(buffer) {
     const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
 
     let turmaAtual = null;
-    let disciplinasRows = []; // linhas de disciplinas coletadas
+    let disciplinasRows = [];
     let professoresRow = null;
     let numColunas = 6;
 
     const flushTurma = () => {
       if (!turmaAtual) return;
-      // Coletamos todas as disciplinas das rows antes do 'Professores'
-      // professoresRow mapeia col → professor
-      const discMap = {}; // col → [nome, ...]
+      const discMap = {};
       for (const row of disciplinasRows) {
-        for (let col = 1; col < numColunas + 1; col++) {
+        for (let col = 1; col <= numColunas; col++) {
           const val = String(row[col] || "").trim();
           if (!val) continue;
           if (!discMap[col]) discMap[col] = [];
-          // Separar disciplinas concatenadas por '+'
-          const parts = val.split("+").map(p => p.trim()).filter(Boolean);
-          discMap[col].push(...parts);
+          discMap[col].push(...val.split("+").map(p => p.trim()).filter(Boolean));
         }
       }
-      // Montar lista final de disciplinas
       const listaDisc = [];
       const nomesVistos = new Set();
       for (let col = 1; col <= numColunas; col++) {
         const nomes = discMap[col] || [];
         const prof = professoresRow ? String(professoresRow[col] || "").trim() : "";
-        // Limpa prefixo 'Profº', 'Profª', 'Prof.'
         const profLimpo = prof.replace(/^(Prof[oaºª.]+\s*)/i, "").trim();
         for (const nome of nomes) {
           if (!nome || nomesVistos.has(normalizarNomeDisc(nome))) continue;
@@ -4611,7 +4622,16 @@ function parseGradeHorariaExcel(buffer) {
         }
       }
       if (listaDisc.length > 0) {
-        turmas.push({ ...turmaAtual, disciplinas: listaDisc });
+        const existente = turmas.find(t => t.periodo !== null && t.periodo === turmaAtual.periodo);
+        if (existente) {
+          for (const d of listaDisc) {
+            if (!existente.disciplinas.some(x => normalizarNomeDisc(x.nome) === normalizarNomeDisc(d.nome))) {
+              existente.disciplinas.push(d);
+            }
+          }
+        } else {
+          turmas.push({ ...turmaAtual, disciplinas: listaDisc });
+        }
       }
       turmaAtual = null;
       disciplinasRows = [];
@@ -4622,70 +4642,78 @@ function parseGradeHorariaExcel(buffer) {
       const row = data[i];
       const col0 = String(row[0] || "").trim();
 
-      // Detecta linha de turma (ex: 'Biomedicina - 1º Período 2026')
+      const isSubheader =
+        col0.toLowerCase().startsWith("primeiro ciclo") ||
+        col0.toLowerCase().startsWith("segundo ciclo") ||
+        col0.toLowerCase().startsWith("terceiro ciclo") ||
+        col0.toLowerCase().startsWith("ambientação") ||
+        col0.toLowerCase().startsWith("em campo") ||
+        col0.toLowerCase().startsWith("horário") ||
+        col0.toLowerCase().startsWith("professor") ||
+        col0.toLowerCase().startsWith("sala") ||
+        col0.toLowerCase().startsWith("class") ||
+        col0.toLowerCase().startsWith("observ") ||
+        col0.toLowerCase().startsWith("grade") ||
+        col0.toLowerCase().startsWith("curso de") ||
+        col0.startsWith("1º - 19h") ||
+        col0.startsWith("1ª - 19h") ||
+        col0.startsWith("Das 19h");
+
       const ehLinhaTurma =
         col0 &&
-        !col0.startsWith("1º - 19h") &&
-        !col0.startsWith("1ª - 19h") &&
-        !col0.toLowerCase().startsWith("horário") &&
-        !col0.toLowerCase().startsWith("professor") &&
-        !col0.toLowerCase().startsWith("sala") &&
-        !col0.toLowerCase().startsWith("class") &&
-        !col0.toLowerCase().startsWith("observ") &&
-        !col0.toLowerCase().startsWith("grade") &&
-        !col0.toLowerCase().startsWith("curso") &&
-        col0.match(/(1º|2º|3º|4º|5º|6º|7º|8º|9º|10º|1°|2°|\d+[ºo°])/i);
+        !isSubheader &&
+        (col0.match(/(1º|2º|3º|4º|5º|6º|7º|8º|9º|10º|1°|2°|\d+[ºo°])/i) ||
+         col0.toLowerCase().includes("técnico em") ||
+         col0.toLowerCase().includes("módulo") ||
+         col0.toLowerCase().includes("modulo") ||
+         col0.match(/\b(I|II|III|IV|V|VI)\b/));
 
       if (ehLinhaTurma) {
-        flushTurma();
-        // Extrai período letivo do nome (ex: 2026.2)
+        if (disciplinasRows.length > 0) flushTurma();
         const periodoLetMatch = col0.match(/(\d{4}\.\d)/i);
         const periodoLet = periodoLetMatch ? periodoLetMatch[1] : "2026.2";
         const numPeriodo = extrairNumeroPeriodo(col0);
-        // Conta colunas de dias na próxima linha (header de dias)
         const headerRow = data[i + 1] || [];
         numColunas = Math.max(1, headerRow.slice(1).filter(c => String(c).trim() !== "").length);
-        turmaAtual = {
-          nomeTurma: col0,
-          curso,
-          periodo: numPeriodo,
-          periodoLetivo: periodoLet,
-        };
-        i++; // pula header de dias
+
+        if (turmaAtual && disciplinasRows.length === 0) {
+          turmaAtual.nomeTurma += " " + col0;
+          if (numPeriodo !== null) turmaAtual.periodo = numPeriodo;
+          if (periodoLetMatch) turmaAtual.periodoLetivo = periodoLet;
+        } else {
+          turmaAtual = {
+            nomeTurma: col0,
+            curso,
+            periodo: numPeriodo,
+            periodoLetivo: periodoLet,
+          };
+        }
+        i++;
         continue;
       }
 
       if (!turmaAtual) continue;
 
-      // Linha de disciplinas (col A vazia ou col A = horário)
       if (
         col0 === "" ||
         col0.startsWith("1º - 19h") ||
-        col0.startsWith("1ª - 19h")
+        col0.startsWith("1ª - 19h") ||
+        col0.startsWith("Das 19h") ||
+        col0.toLowerCase().startsWith("primeiro ciclo") ||
+        col0.toLowerCase().startsWith("segundo ciclo")
       ) {
         const temConteudo = row.slice(1).some(c => String(c).trim() !== "");
         if (temConteudo) disciplinasRows.push(row);
         continue;
       }
 
-      // Linha de professores
       if (col0.toLowerCase().startsWith("professor")) {
         professoresRow = row;
         continue;
       }
-
-      // Linha de sala, observação, classroom → flush e próxima turma
-      if (
-        col0.toLowerCase().startsWith("sala") ||
-        col0.toLowerCase().startsWith("class") ||
-        col0.toLowerCase().startsWith("observ")
-      ) {
-        // não faz flush aqui; espera a próxima turma ou fim do sheet
-        continue;
-      }
     }
 
-    flushTurma(); // flush da última turma do sheet
+    flushTurma();
   }
 
   return turmas;
@@ -4703,8 +4731,6 @@ function calcularScoreMatch(excelTurma, ischolarTurma) {
 
   let score = 0;
 
-  // Verifica se contém o nome do curso
-  // Mapeamento de abreviações
   const abrevMap = {
     "ADS": ["ADS", "ANALISE E DESENVOLVIMENTO DE SISTEMAS", "ANALISE"],
     "BIOMEDICINA": ["BIOMEDICINA", "BIOMED"],
@@ -4713,20 +4739,18 @@ function calcularScoreMatch(excelTurma, ischolarTurma) {
     "FONOAUDIOLOGIA": ["FONOAUDIOLOGIA", "FONO"],
     "PEDAGOGIA": ["PEDAGOGIA", "PED"],
     "PSICOLOGIA": ["PSICOLOGIA", "PSI"],
-    "TEC ENF": ["TECNICO EM ENFERMAGEM", "TEC ENF", "ENF TEC"],
-    "TEC SAUDE BUCAL": ["TECNICO EM SAUDE BUCAL", "TEC SAUDE BUCAL", "SAUDE BUCAL"],
+    "TEC ENF": ["TECNICO EM ENFERMAGEM", "TEC ENF", "ENF TEC", "TÉC ENF"],
+    "TEC SAUDE BUCAL": ["TECNICO EM SAUDE BUCAL", "TEC SAUDE BUCAL", "SAUDE BUCAL", "TÉC SAÚDE BUCAL", "TÉC SAUDE BUCAL"],
   };
   const aliases = abrevMap[cursoNorm] || [cursoNorm];
-  const cursoEncontrado = aliases.some(a => nomeTurmaIsch.includes(a));
+  const cursoEncontrado = aliases.some(a => nomeTurmaIsch.includes(normalizarNomeDisc(a)));
   if (cursoEncontrado) score += 50;
 
-  // Verifica número de período
   if (periodo !== null) {
     const numNome = extrairNumeroPeriodo(nomeTurmaIsch);
     if (numNome === periodo) score += 35;
   }
 
-  // Verifica período letivo
   const periodoIsch = String(ischolarTurma.periodo_letivo || "").trim();
   if (periodoLetivo && periodoIsch && periodoIsch.includes(periodoLetivo.replace(".", ""))) {
     score += 15;
