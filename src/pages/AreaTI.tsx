@@ -1253,8 +1253,8 @@ export default function AreaTI() {
                 {gradeStep === "criando" && (
                   <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card p-16 shadow-card">
                     <Loader2 className="h-12 w-12 animate-spin text-emerald-500" />
-                    <p className="text-base font-semibold text-card-foreground">Criando salas no Google Classroom...</p>
-                    <p className="text-xs text-muted-foreground">Isso pode levar alguns minutos. Não feche esta página.</p>
+                    <p className="text-base font-semibold text-card-foreground">Criando salas e ensalando alunos no Google Classroom...</p>
+                    <p className="text-xs text-muted-foreground">Isso pode levar alguns minutos dependendo do número de alunos. Não feche esta página.</p>
                   </div>
                 )}
 
@@ -1267,9 +1267,10 @@ export default function AreaTI() {
                           <h3 className="text-base font-bold text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
                             <CheckCircle2 className="h-5 w-5" /> Salas criadas com sucesso!
                           </h3>
-                          <div className="flex gap-4 mt-2 text-sm">
+                          <div className="flex gap-4 mt-2 text-sm flex-wrap">
                             <span className="text-card-foreground font-semibold">{gradeResultado.resumo?.totalCriadas ?? 0} <span className="font-normal text-muted-foreground">novas salas</span></span>
                             <span className="text-card-foreground font-semibold">{gradeResultado.resumo?.totalReaproveitadas ?? 0} <span className="font-normal text-muted-foreground">reaproveitadas</span></span>
+                            <span className="text-emerald-700 dark:text-emerald-400 font-semibold">{gradeResultado.resumo?.totalAlunos ?? 0} <span className="font-normal">alunos ensalados</span></span>
                             {(gradeResultado.resumo?.totalErros ?? 0) > 0 && (
                               <span className="text-red-600 font-semibold">{gradeResultado.resumo.totalErros} <span className="font-normal">erros</span></span>
                             )}
@@ -1297,21 +1298,41 @@ export default function AreaTI() {
                             )}
                           </div>
                           {turma.disciplinas && turma.disciplinas.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5">
-                              {turma.disciplinas.map((d: any, di: number) => (
-                                <span
-                                  key={di}
-                                  className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
-                                    d.status === "erro" ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300" :
-                                    d.reaproveitada ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" :
-                                    "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
-                                  }`}
-                                  title={d.alternateLink || d.erro || ""}
-                                >
-                                  {d.status === "erro" ? <XCircle className="h-3 w-3" /> : d.reaproveitada ? <RefreshCw className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
-                                  {d.nome_disciplina}
-                                </span>
-                              ))}
+                            <div className="space-y-1.5">
+                              {turma.disciplinas.map((d: any, di: number) => {
+                                const ens = d.ensalamento;
+                                const ensPulado = ens?.jaExistiam === -1;
+                                const tooltipText = d.status === "erro"
+                                  ? d.erro
+                                  : ens
+                                    ? ensPulado
+                                      ? "Turma já ensalada anteriormente"
+                                      : `✅ ${ens.ensalados} ensalados · 🔄 ${ens.jaExistiam} já estavam · ⚠️ ${ens.semEmail} sem e-mail · ❌ ${ens.erros} erros`
+                                    : (d.alternateLink || "");
+                                return (
+                                  <div key={di} className="flex items-center gap-2">
+                                    <span
+                                      className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-medium ${
+                                        d.status === "erro" ? "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300" :
+                                        d.reaproveitada ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300" :
+                                        "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
+                                      }`}
+                                      title={tooltipText}
+                                    >
+                                      {d.status === "erro" ? <XCircle className="h-3 w-3" /> : d.reaproveitada ? <RefreshCw className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
+                                      {d.nome_disciplina}
+                                    </span>
+                                    {ens && !ensPulado && d.status !== "erro" && (
+                                      <span className="text-[10px] text-muted-foreground">
+                                        {ens.ensalados > 0 && <span className="text-emerald-600">👥 {ens.ensalados} alunos</span>}
+                                        {ens.semEmail > 0 && <span className="ml-1 text-amber-500">⚠️ {ens.semEmail} sem e-mail</span>}
+                                        {ens.erros > 0 && <span className="ml-1 text-red-500">❌ {ens.erros} erros</span>}
+                                      </span>
+                                    )}
+                                    {ensPulado && <span className="text-[10px] text-muted-foreground italic">já ensalada</span>}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
