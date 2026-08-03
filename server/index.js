@@ -3378,8 +3378,8 @@ async function obterTurmasIscholar() {
     }
   }
 
-  const todasAsTurmas = Array.from(turmasMap.values());
-  console.log(`[ischolar-turmas] Sucesso! Total de ${todasAsTurmas.length} turmas capturadas em todos os períodos.`);
+  const todasAsTurmas = Array.from(turmasMap.values()).filter(t => String(t.periodo_letivo).trim() === "2026.2");
+  console.log(`[ischolar-turmas] Sucesso! Total de ${todasAsTurmas.length} turmas do período 2026.2.`);
   return todasAsTurmas;
 }
 
