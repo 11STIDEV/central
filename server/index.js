@@ -3266,7 +3266,7 @@ async function obterUnidadesIscholar() {
 async function obterTurmasIscholar() {
   const { codigoEscola, token } = obterCredenciaisIscholar();
   if (!codigoEscola || !token) {
-    throw new Error("Credenciais do iScholar n├úo configuradas no servidor (ISCHOLAR_CODIGO_ESCOLA e ISCHOLAR_TOKEN).");
+    throw new Error("Credenciais do iScholar não configuradas no servidor (ISCHOLAR_CODIGO_ESCOLA e ISCHOLAR_TOKEN).");
   }
 
   const headers = {
@@ -3275,72 +3275,111 @@ async function obterTurmasIscholar() {
     "Content-Type": "application/json"
   };
 
-  // 1. Buscar unidades cadastradas
-  const unidades = await obterUnidadesIscholar();
-  let rawTurmas = [];
+  const turmasMap = new Map();
 
-  if (Array.isArray(unidades) && unidades.length > 0) {
-    for (const u of unidades) {
+  // 1. Buscar turmas iterando por periodo_id (1 a 15) para evitar que o iScholar limite apenas ao período padrão
+  for (let pid = 1; pid <= 15; pid++) {
+    let page = 1;
+    while (true) {
       try {
-        const url = `https://api.ischolar.app/turma/lista?unidade_id=${u.id_unidade}`;
+        const url = `https://api.ischolar.app/turma/lista?periodo_id=${pid}&pagina=${page}`;
         const res = await safeFetchIscholarJson(url, { method: "GET", headers });
         if (res.ok && res.data) {
           const raw = res.data.dados || res.data.turmas || res.data.lista || res.data;
           const items = Array.isArray(raw) ? raw : (typeof raw === "object" && raw !== null ? Object.values(raw) : []);
-          items.forEach(t => {
-            if (t && typeof t === "object") {
-              rawTurmas.push({ ...t, id_unidade_ref: u.id_unidade, nome_unidade_ref: u.nome_unidade });
+          if (items.length === 0) break;
+
+          for (const t of items) {
+            if (!t || typeof t !== "object") continue;
+            const idTurma = String(t.id_turma || t.id || t.codigo || "");
+            if (!idTurma || turmasMap.has(idTurma)) continue;
+
+            const nome = extrairStringValor(t.nome_turma) || extrairStringValor(t.nome) || extrairStringValor(t.turma) || `Turma ${idTurma}`;
+            const curso = extrairStringValor(t.nome_curso) || extrairStringValor(t.curso);
+            const periodo = extrairStringValor(t.periodo_letivo) || extrairStringValor(t.periodo) || extrairStringValor(t.ano_letivo) || "2026.2";
+            const nomeUnidadeRaw = t.unidade?.nome || t.nome_unidade || t.nome_unidade_ref || "";
+
+            const normalizar = (str) => (str || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const norm = normalizar(String(nome) + " " + String(curso) + " " + String(nomeUnidadeRaw));
+
+            let unidade = nomeUnidadeRaw || "Todas as Unidades";
+            if (norm.includes("TECNICO") || norm.includes("TECSCCI")) {
+              unidade = "TecsCCI Escola Técnica";
+            } else if (norm.includes("FACULDADE") || norm.includes("GRADUACAO") || norm.includes("FAC")) {
+              unidade = "Faculdade CCI";
             }
-          });
+
+            turmasMap.set(idTurma, {
+              id_turma: idTurma,
+              nome_turma: String(nome),
+              curso: String(curso),
+              periodo_letivo: String(periodo),
+              unidade: String(unidade),
+              id_unidade: String(t.unidade?.id || t.id_unidade || t.id_unidade_ref || "")
+            });
+          }
+
+          if (items.length < 100) break;
+          page++;
+        } else {
+          break;
         }
       } catch (e) {
-        console.error(`[ischolar-turmas] Erro ao buscar turmas da unidade ${u.id_unidade}:`, e);
+        console.error(`[ischolar-turmas] Erro ao buscar periodo_id ${pid} pag ${page}:`, e.message);
+        break;
       }
     }
   }
 
-  // 2. Fallback direto se unidades retornou vazio
-  if (rawTurmas.length === 0) {
-    const url = `https://api.ischolar.app/turma/lista`;
-    const res = await safeFetchIscholarJson(url, { method: "GET", headers });
-    if (res.ok && res.data) {
-      const raw = res.data.dados || res.data.turmas || res.data.lista || res.data;
-      rawTurmas = Array.isArray(raw) ? raw : (typeof raw === "object" && raw !== null ? Object.values(raw) : []);
+  // 2. Fallback por unidades se o loop de períodos por algum motivo falhar totalmente
+  if (turmasMap.size === 0) {
+    const unidades = await obterUnidadesIscholar();
+    if (Array.isArray(unidades) && unidades.length > 0) {
+      for (const u of unidades) {
+        try {
+          const url = `https://api.ischolar.app/turma/lista?unidade_id=${u.id_unidade}`;
+          const res = await safeFetchIscholarJson(url, { method: "GET", headers });
+          if (res.ok && res.data) {
+            const raw = res.data.dados || res.data.turmas || res.data.lista || res.data;
+            const items = Array.isArray(raw) ? raw : (typeof raw === "object" && raw !== null ? Object.values(raw) : []);
+            items.forEach(t => {
+              if (t && typeof t === "object") {
+                const idTurma = String(t.id_turma || t.id || t.codigo || "");
+                if (idTurma && !turmasMap.has(idTurma)) {
+                  const nome = extrairStringValor(t.nome_turma) || extrairStringValor(t.nome) || extrairStringValor(t.turma) || `Turma ${idTurma}`;
+                  const curso = extrairStringValor(t.nome_curso) || extrairStringValor(t.curso);
+                  const periodo = extrairStringValor(t.periodo_letivo) || extrairStringValor(t.periodo) || extrairStringValor(t.ano_letivo) || "2026.2";
+                  const normalizar = (str) => (str || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                  const norm = normalizar(String(nome) + " " + String(curso) + " " + String(u.nome_unidade));
+
+                  let unidade = u.nome_unidade || "Todas as Unidades";
+                  if (norm.includes("TECNICO") || norm.includes("TECSCCI")) {
+                    unidade = "TecsCCI Escola Técnica";
+                  } else if (norm.includes("FACULDADE") || norm.includes("GRADUACAO") || norm.includes("FAC")) {
+                    unidade = "Faculdade CCI";
+                  }
+
+                  turmasMap.set(idTurma, {
+                    id_turma: idTurma,
+                    nome_turma: String(nome),
+                    curso: String(curso),
+                    periodo_letivo: String(periodo),
+                    unidade: String(unidade),
+                    id_unidade: String(u.id_unidade)
+                  });
+                }
+              }
+            });
+          }
+        } catch (e) {
+          console.error(`[ischolar-turmas] Erro ao buscar turmas da unidade ${u.id_unidade}:`, e);
+        }
+      }
     }
   }
 
-  const normalizar = (str) => (str || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-  const todasAsTurmas = (Array.isArray(rawTurmas) ? rawTurmas : []).map(t => {
-    if (!t || typeof t !== "object") return null;
-    const nome = extrairStringValor(t.nome_turma) || extrairStringValor(t.nome) || extrairStringValor(t.turma) || `Turma ${t.id_turma || t.id || ""}`;
-    const curso = extrairStringValor(t.nome_curso) || extrairStringValor(t.curso) || "";
-    
-    let periodo = extrairStringValor(t.periodo_letivo) ||
-                  extrairStringValor(t.periodo) ||
-                  extrairStringValor(t.ano_letivo) ||
-                  extrairStringValor(t.semestre) ||
-                  "2026.1";
-
-    const norm = normalizar(String(nome) + " " + String(curso) + " " + String(t.nome_unidade_ref || ""));
-    
-    let unidade = t.nome_unidade_ref || "Todas as Unidades";
-    if (norm.includes("TECNICO") || norm.includes("TECSCCI")) {
-      unidade = "TecsCCI Escola T├®cnica";
-    } else if (norm.includes("FACULDADE") || norm.includes("GRADUACAO") || norm.includes("FAC")) {
-      unidade = "Faculdade CCI";
-    }
-
-    return {
-      id_turma: String(t.id_turma || t.id || t.codigo || ""),
-      nome_turma: String(nome),
-      curso: String(curso),
-      periodo_letivo: String(periodo),
-      unidade: String(unidade),
-      id_unidade: String(t.id_unidade || t.id_unidade_ref || "")
-    };
-  }).filter(Boolean);
-
+  const todasAsTurmas = Array.from(turmasMap.values());
+  console.log(`[ischolar-turmas] Sucesso! Total de ${todasAsTurmas.length} turmas capturadas em todos os períodos.`);
   return todasAsTurmas;
 }
 
