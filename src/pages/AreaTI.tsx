@@ -1253,8 +1253,8 @@ export default function AreaTI() {
                 {gradeStep === "criando" && (
                   <div className="flex flex-col items-center justify-center gap-4 rounded-xl border border-border bg-card p-16 shadow-card">
                     <Loader2 className="h-12 w-12 animate-spin text-emerald-500" />
-                    <p className="text-base font-semibold text-card-foreground">Criando salas e ensalando alunos no Google Classroom...</p>
-                    <p className="text-xs text-muted-foreground">Isso pode levar alguns minutos dependendo do número de alunos. Não feche esta página.</p>
+                    <p className="text-base font-semibold text-card-foreground">Processando a criação de salas e o ensalamento de alunos...</p>
+                    <p className="text-xs text-muted-foreground">Estamos trabalhando no Google Classroom. Por favor, aguarde e não feche esta página.</p>
                   </div>
                 )}
 
@@ -1298,16 +1298,14 @@ export default function AreaTI() {
                             )}
                           </div>
                           {turma.disciplinas && turma.disciplinas.length > 0 && (
-                            <div className="space-y-1.5">
+                            <div className="space-y-1 mt-1">
                               {turma.disciplinas.map((d: any, di: number) => {
                                 const ens = d.ensalamento;
                                 const ensPulado = ens?.jaExistiam === -1;
                                 const tooltipText = d.status === "erro"
                                   ? d.erro
-                                  : ens
-                                    ? ensPulado
-                                      ? "Turma já ensalada anteriormente"
-                                      : `✅ ${ens.ensalados} ensalados · 🔄 ${ens.jaExistiam} já estavam · ⚠️ ${ens.semEmail} sem e-mail · ❌ ${ens.erros} erros`
+                                  : ens && !ensPulado
+                                    ? `✅ ${ens.ensalados} ensalados · 🔄 ${ens.jaExistiam} já estavam · ⚠️ ${ens.semEmail} sem e-mail · ❌ ${ens.erros} erros`
                                     : (d.alternateLink || "");
                                 return (
                                   <div key={di} className="flex items-center gap-2">
