@@ -82,6 +82,8 @@ export default function AreaTI() {
   const [errorMsgIscholar, setErrorMsgIscholar] = useState<string | null>(null);
   const [debugResults, setDebugResults] = useState<any | null>(null);
   const [isDebuging, setIsDebuging] = useState(false);
+  // IDs das disciplinas marcadas para criação (todas marcadas por padrão ao carregar)
+  const [disciplinasSelecionadas, setDisciplinasSelecionadas] = useState<Set<string>>(new Set());
 
   const parseCSV = (text: string) => {
     const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
@@ -289,6 +291,8 @@ export default function AreaTI() {
         const discArray = resDisc.json.disciplinas || [];
         console.log("[DEBUG-AreaTI] Disciplinas recebidas do backend:", JSON.stringify(discArray.slice(0, 3), null, 2));
         setDisciplinasTurma(discArray);
+        // Seleciona todas as disciplinas por padrão ao carregar nova turma
+        setDisciplinasSelecionadas(new Set(discArray.map((d: any) => String(d.id_disciplina))));
         if (resDisc.json.mapeamentos) {
           setMapeamentos(resDisc.json.mapeamentos);
         }
@@ -307,7 +311,11 @@ export default function AreaTI() {
   };
 
   const handleCriarSalasDisciplinas = async () => {
-    if (!selectedTurmaId || disciplinasTurma.length === 0) return;
+    const disciplinasFiltradas = disciplinasTurma.filter(d => disciplinasSelecionadas.has(String(d.id_disciplina)));
+    if (!selectedTurmaId || disciplinasFiltradas.length === 0) {
+      setErrorMsgIscholar("Selecione ao menos uma disciplina antes de criar salas.");
+      return;
+    }
     if (!googleIdToken) {
       alert("Atenção: É necessário estar autenticado com uma conta do Google para criar salas no Google Classroom.");
       return;
@@ -327,7 +335,7 @@ export default function AreaTI() {
           idToken: googleIdToken,
           idTurma: selectedTurmaId,
           periodoLetivo: periodoLetivo,
-          disciplinas: disciplinasTurma
+          disciplinas: disciplinasTurma.filter(d => disciplinasSelecionadas.has(String(d.id_disciplina)))
         })
       });
       if (ok && json.ok) {
@@ -821,15 +829,37 @@ export default function AreaTI() {
                     {/* CARD DISCIPLINAS */}
                     <div className="rounded-xl border border-border bg-card p-6 shadow-card flex flex-col justify-between space-y-4">
                       <div>
-                        <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center justify-between mb-3">
                           <div>
                             <h4 className="text-base font-bold text-card-foreground">Disciplinas da Turma</h4>
-                            <p className="text-xs text-muted-foreground">Padrão: Nome da Disciplina - Período Letivo</p>
+                            <p className="text-xs text-muted-foreground">Desmarque as disciplinas que não devem ser criadas</p>
                           </div>
-                          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-bold text-primary">
-                            {disciplinasTurma.length} Disciplina(s)
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                            disciplinasSelecionadas.size === disciplinasTurma.length
+                              ? "bg-primary/10 text-primary"
+                              : "bg-amber-500/15 text-amber-700 dark:text-amber-400"
+                          }`}>
+                            {disciplinasSelecionadas.size} de {disciplinasTurma.length} sel.
                           </span>
                         </div>
+
+                        {/* Controles rápidos de seleção */}
+                        {!isLoadingDisciplinas && disciplinasTurma.length > 0 && (
+                          <div className="flex gap-2 mb-3">
+                            <button
+                              onClick={() => setDisciplinasSelecionadas(new Set(disciplinasTurma.map(d => String(d.id_disciplina))))}
+                              className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                            >
+                              ✓ Todas
+                            </button>
+                            <button
+                              onClick={() => setDisciplinasSelecionadas(new Set())}
+                              className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                            >
+                              ✗ Nenhuma
+                            </button>
+                          </div>
+                        )}
 
                         {isLoadingDisciplinas ? (
                           <div className="py-8 text-center text-xs text-muted-foreground flex flex-col items-center gap-2">
@@ -846,6 +876,7 @@ export default function AreaTI() {
                               const chave = `${selectedTurmaId}_${d.id_disciplina}`;
                               const mapItem = mapeamentos[chave];
                               const turmaAtual = turmasIscholar.find(t => t.id_turma === selectedTurmaId);
+                              const selecionada = disciplinasSelecionadas.has(String(d.id_disciplina));
                               
                               const formatarStr = (val: any): string => {
                                 if (!val) return "";
@@ -864,24 +895,49 @@ export default function AreaTI() {
                               const nomePadrao = `${nomeLimpo} - ${periodoStr}`;
 
                               return (
-                                <div key={d.id_disciplina} className="flex items-center justify-between rounded-lg border border-border bg-muted/40 p-3 text-xs">
-                                  <div>
-                                    <p className="font-semibold text-card-foreground">{nomePadrao}</p>
-                                    {(() => {
-                                      const nomeDocenteExibicao = d.nome_professor || (d.id_professor ? `Docente (ID: ${d.id_professor})` : "Pendente / Não informado");
-                                      return (
-                                        <p className="text-[11px] text-muted-foreground">
-                                          ID: {d.id_disciplina}
-                                          <span className="ml-1.5 font-medium text-foreground">
-                                            • Docente: {nomeDocenteExibicao} {d.email_professor ? `(${d.email_professor})` : ""}
-                                          </span>
-                                        </p>
-                                      );
-                                    })()}
+                                <div
+                                  key={d.id_disciplina}
+                                  onClick={() => {
+                                    const id = String(d.id_disciplina);
+                                    setDisciplinasSelecionadas(prev => {
+                                      const next = new Set(prev);
+                                      next.has(id) ? next.delete(id) : next.add(id);
+                                      return next;
+                                    });
+                                  }}
+                                  className={`flex items-center justify-between rounded-lg border p-3 text-xs cursor-pointer transition-all select-none ${
+                                    selecionada
+                                      ? "border-border bg-muted/40 hover:bg-muted/70"
+                                      : "border-border/50 bg-muted/10 opacity-50 hover:opacity-70"
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-2.5">
+                                    {/* Checkbox visual */}
+                                    <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border-2 transition-all ${
+                                      selecionada
+                                        ? "border-primary bg-primary text-primary-foreground"
+                                        : "border-border bg-card"
+                                    }`}>
+                                      {selecionada && <Check className="h-2.5 w-2.5" />}
+                                    </div>
+                                    <div>
+                                      <p className="font-semibold text-card-foreground">{nomePadrao}</p>
+                                      {(() => {
+                                        const nomeDocenteExibicao = d.nome_professor || (d.id_professor ? `Docente (ID: ${d.id_professor})` : "Pendente / Não informado");
+                                        return (
+                                          <p className="text-[11px] text-muted-foreground">
+                                            ID: {d.id_disciplina}
+                                            <span className="ml-1.5 font-medium text-foreground">
+                                              • Docente: {nomeDocenteExibicao} {d.email_professor ? `(${d.email_professor})` : ""}
+                                            </span>
+                                          </p>
+                                        );
+                                      })()}
+                                    </div>
                                   </div>
 
                                   {mapItem ? (
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
                                       <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">
                                         <Check className="h-3 w-3" />
                                         {mapItem.reaproveitada ? "Compartilhada" : "Criada"}
@@ -898,8 +954,10 @@ export default function AreaTI() {
                                       )}
                                     </div>
                                   ) : (
-                                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                                      Pendente
+                                    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                      selecionada ? "bg-muted text-muted-foreground" : "bg-muted/50 text-muted-foreground/50"
+                                    }`}>
+                                      {selecionada ? "Pendente" : "Ignorada"}
                                     </span>
                                   )}
                                 </div>
@@ -911,7 +969,7 @@ export default function AreaTI() {
 
                       <button
                         onClick={handleCriarSalasDisciplinas}
-                        disabled={isCreatingSalas || isLoadingDisciplinas || disciplinasTurma.length === 0}
+                        disabled={isCreatingSalas || isLoadingDisciplinas || disciplinasSelecionadas.size === 0}
                         className="w-full flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow transition-all hover:bg-primary/90 disabled:opacity-50"
                       >
                         {isCreatingSalas ? (
@@ -922,7 +980,9 @@ export default function AreaTI() {
                         ) : (
                           <>
                             <School className="h-4 w-4" />
-                            1. Criar Salas das Disciplinas no Classroom
+                            1. Criar {disciplinasSelecionadas.size > 0 && disciplinasSelecionadas.size < disciplinasTurma.length
+                              ? `${disciplinasSelecionadas.size} Sala(s) Selecionada(s)`
+                              : "Salas das Disciplinas"} no Classroom
                           </>
                         )}
                       </button>
