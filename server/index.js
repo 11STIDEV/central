@@ -411,18 +411,20 @@ function getJwtParaEmail() {
 }
 
 /**
- * Valida o ID token do usu├írio e retorna o email (dom├¡nio j├í conferido).
- * @returns {{ email: string }}
+ * Valida o ID token do usuário e retorna o email (domínio já conferido).
+ * Se o token do Google tiver mais de 1 hora ("Token used too late"), mas aud e domínio forem válidos,
+ * aceita o payload para não interromper sessões ativas do usuário.
+ * @returns {Promise<{ email: string, name?: string, picture?: string }>}
  */
 async function verificarIdTokenUsuario(idToken) {
   if (!idToken || typeof idToken !== "string") {
-    const err = new Error("idToken ├® obrigat├│rio no body.");
+    const err = new Error("idToken é obrigatório no body.");
     err.status = 400;
     throw err;
   }
 
   if (GOOGLE_CLIENT_IDS.length === 0) {
-    const err = new Error("GOOGLE_CLIENT_ID n├úo configurado no servidor.");
+    const err = new Error("GOOGLE_CLIENT_ID não configurado no servidor.");
     err.status = 500;
     throw err;
   }
@@ -432,11 +434,11 @@ async function verificarIdTokenUsuario(idToken) {
   const audDoToken = Array.isArray(audRaw) ? audRaw[0] : audRaw;
   if (audDoToken && !GOOGLE_CLIENT_IDS.includes(audDoToken)) {
     console.error(
-      "[verify] aud do token n├úo bate com GOOGLE_CLIENT_ID no .env:",
+      "[verify] aud do token não bate com GOOGLE_CLIENT_ID no .env:",
       { audDoToken, configurado: GOOGLE_CLIENT_IDS },
     );
     const err = new Error(
-      "O Client ID OAuth do token (aud) n├úo corresponde ao GOOGLE_CLIENT_ID do servidor.",
+      "O Client ID OAuth do token (aud) não corresponde ao GOOGLE_CLIENT_ID do servidor.",
     );
     err.status = 401;
     err.audDoToken = audDoToken;
@@ -446,11 +448,23 @@ async function verificarIdTokenUsuario(idToken) {
   const audience =
     GOOGLE_CLIENT_IDS.length === 1 ? GOOGLE_CLIENT_IDS[0] : GOOGLE_CLIENT_IDS;
   const client = new OAuth2Client(GOOGLE_CLIENT_IDS[0]);
-  const ticket = await client.verifyIdToken({
-    idToken,
-    audience,
-  });
-  const payload = ticket.getPayload();
+  
+  let payload;
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience,
+    });
+    payload = ticket.getPayload();
+  } catch (err) {
+    if (err.message && (err.message.includes("Token used too late") || err.message.includes("jwt expired"))) {
+      console.warn("[verify] Token ID Google expirado (Token used too late), utilizando payload para sessão ativa:", err.message);
+      payload = payloadUnsafe;
+    } else {
+      throw err;
+    }
+  }
+
   const email = payload?.email;
 
   if (!email) {
@@ -461,7 +475,7 @@ async function verificarIdTokenUsuario(idToken) {
 
   if (!emailDominioPermitido(email)) {
     const err = new Error(
-      `Apenas contas dos dom├¡nios ${DOMINIOS_PERMITIDOS.join(", ")} s├úo permitidas.`,
+      `Apenas contas dos domínios ${DOMINIOS_PERMITIDOS.join(", ")} são permitidas.`,
     );
     err.status = 403;
     throw err;
