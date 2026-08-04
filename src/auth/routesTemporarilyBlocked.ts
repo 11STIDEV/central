@@ -2,12 +2,9 @@ import type { Papel } from "./AuthProvider";
 
 /** Rotas visíveis no menu mas sem acesso (em desenvolvimento / formulários em revisão). */
 export const ROTAS_TEMPORARIAMENTE_BLOQUEADAS = new Set([
-  "/agenda-cci",
   "/base-conhecimento",
   "/documentos",
   "/controle-materiais-almoxarifado",
-  "/reserva-espacos-equipamentos",
-  "/minhas-reservas",
   "/trilha-conhecimento",
 ]);
 
