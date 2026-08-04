@@ -12,7 +12,6 @@ import {
  * Alunos em `/Alunos FACULDADE` ou `/Alunos TECSCCI` têm conjunto próprio em `isSomenteAluno`.
  */
 const ROTAS_INTRANET_COMUM = new Set([
-  "/achados-e-perdidos",
   "/achados-e-perdidos/publico",
   "/",
   "/avisos",
@@ -31,6 +30,8 @@ const ROTAS_INTRANET_COMUM = new Set([
 ]);
 
 const PAPEIS_PROFESSORES: Papel[] = ["professorfac", "professortecs", "professorregular"];
+
+const PAPEIS_ACHADOS_PERDIDOS: Papel[] = ["secretaria", "gerente_secretaria", "painel_admin"];
 
 /** Alunos não acessam o módulo de avisos. */
 const ROTAS_BLOQUEADAS_ALUNO = new Set(["/avisos", "/avisos/publicar"]);
@@ -59,7 +60,8 @@ export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/cci-pay/relatorios/dp": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
   "/cci-pay/relatorios/loja": ["ccipay_loja", "ccipay_admin", "ccipay_dp"],
   "/agenda-cci/admin": ["setape"],
-  "/achados-e-perdidos/admin": ["secretaria", "painel_admin"],
+  "/achados-e-perdidos": PAPEIS_ACHADOS_PERDIDOS,
+  "/achados-e-perdidos/admin": PAPEIS_ACHADOS_PERDIDOS,
   "/setores/professores": PAPEIS_PROFESSORES,
   "/setores/disciplinar": ["disciplinar"],
   "/setores/secretaria": ["secretaria"],
