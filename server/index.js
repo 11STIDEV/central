@@ -8,6 +8,8 @@ import express from "express";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { google } from "googleapis";
 import { OAuth2Client } from "google-auth-library";
+import multer from "multer";
+import * as XLSX from "xlsx";
 import {
   agoraLocalParts,
   estaEmJanelaReservaAtiva,
@@ -57,19 +59,19 @@ import {
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-/** Dev local: lê `server/.env`. Produção (Docker/Coolify): variáveis vêm do runtime — o `.env` não vai na imagem. */
+/** Dev local: l├¬ `server/.env`. Produ├º├úo (Docker/Coolify): vari├íveis v├¬m do runtime ÔÇö o `.env` n├úo vai na imagem. */
 dotenv.config({ path: path.join(__dirname, ".env") });
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-/** Endereço de bind (Docker/rede: use 0.0.0.0 para aceitar conexões externas ao container). */
+/** Endere├ºo de bind (Docker/rede: use 0.0.0.0 para aceitar conex├Áes externas ao container). */
 const HOST = process.env.HOST || "0.0.0.0";
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: "2mb" }));
 
-/** Um ou mais sufixos permitidos, separados por vírgula. Alinhar ao front (`AuthProvider`) e ao `server/.env.example`. */
+/** Um ou mais sufixos permitidos, separados por v├¡rgula. Alinhar ao front (`AuthProvider`) e ao `server/.env.example`. */
 function parseDominiosPermitidos() {
   const raw =
     process.env.DOMINIOS_PERMITIDOS ||
@@ -82,7 +84,7 @@ function parseDominiosPermitidos() {
 }
 const DOMINIOS_PERMITIDOS = parseDominiosPermitidos();
 
-/** Lê env em runtime (Coolify injeta no processo; nomes alternativos comuns). */
+/** L├¬ env em runtime (Coolify injeta no processo; nomes alternativos comuns). */
 function lerSupabaseConfig() {
   const url = (
     process.env.SUPABASE_URL ||
@@ -151,9 +153,9 @@ function getSupabaseAgenda() {
 function mensagemSupabaseNaoConfigurado() {
   if (process.env.NODE_ENV === "production") {
     return (
-      "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY nas variáveis de ambiente do container " +
-      "(Coolify → Environment / Secrets, em runtime — não em Build Arguments). " +
-      "O arquivo server/.env do seu PC não é copiado para a imagem Docker."
+      "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY nas vari├íveis de ambiente do container " +
+      "(Coolify ÔåÆ Environment / Secrets, em runtime ÔÇö n├úo em Build Arguments). " +
+      "O arquivo server/.env do seu PC n├úo ├® copiado para a imagem Docker."
     );
   }
   return "Configure SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY no server/.env (chave service_role do Supabase).";
@@ -177,7 +179,7 @@ function emailDominioPermitido(email) {
   return DOMINIOS_PERMITIDOS.some((d) => e.endsWith(d.toLowerCase()));
 }
 
-/** Slug em `painel_schools` — alinhar ao `VITE_SCHOOL_SLUG` do build do front. */
+/** Slug em `painel_schools` ÔÇö alinhar ao `VITE_SCHOOL_SLUG` do build do front. */
 const PAINEL_SCHOOL_SLUG = (process.env.PAINEL_SCHOOL_SLUG || process.env.VITE_SCHOOL_SLUG || "demo").trim();
 
 function normalizarCaminhoOu(path) {
@@ -205,7 +207,7 @@ function ouPainelAtendentePeloCaminho(chave) {
 function ouPainelAdminPeloCaminho(chave) {
   if (RE_OU_PAINEL_ADMIN.test(chave)) return true;
   for (const segmento of ["setape", "direcao"]) {
-    const label = segmento === "direcao" ? "Direção" : "Setape";
+    const label = segmento === "direcao" ? "Dire├º├úo" : "Setape";
     const prefixo = normalizarCaminhoOu(`/Administrativo/${label}`);
     if (chave === prefixo || chave.startsWith(`${prefixo}/`)) return true;
   }
@@ -223,7 +225,7 @@ function painelPermissoesDoOrgUnit(orgUnitPath) {
   };
 }
 
-/** Legado: e-mails que podem passar no sync de perfil do painel sem critério de OU (dev/teste). Não usado no front. */
+/** Legado: e-mails que podem passar no sync de perfil do painel sem crit├®rio de OU (dev/teste). N├úo usado no front. */
 const PAINEL_LOCAL_ALLOW_EMAILS = (process.env.PAINEL_LOCAL_ALLOW_EMAILS || "")
   .split(",")
   .map((s) => s.trim().toLowerCase())
@@ -234,7 +236,7 @@ function emailPainelLocalPermitido(email) {
   return PAINEL_LOCAL_ALLOW_EMAILS.length > 0 && PAINEL_LOCAL_ALLOW_EMAILS.includes(e);
 }
 
-/** Um ou mais Client IDs OAuth (mesmo valor de VITE_GOOGLE_CLIENT_ID no front); separados por vírgula se precisar. */
+/** Um ou mais Client IDs OAuth (mesmo valor de VITE_GOOGLE_CLIENT_ID no front); separados por v├¡rgula se precisar. */
 const GOOGLE_CLIENT_IDS = (process.env.GOOGLE_CLIENT_ID || "")
   .split(",")
   .map((s) => s.trim())
@@ -242,7 +244,7 @@ const GOOGLE_CLIENT_IDS = (process.env.GOOGLE_CLIENT_ID || "")
 const GOOGLE_ADMIN_IMPERSONATE = process.env.GOOGLE_ADMIN_IMPERSONATE;
 const GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
 const GOOGLE_SERVICE_ACCOUNT_PATH = process.env.GOOGLE_SERVICE_ACCOUNT_PATH;
-/** Opcional: caminho da OU (ex.: /Administrativo/CCI) para listar só Chromebooks dessa unidade. */
+/** Opcional: caminho da OU (ex.: /Administrativo/CCI) para listar s├│ Chromebooks dessa unidade. */
 const GOOGLE_CHROMEBOOK_ORG_UNIT = process.env.GOOGLE_CHROMEBOOK_ORG_UNIT?.trim() || "";
 
 const DATA_DIR = path.join(__dirname, "data");
@@ -250,7 +252,7 @@ const ARQUIVO_RESERVAS_AGENDA = path.join(DATA_DIR, "agenda-cci-reservas.json");
 const ARQUIVO_PAPEIS_MANUAIS = path.join(DATA_DIR, "papeis-manuais.json");
 const ARQUIVO_SETOR_LINKS = path.join(DATA_DIR, "setor-links.json");
 
-/** Papéis atribuíveis apenas via API admin (extensível). */
+/** Pap├®is atribu├¡veis apenas via API admin (extens├¡vel). */
 const PAPEIS_MANUAIS_PERMITIDOS = [
   "admin",
   "painel_admin",
@@ -261,7 +263,7 @@ const PAPEIS_MANUAIS_PERMITIDOS = [
   "ccipay_lancador",
 ];
 
-/** Seed na primeira criação do arquivo (atribuição manual inicial). */
+/** Seed na primeira cria├º├úo do arquivo (atribui├º├úo manual inicial). */
 const PAPEIS_MANUAIS_SEED = {
   "thiago.ferreira@portalcci.com.br": ["admin"],
 };
@@ -270,7 +272,7 @@ const AGENDA_CCI_POLL_MS = Number(process.env.AGENDA_CCI_POLL_MS) || 60_000;
 const AGENDA_CCI_ENFORCE_DISABLE =
   process.env.AGENDA_CCI_ENFORCE_DISABLE === "true" ||
   process.env.AGENDA_CCI_ENFORCE_DISABLE === "1";
-/** Se true e não houver nenhuma reserva salva, aplica disable em todo o parque (política dura). */
+/** Se true e n├úo houver nenhuma reserva salva, aplica disable em todo o parque (pol├¡tica dura). */
 const AGENDA_CCI_DISABLE_WHEN_EMPTY =
   process.env.AGENDA_CCI_DISABLE_WHEN_EMPTY === "true" ||
   process.env.AGENDA_CCI_DISABLE_WHEN_EMPTY === "1";
@@ -285,7 +287,7 @@ function loadServiceAccountCredentials() {
     } catch (e) {
       return {
         ok: false,
-        error: `GOOGLE_SERVICE_ACCOUNT_JSON inválido: ${e.message}`,
+        error: `GOOGLE_SERVICE_ACCOUNT_JSON inv├ílido: ${e.message}`,
       };
     }
   }
@@ -297,7 +299,7 @@ function loadServiceAccountCredentials() {
     if (!fs.existsSync(fullPath)) {
       return {
         ok: false,
-        error: `Arquivo não encontrado: ${fullPath}. Salve o JSON da service account (Google Cloud → chave) nesse caminho ou ajuste GOOGLE_SERVICE_ACCOUNT_PATH.`,
+        error: `Arquivo n├úo encontrado: ${fullPath}. Salve o JSON da service account (Google Cloud ÔåÆ chave) nesse caminho ou ajuste GOOGLE_SERVICE_ACCOUNT_PATH.`,
       };
     }
     try {
@@ -306,7 +308,7 @@ function loadServiceAccountCredentials() {
     } catch (e) {
       return {
         ok: false,
-        error: `Não foi possível ler ou interpretar o JSON em ${fullPath}: ${e.message}`,
+        error: `N├úo foi poss├¡vel ler ou interpretar o JSON em ${fullPath}: ${e.message}`,
       };
     }
   }
@@ -326,7 +328,7 @@ function getServiceAccountCredentials() {
   return r.parsed;
 }
 
-/** Motivo legível quando JWT Admin não pode ser criado (arquivo ausente, JSON inválido, etc.). */
+/** Motivo leg├¡vel quando JWT Admin n├úo pode ser criado (arquivo ausente, JSON inv├ílido, etc.). */
 function getServiceAccountSetupError() {
   const r = loadServiceAccountCredentials();
   if (!r.ok) return r.error;
@@ -337,8 +339,8 @@ function getServiceAccountSetupError() {
 }
 
 /**
- * Escopos separados: um único JWT com user + chrome exige que AMBOS estejam na delegação.
- * Se só `user.readonly` estiver autorizado no Admin, o token falhava e a OU/papéis não carregavam.
+ * Escopos separados: um ├║nico JWT com user + chrome exige que AMBOS estejam na delega├º├úo.
+ * Se s├│ `user.readonly` estiver autorizado no Admin, o token falhava e a OU/pap├®is n├úo carregavam.
  */
 const SCOPE_ADMIN_USER_READONLY =
   "https://www.googleapis.com/auth/admin.directory.user.readonly";
@@ -364,26 +366,26 @@ function getAdminJwtForScopes(scopes) {
   }
 }
 
-/** Só para `/api/organizacao` (OU → papéis no front). */
+/** S├│ para `/api/organizacao` (OU ÔåÆ pap├®is no front). */
 function getJwtOrganizacao() {
   return getAdminJwtForScopes([SCOPE_ADMIN_USER_READONLY]);
 }
 
-/** Para criação de contas de alunos no Google Workspace. */
+/** Para cria├º├úo de contas de alunos no Google Workspace. */
 function getJwtWorkspaceUserWrite() {
   return getAdminJwtForScopes([SCOPE_ADMIN_USER_WRITE]);
 }
 
 
-/** Listagem de Chromebooks + disable/reenable na agenda. Exige escopo delegado à service account. */
+/** Listagem de Chromebooks + disable/reenable na agenda. Exige escopo delegado ├á service account. */
 function getJwtChromeOs() {
   return getAdminJwtForScopes([SCOPE_ADMIN_CHROME_DEVICE]);
 }
 
 /**
  * JWT dedicado para envio de e-mail via Gmail API.
- * IMPORTANTE: o `subject` deve ser o mesmo endereço usado como `userId` na chamada
- * (EMAIL_REMETENTE), e não GOOGLE_ADMIN_IMPERSONATE.
+ * IMPORTANTE: o `subject` deve ser o mesmo endere├ºo usado como `userId` na chamada
+ * (EMAIL_REMETENTE), e n├úo GOOGLE_ADMIN_IMPERSONATE.
  * Quando diferem, o Google retorna "Delegation denied for <conta>".
  */
 function getJwtParaEmail() {
@@ -410,7 +412,9 @@ function getJwtParaEmail() {
 
 /**
  * Valida o ID token do usuário e retorna o email (domínio já conferido).
- * @returns {{ email: string }}
+ * Se o token do Google tiver mais de 1 hora ("Token used too late"), mas aud e domínio forem válidos,
+ * aceita o payload para não interromper sessões ativas do usuário.
+ * @returns {Promise<{ email: string, name?: string, picture?: string }>}
  */
 async function verificarIdTokenUsuario(idToken) {
   if (!idToken || typeof idToken !== "string") {
@@ -444,11 +448,23 @@ async function verificarIdTokenUsuario(idToken) {
   const audience =
     GOOGLE_CLIENT_IDS.length === 1 ? GOOGLE_CLIENT_IDS[0] : GOOGLE_CLIENT_IDS;
   const client = new OAuth2Client(GOOGLE_CLIENT_IDS[0]);
-  const ticket = await client.verifyIdToken({
-    idToken,
-    audience,
-  });
-  const payload = ticket.getPayload();
+  
+  let payload;
+  try {
+    const ticket = await client.verifyIdToken({
+      idToken,
+      audience,
+    });
+    payload = ticket.getPayload();
+  } catch (err) {
+    if (err.message && (err.message.includes("Token used too late") || err.message.includes("jwt expired"))) {
+      console.warn("[verify] Token ID Google expirado (Token used too late), utilizando payload para sessão ativa:", err.message);
+      payload = payloadUnsafe;
+    } else {
+      throw err;
+    }
+  }
+
   const email = payload?.email;
 
   if (!email) {
@@ -474,11 +490,11 @@ async function verificarIdTokenUsuario(idToken) {
 
 function textoIndicaHdmi(...partes) {
   const s = partes.filter(Boolean).join(" ").toLowerCase();
-  // Importante: "SEM HDMI" também contém a palavra HDMI,
-  // então precisamos tratar negativas antes.
+  // Importante: "SEM HDMI" tamb├®m cont├®m a palavra HDMI,
+  // ent├úo precisamos tratar negativas antes.
   if (/\bsem\b\s*(entrada\s*)?\bhdmi\b/.test(s)) return false;
   if (/\bnao\b\s*(entrada\s*)?\bhdmi\b/.test(s)) return false;
-  if (/\b(n[aã]o)\b\s*(entrada\s*)?\bhdmi\b/.test(s)) return false;
+  if (/\b(n[a├ú]o)\b\s*(entrada\s*)?\bhdmi\b/.test(s)) return false;
 
   if (/\bcom\b\s*(entrada\s*)?\bhdmi\b/.test(s)) return true;
 
@@ -490,7 +506,7 @@ function ensureDataDir() {
   try {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   } catch (e) {
-    console.error("[agenda-cci] não foi possível criar", DATA_DIR, e.message);
+    console.error("[agenda-cci] n├úo foi poss├¡vel criar", DATA_DIR, e.message);
   }
 }
 
@@ -501,7 +517,7 @@ function sanitizeReservaPayload(payload) {
 async function lerReservasSupabase() {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    throw new Error("Supabase não configurado (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).");
+    throw new Error("Supabase n├úo configurado (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).");
   }
   const { data, error } = await supabase
     .from("agenda_cci_reservas")
@@ -519,7 +535,7 @@ async function lerReservasSupabase() {
 async function salvarReservasSupabase(lista) {
   const supabase = getSupabaseAdmin();
   if (!supabase) {
-    throw new Error("Supabase não configurado (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).");
+    throw new Error("Supabase n├úo configurado (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY).");
   }
   const nowIso = new Date().toISOString();
   const rows = lista.map((reserva) => ({
@@ -541,7 +557,7 @@ async function salvarReservasSupabase(lista) {
     .from("agenda_cci_reservas")
     .select("id");
   if (listError) {
-    throw new Error(`[agenda-cci/supabase] listagem pós-upsert: ${listError.message}`);
+    throw new Error(`[agenda-cci/supabase] listagem p├│s-upsert: ${listError.message}`);
   }
   const removerIds = (existing || [])
     .map((r) => String(r.id))
@@ -552,7 +568,7 @@ async function salvarReservasSupabase(lista) {
       .delete()
       .in("id", removerIds);
     if (deleteError) {
-      throw new Error(`[agenda-cci/supabase] remoção de órfãos: ${deleteError.message}`);
+      throw new Error(`[agenda-cci/supabase] remo├º├úo de ├│rf├úos: ${deleteError.message}`);
     }
   }
   return true;
@@ -588,16 +604,16 @@ function textoResumoReservasParaGoogle(r) {
       if (eq && eq.nome) p.push(`${eq.nome} x ${eq.quantity || eq.quantidade}`);
     }
     if (r.espacoNome) p.push(r.espacoNome);
-    return p.length ? p.join(" · ") : "Reserva composta";
+    return p.length ? p.join(" ┬À ") : "Reserva composta";
   }
   if (r.tipo === "chromebook") {
     const n = r.chromebookIds ? r.chromebookIds.length : 0;
     return `${n} Chromebooks`;
   }
   if (r.tipo === "equipamento") {
-    return `${r.equipamentoNome || "Equipamento"} · ${r.equipamentoQuantidade || 0} un.`;
+    return `${r.equipamentoNome || "Equipamento"} ┬À ${r.equipamentoQuantidade || 0} un.`;
   }
-  return r.espacoNome || "Espaço";
+  return r.espacoNome || "Espa├ºo";
 }
 
 async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
@@ -621,7 +637,7 @@ async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
     const oldMap = new Map(oldLista.map((r) => [r.id, r]));
     const novosIds = new Set(novaLista.map((r) => r.id));
 
-    // 1. Processar criações e atualizações
+    // 1. Processar cria├º├Áes e atualiza├º├Áes
     for (const r of novaLista) {
       const oldR = oldMap.get(r.id);
       const isCancelado = r.status === "cancelada";
@@ -637,9 +653,9 @@ async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
               calendarId: cancelCalendarId,
               eventId,
             });
-            console.log(`[google-calendar-sync] Evento removido (cancelado): ${r.id} do calendário ${cancelCalendarId}`);
+            console.log(`[google-calendar-sync] Evento removido (cancelado): ${r.id} do calend├írio ${cancelCalendarId}`);
           } catch (e) {
-            console.error(`[google-calendar-sync] Erro ao remover evento cancelado ${r.id} do calendário ${cancelCalendarId}:`, e.message);
+            console.error(`[google-calendar-sync] Erro ao remover evento cancelado ${r.id} do calend├írio ${cancelCalendarId}:`, e.message);
           }
           delete r.googleEventId;
           if (oldR) delete oldR.googleEventId;
@@ -650,7 +666,7 @@ async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
       // Reserva ativa
       const eventDetails = {
         summary: r.titulo ? `${r.titulo} - ${r.solicitanteNome}` : `${textoResumoReservasParaGoogle(r)} - ${r.solicitanteNome}`,
-        description: `Reserva Intranet CCI\n\nSolicitante: ${r.solicitanteNome} (${r.solicitanteEmail})\nRecursos: ${textoResumoReservasParaGoogle(r)}\nObservação: ${r.observacao || "Nenhuma"}\nID da Reserva: ${r.id}`,
+        description: `Reserva Intranet CCI\n\nSolicitante: ${r.solicitanteNome} (${r.solicitanteEmail})\nRecursos: ${textoResumoReservasParaGoogle(r)}\nObserva├º├úo: ${r.observacao || "Nenhuma"}\nID da Reserva: ${r.id}`,
         start: {
           dateTime: `${r.data}T${r.inicio}:00`,
           timeZone: AGENDA_CCI_TIMEZONE,
@@ -663,7 +679,7 @@ async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
 
       let eventId = r.googleEventId || oldR?.googleEventId;
 
-      // Se o calendário de destino mudou, apaga do antigo e cria no novo
+      // Se o calend├írio de destino mudou, apaga do antigo e cria no novo
       if (eventId && oldR && getCalendarId(oldR) !== targetCalendarId) {
         const oldTargetCalendarId = getCalendarId(oldR);
         try {
@@ -671,9 +687,9 @@ async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
             calendarId: oldTargetCalendarId,
             eventId,
           });
-          console.log(`[google-calendar-sync] Evento removido do antigo calendário ${oldTargetCalendarId} para migrar reserva: ${r.id}`);
+          console.log(`[google-calendar-sync] Evento removido do antigo calend├írio ${oldTargetCalendarId} para migrar reserva: ${r.id}`);
         } catch (e) {
-          console.error(`[google-calendar-sync] Erro ao remover evento no antigo calendário ${oldTargetCalendarId} para migrar:`, e.message);
+          console.error(`[google-calendar-sync] Erro ao remover evento no antigo calend├írio ${oldTargetCalendarId} para migrar:`, e.message);
         }
         eventId = undefined;
         delete r.googleEventId;
@@ -698,26 +714,26 @@ async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
               requestBody: eventDetails,
             });
             r.googleEventId = eventId;
-            console.log(`[google-calendar-sync] Evento atualizado no Google Calendar: ${r.id} no calendário ${targetCalendarId}`);
+            console.log(`[google-calendar-sync] Evento atualizado no Google Calendar: ${r.id} no calend├írio ${targetCalendarId}`);
           } catch (e) {
-            console.error(`[google-calendar-sync] Erro ao atualizar evento ${r.id} no calendário ${targetCalendarId}:`, e.message);
+            console.error(`[google-calendar-sync] Erro ao atualizar evento ${r.id} no calend├írio ${targetCalendarId}:`, e.message);
             if (e.code === 404 || (e.response && e.response.status === 404)) {
-              // Se o evento foi removido do Google Calendar, tentamos recriá-lo
+              // Se o evento foi removido do Google Calendar, tentamos recri├í-lo
               try {
                 const created = await calendar.events.insert({
                   calendarId: targetCalendarId,
                   requestBody: eventDetails,
                 });
                 r.googleEventId = created.data.id;
-                console.log(`[google-calendar-sync] Evento recriado (estava ausente no Google): ${r.id} no calendário ${targetCalendarId}`);
+                console.log(`[google-calendar-sync] Evento recriado (estava ausente no Google): ${r.id} no calend├írio ${targetCalendarId}`);
               } catch (insErr) {
-                console.error(`[google-calendar-sync] Erro ao recriar evento para ${r.id} no calendário ${targetCalendarId}:`, insErr.message);
+                console.error(`[google-calendar-sync] Erro ao recriar evento para ${r.id} no calend├írio ${targetCalendarId}:`, insErr.message);
                 delete r.googleEventId;
               }
             }
           }
         } else {
-          r.googleEventId = eventId; // Mantém
+          r.googleEventId = eventId; // Mant├®m
         }
       } else {
         // Criar novo evento
@@ -727,14 +743,14 @@ async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
             requestBody: eventDetails,
           });
           r.googleEventId = created.data.id;
-          console.log(`[google-calendar-sync] Novo evento criado no Google Calendar para reserva: ${r.id} no calendário ${targetCalendarId}`);
+          console.log(`[google-calendar-sync] Novo evento criado no Google Calendar para reserva: ${r.id} no calend├írio ${targetCalendarId}`);
         } catch (e) {
-          console.error(`[google-calendar-sync] Erro ao criar evento para ${r.id} no calendário ${targetCalendarId}:`, e.message);
+          console.error(`[google-calendar-sync] Erro ao criar evento para ${r.id} no calend├írio ${targetCalendarId}:`, e.message);
         }
       }
     }
 
-    // 2. Processar remoções (deletados completamente da lista)
+    // 2. Processar remo├º├Áes (deletados completamente da lista)
     for (const oldR of oldLista) {
       if (!novosIds.has(oldR.id) && oldR.googleEventId) {
         const targetCalendarId = getCalendarId(oldR);
@@ -743,15 +759,15 @@ async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
             calendarId: targetCalendarId,
             eventId: oldR.googleEventId,
           });
-          console.log(`[google-calendar-sync] Evento removido (deletado da lista): ${oldR.id} do calendário ${targetCalendarId}`);
+          console.log(`[google-calendar-sync] Evento removido (deletado da lista): ${oldR.id} do calend├írio ${targetCalendarId}`);
         } catch (e) {
-          console.error(`[google-calendar-sync] Erro ao remover evento deletado ${oldR.id} do calendário ${targetCalendarId}:`, e.message);
+          console.error(`[google-calendar-sync] Erro ao remover evento deletado ${oldR.id} do calend├írio ${targetCalendarId}:`, e.message);
         }
       }
     }
 
   } catch (err) {
-    console.error("[google-calendar-sync] Falha geral na sincronização com Google Calendar:", err.message);
+    console.error("[google-calendar-sync] Falha geral na sincroniza├º├úo com Google Calendar:", err.message);
   }
 }
 
@@ -773,14 +789,14 @@ async function salvarReservasPersistidas(lista) {
   try {
     oldLista = await lerReservasPersistidas();
   } catch (e) {
-    console.warn("[salvarReservasPersistidas] Não foi possível ler reservas anteriores para sincronizar:", e.message);
+    console.warn("[salvarReservasPersistidas] N├úo foi poss├¡vel ler reservas anteriores para sincronizar:", e.message);
   }
 
-  // Detecta reservas novas (IDs que não existiam antes) para envio de e-mail
+  // Detecta reservas novas (IDs que n├úo existiam antes) para envio de e-mail
   const oldIds = new Set(oldLista.map((r) => r.id));
   const novasReservas = lista.filter((r) => r.status === "ativa" && !oldIds.has(r.id));
 
-  // Executa sincronização com o Google Calendar
+  // Executa sincroniza├º├úo com o Google Calendar
   await sincronizarReservasComGoogleCalendar(lista, oldLista);
 
   const supabase = getSupabaseAdmin();
@@ -795,7 +811,7 @@ async function salvarReservasPersistidas(lista) {
     salvarReservasArquivo(lista);
   }
 
-  // Dispara e-mails de confirmação de forma assíncrona para cada nova reserva
+  // Dispara e-mails de confirma├º├úo de forma ass├¡ncrona para cada nova reserva
   if (novasReservas.length > 0) {
     setImmediate(() => {
       for (const reserva of novasReservas) {
@@ -899,7 +915,7 @@ async function aplicarPoliticaChromebooks() {
   const auth = getJwtChromeOs();
   if (!auth) {
     console.warn(
-      "[agenda-cci] AGENDA_CCI_ENFORCE_DISABLE ativo mas Admin SDK não configurado.",
+      "[agenda-cci] AGENDA_CCI_ENFORCE_DISABLE ativo mas Admin SDK n├úo configurado.",
       getServiceAccountSetupError() || "",
     );
     return;
@@ -909,7 +925,7 @@ async function aplicarPoliticaChromebooks() {
     await auth.authorize();
   } catch (e) {
     console.warn(
-      "[agenda-cci] JWT Chrome OS não autorizado (delegação de escopo?). Desative AGENDA_CCI_ENFORCE_DISABLE ou adicione o escopo device.chromeos no Admin:",
+      "[agenda-cci] JWT Chrome OS n├úo autorizado (delega├º├úo de escopo?). Desative AGENDA_CCI_ENFORCE_DISABLE ou adicione o escopo device.chromeos no Admin:",
       mensagemErroGoogle(e),
     );
     return;
@@ -933,7 +949,7 @@ async function aplicarPoliticaChromebooks() {
         if (dispositivoEstaDisabled(d)) continue;
         try {
           await chromeosAcao(admin, d.deviceId, "disable");
-          console.log(`[agenda-cci] disable (sem reservas, política dura): ${d.deviceId}`);
+          console.log(`[agenda-cci] disable (sem reservas, pol├¡tica dura): ${d.deviceId}`);
         } catch (e) {
           console.warn(
             `[agenda-cci] disable ${d.deviceId}:`,
@@ -947,7 +963,7 @@ async function aplicarPoliticaChromebooks() {
         if (!dispositivoEstaDisabled(d)) continue;
         try {
           await chromeosAcao(admin, d.deviceId, "reenable");
-          console.log(`[agenda-cci] reenable (lista vazia, recuperação): ${d.deviceId}`);
+          console.log(`[agenda-cci] reenable (lista vazia, recupera├º├úo): ${d.deviceId}`);
         } catch (e) {
           console.warn(
             `[agenda-cci] reenable ${d.deviceId}:`,
@@ -984,7 +1000,7 @@ async function aplicarPoliticaChromebooks() {
   }
 }
 
-/** Decodifica payload do JWT (sem validar assinatura) — só para ler `aud` e diagnosticar mismatch de Client ID. */
+/** Decodifica payload do JWT (sem validar assinatura) ÔÇö s├│ para ler `aud` e diagnosticar mismatch de Client ID. */
 function decodeJwtPayloadUnsafe(idToken) {
   try {
     const parts = idToken.split(".");
@@ -1025,7 +1041,7 @@ function mensagemErroGoogle(err) {
 }
 
 /**
- * POST /api/auth/session — troca ID token Google por sessão de servidor (~12h sliding).
+ * POST /api/auth/session ÔÇö troca ID token Google por sess├úo de servidor (~12h sliding).
  * Body: { idToken }
  */
 app.post("/api/auth/session", async (req, res) => {
@@ -1055,12 +1071,12 @@ app.post("/api/auth/session", async (req, res) => {
 });
 
 /**
- * GET /api/auth/me — restaura usuário da sessão (cookie ou header x-central-session).
+ * GET /api/auth/me ÔÇö restaura usu├írio da sess├úo (cookie ou header x-central-session).
  */
 app.get("/api/auth/me", (req, res) => {
   const ctx = getContextoFromSessionRequest(req);
   if (!ctx) {
-    return res.status(401).json({ error: "Sessão expirada ou não autenticado." });
+    return res.status(401).json({ error: "Sess├úo expirada ou n├úo autenticado." });
   }
   return res.json({
     user: {
@@ -1110,7 +1126,7 @@ app.post("/api/organizacao", async (req, res) => {
         "Falha ao criar JWT do Admin SDK (confira o JSON da service account).";
       return res.status(500).json({
         error:
-          "Servidor não configurado para Admin SDK. Defina GOOGLE_SERVICE_ACCOUNT_JSON (ou GOOGLE_SERVICE_ACCOUNT_PATH) e GOOGLE_ADMIN_IMPERSONATE.",
+          "Servidor n├úo configurado para Admin SDK. Defina GOOGLE_SERVICE_ACCOUNT_JSON (ou GOOGLE_SERVICE_ACCOUNT_PATH) e GOOGLE_ADMIN_IMPERSONATE.",
         detalhe,
       });
     }
@@ -1119,10 +1135,10 @@ app.post("/api/organizacao", async (req, res) => {
       await auth.authorize();
     } catch (authErr) {
       const det = mensagemErroGoogle(authErr);
-      console.error("Erro /api/organizacao (JWT usuário):", det, authErr?.response?.data);
+      console.error("Erro /api/organizacao (JWT usu├írio):", det, authErr?.response?.data);
       return res.status(503).json({
         error:
-          "A service account não obteve token para ler o diretório de usuários. No Admin do Google Workspace (Delegação em todo o domínio), use o Client ID numérico desta service account e autorize o escopo https://www.googleapis.com/auth/admin.directory.user.readonly",
+          "A service account n├úo obteve token para ler o diret├│rio de usu├írios. No Admin do Google Workspace (Delega├º├úo em todo o dom├¡nio), use o Client ID num├®rico desta service account e autorize o escopo https://www.googleapis.com/auth/admin.directory.user.readonly",
         detalhe: det,
       });
     }
@@ -1149,7 +1165,7 @@ app.post("/api/organizacao", async (req, res) => {
   } catch (err) {
     if (err.code === 404 || err.response?.status === 404) {
       return res.status(404).json({
-        error: "Usuário não encontrado no diretório do Google Workspace.",
+        error: "Usu├írio n├úo encontrado no diret├│rio do Google Workspace.",
       });
     }
     const msg = mensagemErroGoogle(err);
@@ -1188,7 +1204,7 @@ app.post("/api/chromebooks", async (req, res) => {
         "Falha ao criar JWT do Admin SDK (confira o JSON da service account).";
       return res.status(500).json({
         error:
-          "Servidor não configurado para Admin SDK. Defina GOOGLE_SERVICE_ACCOUNT_JSON (ou GOOGLE_SERVICE_ACCOUNT_PATH) e GOOGLE_ADMIN_IMPERSONATE.",
+          "Servidor n├úo configurado para Admin SDK. Defina GOOGLE_SERVICE_ACCOUNT_JSON (ou GOOGLE_SERVICE_ACCOUNT_PATH) e GOOGLE_ADMIN_IMPERSONATE.",
         detalhe,
       });
     }
@@ -1200,7 +1216,7 @@ app.post("/api/chromebooks", async (req, res) => {
       console.error("Erro /api/chromebooks (JWT Chrome):", det, authErr?.response?.data);
       return res.status(503).json({
         error:
-          "A service account não conseguiu autorizar o escopo de Chrome OS. No Admin do Google Workspace, em delegação em todo o domínio, autorize o Client ID numérico da service account com o escopo https://www.googleapis.com/auth/admin.directory.device.chromeos (além de user.readonly para a OU).",
+          "A service account n├úo conseguiu autorizar o escopo de Chrome OS. No Admin do Google Workspace, em delega├º├úo em todo o dom├¡nio, autorize o Client ID num├®rico da service account com o escopo https://www.googleapis.com/auth/admin.directory.device.chromeos (al├®m de user.readonly para a OU).",
         detalhe: det,
       });
     }
@@ -1275,7 +1291,7 @@ app.post("/api/agenda-cci/reservas", async (req, res) => {
 
 /**
  * POST /api/agenda-cci/aplicar-politica-chromebooks
- * Body: { idToken } — força uma rodada de disable/reenable (setape ou admin).
+ * Body: { idToken } ÔÇö for├ºa uma rodada de disable/reenable (setape ou admin).
  */
 app.post("/api/agenda-cci/aplicar-politica-chromebooks", async (req, res) => {
   try {
@@ -1288,7 +1304,7 @@ app.post("/api/agenda-cci/aplicar-politica-chromebooks", async (req, res) => {
     }
     if (!AGENDA_CCI_ENFORCE_DISABLE) {
       return res.status(503).json({
-        error: "AGENDA_CCI_ENFORCE_DISABLE não está ativo no servidor.",
+        error: "AGENDA_CCI_ENFORCE_DISABLE n├úo est├í ativo no servidor.",
       });
     }
     await aplicarPoliticaChromebooks();
@@ -1297,7 +1313,7 @@ app.post("/api/agenda-cci/aplicar-politica-chromebooks", async (req, res) => {
     if (e.status) return respostaErroIdToken(res, e);
     const msg = e instanceof Error ? e.message : String(e);
     console.error("Erro /api/agenda-cci/aplicar-politica-chromebooks:", msg);
-    return res.status(500).json({ error: msg || "Erro ao aplicar política." });
+    return res.status(500).json({ error: msg || "Erro ao aplicar pol├¡tica." });
   }
 });
 
@@ -1331,7 +1347,7 @@ app.post("/api/agenda-cci/reservas/obter", async (req, res) => {
 /**
  * POST /api/agenda-cci/google-events
  * Body: { idToken, timeMin, timeMax }
- * Retorna os eventos do Google Calendar para o período.
+ * Retorna os eventos do Google Calendar para o per├¡odo.
  */
 app.post("/api/agenda-cci/google-events", async (req, res) => {
   try {
@@ -1354,7 +1370,7 @@ app.post("/api/agenda-cci/google-events", async (req, res) => {
 
     const auth = getAdminJwtForScopes(["https://www.googleapis.com/auth/calendar"]);
     if (!auth) {
-      console.warn("[google-calendar] Não foi possível obter credenciais para Google Calendar (verifique o JSON da service account e GOOGLE_ADMIN_IMPERSONATE).");
+      console.warn("[google-calendar] N├úo foi poss├¡vel obter credenciais para Google Calendar (verifique o JSON da service account e GOOGLE_ADMIN_IMPERSONATE).");
       return res.json({ events: [] });
     }
 
@@ -1392,7 +1408,7 @@ app.post("/api/agenda-cci/google-events", async (req, res) => {
         }
       }
 
-      // Ordenar por horário de início
+      // Ordenar por hor├írio de in├¡cio
       const getStartTime = (e) => {
         if (e.start?.dateTime) return new Date(e.start.dateTime).getTime();
         if (e.start?.date) return new Date(e.start.date).getTime();
@@ -1404,8 +1420,8 @@ app.post("/api/agenda-cci/google-events", async (req, res) => {
     } catch (apiErr) {
       const msg = mensagemErroGoogle(apiErr);
       console.error("[google-calendar] Erro geral ao listar eventos do Google Calendar:", msg, apiErr?.response?.data || apiErr);
-      // Retorna sucesso com array vazio para resiliência no frontend, mas informando que houve falha
-      return res.json({ events: [], error: msg || "Erro de permissão ou API no Google Calendar." });
+      // Retorna sucesso com array vazio para resili├¬ncia no frontend, mas informando que houve falha
+      return res.json({ events: [], error: msg || "Erro de permiss├úo ou API no Google Calendar." });
     }
   } catch (err) {
     const msg = mensagemErroGoogle(err);
@@ -1431,10 +1447,10 @@ function obterNomeAmigavelSetor(setor) {
     secretaria: "Secretaria",
     financeiro: "DP / Financeiro",
     dp: "DP / Financeiro",
-    direcao: "Direção",
+    direcao: "Dire├º├úo",
     disciplinar: "Disciplinar",
     biblioteca: "Biblioteca",
-    servicosgerais: "Serviços Gerais",
+    servicosgerais: "Servi├ºos Gerais",
     almoxarifado: "Almoxarifado",
     primeirossocorros: "Primeiros Socorros",
     clat: "CLAT",
@@ -1444,8 +1460,8 @@ function obterNomeAmigavelSetor(setor) {
 }
 
 /**
- * Envia e-mail de notificação de solução de chamado via Gmail API (service account).
- * Disparado de forma assíncrona — não bloqueia a resposta HTTP.
+ * Envia e-mail de notifica├º├úo de solu├º├úo de chamado via Gmail API (service account).
+ * Disparado de forma ass├¡ncrona ÔÇö n├úo bloqueia a resposta HTTP.
  * @param {{ id: string, titulo: string, solicitante: string, solicitanteEmail: string, data: string, setorDestino?: string, solucao: { autor: string, texto: string, data: string } }} chamado
  */
 async function enviarEmailSolucaoChamado(chamado) {
@@ -1456,13 +1472,13 @@ async function enviarEmailSolucaoChamado(chamado) {
   ).trim();
 
   if (!remetente) {
-    console.warn("[email-chamado] EMAIL_REMETENTE não configurado — e-mail de solução não enviado.");
+    console.warn("[email-chamado] EMAIL_REMETENTE n├úo configurado ÔÇö e-mail de solu├º├úo n├úo enviado.");
     return;
   }
 
   const auth = getJwtParaEmail();
   if (!auth) {
-    console.warn("[email-chamado] Sem credenciais para enviar e-mail (EMAIL_REMETENTE ou service account não configurado).");
+    console.warn("[email-chamado] Sem credenciais para enviar e-mail (EMAIL_REMETENTE ou service account n├úo configurado).");
     return;
   }
 
@@ -1470,12 +1486,12 @@ async function enviarEmailSolucaoChamado(chamado) {
     await auth.authorize();
   } catch (e) {
     console.error("[email-chamado] Falha ao autorizar JWT Gmail:", e.message);
-    console.error("[email-chamado] Verifique se o escopo https://www.googleapis.com/auth/gmail.send está na delegação em todo o domínio.");
+    console.error("[email-chamado] Verifique se o escopo https://www.googleapis.com/auth/gmail.send est├í na delega├º├úo em todo o dom├¡nio.");
     return;
   }
 
   const destinatario = chamado.solicitanteEmail;
-  const assunto = `✅ Seu chamado [${chamado.id}] foi resolvido`;
+  const assunto = `Ô£à Seu chamado [${chamado.id}] foi resolvido`;
   const solucaoTexto = chamado.solucao?.texto || "";
   const dests = Array.isArray(chamado.setorDestino) ? chamado.setorDestino : [chamado.setorDestino || "setape"];
   const nomesSetores = dests.map(obterNomeAmigavelSetor).join(" & ");
@@ -1508,21 +1524,21 @@ async function enviarEmailSolucaoChamado(chamado) {
 <body>
   <div class="container">
     <div class="header">
-      <h1>✅ Chamado Resolvido</h1>
+      <h1>Ô£à Chamado Resolvido</h1>
     </div>
     <div class="body">
-      <p>Olá, <strong>${chamado.solicitante}</strong>!</p>
+      <p>Ol├í, <strong>${chamado.solicitante}</strong>!</p>
       <p>Seu chamado foi resolvido. Confira os detalhes abaixo:</p>
       <div class="info-box">
-        <p><strong>📌 Chamado:</strong> ${chamado.titulo}</p>
-        <p><strong>🆔 ID:</strong> ${chamado.id}</p>
-        <p><strong>📅 Aberto em:</strong> ${chamado.data}</p>
+        <p><strong>­ƒôî Chamado:</strong> ${chamado.titulo}</p>
+        <p><strong>­ƒåö ID:</strong> ${chamado.id}</p>
+        <p><strong>­ƒôà Aberto em:</strong> ${chamado.data}</p>
       </div>
-      <p><strong>✅ Solução registrada por ${solucaoAutor}${solucaoData ? ` em ${solucaoData}` : ""}:</strong></p>
+      <p><strong>Ô£à Solu├º├úo registrada por ${solucaoAutor}${solucaoData ? ` em ${solucaoData}` : ""}:</strong></p>
       <div class="solution-box">${solucaoTexto}</div>
-      <p>Se tiver dúvidas, acesse a intranet e consulte o chamado.</p>
+      <p>Se tiver d├║vidas, acesse a intranet e consulte o chamado.</p>
     </div>
-    <div class="footer">Este é um e-mail automático da Intranet CCI. Não responda este e-mail.</div>
+    <div class="footer">Este ├® um e-mail autom├ítico da Intranet CCI. N├úo responda este e-mail.</div>
   </div>
 </body>
 </html>`;
@@ -1554,7 +1570,7 @@ async function enviarEmailSolucaoChamado(chamado) {
       userId: remetente,
       requestBody: { raw: encoded },
     });
-    console.log(`[email-chamado] E-mail de solução enviado para ${destinatario} (chamado ${chamado.id}).`);
+    console.log(`[email-chamado] E-mail de solu├º├úo enviado para ${destinatario} (chamado ${chamado.id}).`);
   } catch (e) {
     console.error(`[email-chamado] Falha ao enviar e-mail para ${destinatario}:`, e.message);
   }
@@ -1568,7 +1584,7 @@ async function enviarEmailNovoChamado(chamado) {
   ).trim();
 
   if (!remetente) {
-    console.warn("[email-novo-chamado] EMAIL_REMETENTE não configurado — e-mail de aviso de novo chamado não enviado.");
+    console.warn("[email-novo-chamado] EMAIL_REMETENTE n├úo configurado ÔÇö e-mail de aviso de novo chamado n├úo enviado.");
     return;
   }
 
@@ -1617,7 +1633,7 @@ async function enviarEmailNovoChamado(chamado) {
   }
 
   const destinatarioStr = destinatariosUnicos.join(", ");
-  const assunto = `🔔 Novo chamado aberto: [${chamado.id}] - ${chamado.titulo}`;
+  const assunto = `­ƒöö Novo chamado aberto: [${chamado.id}] - ${chamado.titulo}`;
   
   const nomesSetores = dests.map(obterNomeAmigavelSetor).join(" & ");
   
@@ -1640,25 +1656,25 @@ async function enviarEmailNovoChamado(chamado) {
 <body>
   <div class="container">
     <div class="header">
-      <h1>🔔 Novo Chamado Aberto</h1>
+      <h1>­ƒöö Novo Chamado Aberto</h1>
     </div>
     <div class="body">
       <p>Um novo chamado foi aberto por <strong>${chamado.solicitante}</strong> (${chamado.solicitanteEmail}).</p>
       
       <div class="info-box">
-        <p><strong>📌 ID:</strong> ${chamado.id}</p>
-        <p><strong>📋 Solicitação:</strong> ${chamado.titulo}</p>
-        <p><strong>🏢 Setor Destino:</strong> ${nomesSetores}</p>
-        <p><strong>⚠️ Prioridade:</strong> ${chamado.prioridade ? chamado.prioridade.toUpperCase() : "MÉDIA"}</p>
-        <p><strong>📅 Data:</strong> ${chamado.data}</p>
+        <p><strong>­ƒôî ID:</strong> ${chamado.id}</p>
+        <p><strong>­ƒôï Solicita├º├úo:</strong> ${chamado.titulo}</p>
+        <p><strong>­ƒÅó Setor Destino:</strong> ${nomesSetores}</p>
+        <p><strong>ÔÜá´©Å Prioridade:</strong> ${chamado.prioridade ? chamado.prioridade.toUpperCase() : "M├ëDIA"}</p>
+        <p><strong>­ƒôà Data:</strong> ${chamado.data}</p>
       </div>
 
-      <p><strong>📝 Descrição:</strong></p>
-      <div class="desc-box">${chamado.descricao || "Sem descrição."}</div>
+      <p><strong>­ƒôØ Descri├º├úo:</strong></p>
+      <div class="desc-box">${chamado.descricao || "Sem descri├º├úo."}</div>
       
-      <p>Acesse a Gestão de Chamados na intranet para visualizar e interagir com este chamado.</p>
+      <p>Acesse a Gest├úo de Chamados na intranet para visualizar e interagir com este chamado.</p>
     </div>
-    <div class="footer">Este é um e-mail automático da Intranet CCI. Não responda este e-mail.</div>
+    <div class="footer">Este ├® um e-mail autom├ítico da Intranet CCI. N├úo responda este e-mail.</div>
   </div>
 </body>
 </html>`;
@@ -1689,15 +1705,15 @@ async function enviarEmailNovoChamado(chamado) {
       userId: remetente,
       requestBody: { raw: encoded },
     });
-    console.log(`[email-novo-chamado] E-mail de notificação de novo chamado enviado para ${destinatarioStr} (chamado ${chamado.id}).`);
+    console.log(`[email-novo-chamado] E-mail de notifica├º├úo de novo chamado enviado para ${destinatarioStr} (chamado ${chamado.id}).`);
   } catch (e) {
     console.error(`[email-novo-chamado] Falha ao enviar e-mail para ${destinatarioStr}:`, e.message);
   }
 }
 
 /**
- * Formata data no padrão ISO (yyyy-MM-dd) para dd/MM/yyyy.
- * Se já vier formatada, devolve como está.
+ * Formata data no padr├úo ISO (yyyy-MM-dd) para dd/MM/yyyy.
+ * Se j├í vier formatada, devolve como est├í.
  */
 function formatarDataBR(data) {
   if (!data) return "";
@@ -1723,21 +1739,21 @@ function resumoRecursosHtml(reserva) {
     const partes = [];
     if (comHdmi > 0) partes.push(`${comHdmi} com HDMI`);
     if (semHdmi > 0) partes.push(`${semHdmi} sem HDMI`);
-    linhas.push(`<p><strong>💻 Chromebooks:</strong> ${total} unidade(s)${partes.length ? ` (${partes.join(" · ")})` : ""}</p>`);
+    linhas.push(`<p><strong>­ƒÆ╗ Chromebooks:</strong> ${total} unidade(s)${partes.length ? ` (${partes.join(" ┬À ")})` : ""}</p>`);
   }
 
   // Equipamentos
   if (Array.isArray(reserva.equipamentos) && reserva.equipamentos.length > 0) {
     for (const eq of reserva.equipamentos) {
-      linhas.push(`<p><strong>📦 Equipamento:</strong> ${eq.nome} × ${eq.quantidade}</p>`);
+      linhas.push(`<p><strong>­ƒôª Equipamento:</strong> ${eq.nome} ├ù ${eq.quantidade}</p>`);
     }
   } else if (reserva.equipamentoNome && reserva.equipamentoQuantidade) {
-    linhas.push(`<p><strong>📦 Equipamento:</strong> ${reserva.equipamentoNome} × ${reserva.equipamentoQuantidade}</p>`);
+    linhas.push(`<p><strong>­ƒôª Equipamento:</strong> ${reserva.equipamentoNome} ├ù ${reserva.equipamentoQuantidade}</p>`);
   }
 
-  // Espaço
+  // Espa├ºo
   if (reserva.espacoNome) {
-    linhas.push(`<p><strong>📍 Espaço:</strong> ${reserva.espacoNome}</p>`);
+    linhas.push(`<p><strong>­ƒôì Espa├ºo:</strong> ${reserva.espacoNome}</p>`);
   }
 
   if (linhas.length === 0) {
@@ -1747,13 +1763,13 @@ function resumoRecursosHtml(reserva) {
 }
 
 /**
- * Envia e-mail de confirmação de reserva de equipamentos/espaços via Gmail API.
- * @param {object} reserva — objeto completo da reserva (ReservaAgendaCCI)
+ * Envia e-mail de confirma├º├úo de reserva de equipamentos/espa├ºos via Gmail API.
+ * @param {object} reserva ÔÇö objeto completo da reserva (ReservaAgendaCCI)
  */
 async function enviarEmailConfirmacaoReserva(reserva) {
   const destinatario = reserva.solicitanteEmail;
   if (!destinatario) {
-    console.warn("[email-reserva] Reserva sem solicitanteEmail — e-mail não enviado.", reserva.id);
+    console.warn("[email-reserva] Reserva sem solicitanteEmail ÔÇö e-mail n├úo enviado.", reserva.id);
     return;
   }
 
@@ -1764,13 +1780,13 @@ async function enviarEmailConfirmacaoReserva(reserva) {
   ).trim();
 
   if (!remetente) {
-    console.warn("[email-reserva] EMAIL_REMETENTE não configurado — e-mail de reserva não enviado.");
+    console.warn("[email-reserva] EMAIL_REMETENTE n├úo configurado ÔÇö e-mail de reserva n├úo enviado.");
     return;
   }
 
   const auth = getJwtParaEmail();
   if (!auth) {
-    console.warn("[email-reserva] Sem credenciais para enviar e-mail (EMAIL_REMETENTE ou service account não configurado).");
+    console.warn("[email-reserva] Sem credenciais para enviar e-mail (EMAIL_REMETENTE ou service account n├úo configurado).");
     return;
   }
 
@@ -1781,7 +1797,7 @@ async function enviarEmailConfirmacaoReserva(reserva) {
     return;
   }
 
-  const assunto = `📅 Reserva [${reserva.id}] confirmada`;
+  const assunto = `­ƒôà Reserva [${reserva.id}] confirmada`;
   const dataBR = formatarDataBR(reserva.data);
   const recursosHtml = resumoRecursosHtml(reserva);
 
@@ -1805,24 +1821,24 @@ async function enviarEmailConfirmacaoReserva(reserva) {
 <body>
   <div class="container">
     <div class="header">
-      <h1>📅 Reserva Confirmada</h1>
+      <h1>­ƒôà Reserva Confirmada</h1>
     </div>
     <div class="body">
-      <p>Olá, <strong>${reserva.solicitanteNome || destinatario}</strong>!</p>
+      <p>Ol├í, <strong>${reserva.solicitanteNome || destinatario}</strong>!</p>
       <p>Sua reserva foi registrada com sucesso. Confira os detalhes abaixo:</p>
       <div class="info-box">
-        <p><strong>🏷️ Título:</strong> ${reserva.titulo || "—"}</p>
-        <p><strong>🆔 ID da Reserva:</strong> ${reserva.id}</p>
-        <p><strong>📅 Data:</strong> ${dataBR}</p>
-        <p><strong>🕐 Horário:</strong> ${reserva.inicio} — ${reserva.fim}</p>
+        <p><strong>­ƒÅÀ´©Å T├¡tulo:</strong> ${reserva.titulo || "ÔÇö"}</p>
+        <p><strong>­ƒåö ID da Reserva:</strong> ${reserva.id}</p>
+        <p><strong>­ƒôà Data:</strong> ${dataBR}</p>
+        <p><strong>­ƒòÉ Hor├írio:</strong> ${reserva.inicio} ÔÇö ${reserva.fim}</p>
       </div>
-      <p><strong>📋 Recursos reservados:</strong></p>
+      <p><strong>­ƒôï Recursos reservados:</strong></p>
       <div class="resources-box">
         ${recursosHtml}
       </div>
-      <p>Você pode acompanhar sua reserva em <strong>Minhas Reservas</strong> na intranet.</p>
+      <p>Voc├¬ pode acompanhar sua reserva em <strong>Minhas Reservas</strong> na intranet.</p>
     </div>
-    <div class="footer">Este é um e-mail automático da Intranet CCI. Não responda este e-mail.</div>
+    <div class="footer">Este ├® um e-mail autom├ítico da Intranet CCI. N├úo responda este e-mail.</div>
   </div>
 </body>
 </html>`;
@@ -1853,7 +1869,7 @@ async function enviarEmailConfirmacaoReserva(reserva) {
       userId: remetente,
       requestBody: { raw: encoded },
     });
-    console.log(`[email-reserva] E-mail de confirmação enviado para ${destinatario} (reserva ${reserva.id}).`);
+    console.log(`[email-reserva] E-mail de confirma├º├úo enviado para ${destinatario} (reserva ${reserva.id}).`);
   } catch (e) {
     console.error(`[email-reserva] Falha ao enviar e-mail para ${destinatario}:`, e.message);
   }
@@ -1992,27 +2008,27 @@ app.post("/api/chamados/criar", async (req, res) => {
     const categoriaLimpa = typeof categoria === "string" ? categoria.trim() : "";
     const descricaoLimpa = typeof descricao === "string" ? descricao.trim() : "";
     if (!tituloLimpo || !categoriaLimpa || !descricaoLimpa) {
-      return res.status(400).json({ error: "titulo, categoria e descricao são obrigatórios." });
+      return res.status(400).json({ error: "titulo, categoria e descricao s├úo obrigat├│rios." });
     }
     const prioridades = ["baixa", "media", "alta"];
     const prioridadeFinal = prioridades.includes(prioridade) ? prioridade : "media";
 
-    // Validações de filmagem
+    // Valida├º├Áes de filmagem
     const eFilmagem = solicitaFilmagem === true;
     if (eFilmagem) {
       if (!filmagemData || !filmagemHoraInicio || !filmagemHoraFim) {
         return res.status(400).json({
-          error: "Para chamados de filmagem, informe a data, hora de início e hora final.",
+          error: "Para chamados de filmagem, informe a data, hora de in├¡cio e hora final.",
         });
       }
       if (filmagemHoraInicio >= filmagemHoraFim) {
         return res.status(400).json({
-          error: "A hora de início deve ser anterior à hora final da filmagem.",
+          error: "A hora de in├¡cio deve ser anterior ├á hora final da filmagem.",
         });
       }
       if (filmagemTermosAceitos !== true) {
         return res.status(400).json({
-          error: "É obrigatório aceitar os termos de responsabilidade para chamados de filmagem.",
+          error: "├ë obrigat├│rio aceitar os termos de responsabilidade para chamados de filmagem.",
         });
       }
     }
@@ -2041,7 +2057,7 @@ app.post("/api/chamados/criar", async (req, res) => {
 
     await inserirChamado(supabase, chamado);
 
-    // Dispara e-mail de notificação de forma assíncrona (não bloqueia a resposta)
+    // Dispara e-mail de notifica├º├úo de forma ass├¡ncrona (n├úo bloqueia a resposta)
     setImmediate(() =>
       enviarEmailNovoChamado(chamado).catch((e) =>
         console.error("[email-novo-chamado] Erro inesperado:", e.message)
@@ -2068,7 +2084,7 @@ app.post("/api/chamados/atualizar", async (req, res) => {
     const { idToken, chamado } = req.body || {};
     const ctx = await resolverContextoFromRequest(req);
     if (!chamado || typeof chamado !== "object" || typeof chamado.id !== "string") {
-      return res.status(400).json({ error: "chamado.id é obrigatório." });
+      return res.status(400).json({ error: "chamado.id ├® obrigat├│rio." });
     }
 
     const supabase = getSupabaseAdmin();
@@ -2080,10 +2096,10 @@ app.post("/api/chamados/atualizar", async (req, res) => {
 
     const existente = await obterChamadoPorId(supabase, chamado.id);
     if (!existente) {
-      return res.status(404).json({ error: "Chamado não encontrado." });
+      return res.status(404).json({ error: "Chamado n├úo encontrado." });
     }
     if (!podeVerChamado(ctx.viewer, existente)) {
-      return res.status(403).json({ error: "Sem permissão para editar este chamado." });
+      return res.status(403).json({ error: "Sem permiss├úo para editar este chamado." });
     }
 
     const podeGerenciar = podeGerenciarChamado(ctx.viewer, existente);
@@ -2106,13 +2122,13 @@ app.post("/api/chamados/atualizar", async (req, res) => {
       atualizado.reaberturas = sanitizarReaberturas(chamado.reaberturas);
     }
 
-    // Detecta se a solução foi adicionada agora (antes não existia, agora existe)
+    // Detecta se a solu├º├úo foi adicionada agora (antes n├úo existia, agora existe)
     const solucaoEraAusente = !existente.solucao;
     const solucaoFoiAdicionada = Boolean(atualizado.solucao);
 
     await atualizarChamado(supabase, atualizado);
 
-    // Dispara e-mail de solução de forma assíncrona (não bloqueia a resposta)
+    // Dispara e-mail de solu├º├úo de forma ass├¡ncrona (n├úo bloqueia a resposta)
     if (solucaoEraAusente && solucaoFoiAdicionada) {
       setImmediate(() =>
         enviarEmailSolucaoChamado(atualizado).catch((e) =>
@@ -2133,7 +2149,7 @@ app.post("/api/chamados/atualizar", async (req, res) => {
 /**
  * POST /api/avisos/listar
  * Body: { idToken }
- * Retorna avisos visíveis conforme papéis (OU) do usuário.
+ * Retorna avisos vis├¡veis conforme pap├®is (OU) do usu├írio.
  */
 app.post("/api/avisos/listar", async (req, res) => {
   try {
@@ -2174,15 +2190,15 @@ app.post("/api/avisos/criar", async (req, res) => {
     const tituloLimpo = typeof titulo === "string" ? titulo.trim() : "";
     const conteudoLimpo = typeof conteudo === "string" ? conteudo.trim() : "";
     if (!tituloLimpo || !conteudoLimpo) {
-      return res.status(400).json({ error: "titulo e conteudo são obrigatórios." });
+      return res.status(400).json({ error: "titulo e conteudo s├úo obrigat├│rios." });
     }
     const tipoFinal = AVISO_TIPOS_VALIDOS.includes(tipo) ? tipo : "aviso";
     if (!AVISO_SETORES_VALIDOS.includes(setor)) {
-      return res.status(400).json({ error: "setor inválido." });
+      return res.status(400).json({ error: "setor inv├ílido." });
     }
     if (!podePublicarNoSetor(ctx.papeis, setor)) {
       return res.status(403).json({
-        error: "Você não tem permissão para publicar avisos neste setor.",
+        error: "Voc├¬ n├úo tem permiss├úo para publicar avisos neste setor.",
       });
     }
     const setorFinal = setor;
@@ -2212,7 +2228,7 @@ app.post("/api/avisos/criar", async (req, res) => {
 
 /**
  * POST /api/papeis-manuais/obter
- * Body: { idToken } — papéis manuais do usuário (ex.: admin).
+ * Body: { idToken } ÔÇö pap├®is manuais do usu├írio (ex.: admin).
  */
 app.post("/api/papeis-manuais/obter", async (req, res) => {
   try {
@@ -2235,7 +2251,7 @@ app.post("/api/papeis-manuais/obter", async (req, res) => {
 
 /**
  * POST /api/papeis-manuais/listar
- * Body: { idToken } — mapa completo (somente admin no arquivo).
+ * Body: { idToken } ÔÇö mapa completo (somente admin no arquivo).
  */
 app.post("/api/papeis-manuais/listar", async (req, res) => {
   try {
@@ -2259,7 +2275,7 @@ app.post("/api/papeis-manuais/listar", async (req, res) => {
 
 /**
  * POST /api/papeis-manuais/atualizar
- * Body: { idToken, emailAlvo, papeisManuais: string[] } — somente admin.
+ * Body: { idToken, emailAlvo, papeisManuais: string[] } ÔÇö somente admin.
  */
 app.post("/api/papeis-manuais/atualizar", async (req, res) => {
   try {
@@ -2272,11 +2288,11 @@ app.post("/api/papeis-manuais/atualizar", async (req, res) => {
       .trim()
       .toLowerCase();
     if (!alvo.includes("@")) {
-      return res.status(400).json({ error: "Informe um e-mail válido." });
+      return res.status(400).json({ error: "Informe um e-mail v├ílido." });
     }
     if (!emailDominioPermitido(alvo)) {
       return res.status(400).json({
-        error: `O e-mail deve ser de um dos domínios permitidos: ${DOMINIOS_PERMITIDOS.join(", ")}.`,
+        error: `O e-mail deve ser de um dos dom├¡nios permitidos: ${DOMINIOS_PERMITIDOS.join(", ")}.`,
       });
     }
     let lista = Array.isArray(papeisManuais) ? papeisManuais : [];
@@ -2353,7 +2369,7 @@ async function obterOrgUnitPathUsuario(email) {
 /**
  * POST /api/painel/sync-profile
  * Body: { idToken }
- * Sincroniza painel_profiles com a OU do Workspace e papéis manuais (admin), sem cadastro manual.
+ * Sincroniza painel_profiles com a OU do Workspace e pap├®is manuais (admin), sem cadastro manual.
  */
 app.post("/api/painel/sync-profile", async (req, res) => {
   try {
@@ -2400,7 +2416,7 @@ app.post("/api/painel/sync-profile", async (req, res) => {
 
     if (schoolErr || !school?.id) {
       return res.status(500).json({
-        error: "Escola não encontrada em painel_schools (slug).",
+        error: "Escola n├úo encontrada em painel_schools (slug).",
         slug: PAINEL_SCHOOL_SLUG,
       });
     }
@@ -2464,7 +2480,7 @@ app.post("/api/painel/sync-profile", async (req, res) => {
 /**
  * POST /api/painel/create-user
  * Body: { idToken, email, password, full_name, role, service_window_id, school_id }
- * Cria usuário Auth + painel_profiles (somente admin painel da mesma escola).
+ * Cria usu├írio Auth + painel_profiles (somente admin painel da mesma escola).
  */
 app.post("/api/painel/create-user", async (req, res) => {
   try {
@@ -2474,14 +2490,14 @@ app.post("/api/painel/create-user", async (req, res) => {
     const { email: callerEmail } = await verificarAutenticacaoRequest(req);
 
     if (!email || !password || !full_name || !school_id) {
-      return res.status(400).json({ error: "Campos obrigatórios faltando." });
+      return res.status(400).json({ error: "Campos obrigat├│rios faltando." });
     }
     if (String(password).length < 6) {
       return res.status(400).json({ error: "A senha deve ter pelo menos 6 caracteres." });
     }
     if (!emailDominioPermitido(String(email))) {
       return res.status(400).json({
-        error: `O e-mail deve ser de um dos domínios permitidos: ${DOMINIOS_PERMITIDOS.join(", ")}.`,
+        error: `O e-mail deve ser de um dos dom├¡nios permitidos: ${DOMINIOS_PERMITIDOS.join(", ")}.`,
       });
     }
 
@@ -2496,7 +2512,7 @@ app.post("/api/painel/create-user", async (req, res) => {
     if (!callerUser) {
       return res.status(403).json({
         error:
-          "Sua conta ainda não existe no Supabase do painel. Abra o painel de senhas logado na Central para sincronizar.",
+          "Sua conta ainda n├úo existe no Supabase do painel. Abra o painel de senhas logado na Central para sincronizar.",
       });
     }
 
@@ -2522,7 +2538,7 @@ app.post("/api/painel/create-user", async (req, res) => {
     });
 
     if (authError || !newUser.user) {
-      return res.status(500).json({ error: authError?.message ?? "Erro ao criar usuário." });
+      return res.status(500).json({ error: authError?.message ?? "Erro ao criar usu├írio." });
     }
 
     const { data: profile, error: profileError } = await admin
@@ -2572,7 +2588,7 @@ function obterCredenciaisIscholar() {
 async function obterMatriculaIscholar(idAluno) {
   const { codigoEscola, token } = obterCredenciaisIscholar();
   if (!codigoEscola || !token) {
-    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+    throw new Error("Credenciais do iScholar n├úo configuradas no servidor.");
   }
   
   const url = `https://api.ischolar.app/matricula/listar?id_aluno=${idAluno}`;
@@ -2601,7 +2617,7 @@ async function obterMatriculaIscholar(idAluno) {
 async function obterDadosCompletosAlunoIscholar(idAluno) {
   const { codigoEscola, token } = obterCredenciaisIscholar();
   if (!codigoEscola || !token) {
-    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+    throw new Error("Credenciais do iScholar n├úo configuradas no servidor.");
   }
   
   const url = `https://api.ischolar.app/aluno/busca?id_aluno=${idAluno}`;
@@ -2630,13 +2646,13 @@ async function obterDadosCompletosAlunoIscholar(idAluno) {
 async function alterarEmailAlunoIscholar(idAluno, email) {
   const { codigoEscola, token } = obterCredenciaisIscholar();
   if (!codigoEscola || !token) {
-    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+    throw new Error("Credenciais do iScholar n├úo configuradas no servidor.");
   }
 
-  // 1. Obter dados completos atuais do aluno para não quebrar validações
+  // 1. Obter dados completos atuais do aluno para n├úo quebrar valida├º├Áes
   const dadosAluno = await obterDadosCompletosAlunoIscholar(idAluno);
   if (!dadosAluno || !dadosAluno.informacoes_basicas) {
-    throw new Error("Dados básicos do aluno não encontrados para atualização.");
+    throw new Error("Dados b├ísicos do aluno n├úo encontrados para atualiza├º├úo.");
   }
 
   // 2. Mesclar o e-mail no objeto informacoes_basicas existente
@@ -2644,9 +2660,9 @@ async function alterarEmailAlunoIscholar(idAluno, email) {
   informacoesBasicas.email = email;
   informacoesBasicas.id_aluno = parseInt(idAluno, 10);
 
-  // Garantir valor válido para cor_raca (se vazio ou inválido, define como "PARDA")
+  // Garantir valor v├ílido para cor_raca (se vazio ou inv├ílido, define como "PARDA")
   const corRacaAtual = (informacoesBasicas.cor_raca || "").trim().toUpperCase();
-  const validos = ["AMARELA", "BRANCA", "INDÍGENA", "INDIGENA", "PARDA", "NEGRA", "NÃO DECLARADA", "NAO DECLARADA"];
+  const validos = ["AMARELA", "BRANCA", "IND├ìGENA", "INDIGENA", "PARDA", "NEGRA", "N├âO DECLARADA", "NAO DECLARADA"];
   if (!corRacaAtual || !validos.includes(corRacaAtual)) {
     informacoesBasicas.cor_raca = "PARDA";
   }
@@ -2711,7 +2727,7 @@ function gerarEmailLocalPart(nomeAluno, numeroRe) {
 async function criarUsuarioGoogleWorkspace(email, nome, sobrenome, senhaProvisoria, orgUnitPath) {
   const auth = getJwtWorkspaceUserWrite();
   if (!auth) {
-    throw new Error("Não foi possível inicializar a autenticação do Google Workspace para escrita.");
+    throw new Error("N├úo foi poss├¡vel inicializar a autentica├º├úo do Google Workspace para escrita.");
   }
 
   await auth.authorize();
@@ -2742,7 +2758,7 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
     body: req.body,
     automacao: {
       status: "sem_acao",
-      motivo: "Evento não processado por este webhook"
+      motivo: "Evento n├úo processado por este webhook"
     }
   };
 
@@ -2762,21 +2778,21 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
           motivo: "id_aluno ausente no payload"
         };
       } else {
-        console.log(`[webhook-ischolar] Buscando matrícula do aluno ${idAluno}...`);
+        console.log(`[webhook-ischolar] Buscando matr├¡cula do aluno ${idAluno}...`);
         const infoMatricula = await obterMatriculaIscholar(idAluno);
         const matricula = infoMatricula.dados?.[0];
 
         if (!matricula) {
           payload.automacao = {
             status: "erro",
-            motivo: `Nenhuma matrícula encontrada para o aluno ID ${idAluno}`
+            motivo: `Nenhuma matr├¡cula encontrada para o aluno ID ${idAluno}`
           };
         } else {
           const nomeAluno = matricula.nome_aluno || "";
           const periodo = matricula.periodo || "";
           const nomeTurma = matricula.nome_turma || "";
 
-          // Normalizar para comparações seguras
+          // Normalizar para compara├º├Áes seguras
           const normalizarTexto = (txt) => {
             return (txt || "")
               .toUpperCase()
@@ -2790,7 +2806,7 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
           const tCursoRef = normalizarTexto(matricula.curso || "");
           const tModalidade = normalizarTexto(matricula.modalidade || "");
 
-          // 1. Filtrar Períodos Letivos
+          // 1. Filtrar Per├¡odos Letivos
           const periodosIgnorados = ["P1NEGOCCIA", "PEC 2026", "ESTAGIO OBRIGT FACS"];
           const deveIgnorarPeriodo = periodosIgnorados.some(p => tPeriodo.includes(p));
 
@@ -2808,21 +2824,21 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
           const deveIgnorarTurma = termosTurmasIgnorados.some(termo => tTurma.includes(termo));
 
           if (deveIgnorarPeriodo) {
-            console.log(`[webhook-ischolar] Descartado aluno ${nomeAluno}: Período letivo ${periodo} ignorado.`);
+            console.log(`[webhook-ischolar] Descartado aluno ${nomeAluno}: Per├¡odo letivo ${periodo} ignorado.`);
             payload.automacao = {
               status: "ignorado",
-              motivo: `Período letivo "${periodo}" está na lista de exclusão.`,
+              motivo: `Per├¡odo letivo "${periodo}" est├í na lista de exclus├úo.`,
               aluno: nomeAluno
             };
           } else if (deveIgnorarTurma) {
             console.log(`[webhook-ischolar] Descartado aluno ${nomeAluno}: Turma ${nomeTurma} ignorada.`);
             payload.automacao = {
               status: "ignorado",
-              motivo: `Turma "${nomeTurma}" está na lista de exclusão (extracurricular/especial).`,
+              motivo: `Turma "${nomeTurma}" est├í na lista de exclus├úo (extracurricular/especial).`,
               aluno: nomeAluno
             };
           } else {
-            // Determinar o domínio correto do e-mail e unidade organizacional (OU)
+            // Determinar o dom├¡nio correto do e-mail e unidade organizacional (OU)
             let dominioEmail = "";
             let orgUnitPath = "";
             if (tTurma.includes("TECNICO") || tCurso.includes("TECNICO") || tCursoRef.includes("TECNICO")) {
@@ -2851,7 +2867,7 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
             }
 
 
-            // Obter número de matrícula (numero_re)
+            // Obter n├║mero de matr├¡cula (numero_re)
             const numeroRe = (matricula.numero_re || dadosDepois?.numero_re || "").trim();
 
             // Gerar local part (username) do e-mail
@@ -2878,9 +2894,9 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
               erroWorkspace = errGoogle.message;
               console.error(`[webhook-ischolar] Erro ao criar conta no Google Workspace:`, erroWorkspace);
               
-              // Se for um erro de duplicidade (409), podemos considerar que a conta já existe e atualizar no iScholar mesmo assim
+              // Se for um erro de duplicidade (409), podemos considerar que a conta j├í existe e atualizar no iScholar mesmo assim
               if (errGoogle.code === 409 || erroWorkspace.includes("Entity already exists") || erroWorkspace.includes("already exists")) {
-                console.log(`[webhook-ischolar] A conta ${emailCandidato} já existe no Google Workspace. Prosseguindo com o vínculo.`);
+                console.log(`[webhook-ischolar] A conta ${emailCandidato} j├í existe no Google Workspace. Prosseguindo com o v├¡nculo.`);
                 contaCriada = true;
               }
             }
@@ -2896,7 +2912,7 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
                 aluno: nomeAluno,
                 turma: nomeTurma,
                 periodo: periodo,
-                warning: erroWorkspace ? `Conta já existia no Workspace: ${erroWorkspace}` : null
+                warning: erroWorkspace ? `Conta j├í existia no Workspace: ${erroWorkspace}` : null
               };
             } else {
               payload.automacao = {
@@ -2911,14 +2927,14 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
       }
     }
   } catch (e) {
-    console.error("[webhook-ischolar] Erro geral ao processar automação:", e);
+    console.error("[webhook-ischolar] Erro geral ao processar automa├º├úo:", e);
     payload.automacao = {
       status: "erro",
       motivo: `Erro geral no processamento: ${e.message}`
     };
   }
 
-  // Salvar o log no arquivo local (mantendo os últimos 100 logs)
+  // Salvar o log no arquivo local (mantendo os ├║ltimos 100 logs)
   try {
     const logPath = path.join(__dirname, "webhook-logs.json");
     let logs = [];
@@ -2969,23 +2985,23 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
     await verificarAutenticacaoRequest(req);
 
     if (!id_aluno) {
-      return res.status(400).json({ error: "Parâmetro id_aluno é obrigatório." });
+      return res.status(400).json({ error: "Par├ómetro id_aluno ├® obrigat├│rio." });
     }
 
-    console.log(`[diagnostico-aluno] Iniciando criação de e-mail manual para aluno ID ${id_aluno}...`);
+    console.log(`[diagnostico-aluno] Iniciando cria├º├úo de e-mail manual para aluno ID ${id_aluno}...`);
 
     let matricula = null;
     let nomeAluno = nome_aluno || "";
     let nomeTurma = turma || "";
     let numeroRe = numero_re || "";
 
-    // 1. Tentar obter matrícula do iScholar para decidir o domínio do e-mail
+    // 1. Tentar obter matr├¡cula do iScholar para decidir o dom├¡nio do e-mail
     try {
       const idBuscaMatricula = String(id_aluno).startsWith("m-") ? String(id_aluno).substring(2) : id_aluno;
       const infoMatricula = await obterMatriculaIscholar(idBuscaMatricula);
       matricula = infoMatricula.dados?.[0];
     } catch (errMatricula) {
-      console.warn(`[diagnostico-aluno] Não foi possível obter matrícula para o aluno ID ${id_aluno}:`, errMatricula.message);
+      console.warn(`[diagnostico-aluno] N├úo foi poss├¡vel obter matr├¡cula para o aluno ID ${id_aluno}:`, errMatricula.message);
     }
 
     if (matricula) {
@@ -2993,7 +3009,7 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
       nomeTurma = matricula.nome_turma || nomeTurma;
       numeroRe = matricula.numero_re || numeroRe;
     } else {
-      // 2. Fallback: Buscar dados básicos do aluno caso não haja matrícula ativa (ex: transferido)
+      // 2. Fallback: Buscar dados b├ísicos do aluno caso n├úo haja matr├¡cula ativa (ex: transferido)
       try {
         const idBuscaAluno = String(id_aluno).startsWith("m-") ? String(id_aluno).substring(2) : id_aluno;
         const dadosAluno = await obterDadosCompletosAlunoIscholar(idBuscaAluno);
@@ -3003,17 +3019,17 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
           numeroRe = numeroRe || ib.registro_escolar || ib.numero_re || "";
         }
       } catch (errAluno) {
-        console.warn(`[diagnostico-aluno] Falha ao obter dados básicos do aluno ID ${id_aluno}:`, errAluno.message);
+        console.warn(`[diagnostico-aluno] Falha ao obter dados b├ísicos do aluno ID ${id_aluno}:`, errAluno.message);
       }
     }
 
     if (!nomeAluno) {
       return res.status(400).json({ 
-        error: `Não foi possível encontrar dados no iScholar para o aluno ID ${id_aluno} e nenhuma informação foi fornecida.` 
+        error: `N├úo foi poss├¡vel encontrar dados no iScholar para o aluno ID ${id_aluno} e nenhuma informa├º├úo foi fornecida.` 
       });
     }
 
-    // Normalizar para comparações seguras
+    // Normalizar para compara├º├Áes seguras
     const normalizarTexto = (txt) => {
       return (txt || "")
         .toUpperCase()
@@ -3026,7 +3042,7 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
     const tCursoRef = matricula ? normalizarTexto(matricula.curso || "") : "";
     const tModalidade = matricula ? normalizarTexto(matricula.modalidade || "") : "";
 
-    // Determinar o domínio correto do e-mail e unidade organizacional (OU)
+    // Determinar o dom├¡nio correto do e-mail e unidade organizacional (OU)
     let dominioEmail = "";
     let orgUnitPath = "";
     if (tTurma.includes("TECNICO") || tCurso.includes("TECNICO") || tCursoRef.includes("TECNICO")) {
@@ -3054,7 +3070,7 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
       orgUnitPath = "/Alunos REGULAR";
     }
 
-    // Obter número de matrícula (numero_re)
+    // Obter n├║mero de matr├¡cula (numero_re)
     const cleanNumeroRe = (numeroRe || "").trim();
 
     // Gerar local part (username) do e-mail
@@ -3077,7 +3093,7 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
     } catch (errGoogle) {
       erroWorkspace = errGoogle.message;
       if (errGoogle.code === 409 || erroWorkspace.includes("Entity already exists") || erroWorkspace.includes("already exists")) {
-        console.log(`[diagnostico-aluno] A conta ${emailCandidato} já existe no Google Workspace. Prosseguindo com o vínculo.`);
+        console.log(`[diagnostico-aluno] A conta ${emailCandidato} j├í existe no Google Workspace. Prosseguindo com o v├¡nculo.`);
         contaCriada = true;
       } else {
         throw errGoogle;
@@ -3092,10 +3108,10 @@ app.post("/api/ti/ischolar/aluno/criar-email", async (req, res) => {
         ok: true,
         email: emailCandidato,
         aluno: nomeAluno,
-        warning: erroWorkspace ? "A conta de e-mail já existia no Google Workspace, mas foi vinculada com sucesso no iScholar." : null
+        warning: erroWorkspace ? "A conta de e-mail j├í existia no Google Workspace, mas foi vinculada com sucesso no iScholar." : null
       });
     } else {
-      throw new Error("Não foi possível criar a conta no Workspace.");
+      throw new Error("N├úo foi poss├¡vel criar a conta no Workspace.");
     }
   } catch (e) {
     console.error("[diagnostico-aluno] Erro ao criar e-mail manual:", e);
@@ -3122,11 +3138,11 @@ app.post("/api/ti/google-classroom/create-course", async (req, res) => {
   try {
     const { idToken, name, teacher } = req.body || {};
     if (!idToken || typeof idToken !== "string") {
-      return res.status(400).json({ error: "Você precisa estar autenticado com uma conta do Google (idToken ausente). Faça login no topo do site." });
+      return res.status(400).json({ error: "Voc├¬ precisa estar autenticado com uma conta do Google (idToken ausente). Fa├ºa login no topo do site." });
     }
     const { email: userEmail } = await verificarIdTokenUsuario(idToken);
 
-    // Verificar se o usuário autenticado pertence à TI (setape ou admin)
+    // Verificar se o usu├írio autenticado pertence ├á TI (setape ou admin)
     const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
     const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
     const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
@@ -3135,15 +3151,15 @@ app.post("/api/ti/google-classroom/create-course", async (req, res) => {
     }
 
     if (!name || String(name).trim() === "") {
-      return res.status(400).json({ error: "O nome da turma é obrigatório." });
+      return res.status(400).json({ error: "O nome da turma ├® obrigat├│rio." });
     }
 
     const credentials = getServiceAccountCredentials();
     if (!credentials) {
-      return res.status(500).json({ error: "Credenciais do Google não configuradas no servidor." });
+      return res.status(500).json({ error: "Credenciais do Google n├úo configuradas no servidor." });
     }
 
-    // Impersonar o e-mail dev.fac@portalcci.com.br diretamente para evitar erros caso a conta do administrador não tenha o Classroom habilitado
+    // Impersonar o e-mail dev.fac@portalcci.com.br diretamente para evitar erros caso a conta do administrador n├úo tenha o Classroom habilitado
     const auth = new google.auth.JWT({
       email: credentials.client_email,
       key: credentials.private_key,
@@ -3180,7 +3196,7 @@ app.post("/api/ti/google-classroom/create-course", async (req, res) => {
 });
 
 
-// ─── iScholar & Google Classroom Ensalamento Persistence ────────────────────
+// ÔöÇÔöÇÔöÇ iScholar & Google Classroom Ensalamento Persistence ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 const CLASSROOM_MAPPING_FILE = path.join(__dirname, "data", "classroomMapping.json");
 
 function lerMapeamentosClassroom() {
@@ -3218,14 +3234,14 @@ async function safeFetchIscholarJson(url, options = {}) {
     const data = JSON.parse(text);
     return { ok: response.ok, status: response.status, data, rawText: text };
   } catch (e) {
-    return { ok: false, status: response.status, data: null, rawText: text, error: `Formato de resposta do iScholar inválido: ${text.slice(0, 100)}` };
+    return { ok: false, status: response.status, data: null, rawText: text, error: `Formato de resposta do iScholar inv├ílido: ${text.slice(0, 100)}` };
   }
 }
 
 async function obterUnidadesIscholar() {
   const { codigoEscola, token } = obterCredenciaisIscholar();
   if (!codigoEscola || !token) {
-    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+    throw new Error("Credenciais do iScholar n├úo configuradas no servidor.");
   }
 
   const headers = {
@@ -3259,72 +3275,111 @@ async function obterTurmasIscholar() {
     "Content-Type": "application/json"
   };
 
-  // 1. Buscar unidades cadastradas
-  const unidades = await obterUnidadesIscholar();
-  let rawTurmas = [];
+  const turmasMap = new Map();
 
-  if (Array.isArray(unidades) && unidades.length > 0) {
-    for (const u of unidades) {
+  // 1. Buscar turmas iterando por periodo_id (1 a 15) para evitar que o iScholar limite apenas ao período padrão
+  for (let pid = 1; pid <= 15; pid++) {
+    let page = 1;
+    while (true) {
       try {
-        const url = `https://api.ischolar.app/turma/lista?unidade_id=${u.id_unidade}`;
+        const url = `https://api.ischolar.app/turma/lista?periodo_id=${pid}&pagina=${page}`;
         const res = await safeFetchIscholarJson(url, { method: "GET", headers });
         if (res.ok && res.data) {
           const raw = res.data.dados || res.data.turmas || res.data.lista || res.data;
           const items = Array.isArray(raw) ? raw : (typeof raw === "object" && raw !== null ? Object.values(raw) : []);
-          items.forEach(t => {
-            if (t && typeof t === "object") {
-              rawTurmas.push({ ...t, id_unidade_ref: u.id_unidade, nome_unidade_ref: u.nome_unidade });
+          if (items.length === 0) break;
+
+          for (const t of items) {
+            if (!t || typeof t !== "object") continue;
+            const idTurma = String(t.id_turma || t.id || t.codigo || "");
+            if (!idTurma || turmasMap.has(idTurma)) continue;
+
+            const nome = extrairStringValor(t.nome_turma) || extrairStringValor(t.nome) || extrairStringValor(t.turma) || `Turma ${idTurma}`;
+            const curso = extrairStringValor(t.nome_curso) || extrairStringValor(t.curso);
+            const periodo = extrairStringValor(t.periodo_letivo) || extrairStringValor(t.periodo) || extrairStringValor(t.ano_letivo) || "2026.2";
+            const nomeUnidadeRaw = t.unidade?.nome || t.nome_unidade || t.nome_unidade_ref || "";
+
+            const normalizar = (str) => (str || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            const norm = normalizar(String(nome) + " " + String(curso) + " " + String(nomeUnidadeRaw));
+
+            let unidade = nomeUnidadeRaw || "Todas as Unidades";
+            if (norm.includes("TECNICO") || norm.includes("TECSCCI")) {
+              unidade = "TecsCCI Escola Técnica";
+            } else if (norm.includes("FACULDADE") || norm.includes("GRADUACAO") || norm.includes("FAC")) {
+              unidade = "Faculdade CCI";
             }
-          });
+
+            turmasMap.set(idTurma, {
+              id_turma: idTurma,
+              nome_turma: String(nome),
+              curso: String(curso),
+              periodo_letivo: String(periodo),
+              unidade: String(unidade),
+              id_unidade: String(t.unidade?.id || t.id_unidade || t.id_unidade_ref || "")
+            });
+          }
+
+          if (items.length < 100) break;
+          page++;
+        } else {
+          break;
         }
       } catch (e) {
-        console.error(`[ischolar-turmas] Erro ao buscar turmas da unidade ${u.id_unidade}:`, e);
+        console.error(`[ischolar-turmas] Erro ao buscar periodo_id ${pid} pag ${page}:`, e.message);
+        break;
       }
     }
   }
 
-  // 2. Fallback direto se unidades retornou vazio
-  if (rawTurmas.length === 0) {
-    const url = `https://api.ischolar.app/turma/lista`;
-    const res = await safeFetchIscholarJson(url, { method: "GET", headers });
-    if (res.ok && res.data) {
-      const raw = res.data.dados || res.data.turmas || res.data.lista || res.data;
-      rawTurmas = Array.isArray(raw) ? raw : (typeof raw === "object" && raw !== null ? Object.values(raw) : []);
+  // 2. Fallback por unidades se o loop de períodos por algum motivo falhar totalmente
+  if (turmasMap.size === 0) {
+    const unidades = await obterUnidadesIscholar();
+    if (Array.isArray(unidades) && unidades.length > 0) {
+      for (const u of unidades) {
+        try {
+          const url = `https://api.ischolar.app/turma/lista?unidade_id=${u.id_unidade}`;
+          const res = await safeFetchIscholarJson(url, { method: "GET", headers });
+          if (res.ok && res.data) {
+            const raw = res.data.dados || res.data.turmas || res.data.lista || res.data;
+            const items = Array.isArray(raw) ? raw : (typeof raw === "object" && raw !== null ? Object.values(raw) : []);
+            items.forEach(t => {
+              if (t && typeof t === "object") {
+                const idTurma = String(t.id_turma || t.id || t.codigo || "");
+                if (idTurma && !turmasMap.has(idTurma)) {
+                  const nome = extrairStringValor(t.nome_turma) || extrairStringValor(t.nome) || extrairStringValor(t.turma) || `Turma ${idTurma}`;
+                  const curso = extrairStringValor(t.nome_curso) || extrairStringValor(t.curso);
+                  const periodo = extrairStringValor(t.periodo_letivo) || extrairStringValor(t.periodo) || extrairStringValor(t.ano_letivo) || "2026.2";
+                  const normalizar = (str) => (str || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                  const norm = normalizar(String(nome) + " " + String(curso) + " " + String(u.nome_unidade));
+
+                  let unidade = u.nome_unidade || "Todas as Unidades";
+                  if (norm.includes("TECNICO") || norm.includes("TECSCCI")) {
+                    unidade = "TecsCCI Escola Técnica";
+                  } else if (norm.includes("FACULDADE") || norm.includes("GRADUACAO") || norm.includes("FAC")) {
+                    unidade = "Faculdade CCI";
+                  }
+
+                  turmasMap.set(idTurma, {
+                    id_turma: idTurma,
+                    nome_turma: String(nome),
+                    curso: String(curso),
+                    periodo_letivo: String(periodo),
+                    unidade: String(unidade),
+                    id_unidade: String(u.id_unidade)
+                  });
+                }
+              }
+            });
+          }
+        } catch (e) {
+          console.error(`[ischolar-turmas] Erro ao buscar turmas da unidade ${u.id_unidade}:`, e);
+        }
+      }
     }
   }
 
-  const normalizar = (str) => (str || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-
-  const todasAsTurmas = (Array.isArray(rawTurmas) ? rawTurmas : []).map(t => {
-    if (!t || typeof t !== "object") return null;
-    const nome = extrairStringValor(t.nome_turma) || extrairStringValor(t.nome) || extrairStringValor(t.turma) || `Turma ${t.id_turma || t.id || ""}`;
-    const curso = extrairStringValor(t.nome_curso) || extrairStringValor(t.curso) || "";
-    
-    let periodo = extrairStringValor(t.periodo_letivo) ||
-                  extrairStringValor(t.periodo) ||
-                  extrairStringValor(t.ano_letivo) ||
-                  extrairStringValor(t.semestre) ||
-                  "2026.1";
-
-    const norm = normalizar(String(nome) + " " + String(curso) + " " + String(t.nome_unidade_ref || ""));
-    
-    let unidade = t.nome_unidade_ref || "Todas as Unidades";
-    if (norm.includes("TECNICO") || norm.includes("TECSCCI")) {
-      unidade = "TecsCCI Escola Técnica";
-    } else if (norm.includes("FACULDADE") || norm.includes("GRADUACAO") || norm.includes("FAC")) {
-      unidade = "Faculdade CCI";
-    }
-
-    return {
-      id_turma: String(t.id_turma || t.id || t.codigo || ""),
-      nome_turma: String(nome),
-      curso: String(curso),
-      periodo_letivo: String(periodo),
-      unidade: String(unidade),
-      id_unidade: String(t.id_unidade || t.id_unidade_ref || "")
-    };
-  }).filter(Boolean);
-
+  const todasAsTurmas = Array.from(turmasMap.values()).filter(t => String(t.periodo_letivo).trim() === "2026.2");
+  console.log(`[ischolar-turmas] Sucesso! Total de ${todasAsTurmas.length} turmas do período 2026.2.`);
   return todasAsTurmas;
 }
 
@@ -3410,7 +3465,7 @@ async function obterFuncionariosUnidadeIscholar(idUnidade) {
         const raw = result.data.dados || result.data.funcionarios || result.data.professores || result.data;
         const list = Array.isArray(raw) ? raw : (typeof raw === "object" && raw !== null ? Object.values(raw) : []);
         if (list.length > 0) {
-          console.log(`[ischolar-funcionarios] Encontrados ${list.length} funcionários via: ${item.method} ${item.url}`);
+          console.log(`[ischolar-funcionarios] Encontrados ${list.length} funcion├írios via: ${item.method} ${item.url}`);
           return list;
         }
       }
@@ -3430,7 +3485,7 @@ function buscarEmailProfessorPorNomeDirect(nomeProfessor, funcionariosLista) {
   const normalizar = (str) => (str || "").toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
   const targetNorm = normalizar(nomeProfessor);
 
-  // 1. Comparar se o nome do funcionário em /funcionarios/listar é idêntico ao nome_professor
+  // 1. Comparar se o nome do funcion├írio em /funcionarios/listar ├® id├¬ntico ao nome_professor
   for (const f of funcionariosLista) {
     if (!f || typeof f !== "object") continue;
     const nomeFunc = extrairStringValor(f.nome || f.nome_funcionario || f.funcionario || f.nome_completo);
@@ -3438,13 +3493,13 @@ function buscarEmailProfessorPorNomeDirect(nomeProfessor, funcionariosLista) {
     if (normalizar(nomeFunc) === targetNorm) {
       let email = extrairEmailDoObjeto(f);
       if (email) {
-        console.log(`[ischolar-professor] Sucesso! Nome idêntico '${nomeProfessor}' -> E-mail: ${email}`);
+        console.log(`[ischolar-professor] Sucesso! Nome id├¬ntico '${nomeProfessor}' -> E-mail: ${email}`);
         return email;
       }
     }
   }
 
-  // 2. Tentar busca caso haja variação de acentuação ou caixa
+  // 2. Tentar busca caso haja varia├º├úo de acentua├º├úo ou caixa
   for (const f of funcionariosLista) {
     if (!f || typeof f !== "object") continue;
     const nomeFunc = extrairStringValor(f.nome || f.nome_funcionario || f.funcionario || f.nome_completo);
@@ -3458,7 +3513,7 @@ function buscarEmailProfessorPorNomeDirect(nomeProfessor, funcionariosLista) {
     }
   }
 
-  // 3. Fallback institucional se não houver e-mail cadastrado
+  // 3. Fallback institucional se n├úo houver e-mail cadastrado
   const local = gerarEmailLocalPart(nomeProfessor, "prof");
   return `${local}@portalcci.com.br`;
 }
@@ -3466,7 +3521,7 @@ function buscarEmailProfessorPorNomeDirect(nomeProfessor, funcionariosLista) {
 function extrairNomeProfessor(d) {
   if (!d || typeof d !== "object") return "";
 
-  // Primeiro verifica dentro do objeto 'professores' (padrão iScholar)
+  // Primeiro verifica dentro do objeto 'professores' (padr├úo iScholar)
   const prof = extrairProfessoresObj(d);
   if (prof) {
     const nomeFromProf = extrairStringValor(prof.nome_professor || prof.nome || prof.funcionario || prof.nome_completo);
@@ -3502,7 +3557,7 @@ function extrairProfessoresObj(d) {
 function extrairIdProfessor(d) {
   if (!d || typeof d !== "object") return "";
 
-  // Primeiro verifica dentro do objeto 'professores' (padrão iScholar)
+  // Primeiro verifica dentro do objeto 'professores' (padr├úo iScholar)
   const prof = extrairProfessoresObj(d);
   if (prof) {
     const idFromProf = prof.id_professor || prof.id_funcionario || prof.id_usuario || prof.id;
@@ -3581,7 +3636,7 @@ async function buscarFuncionarioPorIdIscholar(idFuncionario, cacheFuncMap) {
 async function obterDisciplinasTurmaIscholar(idTurma, idUnidadeInput = "") {
   const { codigoEscola, token } = obterCredenciaisIscholar();
   if (!codigoEscola || !token) {
-    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+    throw new Error("Credenciais do iScholar n├úo configuradas no servidor.");
   }
 
   const headers = {
@@ -3624,14 +3679,14 @@ async function obterDisciplinasTurmaIscholar(idTurma, idUnidadeInput = "") {
 
     // id_professor da disciplina serve como id_funcionario no iScholar (ex: id 47)
     let idProf = extrairIdProfessor(d);
-    let nomeProf = extrairNomeProfessor(d); // nome já vem de d.professores.nome_professor
+    let nomeProf = extrairNomeProfessor(d); // nome j├í vem de d.professores.nome_professor
     let emailProf = extrairEmailDoObjeto(d);
 
     // Se temos o id_professor, usa /funcionarios/busca apenas para obter o e-mail
-    // (o nome já vem correto do objeto 'professores' na disciplina)
+    // (o nome j├í vem correto do objeto 'professores' na disciplina)
     if (idProf && !emailProf) {
       const dadosProf = await buscarFuncionarioPorIdIscholar(idProf, cacheFuncMap);
-      // Só usa o nome do /funcionarios/busca se não tínhamos nome ainda
+      // S├│ usa o nome do /funcionarios/busca se n├úo t├¡nhamos nome ainda
       if (!nomeProf && dadosProf.nome) nomeProf = dadosProf.nome;
       if (dadosProf.email) emailProf = dadosProf.email;
     }
@@ -3660,7 +3715,7 @@ async function obterDisciplinasTurmaIscholar(idTurma, idUnidadeInput = "") {
 async function obterAlunosTurmaIscholar(idTurma) {
   const { codigoEscola, token } = obterCredenciaisIscholar();
   if (!codigoEscola || !token) {
-    throw new Error("Credenciais do iScholar não configuradas no servidor.");
+    throw new Error("Credenciais do iScholar n├úo configuradas no servidor.");
   }
 
   const headers = {
@@ -3692,7 +3747,7 @@ async function obterAlunosTurmaIscholar(idTurma) {
 
     let email = extrairEmailDoObjeto(m);
 
-    // Se o e-mail não veio na listagem da matrícula, busca no perfil do aluno (/aluno/busca)
+    // Se o e-mail n├úo veio na listagem da matr├¡cula, busca no perfil do aluno (/aluno/busca)
     if (!email && idAluno) {
       try {
         const resAluno = await safeFetchIscholarJson(`https://api.ischolar.app/aluno/busca?id_aluno=${idAluno}`, { method: "GET", headers });
@@ -3705,7 +3760,7 @@ async function obterAlunosTurmaIscholar(idTurma) {
       }
     }
 
-    // Fallback apenas se não existir e-mail cadastrado
+    // Fallback apenas se n├úo existir e-mail cadastrado
     if (!email && nomeAluno && idAluno) {
       const isTecnico = (m.nome_turma || m.curso || "").toUpperCase().includes("TECNICO");
       const dom = isTecnico ? "@tecscci.com.br" : "@portalcci.com.br";
@@ -3826,6 +3881,30 @@ app.get("/api/ti/ischolar/turmas/:idTurma/disciplinas", async (req, res) => {
     const { idUnidade } = req.query || {};
     const disciplinas = await obterDisciplinasTurmaIscholar(idTurma, idUnidade);
     const mapeamentos = lerMapeamentosClassroom();
+
+    // Mesclar disciplinas manuais/personalizadas salvas no mapeamento para esta turma
+    const prefixo = `${idTurma}_`;
+    const idsExistentes = new Set((disciplinas || []).map(d => String(d.id_disciplina || d.id)));
+
+    Object.keys(mapeamentos).forEach(k => {
+      if (k.startsWith(prefixo)) {
+        const item = mapeamentos[k];
+        const idDisc = String(item.id_disciplina || "");
+        if (idDisc && !idsExistentes.has(idDisc)) {
+          idsExistentes.add(idDisc);
+          disciplinas.push({
+            id_disciplina: idDisc,
+            nome_disciplina: item.nome_disciplina,
+            codigo_disciplina: idDisc,
+            periodo_letivo: item.periodo_letivo || "2026.2",
+            nome_professor: item.nome_professor || "",
+            email_professor: item.email_professor || "",
+            isManual: true
+          });
+        }
+      }
+    });
+
     return res.json({ ok: true, disciplinas, mapeamentos });
   } catch (e) {
     console.error("[ischolar-disciplinas] Erro:", e);
@@ -3833,7 +3912,7 @@ app.get("/api/ti/ischolar/turmas/:idTurma/disciplinas", async (req, res) => {
   }
 });
 
-// Endpoint de diagnóstico: retorna dados crus e processados para uma turma/disciplina
+// Endpoint de diagn├│stico: retorna dados crus e processados para uma turma/disciplina
 app.get("/api/ti/ischolar/debug-disciplina/:idTurma", async (req, res) => {
   try {
     const { idTurma } = req.params;
@@ -3852,10 +3931,10 @@ app.get("/api/ti/ischolar/debug-disciplina/:idTurma", async (req, res) => {
     let rawJson = null;
     try { rawJson = JSON.parse(rawText); } catch (e) {}
 
-    // 2. Resultado processado pela função
+    // 2. Resultado processado pela fun├º├úo
     const disciplinasProcessadas = await obterDisciplinasTurmaIscholar(idTurma);
 
-    // 3. Para a disc 490 (ou a primeira), testar a busca de funcionário diretamente
+    // 3. Para a disc 490 (ou a primeira), testar a busca de funcion├írio diretamente
     const primeiraDisc = disciplinasProcessadas[0] || null;
     let testeFuncionario = null;
     if (primeiraDisc && primeiraDisc.id_professor) {
@@ -3898,7 +3977,7 @@ app.get("/api/ti/google-classroom/mapeamento", (req, res) => {
 async function criarGoogleClassroomClientAuth() {
   const credentials = getServiceAccountCredentials();
   if (!credentials) {
-    throw new Error("Credenciais do Google não configuradas no servidor.");
+    throw new Error("Credenciais do Google n├úo configuradas no servidor.");
   }
 
   // 1. Tentativa com escopos de cursos e listas usando o e-mail delegado oficial dev.fac@portalcci.com.br
@@ -3915,10 +3994,10 @@ async function criarGoogleClassroomClientAuth() {
     await auth1.authorize();
     return google.classroom({ version: "v1", auth: auth1 });
   } catch (e1) {
-    console.warn("[google-classroom-auth] Falha na delegação de rosters, alternando para courses:", e1.message);
+    console.warn("[google-classroom-auth] Falha na delega├º├úo de rosters, alternando para courses:", e1.message);
   }
 
-  // 2. Tentativa com o escopo primário classroom.courses
+  // 2. Tentativa com o escopo prim├írio classroom.courses
   const auth2 = new google.auth.JWT({
     email: credentials.client_email,
     key: credentials.private_key,
@@ -3933,7 +4012,7 @@ app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) =>
   try {
     const { idToken, idTurma, periodoLetivo, disciplinas } = req.body || {};
     if (!idToken || typeof idToken !== "string") {
-      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+      return res.status(400).json({ error: "idToken ausente. Fa├ºa login no topo do site." });
     }
     const { email: userEmail } = await verificarIdTokenUsuario(idToken);
     const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
@@ -3944,7 +4023,7 @@ app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) =>
     }
 
     if (!idTurma || !disciplinas || !Array.isArray(disciplinas) || disciplinas.length === 0) {
-      return res.status(400).json({ error: "idTurma e lista de disciplinas são obrigatórios." });
+      return res.status(400).json({ error: "idTurma e lista de disciplinas s├úo obrigat├│rios." });
     }
 
     const classroom = await criarGoogleClassroomClientAuth();
@@ -3960,8 +4039,88 @@ app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) =>
       const emailProf = String(disc.email_professor || disc.professor_email || "").trim();
       const chaveMapeamento = `${idTurma}_${idDisc}`;
 
-      // Padrão de Nomenclatura Solicitado: [Nome da Disciplina] - [Periodo Letivo]
+      // Padr├úo de Nomenclatura Solicitado: [Nome da Disciplina] - [Periodo Letivo]
       const nomeSalaClassroom = `${nomeDisc} - ${periodoFormatado}`;
+
+      // 1. Verificar se a disciplina J├ü foi criada anteriormente para o mesmo per├¡odo letivo
+      //    Deduplica├º├úo por NOME NORMALIZADO (permite reutiliza├º├úo cross-turma e cross-curso)
+      const nomeNorm = normalizarNomeDisc(nomeDisc);
+      const mapeamentoExistente = Object.values(mapeamentos).find(
+        (m) =>
+          m &&
+          m.google_course_id &&
+          normalizarNomeDisc(m.nome_disciplina || "") === nomeNorm &&
+          String(m.periodo_letivo || "").trim() === periodoFormatado
+      );
+
+      if (mapeamentoExistente) {
+        console.log(
+          `[google-classroom-create-disc] Reaproveitando sala existente para disciplina ${idDisc} (${nomeDisc}): ${mapeamentoExistente.google_course_id}`
+        );
+
+        let profEnsalado = mapeamentoExistente.professor_ensalado || false;
+        let avisoProfessor = mapeamentoExistente.aviso_professor || null;
+
+        if (emailProf && emailProf.includes("@")) {
+          try {
+            await classroom.courses.teachers.create({
+              courseId: mapeamentoExistente.google_course_id,
+              requestBody: {
+                userId: emailProf,
+              },
+            });
+            profEnsalado = true;
+            console.log(
+              `[classroom-professor] Docente adicional ${emailProf} ensalado na sala reutilizada ${mapeamentoExistente.google_course_id}`
+            );
+          } catch (errProf) {
+            const msgErrProf = errProf.response?.data?.error?.message || errProf.message;
+            if (errProf.response?.status !== 409 && !msgErrProf?.includes("already exists")) {
+              console.warn(
+                `[classroom-professor] Erro ao adicionar docente adicional ${emailProf}:`,
+                msgErrProf
+              );
+              avisoProfessor = `Permiss├úo insuficiente no Google Workspace para adicionar docente (${emailProf}): ${msgErrProf}`;
+            }
+          }
+        }
+
+        const turmasAlvo = Array.isArray(disc.turmasVinculadas) && disc.turmasVinculadas.length > 0
+          ? disc.turmasVinculadas.map(String)
+          : [String(idTurma)];
+
+        turmasAlvo.forEach((tId, idx) => {
+          const keyMap = `${tId}_${idDisc}`;
+          mapeamentos[keyMap] = {
+            google_course_id: mapeamentoExistente.google_course_id,
+            google_course_name: mapeamentoExistente.google_course_name,
+            alternateLink: mapeamentoExistente.alternateLink,
+            id_turma: tId,
+            id_disciplina: idDisc,
+            nome_disciplina: nomeDisc,
+            periodo_letivo: periodoFormatado,
+            id_professor: disc.id_professor || "",
+            nome_professor: nomeProf,
+            email_professor: emailProf,
+            professor_ensalado: profEnsalado,
+            aviso_professor: avisoProfessor,
+            reaproveitada: idx > 0 || tId !== String(idTurma) || !!mapeamentoExistente.reaproveitada,
+            created_at: new Date().toISOString(),
+          };
+        });
+
+        resultados.push({
+          google_course_id: mapeamentoExistente.google_course_id,
+          google_course_name: mapeamentoExistente.google_course_name,
+          alternateLink: mapeamentoExistente.alternateLink,
+          id_turma: String(idTurma),
+          id_disciplina: idDisc,
+          nome_disciplina: nomeDisc,
+          periodo_letivo: periodoFormatado,
+          status: "sucesso"
+        });
+        continue;
+      }
 
       try {
         const response = await classroom.courses.create({
@@ -3993,7 +4152,31 @@ app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) =>
           }
         }
 
-        const dadosCriacao = {
+        const turmasAlvo = Array.isArray(disc.turmasVinculadas) && disc.turmasVinculadas.length > 0
+          ? disc.turmasVinculadas.map(String)
+          : [String(idTurma)];
+
+        turmasAlvo.forEach((tId, idx) => {
+          const keyMap = `${tId}_${idDisc}`;
+          mapeamentos[keyMap] = {
+            google_course_id: response.data.id,
+            google_course_name: response.data.name,
+            alternateLink: response.data.alternateLink,
+            id_turma: tId,
+            id_disciplina: idDisc,
+            nome_disciplina: nomeDisc,
+            periodo_letivo: periodoFormatado,
+            id_professor: disc.id_professor || "",
+            nome_professor: nomeProf,
+            email_professor: emailProf,
+            professor_ensalado: profEnsalado,
+            aviso_professor: avisoProfessor,
+            reaproveitada: idx > 0,
+            created_at: new Date().toISOString()
+          };
+        });
+
+        resultados.push({
           google_course_id: response.data.id,
           google_course_name: response.data.name,
           alternateLink: response.data.alternateLink,
@@ -4001,16 +4184,8 @@ app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) =>
           id_disciplina: idDisc,
           nome_disciplina: nomeDisc,
           periodo_letivo: periodoFormatado,
-          id_professor: disc.id_professor || "",
-          nome_professor: nomeProf,
-          email_professor: emailProf,
-          professor_ensalado: profEnsalado,
-          aviso_professor: avisoProfessor,
-          created_at: new Date().toISOString()
-        };
-
-        mapeamentos[chaveMapeamento] = dadosCriacao;
-        resultados.push({ ...dadosCriacao, status: "sucesso" });
+          status: "sucesso"
+        });
       } catch (errDisc) {
         console.error(`[google-classroom-create-disc] Erro ao criar disciplina ${nomeDisc}:`, errDisc);
         const errMsg = errDisc.response?.data?.error?.message || errDisc.message;
@@ -4032,7 +4207,7 @@ app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) =>
       const primeiroErro = erros[0].erro || "Erro ao criar salas no Google Classroom.";
       return res.status(400).json({
         ok: false,
-        error: `Falha na criação no Google Classroom: ${primeiroErro}`,
+        error: `Falha na cria├º├úo no Google Classroom: ${primeiroErro}`,
         criadas: resultados,
         mapeamentos
       });
@@ -4053,7 +4228,7 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
   try {
     const { idToken, idTurma } = req.body || {};
     if (!idToken || typeof idToken !== "string") {
-      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+      return res.status(400).json({ error: "idToken ausente. Fa├ºa login no topo do site." });
     }
     const { email: userEmail } = await verificarIdTokenUsuario(idToken);
     const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
@@ -4064,7 +4239,7 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
     }
 
     if (!idTurma) {
-      return res.status(400).json({ error: "idTurma é obrigatório." });
+      return res.status(400).json({ error: "idTurma ├® obrigat├│rio." });
     }
 
     const mapeamentos = lerMapeamentosClassroom();
@@ -4152,11 +4327,132 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
   }
 });
 
+app.post("/api/ti/google-classroom/aluno-salas", async (req, res) => {
+  try {
+    const { idToken, email } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    const emailAluno = String(email || "").trim().toLowerCase();
+    if (!emailAluno || !emailAluno.includes("@")) {
+      return res.status(400).json({ error: "E-mail do aluno inválido ou ausente." });
+    }
+
+    const classroom = await criarGoogleClassroomClientAuth();
+    const mapeamentos = lerMapeamentosClassroom();
+
+    let response;
+    try {
+      response = await classroom.courses.list({
+        studentId: emailAluno,
+        courseStates: ["ACTIVE"]
+      });
+    } catch (errList) {
+      console.warn(`[classroom-aluno-salas] Erro ao listar turmas via studentId (${emailAluno}):`, errList.message);
+      return res.json({ ok: true, studentEmail: emailAluno, total: 0, salas: [] });
+    }
+
+    const courses = response.data.courses || [];
+    const salas = courses.map((c) => {
+      const courseId = c.id;
+      const mItem = Object.values(mapeamentos).find((m) => m && m.google_course_id === courseId);
+
+      return {
+        google_course_id: courseId,
+        google_course_name: c.name,
+        section: c.section || "",
+        alternateLink: c.alternateLink || mItem?.alternateLink || "",
+        nome_disciplina: mItem?.nome_disciplina || c.name,
+        id_turma: mItem?.id_turma || "",
+        periodo_letivo: mItem?.periodo_letivo || ""
+      };
+    });
+
+    return res.json({ ok: true, studentEmail: emailAluno, total: salas.length, salas });
+  } catch (e) {
+    console.error("[google-classroom-aluno-salas] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/google-classroom/remover-aluno-salas", async (req, res) => {
+  try {
+    const { idToken, email, courseIds } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    const emailAluno = String(email || "").trim().toLowerCase();
+    if (!emailAluno || !emailAluno.includes("@")) {
+      return res.status(400).json({ error: "E-mail do aluno inválido ou ausente." });
+    }
+
+    if (!courseIds || !Array.isArray(courseIds) || courseIds.length === 0) {
+      return res.status(400).json({ error: "Nenhuma disciplina foi selecionada para remoção." });
+    }
+
+    const classroom = await criarGoogleClassroomClientAuth();
+    const relatorio = {
+      emailAluno,
+      totalSalas: courseIds.length,
+      removidos: 0,
+      falhas: 0,
+      detalhes: []
+    };
+
+    for (const cId of courseIds) {
+      try {
+        await classroom.courses.students.delete({
+          courseId: String(cId),
+          userId: emailAluno
+        });
+
+        relatorio.removidos++;
+        relatorio.detalhes.push({
+          courseId: cId,
+          status: "removido"
+        });
+        console.log(`[desenturmalizacao] Aluno ${emailAluno} removido da sala ${cId}`);
+      } catch (errDelete) {
+        const msg = errDelete.response?.data?.error?.message || errDelete.message;
+        relatorio.falhas++;
+        relatorio.detalhes.push({
+          courseId: cId,
+          status: "erro",
+          erro: msg
+        });
+        console.warn(`[desenturmalizacao] Erro ao remover ${emailAluno} da sala ${cId}:`, msg);
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    return res.json({ ok: true, relatorio });
+  } catch (e) {
+    console.error("[google-classroom-remover-aluno-salas] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
 
 
-// ─── Mapeamento server-side: setor a partir dos papeis ──────────────────────
 
-/** Papeis de gerente → papel base do setor (espelhado do front). */
+// ÔöÇÔöÇÔöÇ Mapeamento server-side: setor a partir dos papeis ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+
+/** Papeis de gerente ÔåÆ papel base do setor (espelhado do front). */
 const GERENTE_PARA_SETOR_BASE = {
   gerente_biblioteca: "biblioteca",
   gerente_direcao: "direcao",
@@ -4181,7 +4477,7 @@ const PAPEIS_SETOR_BASE = new Set([
 
 function extrairSetorDePapeis(papeis) {
   if (!Array.isArray(papeis)) return { setor: null, isGerente: false };
-  // Verifica se é gerente de algum setor
+  // Verifica se ├® gerente de algum setor
   for (const p of papeis) {
     if (GERENTE_PARA_SETOR_BASE[p]) {
       return { setor: GERENTE_PARA_SETOR_BASE[p], isGerente: true };
@@ -4196,16 +4492,16 @@ function extrairSetorDePapeis(papeis) {
   return { setor: null, isGerente: false };
 }
 
-// ─── POST /api/usuarios/registrar ───────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ POST /api/usuarios/registrar ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 app.post("/api/usuarios/registrar", async (req, res) => {
   try {
     const { idToken, papeis } = req.body || {};
     const payload = await verificarAutenticacaoRequest(req);
     const email = payload?.email;
-    const nome = payload?.name ?? email ?? "Usuário";
+    const nome = payload?.name ?? email ?? "Usu├írio";
     const fotoUrl = payload?.picture || null;
-    if (!email) return res.status(400).json({ error: "Token inválido." });
+    if (!email) return res.status(400).json({ error: "Token inv├ílido." });
 
     const supabase = getSupabaseAdmin();
     if (!supabase) return res.json({ ok: true, skipped: true }); // sem supabase, ignora silenciosamente
@@ -4221,14 +4517,14 @@ app.post("/api/usuarios/registrar", async (req, res) => {
   }
 });
 
-// ─── GET /api/kanban/usuarios ────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ GET /api/kanban/usuarios ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 app.post("/api/kanban/usuarios", async (req, res) => {
   try {
     const { idToken, setor } = req.body || {};
     await verificarAutenticacaoRequest(req);
     if (!setor || typeof setor !== "string") {
-      return res.status(400).json({ error: "setor é obrigatório." });
+      return res.status(400).json({ error: "setor ├® obrigat├│rio." });
     }
     const supabase = getSupabaseAdmin();
     if (!supabase) return res.status(503).json({ error: mensagemSupabaseNaoConfigurado() });
@@ -4252,14 +4548,14 @@ app.post("/api/kanban/usuarios", async (req, res) => {
   }
 });
 
-// ─── GET /api/kanban/cards ───────────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ GET /api/kanban/cards ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 app.post("/api/kanban/cards/listar", async (req, res) => {
   try {
     const { idToken, setor } = req.body || {};
     const payload = await verificarAutenticacaoRequest(req);
     if (!setor || typeof setor !== "string") {
-      return res.status(400).json({ error: "setor é obrigatório." });
+      return res.status(400).json({ error: "setor ├® obrigat├│rio." });
     }
     const supabase = getSupabaseAdmin();
     if (!supabase) return res.status(503).json({ error: mensagemSupabaseNaoConfigurado() });
@@ -4271,14 +4567,14 @@ app.post("/api/kanban/cards/listar", async (req, res) => {
   }
 });
 
-// ─── POST /api/kanban/cards/criar ────────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ POST /api/kanban/cards/criar ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 app.post("/api/kanban/cards/criar", async (req, res) => {
   try {
     const { idToken, card } = req.body || {};
     const payload = await verificarAutenticacaoRequest(req);
     if (!card || typeof card !== "object") {
-      return res.status(400).json({ error: "card é obrigatório." });
+      return res.status(400).json({ error: "card ├® obrigat├│rio." });
     }
     const supabase = getSupabaseAdmin();
     if (!supabase) return res.status(503).json({ error: mensagemSupabaseNaoConfigurado() });
@@ -4304,14 +4600,14 @@ app.post("/api/kanban/cards/criar", async (req, res) => {
   }
 });
 
-// ─── POST /api/kanban/cards/atualizar ────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ POST /api/kanban/cards/atualizar ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 app.post("/api/kanban/cards/atualizar", async (req, res) => {
   try {
     const { idToken, id, patch } = req.body || {};
     await verificarAutenticacaoRequest(req);
     if (!id || typeof id !== "string") {
-      return res.status(400).json({ error: "id é obrigatório." });
+      return res.status(400).json({ error: "id ├® obrigat├│rio." });
     }
     const supabase = getSupabaseAdmin();
     if (!supabase) return res.status(503).json({ error: mensagemSupabaseNaoConfigurado() });
@@ -4323,14 +4619,14 @@ app.post("/api/kanban/cards/atualizar", async (req, res) => {
   }
 });
 
-// ─── POST /api/kanban/cards/excluir ──────────────────────────────────────────
+// ÔöÇÔöÇÔöÇ POST /api/kanban/cards/excluir ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
 
 app.post("/api/kanban/cards/excluir", async (req, res) => {
   try {
     const { idToken, id } = req.body || {};
     await verificarAutenticacaoRequest(req);
     if (!id || typeof id !== "string") {
-      return res.status(400).json({ error: "id é obrigatório." });
+      return res.status(400).json({ error: "id ├® obrigat├│rio." });
     }
     const supabase = getSupabaseAdmin();
     if (!supabase) return res.status(503).json({ error: mensagemSupabaseNaoConfigurado() });
@@ -4353,7 +4649,7 @@ app.get("/api/health", (_, res) => {
   });
 });
 
-/** Build Vite (`dist/`) ao lado de `server/` — produção e Docker. */
+/** Build Vite (`dist/`) ao lado de `server/` ÔÇö produ├º├úo e Docker. */
 const DIST_DIR = path.join(__dirname, "..", "dist");
 
 function shouldServeStatic() {
@@ -4373,8 +4669,8 @@ const INDEX_PATH = path.join(DIST_DIR, "index.html");
 
 /**
  * Injete `CENTRAL_API_BASE_URL` (ou `PUBLIC_API_URL`) no meta `central-api-base` para o front
- * fazer `fetch` na URL pública correta sem novo build (p.ex. API noutro subdomínio no Coolify).
- * Não servir o index “cru” via express.static, senão a injeção nunca corria.
+ * fazer `fetch` na URL p├║blica correta sem novo build (p.ex. API noutro subdom├¡nio no Coolify).
+ * N├úo servir o index ÔÇ£cruÔÇØ via express.static, sen├úo a inje├º├úo nunca corria.
  */
 function sendIndexHtml(res, next) {
   if (!fs.existsSync(INDEX_PATH)) {
@@ -4405,7 +4701,7 @@ if (shouldServeStatic() && fs.existsSync(DIST_DIR)) {
   if (process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production") {
     app.set("trust proxy", 1);
   }
-  /* index: false — nunca servir dist/index.html “cru” a partir do static (precisamos injetar a meta) */
+  /* index: false ÔÇö nunca servir dist/index.html ÔÇ£cruÔÇØ a partir do static (precisamos injetar a meta) */
   app.use(express.static(DIST_DIR, { index: false }));
   app.get("*", (req, res, next) => {
     if (req.path.startsWith("/api")) {
@@ -4414,7 +4710,7 @@ if (shouldServeStatic() && fs.existsSync(DIST_DIR)) {
     return sendIndexHtml(res, next);
   });
 } else if (shouldServeStatic() && !fs.existsSync(DIST_DIR)) {
-  console.warn(`[static] Produção esperada mas dist/ ausente em ${DIST_DIR}. Rode npm run build na raiz ou defina SERVE_STATIC=0.`);
+  console.warn(`[static] Produ├º├úo esperada mas dist/ ausente em ${DIST_DIR}. Rode npm run build na raiz ou defina SERVE_STATIC=0.`);
 }
 
 app.listen(PORT, HOST, () => {
@@ -4422,7 +4718,7 @@ app.listen(PORT, HOST, () => {
   const sa = getServiceAccountCredentials();
   if (sa?.client_id) {
     console.log(
-      `[Google Workspace] Delegação em todo o domínio (Admin Console): use o Client ID numérico ${sa.client_id} desta service account — não o Client ID OAuth do frontend (VITE_GOOGLE_CLIENT_ID).`,
+      `[Google Workspace] Delega├º├úo em todo o dom├¡nio (Admin Console): use o Client ID num├®rico ${sa.client_id} desta service account ÔÇö n├úo o Client ID OAuth do frontend (VITE_GOOGLE_CLIENT_ID).`,
     );
     console.log(
       "  Escopos (autorize cada URL completa):",
@@ -4435,7 +4731,7 @@ app.listen(PORT, HOST, () => {
   if (GOOGLE_CLIENT_IDS.length === 0 || setupErr) {
     console.warn(
       "Aviso: configure GOOGLE_CLIENT_ID, credenciais da service account (arquivo ou JSON) e GOOGLE_ADMIN_IMPERSONATE para /api/organizacao e /api/chromebooks.",
-      setupErr ? `— ${setupErr}` : "",
+      setupErr ? `ÔÇö ${setupErr}` : "",
     );
   }
   const supabase = statusSupabaseEnv();
@@ -4445,18 +4741,18 @@ app.listen(PORT, HOST, () => {
     );
   } else if (!supabase.configured) {
     console.warn(
-      "[supabase] SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY ausentes — chamados, agenda e sync do painel não funcionam.",
+      "[supabase] SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY ausentes ÔÇö chamados, agenda e sync do painel n├úo funcionam.",
     );
   } else if (supabase.keyLooksAnon) {
     console.warn(
-      '[supabase] A chave configurada é "anon", não "service_role". Use a secret service_role do Supabase.',
+      '[supabase] A chave configurada ├® "anon", n├úo "service_role". Use a secret service_role do Supabase.',
     );
   } else if (supabase.configured) {
     console.log("[supabase] OK (URL + service_role configurados).");
   }
   if (AGENDA_CCI_ENFORCE_DISABLE) {
     console.log(
-      `[agenda-cci] disable/reenable ativo — intervalo ${AGENDA_CCI_POLL_MS}ms, fuso ${AGENDA_CCI_TIMEZONE}. Lista vazia: ${AGENDA_CCI_DISABLE_WHEN_EMPTY ? "disable em todo o parque" : "só reabilita bloqueados (recuperação)"}.`,
+      `[agenda-cci] disable/reenable ativo ÔÇö intervalo ${AGENDA_CCI_POLL_MS}ms, fuso ${AGENDA_CCI_TIMEZONE}. Lista vazia: ${AGENDA_CCI_DISABLE_WHEN_EMPTY ? "disable em todo o parque" : "s├│ reabilita bloqueados (recupera├º├úo)"}.`,
     );
     setInterval(() => {
       aplicarPoliticaChromebooks().catch((e) => console.error(e));
@@ -4467,3 +4763,541 @@ app.listen(PORT, HOST, () => {
 
 // Trigger reload for reading env variables
 
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// HELPERS: Grade Hor├íria Excel
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+
+/** Normaliza nome de disciplina para compara├º├úo de deduplica├º├úo */
+function normalizarNomeDisc(nome) {
+  return String(nome || "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^A-Z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/** Sheets de cursos que o parser deve processar */
+const SHEETS_CURSOS = ["ADS", "BIOMEDICINA", "DIREITO ", "ENFERMAGEM", "FONOAUDIOLOGIA", "PEDAGOGIA", "PSICOLOGIA", "T├ëC ENF ", "T├ëC SA├ÜDE BUCAL"];
+
+/** Converte n├║mero romano para inteiro */
+function romanToNum(str) {
+  const s = String(str || "").toUpperCase().trim();
+  const romanMap = { "I": 1, "II": 2, "III": 3, "IV": 4, "V": 5, "VI": 6, "VII": 7, "VIII": 8, "IX": 9, "X": 10 };
+  if (romanMap[s]) return romanMap[s];
+  const m = s.match(/\b(I|II|III|IV|V|VI|VII|VIII|IX|X)\b/);
+  return m ? romanMap[m[1]] : null;
+}
+
+/** Extrai o n├║mero de per├¡odo/m├│dulo de uma string */
+function extrairNumeroPeriodo(str) {
+  const s = String(str || "").trim();
+  const m = s.match(/(\d+)[┬║o┬░]?\s*[ÔÇô-]?\s*(?:per├¡odo|m├│dulo|m├│d)/i);
+  if (m) return parseInt(m[1], 10);
+  const r = romanToNum(s);
+  if (r) return r;
+  const nums = s.match(/(\d+)/g);
+  if (nums) {
+    for (const n of nums) {
+      const val = parseInt(n, 10);
+      if (val < 20) return val;
+    }
+  }
+  return null;
+}
+
+/**
+ * Parseia o arquivo Excel da grade hor├íria.
+ * Retorna array de objetos: { nomeTurma, curso, periodo, periodoLetivo, disciplinas: [{nome, professor}] }
+ */
+function parseGradeHorariaExcel(buffer) {
+  const wb = XLSX.read(buffer, { type: "buffer" });
+  const turmas = [];
+
+  for (const sheetName of SHEETS_CURSOS) {
+    const ws = wb.Sheets[sheetName];
+    if (!ws) continue;
+
+    const curso = sheetName.trim();
+    const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+
+    let turmaAtual = null;
+    let disciplinasRows = [];
+    let professoresRow = null;
+    let numColunas = 6;
+
+    const flushTurma = () => {
+      if (!turmaAtual) return;
+      const discMap = {};
+      for (const row of disciplinasRows) {
+        for (let col = 1; col <= numColunas; col++) {
+          const val = String(row[col] || "").trim();
+          if (!val) continue;
+          if (!discMap[col]) discMap[col] = [];
+          discMap[col].push(...val.split("+").map(p => p.trim()).filter(Boolean));
+        }
+      }
+      const listaDisc = [];
+      const nomesVistos = new Set();
+      for (let col = 1; col <= numColunas; col++) {
+        const nomes = discMap[col] || [];
+        const prof = professoresRow ? String(professoresRow[col] || "").trim() : "";
+        const profLimpo = prof.replace(/^(Prof[oa┬║┬¬.]+\s*)/i, "").trim();
+        for (const nome of nomes) {
+          if (!nome || nomesVistos.has(normalizarNomeDisc(nome))) continue;
+          nomesVistos.add(normalizarNomeDisc(nome));
+          listaDisc.push({ nome: nome.trim(), professor: profLimpo });
+        }
+      }
+      if (listaDisc.length > 0) {
+        const existente = turmas.find(t => t.periodo !== null && t.periodo === turmaAtual.periodo && t.curso === turmaAtual.curso);
+        if (existente) {
+          for (const d of listaDisc) {
+            if (!existente.disciplinas.some(x => normalizarNomeDisc(x.nome) === normalizarNomeDisc(d.nome))) {
+              existente.disciplinas.push(d);
+            }
+          }
+        } else {
+          turmas.push({ ...turmaAtual, disciplinas: listaDisc });
+        }
+      }
+      turmaAtual = null;
+      disciplinasRows = [];
+      professoresRow = null;
+    };
+
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      const col0 = String(row[0] || "").trim();
+
+      const isSubheader =
+        col0.toLowerCase().startsWith("primeiro ciclo") ||
+        col0.toLowerCase().startsWith("segundo ciclo") ||
+        col0.toLowerCase().startsWith("terceiro ciclo") ||
+        col0.toLowerCase().startsWith("ambienta├º├úo") ||
+        col0.toLowerCase().startsWith("em campo") ||
+        col0.toLowerCase().startsWith("hor├írio") ||
+        col0.toLowerCase().startsWith("professor") ||
+        col0.toLowerCase().startsWith("sala") ||
+        col0.toLowerCase().startsWith("class") ||
+        col0.toLowerCase().startsWith("observ") ||
+        col0.toLowerCase().startsWith("grade") ||
+        col0.toLowerCase().startsWith("curso de") ||
+        col0.startsWith("1┬║ - 19h") ||
+        col0.startsWith("1┬¬ - 19h") ||
+        col0.startsWith("Das 19h");
+
+      const ehLinhaTurma =
+        col0 &&
+        !isSubheader &&
+        (col0.match(/(1┬║|2┬║|3┬║|4┬║|5┬║|6┬║|7┬║|8┬║|9┬║|10┬║|1┬░|2┬░|\d+[┬║o┬░])/i) ||
+         col0.toLowerCase().includes("t├®cnico em") ||
+         col0.toLowerCase().includes("m├│dulo") ||
+         col0.toLowerCase().includes("modulo") ||
+         col0.match(/\b(I|II|III|IV|V|VI)\b/));
+
+      if (ehLinhaTurma) {
+        if (disciplinasRows.length > 0) flushTurma();
+        const periodoLetMatch = col0.match(/(\d{4}\.\d)/i);
+        const periodoLet = periodoLetMatch ? periodoLetMatch[1] : "2026.2";
+        const numPeriodo = extrairNumeroPeriodo(col0);
+        const headerRow = data[i + 1] || [];
+        numColunas = Math.max(1, headerRow.slice(1).filter(c => String(c).trim() !== "").length);
+
+        if (turmaAtual && disciplinasRows.length === 0) {
+          turmaAtual.nomeTurma += " " + col0;
+          if (numPeriodo !== null) turmaAtual.periodo = numPeriodo;
+          if (periodoLetMatch) turmaAtual.periodoLetivo = periodoLet;
+        } else {
+          turmaAtual = {
+            nomeTurma: col0,
+            curso,
+            periodo: numPeriodo,
+            periodoLetivo: periodoLet,
+          };
+        }
+        i++;
+        continue;
+      }
+
+      if (!turmaAtual) continue;
+
+      if (
+        col0 === "" ||
+        col0.startsWith("1┬║ - 19h") ||
+        col0.startsWith("1┬¬ - 19h") ||
+        col0.startsWith("Das 19h") ||
+        col0.toLowerCase().startsWith("primeiro ciclo") ||
+        col0.toLowerCase().startsWith("segundo ciclo")
+      ) {
+        const temConteudo = row.slice(1).some(c => String(c).trim() !== "");
+        if (temConteudo) disciplinasRows.push(row);
+        continue;
+      }
+
+      if (col0.toLowerCase().startsWith("professor")) {
+        professoresRow = row;
+        continue;
+      }
+    }
+
+    flushTurma();
+  }
+
+  return turmas;
+}
+
+/**
+ * Algoritmo de matching entre turma do Excel e turmas do iScholar.
+ * Retorna score 0-100.
+ */
+function calcularScoreMatch(excelTurma, ischolarTurma) {
+  const nomeTurmaIsch = normalizarNomeDisc(ischolarTurma.nome_turma || ischolarTurma.nome || "");
+  const cursoNorm = normalizarNomeDisc(excelTurma.curso);
+  const periodo = excelTurma.periodo;
+  const periodoLetivo = String(excelTurma.periodoLetivo || "").trim();
+
+  let score = 0;
+
+  const abrevMap = {
+    "ADS": ["ADS", "ANALISE E DESENVOLVIMENTO DE SISTEMAS", "ANALISE"],
+    "BIOMEDICINA": ["BIOMEDICINA", "BIOMED"],
+    "DIREITO": ["DIREITO", "DIR"],
+    "ENFERMAGEM": ["ENFERMAGEM", "ENF"],
+    "FONOAUDIOLOGIA": ["FONOAUDIOLOGIA", "FONO"],
+    "PEDAGOGIA": ["PEDAGOGIA", "PED"],
+    "PSICOLOGIA": ["PSICOLOGIA", "PSI"],
+    "TEC ENF": ["TECNICO EM ENFERMAGEM", "TEC ENF", "ENF TEC", "T├ëC ENF"],
+    "TEC SAUDE BUCAL": ["TECNICO EM SAUDE BUCAL", "TEC SAUDE BUCAL", "SAUDE BUCAL", "T├ëC SA├ÜDE BUCAL", "T├ëC SAUDE BUCAL"],
+  };
+  const aliases = abrevMap[cursoNorm] || [cursoNorm];
+  const cursoEncontrado = aliases.some(a => nomeTurmaIsch.includes(normalizarNomeDisc(a)));
+  if (cursoEncontrado) score += 50;
+
+  if (periodo !== null) {
+    const numNome = extrairNumeroPeriodo(nomeTurmaIsch);
+    if (numNome === periodo) score += 35;
+  }
+
+  const periodoIsch = String(ischolarTurma.periodo_letivo || "").trim();
+  if (periodoLetivo && periodoIsch && periodoIsch.includes(periodoLetivo.replace(".", ""))) {
+    score += 15;
+  } else if (periodoLetivo && periodoIsch === periodoLetivo) {
+    score += 15;
+  }
+
+  return score;
+}
+
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ENDPOINT: POST /api/ti/grade/parse-excel
+// Recebe arquivo Excel (multipart), retorna turmas + disciplinas
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+const uploadGrade = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
+
+app.post("/api/ti/grade/parse-excel", uploadGrade.single("arquivo"), async (req, res) => {
+  try {
+    const idToken = req.body?.idToken || req.headers["x-id-token"];
+    if (!idToken) return res.status(400).json({ error: "idToken ausente." });
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    if (!req.file) return res.status(400).json({ error: "Arquivo Excel n├úo enviado." });
+
+    const turmas = parseGradeHorariaExcel(req.file.buffer);
+    return res.json({ ok: true, turmas });
+  } catch (e) {
+    console.error("[grade-parse-excel] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ENDPOINT: POST /api/ti/grade/match-turmas
+// Recebe turmas do Excel, busca turmas iScholar, faz matching
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+app.post("/api/ti/grade/match-turmas", async (req, res) => {
+  try {
+    const { idToken, turmasExcel } = req.body || {};
+    if (!idToken) return res.status(400).json({ error: "idToken ausente." });
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    if (!Array.isArray(turmasExcel) || turmasExcel.length === 0) {
+      return res.status(400).json({ error: "turmasExcel ausente ou vazio." });
+    }
+
+    // Busca todas as turmas do iScholar via fun├º├úo auxiliar testada
+    const turmasIscholar = await obterTurmasIscholar();
+
+    // Faz matching
+    const pares = turmasExcel.map(excelTurma => {
+      let melhorMatch = null;
+      let melhorScore = 0;
+
+      for (const ischTurma of turmasIscholar) {
+        const score = calcularScoreMatch(excelTurma, ischTurma);
+        if (score > melhorScore) {
+          melhorScore = score;
+          melhorMatch = ischTurma;
+        }
+      }
+
+      return {
+        turmaExcel: excelTurma,
+        turmaIscholar: melhorScore >= 70 ? melhorMatch : null,
+        score: melhorScore,
+        status: melhorScore >= 70 ? "matched" : "sem_correspondencia",
+        aviso: melhorScore < 70 ? `Nenhuma turma do iScholar com correspond├¬ncia suficiente (score ${melhorScore}/100). Selecione manualmente.` : null,
+        turmasCandidatas: turmasIscholar
+          .map(t => ({ ...t, score: calcularScoreMatch(excelTurma, t) }))
+          .filter(t => t.score >= 30)
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 5),
+      };
+    });
+
+    return res.json({ ok: true, pares });
+  } catch (e) {
+    console.error("[grade-match-turmas] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+// ENDPOINT: POST /api/ti/grade/criar-salas
+// Cria salas no Classroom a partir da grade Excel confirmada.
+// Disciplinas com mesmo nome (normalizado) no mesmo periodoLetivo
+// compartilham a mesma sala (cross-turma e cross-curso).
+// ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
+app.post("/api/ti/grade/criar-salas", async (req, res) => {
+  try {
+    const { idToken, paresConfirmados, periodoLetivo } = req.body || {};
+    if (!idToken) return res.status(400).json({ error: "idToken ausente." });
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    if (!Array.isArray(paresConfirmados) || paresConfirmados.length === 0) {
+      return res.status(400).json({ error: "paresConfirmados ausente ou vazio." });
+    }
+
+    const periodoFormatado = String(periodoLetivo || "2026.2").trim();
+    const classroom = await criarGoogleClassroomClientAuth();
+    const mapeamentos = lerMapeamentosClassroom();
+    const resultadosPorTurma = [];
+
+    // ── Helper: ensala alunos de uma turma iScholar em um curso do Classroom
+    async function ensalarAlunosTurmaNoClassroom(courseId, idTurma) {
+      const resultado = { ensalados: 0, jaExistiam: 0, semEmail: 0, erros: 0, detalhes: [] };
+      try {
+        const alunos = await obterAlunosTurmaIscholar(idTurma);
+        for (const aluno of alunos) {
+          const email = aluno.email;
+          if (!email || !email.includes("@")) {
+            resultado.semEmail++;
+            resultado.detalhes.push({ nome: aluno.nome_aluno, status: "sem_email" });
+            continue;
+          }
+          try {
+            await classroom.courses.students.create({
+              courseId,
+              requestBody: { userId: email },
+            });
+            resultado.ensalados++;
+            resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "ensalado" });
+          } catch (errAluno) {
+            const msg = errAluno.response?.data?.error?.message || errAluno.message || "";
+            if (errAluno.response?.status === 409 || msg.toLowerCase().includes("already")) {
+              resultado.jaExistiam++;
+              resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "ja_existia" });
+            } else {
+              resultado.erros++;
+              resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "erro", erro: msg });
+              console.warn(`[ensalamento] Erro ao ensalar ${email} no curso ${courseId}:`, msg);
+            }
+          }
+        }
+      } catch (e) {
+        console.error(`[ensalamento] Erro ao buscar alunos da turma ${idTurma}:`, e.message);
+        resultado.erros++;
+      }
+      return resultado;
+    }
+
+    for (const par of paresConfirmados) {
+      const { turmaExcel, turmaIscholar } = par;
+      if (!turmaIscholar || !turmaIscholar.id_turma) {
+        resultadosPorTurma.push({
+          nomeTurma: turmaExcel.nomeTurma,
+          status: "sem_correspondencia",
+          aviso: "Turma sem correspondência no iScholar — ignorada.",
+          disciplinas: [],
+        });
+        continue;
+      }
+
+      const idTurma = String(turmaIscholar.id_turma);
+      const disciplinasExcel = turmaExcel.disciplinas || [];
+      const resultados = [];
+
+      for (const disc of disciplinasExcel) {
+        const nomeDisc = String(disc.nome || "").trim();
+        const nomeProf = String(disc.professor || "").trim();
+        if (!nomeDisc) continue;
+
+        const nomeNorm = normalizarNomeDisc(nomeDisc);
+        const nomeSalaClassroom = `${nomeDisc} - ${periodoFormatado}`;
+        // Chave global por nome de disciplina — deduplicação cross-turma e cross-curso
+        const chaveGlobal = `global_${nomeNorm}_${periodoFormatado.replace(/\./g, "_")}`;
+
+        // Busca e-mail do professor no iScholar
+        let emailProf = "";
+        if (nomeProf) {
+          try {
+            const { codigoEscola, token } = obterCredenciaisIscholar();
+            const headers = { "X-Codigo-Escola": codigoEscola, "X-Autorizacao": token, "Content-Type": "application/json" };
+            const resultFunc = await safeFetchIscholarJson("https://api.ischolar.app/funcionarios/listar", { method: "GET", headers });
+            if (resultFunc.ok && resultFunc.data) {
+              const rawFunc = resultFunc.data.dados || resultFunc.data.funcionarios || resultFunc.data;
+              const listaFunc = Array.isArray(rawFunc) ? rawFunc : Object.values(rawFunc || {});
+              const nomeParts = normalizarNomeDisc(nomeProf).split(" ").filter(Boolean);
+              const matchFunc = listaFunc.find(f => {
+                const nomeCompleto = normalizarNomeDisc(`${f.nome || ""} ${f.sobrenome || ""}`);
+                return nomeParts.every(p => nomeCompleto.includes(p));
+              });
+              if (matchFunc && matchFunc.email) emailProf = matchFunc.email;
+            }
+          } catch (eProf) {
+            console.warn(`[grade-criar-salas] Não encontrou e-mail para professor ${nomeProf}:`, eProf.message);
+          }
+        }
+
+        // ── Deduplicação: verifica se essa disciplina já tem sala criada
+        let googleCourseId = null;
+        let reaproveitada = false;
+
+        if (mapeamentos[chaveGlobal] && mapeamentos[chaveGlobal].google_course_id) {
+          // Sala já existe — reaproveita
+          googleCourseId = mapeamentos[chaveGlobal].google_course_id;
+          reaproveitada = true;
+          // Tenta adicionar professor (ignora se já existe)
+          if (emailProf && emailProf.includes("@")) {
+            try {
+              await classroom.courses.teachers.create({ courseId: googleCourseId, requestBody: { userId: emailProf } });
+            } catch (errProf) {
+              const msgErrProf = errProf.response?.data?.error?.message || errProf.message;
+              if (!msgErrProf?.includes("already") && errProf.response?.status !== 409) {
+                console.warn(`[grade-criar-salas] Docente ${emailProf} não adicionado (reap):`, msgErrProf);
+              }
+            }
+          }
+        } else {
+          // Cria nova sala no Classroom
+          try {
+            const response = await classroom.courses.create({
+              requestBody: { name: nomeSalaClassroom, section: nomeProf || "Sem Docente Definido", ownerId: "me", courseState: "ACTIVE" },
+            });
+            googleCourseId = response.data.id;
+            if (emailProf && emailProf.includes("@")) {
+              try {
+                await classroom.courses.teachers.create({ courseId: googleCourseId, requestBody: { userId: emailProf } });
+              } catch (errProf) {
+                console.warn(`[grade-criar-salas] Docente ${emailProf} não adicionado (novo):`, errProf.message);
+              }
+            }
+            mapeamentos[chaveGlobal] = {
+              google_course_id: googleCourseId,
+              google_course_name: response.data.name,
+              alternateLink: response.data.alternateLink,
+              nome_disciplina: nomeDisc,
+              periodo_letivo: periodoFormatado,
+              nome_professor: nomeProf,
+              email_professor: emailProf,
+              turmas_ensaladas: [],
+              fonte: "excel",
+              created_at: new Date().toISOString(),
+            };
+          } catch (errDisc) {
+            const errMsg = errDisc.response?.data?.error?.message || errDisc.message;
+            console.error(`[grade-criar-salas] Erro ao criar ${nomeDisc}:`, errMsg);
+            resultados.push({ nome_disciplina: nomeDisc, status: "erro", erro: errMsg, reaproveitada: false });
+            continue;
+          }
+        }
+
+        // ── Ensalamento de alunos da turma iScholar nesta disciplina
+        const turmasJaEnsaladas = mapeamentos[chaveGlobal]?.turmas_ensaladas || [];
+        let ensalamento = { ensalados: 0, jaExistiam: 0, semEmail: 0, erros: 0 };
+
+        if (!turmasJaEnsaladas.includes(idTurma)) {
+          console.log(`[grade-criar-salas] Ensalando turma ${idTurma} em "${nomeDisc}" (${googleCourseId})...`);
+          ensalamento = await ensalarAlunosTurmaNoClassroom(googleCourseId, idTurma);
+          if (!mapeamentos[chaveGlobal].turmas_ensaladas) mapeamentos[chaveGlobal].turmas_ensaladas = [];
+          mapeamentos[chaveGlobal].turmas_ensaladas.push(idTurma);
+        } else {
+          console.log(`[grade-criar-salas] Turma ${idTurma} já ensalada em "${nomeDisc}" — pulando.`);
+          ensalamento.jaExistiam = -1; // sentinela: indica que foi pulada
+        }
+
+        // Índice por turma+disciplina para lookup futuro
+        mapeamentos[`${idTurma}_${nomeNorm}`] = {
+          ...(mapeamentos[chaveGlobal] || {}),
+          id_turma: idTurma,
+          reaproveitada,
+          ensalamento,
+        };
+
+        resultados.push({
+          nome_disciplina: nomeDisc,
+          google_course_id: googleCourseId,
+          google_course_name: mapeamentos[chaveGlobal]?.google_course_name || nomeSalaClassroom,
+          alternateLink: mapeamentos[chaveGlobal]?.alternateLink,
+          reaproveitada,
+          status: "sucesso",
+          ensalamento,
+          nome_professor: nomeProf,
+          email_professor: emailProf,
+        });
+      }
+
+      salvarMapeamentosClassroom(mapeamentos);
+      resultadosPorTurma.push({
+        nomeTurma: turmaExcel.nomeTurma,
+        idTurmaIscholar: idTurma,
+        status: "concluido",
+        disciplinas: resultados,
+      });
+    }
+
+    const allDiscs = resultadosPorTurma.flatMap(t => t.disciplinas);
+    const totalCriadas = allDiscs.filter(d => d.status === "sucesso" && !d.reaproveitada).length;
+    const totalReaproveitadas = allDiscs.filter(d => d.reaproveitada).length;
+    const totalErros = allDiscs.filter(d => d.status === "erro").length;
+    const totalAlunos = allDiscs.reduce((acc, d) => acc + (d.ensalamento?.ensalados || 0), 0);
+
+    return res.json({
+      ok: true,
+      resumo: { totalCriadas, totalReaproveitadas, totalErros, totalAlunos },
+      resultadosPorTurma,
+    });
+  } catch (e) {
+    console.error("[grade-criar-salas] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
