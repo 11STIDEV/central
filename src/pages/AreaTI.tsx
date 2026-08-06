@@ -43,8 +43,8 @@ export default function AreaTI() {
   const [search, setSearch] = useState("");
   const [selectedTutorial, setSelectedTutorial] = useState<number | null>(null);
 
-  // Sub-aba do Classroom: "ischolar" | "manual" | "grade"
-  const [classroomSubTab, setClassroomSubTab] = useState<"ischolar" | "manual" | "grade">("ischolar");
+  // Sub-aba do Classroom: "ischolar" | "manual" | "grade" | "grade_aberta"
+  const [classroomSubTab, setClassroomSubTab] = useState<"ischolar" | "manual" | "grade" | "grade_aberta">("ischolar");
 
   // Estados para Grade Horária Excel
   const gradeFileRef = useRef<HTMLInputElement>(null);
@@ -84,6 +84,22 @@ export default function AreaTI() {
   const [isDebuging, setIsDebuging] = useState(false);
   // IDs das disciplinas marcadas para criação (todas marcadas por padrão ao carregar)
   const [disciplinasSelecionadas, setDisciplinasSelecionadas] = useState<Set<string>>(new Set());
+
+  // Estados para Criação Manual de Disciplina (Personalizada)
+  const [showManualDiscModal, setShowManualDiscModal] = useState(false);
+  const [manualNomeDisc, setManualNomeDisc] = useState("");
+  const [manualNomeProf, setManualNomeProf] = useState("");
+  const [manualEmailProf, setManualEmailProf] = useState("");
+  const [manualTurmasSelecionadas, setManualTurmasSelecionadas] = useState<Set<string>>(new Set());
+  const [isCreatingManualDisc, setIsCreatingManualDisc] = useState(false);
+
+  // Estados para Desenturmação / Grade Aberta
+  const [searchStudentEmail, setSearchStudentEmail] = useState("");
+  const [lastSearchedStudentEmail, setLastSearchedStudentEmail] = useState("");
+  const [isSearchingStudentSalas, setIsSearchingStudentSalas] = useState(false);
+  const [studentSalasEncontradas, setStudentSalasEncontradas] = useState<any[] | null>(null);
+  const [studentSalasSelecionadas, setStudentSalasSelecionadas] = useState<Set<string>>(new Set());
+  const [isRemovendoAlunoSalas, setIsRemovendoAlunoSalas] = useState(false);
 
   const parseCSV = (text: string) => {
     const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
@@ -357,6 +373,154 @@ export default function AreaTI() {
       setErrorMsgIscholar(e.message || "Erro de rede ao criar salas.");
     } finally {
       setIsCreatingSalas(false);
+    }
+  };
+
+  const handleCriarDisciplinaManual = async () => {
+    if (!manualNomeDisc.trim()) {
+      setErrorMsgIscholar("Informe o nome da disciplina.");
+      return;
+    }
+    if (manualTurmasSelecionadas.size === 0) {
+      setErrorMsgIscholar("Selecione ao menos uma turma para vincular a disciplina.");
+      return;
+    }
+    if (!googleIdToken) {
+      alert("Atenção: É necessário estar autenticado com uma conta do Google para criar salas no Google Classroom.");
+      return;
+    }
+
+    setIsCreatingManualDisc(true);
+    setErrorMsgIscholar(null);
+    setStatusMsg(null);
+
+    try {
+      const turmaAtual = turmasIscholar.find(t => t.id_turma === selectedTurmaId);
+      const periodo = turmaAtual?.periodo_letivo || "2026.2";
+      const idManual = `m_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      const turmasArray = Array.from(manualTurmasSelecionadas);
+
+      const discManual = {
+        id_disciplina: idManual,
+        nome_disciplina: manualNomeDisc.trim(),
+        nome_professor: manualNomeProf.trim(),
+        email_professor: manualEmailProf.trim(),
+        periodo_letivo: periodo,
+        turmasVinculadas: turmasArray
+      };
+
+      const { ok, json } = await safeFetchJson(apiUrl("/api/ti/google-classroom/criar-salas-disciplinas"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken: googleIdToken,
+          idTurma: selectedTurmaId,
+          periodoLetivo: periodo,
+          disciplinas: [discManual]
+        })
+      });
+
+      if (ok && json.ok) {
+        if (json.mapeamentos) {
+          setMapeamentos(json.mapeamentos);
+        }
+        if (manualTurmasSelecionadas.has(selectedTurmaId)) {
+          setDisciplinasTurma(prev => [...prev, discManual]);
+          setDisciplinasSelecionadas(prev => new Set([...Array.from(prev), idManual]));
+        }
+        setStatusMsg(`Disciplina manual "${manualNomeDisc.trim()}" criada com sucesso e vinculada a ${turmasArray.length} turma(s)!`);
+        setShowManualDiscModal(false);
+        setManualNomeDisc("");
+        setManualNomeProf("");
+        setManualEmailProf("");
+      } else {
+        setErrorMsgIscholar(json.error || "Erro ao criar disciplina manual.");
+      }
+    } catch (e: any) {
+      setErrorMsgIscholar(e.message || "Erro de conexão ao criar disciplina manual.");
+    } finally {
+      setIsCreatingManualDisc(false);
+    }
+  };
+
+  const handleBuscarSalasAluno = async () => {
+    if (!searchStudentEmail.trim()) return;
+    if (!googleIdToken) {
+      alert("Atenção: É necessário estar autenticado com uma conta do Google.");
+      return;
+    }
+
+    setIsSearchingStudentSalas(true);
+    setErrorMsgIscholar(null);
+    setStatusMsg(null);
+    setStudentSalasEncontradas(null);
+
+    try {
+      const emailClean = searchStudentEmail.trim().toLowerCase();
+      const { ok, json } = await safeFetchJson(apiUrl("/api/ti/google-classroom/aluno-salas"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken: googleIdToken,
+          email: emailClean
+        })
+      });
+
+      if (ok && json.ok) {
+        setLastSearchedStudentEmail(emailClean);
+        const list = json.salas || [];
+        setStudentSalasEncontradas(list);
+        setStudentSalasSelecionadas(new Set(list.map((s: any) => s.google_course_id)));
+      } else {
+        setErrorMsgIscholar(json.error || "Erro ao buscar disciplinas do aluno.");
+      }
+    } catch (e: any) {
+      setErrorMsgIscholar(e.message || "Erro de conexão ao buscar disciplinas do aluno.");
+    } finally {
+      setIsSearchingStudentSalas(false);
+    }
+  };
+
+  const handleRemoverAlunoSalas = async () => {
+    if (!lastSearchedStudentEmail || studentSalasSelecionadas.size === 0) return;
+    if (!googleIdToken) {
+      alert("Atenção: É necessário estar autenticado com uma conta do Google.");
+      return;
+    }
+
+    const qtd = studentSalasSelecionadas.size;
+    if (!window.confirm(`Tem certeza que deseja remover o aluno ${lastSearchedStudentEmail} de ${qtd} disciplina(s) do Google Classroom?`)) {
+      return;
+    }
+
+    setIsRemovendoAlunoSalas(true);
+    setErrorMsgIscholar(null);
+    setStatusMsg(null);
+
+    try {
+      const courseIds = Array.from(studentSalasSelecionadas);
+      const { ok, json } = await safeFetchJson(apiUrl("/api/ti/google-classroom/remover-aluno-salas"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken: googleIdToken,
+          email: lastSearchedStudentEmail,
+          courseIds
+        })
+      });
+
+      if (ok && json.ok) {
+        const rel = json.relatorio || {};
+        setStatusMsg(`Sucesso! Aluno ${lastSearchedStudentEmail} removido de ${rel.removidos || 0} disciplina(s).`);
+        setStudentSalasEncontradas(prev => (prev || []).filter(s => !studentSalasSelecionadas.has(s.google_course_id)));
+        setStudentSalasSelecionadas(new Set());
+      } else {
+        setErrorMsgIscholar(json.error || "Erro ao desassociar aluno das disciplinas.");
+      }
+    } catch (e: any) {
+      setErrorMsgIscholar(e.message || "Erro de conexão ao remover aluno.");
+    } finally {
+      setIsRemovendoAlunoSalas(false);
     }
   };
 
@@ -668,6 +832,17 @@ export default function AreaTI() {
                 <Upload className="h-4 w-4" />
                 Criação por Planilha CSV (Manual)
               </button>
+              <button
+                onClick={() => setClassroomSubTab("grade_aberta")}
+                className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                  classroomSubTab === "grade_aberta"
+                    ? "bg-amber-600 text-white shadow"
+                    : "bg-card border border-border text-muted-foreground hover:bg-muted"
+                }`}
+              >
+                <Users className="h-4 w-4" />
+                Alunos / Grade Aberta (Desenturmar)
+              </button>
             </div>
 
             {!googleIdToken && (
@@ -843,20 +1018,35 @@ export default function AreaTI() {
                           </span>
                         </div>
 
-                        {/* Controles rápidos de seleção */}
-                        {!isLoadingDisciplinas && disciplinasTurma.length > 0 && (
-                          <div className="flex gap-2 mb-3">
+                        {/* Controles rápidos de seleção e botão de disciplina manual */}
+                        {!isLoadingDisciplinas && (
+                          <div className="flex items-center justify-between gap-2 mb-3">
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setDisciplinasSelecionadas(new Set(disciplinasTurma.map(d => String(d.id_disciplina))))}
+                                className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                              >
+                                ✓ Todas
+                              </button>
+                              <button
+                                onClick={() => setDisciplinasSelecionadas(new Set())}
+                                className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                              >
+                                ✗ Nenhuma
+                              </button>
+                            </div>
                             <button
-                              onClick={() => setDisciplinasSelecionadas(new Set(disciplinasTurma.map(d => String(d.id_disciplina))))}
-                              className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                              onClick={() => {
+                                setManualNomeDisc("");
+                                setManualNomeProf("");
+                                setManualEmailProf("");
+                                setManualTurmasSelecionadas(new Set([selectedTurmaId]));
+                                setShowManualDiscModal(true);
+                              }}
+                              className="rounded-md border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors flex items-center gap-1"
                             >
-                              ✓ Todas
-                            </button>
-                            <button
-                              onClick={() => setDisciplinasSelecionadas(new Set())}
-                              className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
-                            >
-                              ✗ Nenhuma
+                              <Plus className="h-3.5 w-3.5" />
+                              + Nova Disciplina (Manual)
                             </button>
                           </div>
                         )}
@@ -1559,9 +1749,316 @@ export default function AreaTI() {
                 )}
               </div>
             )}
+
+            {/* ABA DE GRADE ABERTA / DESENTURMAÇÃO */}
+            {classroomSubTab === "grade_aberta" && (
+              <div className="space-y-6">
+                <div className="rounded-xl border border-border bg-card p-6 shadow-card space-y-4">
+                  <div>
+                    <h3 className="text-base font-bold text-card-foreground">Desenturmação & Alunos de Grade Aberta</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Informe o e-mail do aluno para consultar todas as disciplinas que ele cursa no Google Classroom e remover o vínculo de salas específicas.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <input
+                        type="email"
+                        value={searchStudentEmail}
+                        onChange={(e) => setSearchStudentEmail(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleBuscarSalasAluno(); }}
+                        placeholder="Digite o e-mail do aluno (ex: aluno@portalcci.com.br)..."
+                        className="w-full rounded-lg border border-input bg-background pl-9 pr-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                      />
+                    </div>
+                    <button
+                      onClick={handleBuscarSalasAluno}
+                      disabled={isSearchingStudentSalas || !searchStudentEmail.trim()}
+                      className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-all disabled:opacity-50"
+                    >
+                      {isSearchingStudentSalas ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Buscando...
+                        </>
+                      ) : (
+                        <>
+                          <Search className="h-4 w-4" />
+                          Buscar Disciplinas do Aluno
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* RESULTADO DA BUSCA */}
+                  {studentSalasEncontradas !== null && (
+                    <div className="pt-4 border-t border-border space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-bold text-card-foreground">
+                            Disciplinas do Aluno ({studentSalasEncontradas.length} encontradas)
+                          </h4>
+                          <p className="text-xs text-muted-foreground">
+                            Selecione as disciplinas que deseja remover do aluno <span className="font-semibold text-foreground">{lastSearchedStudentEmail}</span>
+                          </p>
+                        </div>
+                        {studentSalasEncontradas.length > 0 && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setStudentSalasSelecionadas(new Set(studentSalasEncontradas.map(s => s.google_course_id)))}
+                              className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                            >
+                              ✓ Todas
+                            </button>
+                            <button
+                              onClick={() => setStudentSalasSelecionadas(new Set())}
+                              className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                            >
+                              ✗ Nenhuma
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {studentSalasEncontradas.length === 0 ? (
+                        <div className="py-8 text-center text-xs text-muted-foreground italic rounded-lg border border-dashed border-border bg-muted/20">
+                          Nenhuma disciplina ativa encontrada no Google Classroom para o e-mail informado.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[350px] overflow-y-auto pr-1">
+                          {studentSalasEncontradas.map((s) => {
+                            const checked = studentSalasSelecionadas.has(s.google_course_id);
+                            return (
+                              <div
+                                key={s.google_course_id}
+                                onClick={() => {
+                                  setStudentSalasSelecionadas(prev => {
+                                    const next = new Set(prev);
+                                    next.has(s.google_course_id) ? next.delete(s.google_course_id) : next.add(s.google_course_id);
+                                    return next;
+                                  });
+                                }}
+                                className={`flex items-start justify-between rounded-lg border p-3 text-xs cursor-pointer select-none transition-all ${
+                                  checked
+                                    ? "border-destructive/50 bg-destructive/5 dark:bg-destructive/10"
+                                    : "border-border bg-card opacity-70 hover:opacity-100"
+                                }`}
+                              >
+                                <div className="flex items-start gap-2.5">
+                                  <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${
+                                    checked
+                                      ? "border-destructive bg-destructive text-destructive-foreground"
+                                      : "border-border bg-card"
+                                  }`}>
+                                    {checked && <Check className="h-2.5 w-2.5" />}
+                                  </div>
+                                  <div>
+                                    <p className="font-semibold text-card-foreground">{s.google_course_name}</p>
+                                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                                      ID: {s.google_course_id}
+                                      {s.section && <span> • Docente: {s.section}</span>}
+                                      {s.id_turma && <span className="ml-1 text-primary font-medium">• Turma ID: {s.id_turma}</span>}
+                                    </p>
+                                  </div>
+                                </div>
+                                {s.alternateLink && (
+                                  <a
+                                    href={s.alternateLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-[11px] font-medium text-primary hover:underline shrink-0 ml-2"
+                                  >
+                                    Ver
+                                  </a>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {studentSalasEncontradas.length > 0 && (
+                        <div className="pt-2 flex items-center justify-between">
+                          <span className="text-xs font-semibold text-muted-foreground">
+                            {studentSalasSelecionadas.size} disciplina(s) selecionada(s) para remoção
+                          </span>
+                          <button
+                            onClick={handleRemoverAlunoSalas}
+                            disabled={isRemovendoAlunoSalas || studentSalasSelecionadas.size === 0}
+                            className="flex items-center gap-2 rounded-lg bg-destructive px-4 py-2.5 text-xs font-semibold text-destructive-foreground shadow hover:bg-destructive/90 transition-all disabled:opacity-50"
+                          >
+                            {isRemovendoAlunoSalas ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Removendo Aluno...
+                              </>
+                            ) : (
+                              <>
+                                <XCircle className="h-4 w-4" />
+                                Desassociar das {studentSalasSelecionadas.size} Disciplinas Selecionadas
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
+
+      {/* MODAL DE CRIAÇÃO DE DISCIPLINA MANUAL */}
+      {showManualDiscModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="flex items-start justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-card-foreground">Criar Disciplina Manual / Personalizada</h3>
+                <p className="text-xs text-muted-foreground">
+                  Cadastre uma matéria que não existe no iScholar e selecione em quais turmas ela estará presente.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowManualDiscModal(false)}
+                className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 overflow-y-auto pr-1 flex-1">
+              <div>
+                <label className="block text-xs font-semibold text-card-foreground mb-1">
+                  Nome da Disciplina <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={manualNomeDisc}
+                  onChange={(e) => setManualNomeDisc(e.target.value)}
+                  placeholder="Ex: Bioquímica e Biofísica"
+                  className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-card-foreground mb-1">
+                    Nome do Docente (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    value={manualNomeProf}
+                    onChange={(e) => setManualNomeProf(e.target.value)}
+                    placeholder="Ex: Dr. João Silva"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-card-foreground mb-1">
+                    E-mail do Docente (Opcional)
+                  </label>
+                  <input
+                    type="email"
+                    value={manualEmailProf}
+                    onChange={(e) => setManualEmailProf(e.target.value)}
+                    placeholder="Ex: joao.silva@portalcci.com.br"
+                    className="w-full rounded-lg border border-input bg-background px-3 py-2 text-xs text-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-card-foreground">
+                    Vincular às Turmas <span className="text-destructive">*</span> ({manualTurmasSelecionadas.size} selecionada(s))
+                  </label>
+                  <div className="flex gap-1.5 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setManualTurmasSelecionadas(new Set((selectedUnidade === ("Todas as Unidades" as any) ? turmasIscholar : turmasIscholar.filter(t => t.unidade === selectedUnidade)).map(t => t.id_turma)))}
+                      className="text-primary hover:underline font-semibold"
+                    >
+                      Todas
+                    </button>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onClick={() => setManualTurmasSelecionadas(new Set([selectedTurmaId]))}
+                      className="text-muted-foreground hover:underline"
+                    >
+                      Apenas Atual
+                    </button>
+                  </div>
+                </div>
+
+                <div className="max-h-[160px] overflow-y-auto rounded-lg border border-border bg-muted/30 p-2 space-y-1">
+                  {(selectedUnidade === ("Todas as Unidades" as any) ? turmasIscholar : turmasIscholar.filter(t => t.unidade === selectedUnidade)).map((t) => {
+                    const checked = manualTurmasSelecionadas.has(t.id_turma);
+                    return (
+                      <div
+                        key={t.id_turma}
+                        onClick={() => {
+                          setManualTurmasSelecionadas(prev => {
+                            const next = new Set(prev);
+                            next.has(t.id_turma) ? next.delete(t.id_turma) : next.add(t.id_turma);
+                            return next;
+                          });
+                        }}
+                        className={`flex items-center justify-between rounded p-2 text-xs cursor-pointer select-none transition-colors ${
+                          checked ? "bg-card border border-border shadow-xs font-semibold text-foreground" : "opacity-60 hover:opacity-100"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${
+                            checked ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card"
+                          }`}>
+                            {checked && <Check className="h-2.5 w-2.5" />}
+                          </div>
+                          <span>{t.nome_turma} {t.curso ? `(${t.curso})` : ""}</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground">ID: {t.id_turma}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+              <button
+                onClick={() => setShowManualDiscModal(false)}
+                disabled={isCreatingManualDisc}
+                className="rounded-lg border border-border px-3.5 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCriarDisciplinaManual}
+                disabled={isCreatingManualDisc || !manualNomeDisc.trim() || manualTurmasSelecionadas.size === 0}
+                className="flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow hover:bg-primary/90 transition-all disabled:opacity-50"
+              >
+                {isCreatingManualDisc ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Criando...
+                  </>
+                ) : (
+                  <>
+                    <School className="h-3.5 w-3.5" />
+                    Criar e Ensalar Disciplina
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+};

@@ -3881,6 +3881,30 @@ app.get("/api/ti/ischolar/turmas/:idTurma/disciplinas", async (req, res) => {
     const { idUnidade } = req.query || {};
     const disciplinas = await obterDisciplinasTurmaIscholar(idTurma, idUnidade);
     const mapeamentos = lerMapeamentosClassroom();
+
+    // Mesclar disciplinas manuais/personalizadas salvas no mapeamento para esta turma
+    const prefixo = `${idTurma}_`;
+    const idsExistentes = new Set((disciplinas || []).map(d => String(d.id_disciplina || d.id)));
+
+    Object.keys(mapeamentos).forEach(k => {
+      if (k.startsWith(prefixo)) {
+        const item = mapeamentos[k];
+        const idDisc = String(item.id_disciplina || "");
+        if (idDisc && !idsExistentes.has(idDisc)) {
+          idsExistentes.add(idDisc);
+          disciplinas.push({
+            id_disciplina: idDisc,
+            nome_disciplina: item.nome_disciplina,
+            codigo_disciplina: idDisc,
+            periodo_letivo: item.periodo_letivo || "2026.2",
+            nome_professor: item.nome_professor || "",
+            email_professor: item.email_professor || "",
+            isManual: true
+          });
+        }
+      }
+    });
+
     return res.json({ ok: true, disciplinas, mapeamentos });
   } catch (e) {
     console.error("[ischolar-disciplinas] Erro:", e);
@@ -4061,7 +4085,31 @@ app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) =>
           }
         }
 
-        const dadosReaproveitados = {
+        const turmasAlvo = Array.isArray(disc.turmasVinculadas) && disc.turmasVinculadas.length > 0
+          ? disc.turmasVinculadas.map(String)
+          : [String(idTurma)];
+
+        turmasAlvo.forEach((tId, idx) => {
+          const keyMap = `${tId}_${idDisc}`;
+          mapeamentos[keyMap] = {
+            google_course_id: mapeamentoExistente.google_course_id,
+            google_course_name: mapeamentoExistente.google_course_name,
+            alternateLink: mapeamentoExistente.alternateLink,
+            id_turma: tId,
+            id_disciplina: idDisc,
+            nome_disciplina: nomeDisc,
+            periodo_letivo: periodoFormatado,
+            id_professor: disc.id_professor || "",
+            nome_professor: nomeProf,
+            email_professor: emailProf,
+            professor_ensalado: profEnsalado,
+            aviso_professor: avisoProfessor,
+            reaproveitada: idx > 0 || tId !== String(idTurma) || !!mapeamentoExistente.reaproveitada,
+            created_at: new Date().toISOString(),
+          };
+        });
+
+        resultados.push({
           google_course_id: mapeamentoExistente.google_course_id,
           google_course_name: mapeamentoExistente.google_course_name,
           alternateLink: mapeamentoExistente.alternateLink,
@@ -4069,17 +4117,8 @@ app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) =>
           id_disciplina: idDisc,
           nome_disciplina: nomeDisc,
           periodo_letivo: periodoFormatado,
-          id_professor: disc.id_professor || "",
-          nome_professor: nomeProf,
-          email_professor: emailProf,
-          professor_ensalado: profEnsalado,
-          aviso_professor: avisoProfessor,
-          reaproveitada: true,
-          created_at: new Date().toISOString(),
-        };
-
-        mapeamentos[chaveMapeamento] = dadosReaproveitados;
-        resultados.push({ ...dadosReaproveitados, status: "sucesso" });
+          status: "sucesso"
+        });
         continue;
       }
 
@@ -4108,12 +4147,36 @@ app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) =>
             console.log(`[classroom-professor] Professor ${emailProf} ensalado como docente da sala ${response.data.id}`);
           } catch (errProf) {
             const msgErrProf = errProf.response?.data?.error?.message || errProf.message;
-            console.error(`[classroom-professor] Aviso/Erro de permiss├úo ao adicionar docente ${emailProf}:`, msgErrProf);
-            avisoProfessor = `Permiss├úo insuficiente no Google Workspace para adicionar docente (${emailProf}): ${msgErrProf}`;
+            console.error(`[classroom-professor] Aviso/Erro de permissão ao adicionar docente ${emailProf}:`, msgErrProf);
+            avisoProfessor = `Permissão insuficiente no Google Workspace para adicionar docente (${emailProf}): ${msgErrProf}`;
           }
         }
 
-        const dadosCriacao = {
+        const turmasAlvo = Array.isArray(disc.turmasVinculadas) && disc.turmasVinculadas.length > 0
+          ? disc.turmasVinculadas.map(String)
+          : [String(idTurma)];
+
+        turmasAlvo.forEach((tId, idx) => {
+          const keyMap = `${tId}_${idDisc}`;
+          mapeamentos[keyMap] = {
+            google_course_id: response.data.id,
+            google_course_name: response.data.name,
+            alternateLink: response.data.alternateLink,
+            id_turma: tId,
+            id_disciplina: idDisc,
+            nome_disciplina: nomeDisc,
+            periodo_letivo: periodoFormatado,
+            id_professor: disc.id_professor || "",
+            nome_professor: nomeProf,
+            email_professor: emailProf,
+            professor_ensalado: profEnsalado,
+            aviso_professor: avisoProfessor,
+            reaproveitada: idx > 0,
+            created_at: new Date().toISOString()
+          };
+        });
+
+        resultados.push({
           google_course_id: response.data.id,
           google_course_name: response.data.name,
           alternateLink: response.data.alternateLink,
@@ -4121,16 +4184,8 @@ app.post("/api/ti/google-classroom/criar-salas-disciplinas", async (req, res) =>
           id_disciplina: idDisc,
           nome_disciplina: nomeDisc,
           periodo_letivo: periodoFormatado,
-          id_professor: disc.id_professor || "",
-          nome_professor: nomeProf,
-          email_professor: emailProf,
-          professor_ensalado: profEnsalado,
-          aviso_professor: avisoProfessor,
-          created_at: new Date().toISOString()
-        };
-
-        mapeamentos[chaveMapeamento] = dadosCriacao;
-        resultados.push({ ...dadosCriacao, status: "sucesso" });
+          status: "sucesso"
+        });
       } catch (errDisc) {
         console.error(`[google-classroom-create-disc] Erro ao criar disciplina ${nomeDisc}:`, errDisc);
         const errMsg = errDisc.response?.data?.error?.message || errDisc.message;
@@ -4268,6 +4323,127 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
     });
   } catch (e) {
     console.error("[google-classroom-ensalar-turma] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/google-classroom/aluno-salas", async (req, res) => {
+  try {
+    const { idToken, email } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    const emailAluno = String(email || "").trim().toLowerCase();
+    if (!emailAluno || !emailAluno.includes("@")) {
+      return res.status(400).json({ error: "E-mail do aluno inválido ou ausente." });
+    }
+
+    const classroom = await criarGoogleClassroomClientAuth();
+    const mapeamentos = lerMapeamentosClassroom();
+
+    let response;
+    try {
+      response = await classroom.courses.list({
+        studentId: emailAluno,
+        courseStates: ["ACTIVE"]
+      });
+    } catch (errList) {
+      console.warn(`[classroom-aluno-salas] Erro ao listar turmas via studentId (${emailAluno}):`, errList.message);
+      return res.json({ ok: true, studentEmail: emailAluno, total: 0, salas: [] });
+    }
+
+    const courses = response.data.courses || [];
+    const salas = courses.map((c) => {
+      const courseId = c.id;
+      const mItem = Object.values(mapeamentos).find((m) => m && m.google_course_id === courseId);
+
+      return {
+        google_course_id: courseId,
+        google_course_name: c.name,
+        section: c.section || "",
+        alternateLink: c.alternateLink || mItem?.alternateLink || "",
+        nome_disciplina: mItem?.nome_disciplina || c.name,
+        id_turma: mItem?.id_turma || "",
+        periodo_letivo: mItem?.periodo_letivo || ""
+      };
+    });
+
+    return res.json({ ok: true, studentEmail: emailAluno, total: salas.length, salas });
+  } catch (e) {
+    console.error("[google-classroom-aluno-salas] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/google-classroom/remover-aluno-salas", async (req, res) => {
+  try {
+    const { idToken, email, courseIds } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    const emailAluno = String(email || "").trim().toLowerCase();
+    if (!emailAluno || !emailAluno.includes("@")) {
+      return res.status(400).json({ error: "E-mail do aluno inválido ou ausente." });
+    }
+
+    if (!courseIds || !Array.isArray(courseIds) || courseIds.length === 0) {
+      return res.status(400).json({ error: "Nenhuma disciplina foi selecionada para remoção." });
+    }
+
+    const classroom = await criarGoogleClassroomClientAuth();
+    const relatorio = {
+      emailAluno,
+      totalSalas: courseIds.length,
+      removidos: 0,
+      falhas: 0,
+      detalhes: []
+    };
+
+    for (const cId of courseIds) {
+      try {
+        await classroom.courses.students.delete({
+          courseId: String(cId),
+          userId: emailAluno
+        });
+
+        relatorio.removidos++;
+        relatorio.detalhes.push({
+          courseId: cId,
+          status: "removido"
+        });
+        console.log(`[desenturmalizacao] Aluno ${emailAluno} removido da sala ${cId}`);
+      } catch (errDelete) {
+        const msg = errDelete.response?.data?.error?.message || errDelete.message;
+        relatorio.falhas++;
+        relatorio.detalhes.push({
+          courseId: cId,
+          status: "erro",
+          erro: msg
+        });
+        console.warn(`[desenturmalizacao] Erro ao remover ${emailAluno} da sala ${cId}:`, msg);
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    return res.json({ ok: true, relatorio });
+  } catch (e) {
+    console.error("[google-classroom-remover-aluno-salas] Erro geral:", e);
     return res.status(500).json({ error: e.message });
   }
 });
