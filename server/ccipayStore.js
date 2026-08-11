@@ -154,6 +154,44 @@ export async function saldoBonificacao(supabase, email, competencia) {
   return saldo;
 }
 
+export class CcipayBonificacaoError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "CcipayBonificacaoError";
+    this.status = 400;
+  }
+}
+
+/** Valida crédito de bonificação contra o teto `limiteBonificacao` (se definido). */
+export async function validarCreditoBonificacao(supabase, func, email, competencia, valorCredito) {
+  const valor = Number(valorCredito);
+  if (Number.isNaN(valor) || valor <= 0) {
+    throw new CcipayBonificacaoError("Informe um valor maior que zero.");
+  }
+  const saldo = await saldoBonificacao(supabase, email, competencia);
+  const novoSaldo = saldo + valor;
+  if (func.limiteBonificacao != null && novoSaldo > func.limiteBonificacao) {
+    const disponivel = Math.max(0, func.limiteBonificacao - saldo);
+    throw new CcipayBonificacaoError(
+      `Bonificação excede o limite. Disponível para creditar: R$ ${disponivel.toFixed(2)}.`,
+    );
+  }
+  return { saldo, novoSaldo };
+}
+
+/** Valida débito (dedução, compra loja, QR) contra o saldo da competência. */
+export async function validarDebitoBonificacao(supabase, email, competencia, valorDebito) {
+  const valor = Number(valorDebito);
+  if (Number.isNaN(valor) || valor <= 0) {
+    throw new CcipayBonificacaoError("Informe um valor maior que zero.");
+  }
+  const saldo = await saldoBonificacao(supabase, email, competencia);
+  if (valor > saldo) {
+    throw new CcipayBonificacaoError(`Saldo insuficiente. Disponível: R$ ${saldo.toFixed(2)}.`);
+  }
+  return { saldo, novoSaldo: saldo - valor };
+}
+
 export async function criarMovimento(supabase, mov) {
   const now = new Date().toISOString();
   const row = {
@@ -420,13 +458,36 @@ export async function atualizarPedidoStatus(supabase, id, status, confirmadoPor)
   return obterPedidoCompleto(supabase, data.id);
 }
 
-export async function relatorioDpMovimentos(supabase, { competencia, tipo }) {
+export async function relatorioDpMovimentos(supabase, { competencia, tipo, status }) {
   let q = supabase.from("ccipay_movimentos").select("*").order("created_at", { ascending: false });
   if (competencia) q = q.eq("competencia", competencia);
   if (tipo) q = q.eq("tipo", tipo);
+  if (status) q = q.eq("status", status);
   const { data, error } = await q;
   if (error) throw new Error(`[ccipay] relatorio dp: ${error.message}`);
   return (data || []).map(rowToMovimento);
+}
+
+export async function relatorioResumoPorFuncionario(supabase, competencia) {
+  const funcionarios = await listarFuncionarios(supabase);
+  const resumo = [];
+  for (const f of funcionarios) {
+    const usado = await somarAdiantamentosCompetencia(supabase, f.email, competencia);
+    const saldoBon = await saldoBonificacao(supabase, f.email, competencia);
+    if (!f.ativo && usado === 0 && saldoBon === 0) continue;
+    resumo.push({
+      email: f.email,
+      nome: f.nome,
+      codigoReferencia: f.alterdataCodigo,
+      ativo: f.ativo,
+      limiteAdiantamento: f.limiteAdiantamento,
+      adiantamentoUsado: usado,
+      adiantamentoDisponivel: Math.max(0, f.limiteAdiantamento - usado),
+      limiteBonificacao: f.limiteBonificacao,
+      saldoBonificacao: saldoBon,
+    });
+  }
+  return resumo;
 }
 
 export async function relatorioLojaPedidos(supabase, { lojaId, de, ate }) {
@@ -449,12 +510,23 @@ export async function montarResumoFuncionario(supabase, email) {
   const usado = await somarAdiantamentosCompetencia(supabase, email, comp);
   const saldoBon = await saldoBonificacao(supabase, email, comp);
   const movimentos = await listarMovimentos(supabase, { funcionarioEmail: email });
+  const bonificacaoDisponivelGastar = saldoBon;
+  const bonificacaoTeto =
+    func.limiteBonificacao != null ? func.limiteBonificacao : null;
+  const bonificacaoDisponivelCreditar =
+    func.limiteBonificacao != null
+      ? Math.max(0, func.limiteBonificacao - saldoBon)
+      : null;
+
   return {
     funcionario: func,
     competencia: comp,
     adiantamentoUsado: usado,
     adiantamentoDisponivel: Math.max(0, func.limiteAdiantamento - usado),
     saldoBonificacao: saldoBon,
+    bonificacaoDisponivelGastar,
+    bonificacaoTeto,
+    bonificacaoDisponivelCreditar,
     movimentos: movimentos.slice(0, 50),
   };
 }

@@ -1,4 +1,12 @@
-/** Permissões CCI Pay — espelha regras do frontend. */
+/** Permissões Advance-CCI — espelha regras do frontend. */
+
+/** Módulo em revisão na Central — APIs bloqueadas exceto para admin (portal parceiro continua). */
+export const CCIPAY_MODULO_BLOQUEADO = false;
+
+export function isCcipayModuloLiberado(papeis) {
+  if (!CCIPAY_MODULO_BLOQUEADO) return true;
+  return (papeis || []).includes("admin");
+}
 
 const PAPEIS_CCIPAY_DP = new Set([
   "admin",
@@ -43,6 +51,25 @@ export async function isCcipayLancador(supabase, email, papeis) {
     .eq("ativo", true)
     .maybeSingle();
   return Boolean(data);
+}
+
+export async function lojasDoLogin(supabase, login) {
+  if (!supabase || !login) return [];
+  const { data, error } = await supabase
+    .from("ccipay_loja_usuarios")
+    .select("loja_id, senha_hash, ccipay_lojas(id, nome, descricao, ativa)")
+    .eq("login", String(login).toLowerCase())
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!data?.ccipay_lojas || !data.senha_hash || !data.ccipay_lojas.ativa) return [];
+  const l = data.ccipay_lojas;
+  return [{ id: l.id, nome: l.nome, descricao: l.descricao ?? "", ativa: l.ativa ?? true }];
+}
+
+export async function isOperadorParceiro(supabase, login, lojaId) {
+  if (!supabase || !login || !lojaId) return false;
+  const lojas = await lojasDoLogin(supabase, login);
+  return lojas.some((l) => l.id === lojaId);
 }
 
 export async function lojasDoUsuario(supabase, email) {

@@ -1,9 +1,15 @@
 import { Building2, School } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { LOST_FOUND_DELIVERY_METHODS, LOST_FOUND_SCHOOL_PERIODS } from "@/achadosperdidos/constants";
+import {
+  CLAIM_PICKUP_DEADLINE_DAYS,
+  LOST_FOUND_CLAIM_PICKUP_POLICY_MESSAGE,
+  LOST_FOUND_DELIVERY_METHODS,
+  LOST_FOUND_SCHOOL_PERIODS,
+} from "@/achadosperdidos/constants";
 import type { LostFoundDeliveryMethod, LostFoundItem, LostFoundSchoolPeriod } from "@/achadosperdidos/types";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +69,13 @@ export function ClaimItemForm({
       <p className="text-sm text-muted-foreground">
         Você está reivindicando: <strong className="text-foreground">{item.title}</strong>
       </p>
+
+      <Alert className="border-sky-500/30 bg-sky-500/5">
+        <AlertDescription className="text-xs leading-relaxed sm:text-sm">
+          <span className="font-medium">Prazo de {CLAIM_PICKUP_DEADLINE_DAYS} dias para retirada.</span>{" "}
+          {LOST_FOUND_CLAIM_PICKUP_POLICY_MESSAGE}
+        </AlertDescription>
+      </Alert>
 
       <div className="space-y-2">
         <Label htmlFor="claim-name">Nome *</Label>

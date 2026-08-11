@@ -1,5 +1,8 @@
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import { ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { daysUntilClaimPickupExpires, claimPickupDeadline } from "@/achadosperdidos/claimPickup";
 import { formatClaimDelivery } from "@/achadosperdidos/claimDisplay";
 import type { LostFoundClaimRequest } from "@/achadosperdidos/types";
 import { cn } from "@/lib/utils";
@@ -9,9 +12,19 @@ type Props = {
   onClick: () => void;
 };
 
+function formatPickupDeadline(claimCreatedAt: string): string {
+  try {
+    return format(claimPickupDeadline(claimCreatedAt), "dd/MM/yyyy", { locale: ptBR });
+  } catch {
+    return "-";
+  }
+}
+
 export function PendingClaimCard({ claim, onClick }: Props) {
   const item = claim.item;
   const thumb = item?.image_urls?.[0];
+  const daysLeft = daysUntilClaimPickupExpires(claim.created_at);
+  const urgent = daysLeft <= 2;
 
   return (
     <button
@@ -41,6 +54,10 @@ export function PendingClaimCard({ claim, onClick }: Props) {
           {claim.claimant_name} · {claim.claimant_phone || claim.claimant_email || "sem contato"}
         </p>
         <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{formatClaimDelivery(claim)}</p>
+        <p className={cn("mt-1 text-xs", urgent ? "font-medium text-amber-700 dark:text-amber-400" : "text-muted-foreground")}>
+          Retirar até {formatPickupDeadline(claim.created_at)}
+          {daysLeft === 0 ? " · expira hoje" : ` · ${daysLeft} dia(s) restante(s)`}
+        </p>
         <div className="mt-2 flex flex-wrap gap-1">
           <Badge variant="outline" className="text-[10px]">
             Aguardando análise

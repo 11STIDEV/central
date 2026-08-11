@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { CLAIM_PICKUP_DEADLINE_DAYS } from "@/achadosperdidos/constants";
 import { Card, CardContent } from "@/components/ui/card";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { createClaimRequest } from "@/achadosperdidos/repository";
@@ -11,6 +12,7 @@ import type { LostFoundItem } from "@/achadosperdidos/types";
 import { PainelView } from "@/achadosperdidos/public/views/PainelView";
 import { ItensAchadosView } from "@/achadosperdidos/public/views/ItensAchadosView";
 import { DevolvidosView } from "@/achadosperdidos/public/views/DevolvidosView";
+import { DoacaoView } from "@/achadosperdidos/public/views/DoacaoView";
 import { ClaimItemSheet } from "@/achadosperdidos/public/components/ClaimItemSheet";
 import { ClaimItemDialog } from "@/achadosperdidos/public/components/ClaimItemDialog";
 import type { ClaimFormState } from "@/achadosperdidos/public/components/ClaimItemForm";
@@ -30,7 +32,7 @@ const EMPTY_CLAIM_FORM: ClaimFormState = {
 
 export default function LostFoundPublicPage() {
   const isMobile = useIsMobile();
-  const { configured, loading, error, availableItems, returnedItems, recentAvailable, stats, refresh } =
+  const { configured, loading, error, availableItems, returnedItems, donationCount, recentAvailable, stats, refresh } =
     useLostFoundPublicData();
 
   const [activeView, setActiveView] = useState<LostFoundPublicView>("painel");
@@ -106,7 +108,9 @@ export default function LostFoundPublicPage() {
           claimForm.deliveryMethod === "sala_aula" ? claimForm.schoolPeriod || undefined : undefined,
       });
       localStorage.setItem(CLAIM_COOLDOWN_KEY, String(Date.now()));
-      toast.success("Solicitação enviada. A secretaria vai analisar sua reivindicação.");
+      toast.success(
+        `Solicitação enviada. Retire o item em até ${CLAIM_PICKUP_DEADLINE_DAYS} dias ou ele voltará a ficar disponível.`,
+      );
       closeClaim();
       await refresh();
     } catch (err) {
@@ -158,6 +162,15 @@ export default function LostFoundPublicPage() {
 
       {activeView === "devolvidos" ? (
         <DevolvidosView items={returnedItems} loading={loading} error={error} onRetry={() => void refresh()} />
+      ) : null}
+
+      {activeView === "doacao" ? (
+        <DoacaoView
+          loading={loading}
+          error={error}
+          donationCount={donationCount}
+          onRetry={() => void refresh()}
+        />
       ) : null}
 
       {isMobile ? (

@@ -1,4 +1,4 @@
-import { LayoutDashboard, Package, RotateCcw } from "lucide-react";
+import { LayoutDashboard, Package, RotateCcw, Gift } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LostFoundPublicView } from "@/achadosperdidos/public/types";
 
@@ -6,6 +6,7 @@ const NAV_ITEMS: { id: LostFoundPublicView; label: string; icon: typeof LayoutDa
   { id: "painel", label: "Painel", icon: LayoutDashboard },
   { id: "itens", label: "Itens Achados", icon: Package },
   { id: "devolvidos", label: "Devolvidos", icon: RotateCcw },
+  { id: "doacao", label: "Doação", icon: Gift },
 ];
 
 type Props = {

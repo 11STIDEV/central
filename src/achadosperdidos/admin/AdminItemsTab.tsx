@@ -14,6 +14,7 @@ const FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "available", label: "Disponíveis" },
   { value: "claimed_pending", label: "Pendentes" },
   { value: "returned", label: "Devolvidos" },
+  { value: "donation", label: "Doação" },
   { value: "archived", label: "Arquivados" },
 ];
 
@@ -21,9 +22,10 @@ type Props = {
   items: LostFoundItem[];
   formatDate: (value: string | null) => string;
   onUpdateStatus: (itemId: string, status: LostFoundItemStatus) => void;
+  onEdit: (item: LostFoundItem) => void;
 };
 
-export function AdminItemsTab({ items, formatDate, onUpdateStatus }: Props) {
+export function AdminItemsTab({ items, formatDate, onUpdateStatus, onEdit }: Props) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -53,7 +55,7 @@ export function AdminItemsTab({ items, formatDate, onUpdateStatus }: Props) {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <CardTitle className="text-lg">Itens cadastrados</CardTitle>
-            <CardDescription>Gerencie status e consulte o histórico de itens.</CardDescription>
+            <CardDescription>Gerencie status, edite itens e consulte o histórico.</CardDescription>
           </div>
           <Badge variant="secondary">{items.length} item(ns)</Badge>
         </div>
@@ -96,6 +98,7 @@ export function AdminItemsTab({ items, formatDate, onUpdateStatus }: Props) {
                 item={item}
                 formatDate={formatDate}
                 onUpdateStatus={onUpdateStatus}
+                onEdit={onEdit}
               />
             ))}
           </div>

@@ -15,9 +15,16 @@ create table if not exists public.lf_items (
   found_at timestamptz,
   found_location text,
   image_urls text[] not null default '{}',
-  status text not null default 'available' check (status in ('available', 'claimed_pending', 'returned', 'archived')),
+  status text not null default 'available' check (status in ('available', 'claimed_pending', 'returned', 'archived', 'donation')),
   created_by text,
   registered_by_email text,
+  was_edited boolean not null default false,
+  edited_at timestamptz,
+  edited_by text,
+  returned_by_email text,
+  returned_by text,
+  returned_at timestamptz,
+  donated_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

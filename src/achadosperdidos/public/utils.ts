@@ -27,6 +27,7 @@ function isInCurrentWeek(iso: string): boolean {
 export function computePublicStats(
   available: LostFoundItem[],
   returned: LostFoundItem[],
+  donationCount: number,
 ): LostFoundPublicStats {
   const thisWeekCount =
     available.filter((item) => isInCurrentWeek(item.created_at)).length +
@@ -35,7 +36,8 @@ export function computePublicStats(
   return {
     availableCount: available.length,
     returnedCount: returned.length,
-    totalCount: available.length + returned.length,
+    donationCount,
+    totalCount: available.length + returned.length + donationCount,
     thisWeekCount,
   };
 }

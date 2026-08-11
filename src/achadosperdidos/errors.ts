@@ -17,6 +17,9 @@ export function toLostFoundError(error: unknown, fallback = "Operação não con
   const combined = [readMessage(error), readDetails(error)].filter(Boolean).join(" — ");
   if (!combined) return fallback;
 
+  if (/donated_at|status_check.*donation/i.test(combined)) {
+    return "Migration de doação pendente no Supabase. Rode scripts/achados-perdidos-donation.sql no SQL Editor.";
+  }
   if (/bucket not found/i.test(combined)) {
     return 'Bucket "lf-items" não encontrado. Crie o bucket público no Storage ou execute scripts/achados-perdidos-schema.sql.';
   }
