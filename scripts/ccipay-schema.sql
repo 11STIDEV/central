@@ -1,4 +1,4 @@
--- CCI Pay — módulo de adiantamentos, vales, bonificações, deduções e loja
+-- Advance-CCI — módulo de adiantamentos, vales, bonificações, deduções e loja
 -- Rodar no Supabase SQL Editor. Acesso via API Node (service_role).
 
 create extension if not exists "pgcrypto";

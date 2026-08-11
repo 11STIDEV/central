@@ -2,19 +2,21 @@ import type { Papel } from "./AuthProvider";
 import { isPainelAdminEmail } from "@/painel/painelEnv";
 import { isRotaBloqueadaParaUsuario } from "./routesTemporarilyBlocked";
 import { podeAcessarKanban } from "@/lib/kanban";
+import {
+  canAccessGestaoChamadosSetor,
+  getChamadosSetorBySlug,
+} from "@/lib/chamadosSetores";
 
 /**
  * Rotas da intranet comum (funcionários; exclui perfil “somente aluno”).
  * Alunos em `/Alunos FACULDADE` ou `/Alunos TECSCCI` têm conjunto próprio em `isSomenteAluno`.
  */
 const ROTAS_INTRANET_COMUM = new Set([
-  "/achados-e-perdidos",
   "/achados-e-perdidos/publico",
   "/",
   "/avisos",
   "/portal-do-funcionario",
   "/chamados/novo",
-  "/chamados/gestao",
   "/agenda-cci",
   "/minhas-reservas",
   "/reserva-espacos-equipamentos",
@@ -29,6 +31,8 @@ const ROTAS_INTRANET_COMUM = new Set([
 
 const PAPEIS_PROFESSORES: Papel[] = ["professorfac", "professortecs", "professorregular"];
 
+const PAPEIS_ACHADOS_PERDIDOS: Papel[] = ["secretaria", "gerente_secretaria", "painel_admin"];
+
 /** Alunos não acessam o módulo de avisos. */
 const ROTAS_BLOQUEADAS_ALUNO = new Set(["/avisos", "/avisos/publicar"]);
 
@@ -39,6 +43,7 @@ const ROTAS_BLOQUEADAS_ALUNO = new Set(["/avisos", "/avisos/publicar"]);
  */
 export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/admin/papeis-manuais": ["admin"],
+  "/chamados/gestao": ["admin"],
   "/setores": ["admin"],
   /** Publicar avisos — TI / administração. */
   "/avisos/publicar": ["admin", "setape"],
@@ -55,7 +60,8 @@ export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/cci-pay/relatorios/dp": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
   "/cci-pay/relatorios/loja": ["ccipay_loja", "ccipay_admin", "ccipay_dp"],
   "/agenda-cci/admin": ["setape"],
-  "/achados-e-perdidos/admin": ["secretaria", "painel_admin"],
+  "/achados-e-perdidos": PAPEIS_ACHADOS_PERDIDOS,
+  "/achados-e-perdidos/admin": PAPEIS_ACHADOS_PERDIDOS,
   "/setores/professores": PAPEIS_PROFESSORES,
   "/setores/disciplinar": ["disciplinar"],
   "/setores/secretaria": ["secretaria"],
@@ -120,6 +126,17 @@ export function hasRoleAccessToRoute(papeis: Papel[], pathname: string, email?: 
 
   if (path.startsWith("/senhas")) {
     return podeAcessoRotasSenhas(papeis, pathname, email);
+  }
+
+  if (path === "/chamados/gestao") {
+    return papeis.includes("admin");
+  }
+
+  const gestaoSetorMatch = path.match(/^\/chamados\/gestao\/([^/]+)$/);
+  if (gestaoSetorMatch) {
+    const slug = gestaoSetorMatch[1];
+    if (!getChamadosSetorBySlug(slug)) return false;
+    return canAccessGestaoChamadosSetor(papeis, slug);
   }
 
   if (ROTAS_INTRANET_COMUM.has(path)) return true;

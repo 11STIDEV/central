@@ -9,7 +9,7 @@ import {
   BookOpen,
   CheckCircle2,
 } from "lucide-react";
-import { TRILHAS_MOCK, USER_PROGRESS_MOCK, type UserProgress } from "@/data/trilhasMock";
+import { TRILHAS_MOCK, USER_PROGRESS_MOCK, type UserProgress, salvarProgressoUsuario } from "@/data/trilhasMock";
 import { QuizModal } from "@/components/trilha/QuizModal";
 
 export default function MissaoPage() {
@@ -46,25 +46,34 @@ export default function MissaoPage() {
   const proximaMissao = trilha.missoes.find((m) => m.ordem === missao.ordem + 1);
 
   function handleConcluirQuiz(acertos: number, total: number) {
-    const xpGanho = Math.round(
-      missao!.xpRecompensa * (acertos / total) +
-        (acertos === total ? missao!.xpRecompensa * 0.2 : 0)
-    );
+    let xpGanho = 5;
 
     setProgress((prev) => {
       const trilhaProgress = prev.progressoPorTrilha[trilhaId!] ?? [];
       const jaConcluida = trilhaProgress.includes(missaoId!);
-      return {
+      
+      if (jaConcluida) {
+        return prev;
+      }
+
+      const novasConcluidas = [...trilhaProgress, missaoId!];
+      const trilhaCompletaAgora = novasConcluidas.length === trilha.missoes.length;
+      
+      xpGanho = 5 + (trilhaCompletaAgora ? 10 : 0);
+
+      const novoProgresso = {
         ...prev,
-        xpTotal: jaConcluida ? prev.xpTotal : prev.xpTotal + xpGanho,
-        missoesCompletas: jaConcluida ? prev.missoesCompletas : prev.missoesCompletas + 1,
+        xpTotal: prev.xpTotal + xpGanho,
+        missoesCompletas: prev.missoesCompletas + 1,
+        trilhasCompletas: prev.trilhasCompletas + (trilhaCompletaAgora ? 1 : 0),
         progressoPorTrilha: {
           ...prev.progressoPorTrilha,
-          [trilhaId!]: jaConcluida
-            ? trilhaProgress
-            : [...trilhaProgress, missaoId!],
+          [trilhaId!]: novasConcluidas,
         },
       };
+
+      salvarProgressoUsuario(novoProgresso);
+      return novoProgresso;
     });
 
     setMissaoConcluida(true);

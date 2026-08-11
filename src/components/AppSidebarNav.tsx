@@ -5,11 +5,11 @@ import {
   ChevronDown,
   ChevronRight,
   CircleDollarSign,
+  FileText,
   Home,
   Layers,
   Lock,
-  ShieldCheck,
-  Ticket,
+  Phone,
   Trophy,
   UserCog,
   Users,
@@ -53,15 +53,14 @@ const STORAGE_PREFIX = "cci-intranet-nav";
 /** Ícone da seção no menu recolhido ou flyout. */
 const SECTION_ICONS: Record<string, LucideIcon> = {
   inicio: Home,
-  atendimento: Ticket,
   agenda: CalendarDays,
   "cci-pay": CircleDollarSign,
-  ti: ShieldCheck,
-  "operacao-interna": Trophy,
+  "trilha-conhecimento": Trophy,
+  documentos: FileText,
+  ramais: Phone,
   admin: UserCog,
   setores: Layers,
   "setores-todos": Layers,
-  "meu-setor": Layers,
 };
 
 function readBool(key: string, fallback: boolean): boolean {
@@ -385,6 +384,69 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
     );
   }
 
+  function isDirectFlatSection(section: NavSectionFlat): boolean {
+    return !section.pinned && section.items.length === 1;
+  }
+
+  /** Seção plana com um único link — clique no rótulo vai direto (ex.: Agenda → Agenda CCI). */
+  function renderDirectFlatSection(section: NavSectionFlat) {
+    const item = section.items[0];
+    const locked = Boolean(item.locked);
+    const active = !locked && navItemIsActive(pathname, item);
+    const Icon = item.icon ?? SECTION_ICONS[section.id] ?? Layers;
+
+    if (locked) {
+      return (
+        <div key={section.id} className="mb-2 last:mb-0">
+          <ul className="space-y-0.5">{renderLeaf(item, { collapsed })}</ul>
+        </div>
+      );
+    }
+
+    if (collapsed) {
+      return (
+        <div key={section.id} className="mb-2 last:mb-0">
+          <NavLink
+            to={item.url}
+            end={item.url === "/"}
+            title={section.label}
+            className={linkClass(active)}
+            activeClassName=""
+          >
+            <Icon className={iconClass(active)} strokeWidth={1.75} />
+          </NavLink>
+        </div>
+      );
+    }
+
+    if (useFlyoutNav) {
+      return (
+        <div key={section.id} className="mb-2 last:mb-0">
+          <NavLink to={item.url} className={sectionTriggerClass(active)} activeClassName="">
+            <span className="flex min-w-0 flex-1 items-center gap-2">
+              <Icon className="h-3.5 w-3.5 shrink-0" strokeWidth={1.75} />
+              <span>{section.label}</span>
+            </span>
+          </NavLink>
+        </div>
+      );
+    }
+
+    return (
+      <div key={section.id} className="mb-6 last:mb-2">
+        <NavLink
+          to={item.url}
+          end={item.url === "/"}
+          className={linkClass(active)}
+          activeClassName=""
+        >
+          <Icon className={iconClass(active)} strokeWidth={1.75} />
+          <span className="min-w-0 flex-1 leading-snug">{section.label}</span>
+        </NavLink>
+      </div>
+    );
+  }
+
   function renderCollapsedFlatDropdown(section: NavSectionFlat) {
     const SectionIcon = SECTION_ICONS[section.id] ?? Layers;
     const anyActive = flatSectionHasActiveRoute(pathname, section);
@@ -454,6 +516,8 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
     if (section.items.length === 0) return null;
 
     if (section.pinned) return renderPinnedSection(section);
+
+    if (isDirectFlatSection(section)) return renderDirectFlatSection(section);
 
     if (collapsed) return renderCollapsedFlatDropdown(section);
 

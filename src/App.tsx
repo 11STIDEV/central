@@ -34,6 +34,7 @@ import CcipayAdminLojas from "./pages/CcipayAdminLojas";
 import CcipayAdminLancadores from "./pages/CcipayAdminLancadores";
 import CcipayRelatoriosDp from "./pages/CcipayRelatoriosDp";
 import CcipayRelatoriosLoja from "./pages/CcipayRelatoriosLoja";
+import CcipayPagarQr from "./pages/ccipay/CcipayPagarQr";
 import { SetorLinksPage } from "./pages/SetorLinksPage";
 import Avisos from "./pages/Avisos";
 import PublicarAviso from "./pages/PublicarAviso";
@@ -63,6 +64,8 @@ import AchadosPerdidosHubPage from "./pages/achadosperdidos/AchadosPerdidosHubPa
 import AchadosPerdidosAdminPage from "./pages/achadosperdidos/AchadosPerdidosAdminPage";
 import { isLostFoundPublicHost } from "@/achadosperdidos/publicHost";
 import { LostFoundPublicHostApp } from "@/achadosperdidos/public/LostFoundPublicHostApp";
+import { isParceiroPublicHost } from "@/parceiro/publicHost";
+import { ParceiroHostApp } from "@/parceiro/ParceiroHostApp";
 
 const queryClient = new QueryClient();
 
@@ -109,6 +112,7 @@ function CentralIntranetApp() {
               />
               <Route path="/chamados/novo" element={<AbrirChamado />} />
               <Route path="/chamados/gestao" element={<GestaoChamados />} />
+              <Route path="/chamados/gestao/:setorSlug" element={<GestaoChamados />} />
               <Route path="/kanban/:setor" element={<KanbanSetor />} />
               <Route
                 path="/ti-interno"
@@ -218,6 +222,7 @@ function CentralIntranetApp() {
                   </RequireRouteAccess>
                 }
               />
+              <Route path="/cci-pay/pagar/:token" element={<CcipayPagarQr />} />
               <Route
                 path="/setores/professores"
                 element={
@@ -326,6 +331,22 @@ function CentralIntranetApp() {
 }
 
 const App = () => {
+  if (isParceiroPublicHost()) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <ParceiroHostApp />
+            </BrowserRouter>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    );
+  }
+
   if (isLostFoundPublicHost()) {
     return (
       <QueryClientProvider client={queryClient}>

@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { personalizeNavSetores } from "@/navigation/personalizeNav";
 import {
   INTRANET_NAV_SECTIONS,
-  adjustNavSenhasLeafUrls,
   filterNavByAccess,
   markNavTemporaryBlocks,
   mergeNavExtras,
@@ -32,7 +31,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     const filtered = filterNavByAccess(papeis, fullSections, email);
     const personalized = personalizeNavSetores(filtered, papeis, email);
     const withBlocks = markNavTemporaryBlocks(papeis, personalized);
-    return adjustNavSenhasLeafUrls(papeis, email, withBlocks);
+    return withBlocks;
   }, [usuario?.papeis, usuario?.email, extras]);
 
   useEffect(() => {

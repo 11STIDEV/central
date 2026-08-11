@@ -21,7 +21,7 @@ export const INTRANET_QUICK_LINKS: IntranetQuickLink[] = [
     description: "Solicitar suporte de TI",
   },
   {
-    name: "Reserva de Equipamentos",
+    name: "Reserva de Espaços e Equipamentos",
     url: "/reserva-espacos-equipamentos",
     icon: MapPin,
     description: "Chromebooks, equipamentos e espaços",

@@ -99,7 +99,7 @@ export default function FinanceiroValesAdiantamento() {
         <Button asChild variant="ghost" size="sm" className="mb-4">
           <Link to="/cci-pay">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            CCI Pay
+            Advance-CCI
           </Link>
         </Button>
 

@@ -4,7 +4,7 @@ import { PageHero } from "@/components/PageHero";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/auth/AuthProvider";
-import { ccipayConfirmarPedido, ccipayListarPedidos, type CcipayPedido } from "@/lib/ccipay";
+import { ccipayConfirmarPedido, ccipayListarLojas, ccipayListarPedidos, type CcipayPedido } from "@/lib/ccipay";
 import { isCcipayLojaPapel, isCcipayAdminPapel, isCcipayDpPapel } from "@/lib/ccipay";
 import { ArrowLeft } from "lucide-react";
 
@@ -49,7 +49,7 @@ export default function CcipayMeusPedidos() {
       />
       <div className="mx-auto max-w-3xl space-y-4 px-4 py-8 md:px-8">
         <Button asChild variant="ghost" size="sm">
-          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />CCI Pay</Link>
+          <Link to="/cci-pay"><ArrowLeft className="mr-2 h-4 w-4" />Advance-CCI</Link>
         </Button>
         {pedidos.map((p) => (
           <div key={p.id} className="rounded-xl border border-border bg-card p-4">

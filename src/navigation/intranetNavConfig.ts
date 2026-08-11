@@ -1,36 +1,28 @@
 import type { LucideIcon } from "lucide-react";
 import {
   BookOpen,
-  Boxes,
   Briefcase,
   CalendarDays,
   CircleDollarSign,
   ClipboardList,
   FileText,
-  GraduationCap,
-  Hash,
   HeartPulse,
   Home,
-  LayoutDashboard,
   MapPin,
   Megaphone,
-  PenLine,
   Phone,
   School,
   Shield,
-  ShieldCheck,
-  Search,
   Ticket,
   Trophy,
   UserCog,
-  UserRoundCheck,
   Users,
   Wallet,
   Warehouse,
   Wrench,
 } from "lucide-react";
 import type { Papel } from "@/auth/AuthProvider";
-import { hasRoleAccessToRoute, podePainelSenhasAdministracao } from "@/auth/routeAccess";
+import { hasRoleAccessToRoute } from "@/auth/routeAccess";
 import { isRotaBloqueadaParaUsuario } from "@/auth/routesTemporarilyBlocked";
 import { buildSetoresNavSectors } from "@/navigation/setoresConfig";
 
@@ -88,55 +80,50 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: "atendimento",
-    label: "Atendimento",
-    type: "nested",
-    sectors: [
-      {
-        id: "atendimento-chamados",
-        label: "Chamados",
-        items: [
-          { title: "Abrir Chamado", url: "/chamados/novo", icon: Ticket },
-          { title: "Gestão de Chamados", url: "/chamados/gestao", icon: ClipboardList },
-        ],
-      },
-      {
-        id: "atendimento-senhas",
-        label: "Painel de senhas",
-        items: [{ title: "Painel de senhas", url: "/senhas", icon: Hash }],
-      },
-      {
-        id: "atendimento-achados-perdidos",
-        label: "Achados e Perdidos",
-        items: [
-          { title: "Achados e Perdidos — Hub", url: "/achados-e-perdidos", icon: Search },
-        ],
-      },
-    ],
-  },
-  {
     id: "agenda",
     label: "Agenda",
     type: "flat",
     items: [
-      { title: "Agenda CCI", url: "/agenda-cci", icon: CalendarDays },
       {
-        title: "Reserva de Equipamentos e Espaços",
-        url: "/reserva-espacos-equipamentos",
-        icon: MapPin,
+        title: "Agenda CCI",
+        url: "/agenda-cci",
+        icon: CalendarDays,
+        activePrefixes: ["/agenda-cci"],
       },
-      { title: "Minhas Reservas", url: "/minhas-reservas", icon: UserRoundCheck },
-      { title: "Agenda CCI — Admin", url: "/agenda-cci/admin", icon: Shield },
     ],
   },
   {
+    id: "trilha-conhecimento",
+    label: "Trilha de Conhecimento",
+    type: "flat",
+    items: [{ title: "Trilha de Conhecimento", url: "/trilha-conhecimento", icon: Trophy }],
+  },
+  {
+    id: "documentos",
+    label: "Documentos",
+    type: "flat",
+    items: [{ title: "Documentos", url: "/documentos", icon: FileText }],
+  },
+  {
+    id: "ramais",
+    label: "Ramais",
+    type: "flat",
+    items: [{ title: "Ramais", url: "/ramais", icon: Phone }],
+  },
+  {
+    id: "setores",
+    label: "Setores",
+    type: "nested",
+    sectors: buildSetoresNavSectors(),
+  },
+  {
     id: "cci-pay",
-    label: "CCI Pay",
+    label: "Advance-CCI",
     type: "nested",
     sectors: [
       {
         id: "ccipay-colaborador",
-        label: "Meu CCI Pay",
+        label: "Meu Advance-CCI",
         items: [
           { title: "Início / Extrato", url: "/cci-pay", icon: Wallet },
           { title: "Solicitar vale", url: "/vale-adiantamento", icon: CircleDollarSign },
@@ -149,7 +136,7 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
         label: "Operação",
         items: [
           { title: "Aprovar vales", url: "/cci-pay/financeiro", icon: Briefcase },
-          { title: "Lançamentos", url: "/cci-pay/lancamentos", icon: PenLine },
+          { title: "Lançamentos", url: "/cci-pay/lancamentos", icon: FileText },
           { title: "Relatório DP", url: "/cci-pay/relatorios/dp", icon: FileText },
           { title: "Relatório loja", url: "/cci-pay/relatorios/loja", icon: FileText },
         ],
@@ -166,60 +153,13 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
-    id: "ti",
-    label: "TI",
-    type: "flat",
-    items: [
-      { title: "Área Interna TI", url: "/ti-interno", icon: ShieldCheck },
-      { title: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes },
-      { title: "iScholar", url: "/ti/ischolar", icon: GraduationCap },
-      { title: "Kanban — Setape/TI", url: "/kanban/setape", icon: LayoutDashboard },
-      { title: "Publicar aviso", url: "/avisos/publicar", icon: PenLine },
-    ],
-  },
-  {
-    id: "operacao-interna",
-    label: "Operação interna",
-    type: "flat",
-    items: [
-      { title: "Trilha de Conhecimento", url: "/trilha-conhecimento", icon: Trophy },
-      { title: "Documentos", url: "/documentos", icon: FileText },
-      { title: "Ramais", url: "/ramais", icon: Phone },
-    ],
-  },
-  {
-    id: "setores",
-    label: "Setores",
-    type: "nested",
-    sectors: buildSetoresNavSectors(),
-  },
-  {
     id: "admin",
     label: "Administração",
     type: "flat",
-    items: [{ title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog }],
+    items: [{ title: "Admin — Papéis manuais", url: "/admin/papeis-manuais", icon: UserCog },
+      { title: "Gestão de Chamados — Todos", url: "/chamados/gestao", icon: ClipboardList }],
   },
 ];
-
-/** Quem só tem atendente do painel (sem admin do painel) vê o link direto para `/senhas/atendente`. */
-export function adjustNavSenhasLeafUrls(
-  papeis: Papel[],
-  email: string | null | undefined,
-  sections: NavSection[],
-): NavSection[] {
-  const adminPainel = podePainelSenhasAdministracao(papeis, email);
-  const onlyAttendant =
-    (papeis.includes("painel_atendente") || papeis.includes("secretaria")) && !adminPainel;
-
-  return sections.map((sec) => {
-    if (sec.type !== "flat") return sec;
-    const items = sec.items.map((item) => {
-      if (item.url !== "/senhas" || !onlyAttendant) return item;
-      return { ...item, title: "Painel de senhas — Atendente", url: "/senhas/atendente" };
-    });
-    return { ...sec, items };
-  });
-}
 
 /** Remove itens/setores/seções que o utilizador não pode ver. */
 export function filterNavByAccess(

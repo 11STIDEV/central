@@ -7,22 +7,22 @@ export const PAPEIS_ATRIBUICAO_MANUAL: { id: string; label: string; descricao: s
   },
   {
     id: "ccipay_admin",
-    label: "CCI Pay — Admin",
-    descricao: "Gestão completa do módulo CCI Pay (lojas, lançadores, cadastros).",
+    label: "Advance-CCI — Admin",
+    descricao: "Gestão completa do módulo Advance-CCI (lojas, lançadores, cadastros).",
   },
   {
     id: "ccipay_dp",
-    label: "CCI Pay — DP/Financeiro",
+    label: "Advance-CCI — DP/Financeiro",
     descricao: "Aprovar vales, relatórios DP e cadastro de funcionários.",
   },
   {
     id: "ccipay_loja",
-    label: "CCI Pay — Operador loja",
+    label: "Advance-CCI — Operador loja",
     descricao: "Operar catálogo e pedidos da loja vinculada.",
   },
   {
     id: "ccipay_lancador",
-    label: "CCI Pay — Lançador",
+    label: "Advance-CCI — Lançador",
     descricao: "Lançar bonificações e deduções manualmente.",
   },
 ];

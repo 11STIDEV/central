@@ -17,7 +17,7 @@ import type { SectorLinkGroup } from "@/types/setorLinks";
 
 /** Card fixo do sistema — não entra no JSON editável. */
 const PORTAL_VALE_ADIANTAMENTO = {
-  title: "CCI Pay — Vale-Adiantamento",
+  title: "Advance-CCI — Vale-Adiantamento",
   description: "Adiantamentos, loja e extrato",
   url: "/cci-pay",
 } as const;

@@ -1,18 +1,11 @@
-import { Layers } from "lucide-react";
 import type { Papel } from "@/auth/AuthProvider";
 import type { NavSection } from "@/navigation/intranetNavConfig";
-import {
-  buildSetorActivePrefixes,
-  getSetoresDoUsuario,
-} from "@/navigation/setoresConfig";
+import { getSetoresAcessiveis, setorConfigToNavSector } from "@/navigation/setoresConfig";
 
 /**
- * Substitui a seção "Setores" por links únicos para páginas de catálogo
- * ("Meu setor" e "Todos os setores") em vez de submenus longos.
+ * Substitui a seção estática "Setores" pela lista de setores acessíveis ao usuário.
  */
 export function personalizeNavSetores(sections: NavSection[], papeis: Papel[], email?: string | null): NavSection[] {
-  const meusSetores = getSetoresDoUsuario(papeis);
-  const isAdmin = papeis.includes("admin");
   const out: NavSection[] = [];
 
   for (const sec of sections) {
@@ -21,38 +14,13 @@ export function personalizeNavSetores(sections: NavSection[], papeis: Papel[], e
       continue;
     }
 
-    if (meusSetores.length > 0) {
-      const label = meusSetores.length === 1 ? "Meu setor" : "Meus setores";
-      const title =
-        meusSetores.length === 1 ? meusSetores[0].label : label;
-      out.push({
-        id: "meu-setor",
-        label,
-        type: "flat",
-        items: [
-          {
-            title,
-            url: "/meu-setor",
-            icon: Layers,
-            activePrefixes: buildSetorActivePrefixes(meusSetores, ["/meu-setor"]),
-          },
-        ],
-      });
-    }
-
-    if (isAdmin && sec.type === "nested" && sec.sectors.length > 0) {
+    const setoresNav = getSetoresAcessiveis(papeis, email).map(setorConfigToNavSector);
+    if (setoresNav.length > 0) {
       out.push({
         id: "setores-todos",
         label: "Setores",
-        type: "flat",
-        items: [
-          {
-            title: "Todos os setores",
-            url: "/setores",
-            icon: Layers,
-            activePrefixes: ["/setores", "/kanban"],
-          },
-        ],
+        type: "nested",
+        sectors: setoresNav,
       });
     }
   }
