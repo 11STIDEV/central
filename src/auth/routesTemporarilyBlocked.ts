@@ -23,7 +23,7 @@ export function isIsentoBloqueioTemporario(papeis: Papel[]): boolean {
 }
 
 /** Advance-CCI em revisão — menu com cadeado; liberado só para administradores de papéis. */
-export const ADVANCE_CCI_BLOQUEADO = true;
+export const ADVANCE_CCI_BLOQUEADO = false;
 
 export function isRotaAdvanceCci(pathname: string): boolean {
   const path = normalizarPath(pathname);

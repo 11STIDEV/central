@@ -81,7 +81,22 @@ export type CcipayResumo = {
   adiantamentoUsado: number;
   adiantamentoDisponivel: number;
   saldoBonificacao: number;
+  bonificacaoDisponivelGastar?: number;
+  bonificacaoTeto?: number | null;
+  bonificacaoDisponivelCreditar?: number | null;
   movimentos: CcipayMovimento[];
+};
+
+export type CcipayResumoFuncionarioDp = {
+  email: string;
+  nome: string;
+  codigoReferencia?: string | null;
+  ativo: boolean;
+  limiteAdiantamento: number;
+  adiantamentoUsado: number;
+  adiantamentoDisponivel: number;
+  limiteBonificacao?: number | null;
+  saldoBonificacao: number;
 };
 
 export type CcipayVendaQrStatus = "pendente" | "pago" | "expirado" | "cancelado";
@@ -137,16 +152,26 @@ async function post<T>(path: string, idToken?: string | null, body: Record<strin
 }
 
 export async function ccipayMe(idToken: string): Promise<CcipayResumo> {
-  const data = await post<{ funcionario: CcipayFuncionario; competencia: string; adiantamentoUsado: number; adiantamentoDisponivel: number; saldoBonificacao: number; movimentos: CcipayMovimento[] }>(
-    "/api/ccipay/me",
-    idToken,
-  );
+  const data = await post<{
+    funcionario: CcipayFuncionario;
+    competencia: string;
+    adiantamentoUsado: number;
+    adiantamentoDisponivel: number;
+    saldoBonificacao: number;
+    bonificacaoDisponivelGastar?: number;
+    bonificacaoTeto?: number | null;
+    bonificacaoDisponivelCreditar?: number | null;
+    movimentos: CcipayMovimento[];
+  }>("/api/ccipay/me", idToken);
   return {
     funcionario: data.funcionario,
     competencia: data.competencia,
     adiantamentoUsado: data.adiantamentoUsado,
     adiantamentoDisponivel: data.adiantamentoDisponivel,
     saldoBonificacao: data.saldoBonificacao,
+    bonificacaoDisponivelGastar: data.bonificacaoDisponivelGastar,
+    bonificacaoTeto: data.bonificacaoTeto,
+    bonificacaoDisponivelCreditar: data.bonificacaoDisponivelCreditar,
     movimentos: data.movimentos,
   };
 }
@@ -287,12 +312,23 @@ export async function ccipayConfirmarPedido(idToken?: string | null, pedidoId: s
   });
 }
 
-export async function ccipayRelatorioDp(idToken?: string | null, competencia?: string, exportarCsv = false) {
-  return post<{ movimentos: CcipayMovimento[]; funcionarios?: CcipayFuncionario[]; csv?: string }>(
-    "/api/ccipay/relatorios/dp",
-    idToken,
-    { competencia, exportarCsv },
-  );
+export async function ccipayRelatorioDp(
+  idToken?: string | null,
+  competencia?: string,
+  exportarCsv = false,
+  opts?: { status?: string; tipo?: string },
+) {
+  return post<{
+    movimentos: CcipayMovimento[];
+    funcionarios?: CcipayFuncionario[];
+    resumoPorFuncionario?: CcipayResumoFuncionarioDp[];
+    csv?: string;
+  }>("/api/ccipay/relatorios/dp", idToken, {
+    competencia,
+    exportarCsv,
+    status: opts?.status,
+    tipo: opts?.tipo,
+  });
 }
 
 export async function ccipayRelatorioLoja(idToken?: string | null, lojaId: string, de?: string, ate?: string) {
@@ -398,4 +434,41 @@ export function labelStatusMovimento(status: CcipayMovimentoStatus): string {
     cancelado: "Cancelado",
   };
   return map[status] ?? status;
+}
+
+const TIPOS_MOVIMENTO: Record<string, string> = {
+  adiantamento: "Adiantamento",
+  vale: "Vale",
+  bonificacao: "Bonificação",
+  deducao: "Dedução",
+  compra_loja: "Compra na loja",
+};
+
+export function labelTipoMovimento(tipo: string): string {
+  return TIPOS_MOVIMENTO[tipo] ?? tipo.replace(/_/g, " ");
+}
+
+export function descricaoMovimento(mov: CcipayMovimento): string {
+  const meta = mov.metadata ?? {};
+  const extra =
+    (typeof meta.descricao === "string" && meta.descricao.trim()) ||
+    (typeof meta.pix === "string" && meta.pix.trim()) ||
+    "";
+  const base = labelTipoMovimento(mov.tipo);
+  return extra ? `${base} — ${extra}` : base;
+}
+
+export function formatarDataMovimento(mov: CcipayMovimento): string {
+  if (mov.createdAt) {
+    try {
+      return new Date(mov.createdAt).toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+    } catch {
+      // fallback competencia
+    }
+  }
+  return mov.competencia;
 }

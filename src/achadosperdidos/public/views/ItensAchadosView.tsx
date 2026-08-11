@@ -4,6 +4,7 @@ import { Input } from "@/components/ui/input";
 import { LOST_FOUND_CATEGORIES } from "@/achadosperdidos/constants";
 import type { LostFoundItem } from "@/achadosperdidos/types";
 import { LostFoundItemCard } from "@/achadosperdidos/public/components/LostFoundItemCard";
+import { DonationPolicyBanner } from "@/achadosperdidos/public/components/DonationPolicyBanner";
 import { PublicEmptyState } from "@/achadosperdidos/public/components/PublicEmptyState";
 import { PublicErrorState } from "@/achadosperdidos/public/components/PublicErrorState";
 import { cn } from "@/lib/utils";
@@ -41,6 +42,8 @@ export function ItensAchadosView({ items, loading, error, onRetry, onClaim }: Pr
           Procure por itens encontrados. Se for seu, toque em &quot;Este item é meu&quot;.
         </p>
       </div>
+
+      <DonationPolicyBanner />
 
       <div className="space-y-3 rounded-xl border border-border/80 bg-card/80 p-4 shadow-sm backdrop-blur-sm">
         <div className="relative">

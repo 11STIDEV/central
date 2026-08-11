@@ -36,7 +36,11 @@ import {
   obterPedidoCompleto,
   atualizarPedidoStatus,
   relatorioDpMovimentos,
+  relatorioResumoPorFuncionario,
   relatorioLojaPedidos,
+  validarCreditoBonificacao,
+  validarDebitoBonificacao,
+  CcipayBonificacaoError,
   criarVendaQr,
   obterVendaPorToken,
   obterVendaPorId,
@@ -65,6 +69,15 @@ export function registerCcipayRoutes(app, helpers) {
 
   async function ctxFromRequest(req) {
     return resolverContextoFromRequest(req);
+  }
+
+  function responderErroCcipay(e, res) {
+    if (e instanceof CcipayBonificacaoError || e?.status === 400) {
+      return res.status(400).json({ error: e.message });
+    }
+    if (e.status) return respostaErroIdToken(res, e);
+    const msg = e instanceof Error ? e.message : String(e);
+    return res.status(500).json({ error: msg });
   }
 
   app.use("/api/ccipay", async (req, res, next) => {
@@ -273,12 +286,15 @@ export function registerCcipayRoutes(app, helpers) {
         return res.status(404).json({ error: "Funcionário não cadastrado no Advance-CCI." });
       }
 
+      const comp = competenciaAtual();
+      await validarCreditoBonificacao(supabase, func, alvo, comp, valorNum);
+
       const mov = await criarMovimento(supabase, {
         tipo: "bonificacao",
         direcao: "credito",
         valor: valorNum,
         status: "aprovado",
-        competencia: competenciaAtual(),
+        competencia: comp,
         funcionarioEmail: alvo,
         funcionarioNome: func.nome,
         criadoPor: ctx.email,
@@ -289,6 +305,7 @@ export function registerCcipayRoutes(app, helpers) {
       notificarEmailCcipay("bonificacao_lancada", { mov, destinatario: alvo });
       return res.json({ ok: true, movimento: mov });
     } catch (e) {
+      if (e instanceof CcipayBonificacaoError) return responderErroCcipay(e, res);
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });
     }
@@ -315,12 +332,15 @@ export function registerCcipayRoutes(app, helpers) {
         return res.status(404).json({ error: "Funcionário não cadastrado no Advance-CCI." });
       }
 
+      const comp = competenciaAtual();
+      await validarDebitoBonificacao(supabase, alvo, comp, valorNum);
+
       const mov = await criarMovimento(supabase, {
         tipo: "deducao",
         direcao: "debito",
         valor: valorNum,
         status: "aprovado",
-        competencia: competenciaAtual(),
+        competencia: comp,
         funcionarioEmail: alvo,
         funcionarioNome: func.nome,
         criadoPor: ctx.email,
@@ -331,6 +351,7 @@ export function registerCcipayRoutes(app, helpers) {
       notificarEmailCcipay("deducao_lancada", { mov, destinatario: alvo });
       return res.json({ ok: true, movimento: mov });
     } catch (e) {
+      if (e instanceof CcipayBonificacaoError) return responderErroCcipay(e, res);
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });
     }
@@ -637,6 +658,9 @@ export function registerCcipayRoutes(app, helpers) {
         return res.json({ ok: true, pedido: atualizado });
       }
 
+      const comp = competenciaAtual();
+      await validarDebitoBonificacao(supabase, pedido.funcionarioEmail, comp, pedido.valorTotal);
+
       const atualizado = await atualizarPedidoStatus(supabase, pedidoId, "entregue", ctx.email);
 
       await criarMovimento(supabase, {
@@ -644,7 +668,7 @@ export function registerCcipayRoutes(app, helpers) {
         direcao: "debito",
         valor: pedido.valorTotal,
         status: "descontado_folha",
-        competencia: competenciaAtual(),
+        competencia: comp,
         funcionarioEmail: pedido.funcionarioEmail,
         funcionarioNome: pedido.funcionarioNome,
         lojaId: pedido.lojaId,
@@ -657,6 +681,7 @@ export function registerCcipayRoutes(app, helpers) {
       notificarEmailCcipay("pedido_entregue", { pedido: atualizado, destinatario: pedido.funcionarioEmail });
       return res.json({ ok: true, pedido: atualizado });
     } catch (e) {
+      if (e instanceof CcipayBonificacaoError) return responderErroCcipay(e, res);
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });
     }
@@ -666,7 +691,7 @@ export function registerCcipayRoutes(app, helpers) {
 
   app.post("/api/ccipay/relatorios/dp", async (req, res) => {
     try {
-      const { idToken, competencia, exportarCsv } = req.body || {};
+      const { idToken, competencia, exportarCsv, status, tipo } = req.body || {};
       const ctx = await ctxFromRequest(req);
       if (!isCcipayDp(ctx.papeis) && !isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Sem permissão." });
@@ -674,14 +699,19 @@ export function registerCcipayRoutes(app, helpers) {
       const supabase = supabaseOr503(res);
       if (!supabase) return;
 
+      const comp = competencia || competenciaAtual();
       const movimentos = await relatorioDpMovimentos(supabase, {
-        competencia: competencia || competenciaAtual(),
+        competencia: comp,
+        status: status || undefined,
+        tipo: tipo || undefined,
       });
+      const resumoPorFuncionario = await relatorioResumoPorFuncionario(supabase, comp);
       const funcionarios = await listarFuncionarios(supabase);
       const mapaFunc = Object.fromEntries(funcionarios.map((f) => [f.email.toLowerCase(), f]));
 
       if (exportarCsv) {
-        const header = "codigo_alterdata,nome,email,tipo,valor,competencia,status,descricao";
+        const header =
+          "codigo_referencia,nome,email,tipo,valor,competencia,status,descricao";
         const linhas = movimentos.map((m) => {
           const f = mapaFunc[m.funcionarioEmail.toLowerCase()] || {};
           const desc = m.metadata?.descricao || m.metadata?.pix || "";
@@ -696,10 +726,15 @@ export function registerCcipayRoutes(app, helpers) {
             csvEscape(desc),
           ].join(",");
         });
-        return res.json({ ok: true, csv: [header, ...linhas].join("\n"), movimentos });
+        return res.json({
+          ok: true,
+          csv: [header, ...linhas].join("\n"),
+          movimentos,
+          resumoPorFuncionario,
+        });
       }
 
-      return res.json({ ok: true, movimentos, funcionarios });
+      return res.json({ ok: true, movimentos, funcionarios, resumoPorFuncionario });
     } catch (e) {
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });
@@ -861,12 +896,7 @@ export function registerCcipayRoutes(app, helpers) {
       }
 
       const comp = competenciaAtual();
-      const saldo = await saldoBonificacao(supabase, ctx.email, comp);
-      if (venda.valor > saldo) {
-        return res.status(400).json({
-          error: `Saldo insuficiente. Disponível: R$ ${saldo.toFixed(2)}.`,
-        });
-      }
+      await validarDebitoBonificacao(supabase, ctx.email, comp, venda.valor);
 
       const mov = await criarMovimento(supabase, {
         tipo: "compra_loja",
@@ -894,6 +924,7 @@ export function registerCcipayRoutes(app, helpers) {
 
       return res.json({ ok: true, venda: atualizada, movimento: mov });
     } catch (e) {
+      if (e instanceof CcipayBonificacaoError) return responderErroCcipay(e, res);
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });
     }

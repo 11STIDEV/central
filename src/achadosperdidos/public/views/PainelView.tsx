@@ -1,4 +1,5 @@
 import { Clock, Loader2, Package, RotateCcw, TrendingUp } from "lucide-react";
+import { DonationPolicyBanner } from "@/achadosperdidos/public/components/DonationPolicyBanner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { LostFoundItem } from "@/achadosperdidos/types";
@@ -74,6 +75,8 @@ export function PainelView({
           Veja o que está acontecendo com os itens perdidos e achados hoje.
         </p>
       </div>
+
+      <DonationPolicyBanner />
 
       {error ? <PublicErrorState message={error} onRetry={onRetry} /> : null}
 

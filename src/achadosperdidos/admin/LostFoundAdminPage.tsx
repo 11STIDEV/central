@@ -6,20 +6,24 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminEditItemDialog } from "@/achadosperdidos/admin/AdminEditItemDialog";
 import { AdminItemsTab } from "@/achadosperdidos/admin/AdminItemsTab";
 import { AdminPendingTab } from "@/achadosperdidos/admin/AdminPendingTab";
 import { AdminRegisterTab } from "@/achadosperdidos/admin/AdminRegisterTab";
 import { PendingClaimDetailDialog } from "@/achadosperdidos/admin/PendingClaimDetailDialog";
 import {
   createAdminItem,
+  editAdminItem,
   listAdminItems,
   listPendingClaimRequests,
+  promoteExpiredItemsToDonation,
+  releaseExpiredClaimReservations,
   reviewClaimRequest,
   updateAdminItem,
 } from "@/achadosperdidos/repository";
 import { toLostFoundError } from "@/achadosperdidos/errors";
 import { isLostFoundSupabaseConfigured } from "@/achadosperdidos/supabaseClient";
-import type { LostFoundClaimRequest, LostFoundItemStatus } from "@/achadosperdidos/types";
+import type { LostFoundClaimRequest, LostFoundItem, LostFoundItemStatus } from "@/achadosperdidos/types";
 
 type AdminTab = "pendencias" | "cadastro" | "itens";
 
@@ -47,6 +51,9 @@ export default function LostFoundAdminPage({ schoolId, reviewerIdentity, registe
   const [selectedClaim, setSelectedClaim] = useState<LostFoundClaimRequest | null>(null);
   const [claimDialogOpen, setClaimDialogOpen] = useState(false);
   const [reviewingClaim, setReviewingClaim] = useState(false);
+  const [editingItem, setEditingItem] = useState<LostFoundItem | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingSaving, setEditingSaving] = useState(false);
 
   const canRegister = Boolean(registeredByEmail.trim());
   const pendingCount = pendingClaims.length;
@@ -54,6 +61,16 @@ export default function LostFoundAdminPage({ schoolId, reviewerIdentity, registe
   async function loadData() {
     setLoading(true);
     try {
+      try {
+        await promoteExpiredItemsToDonation(schoolId);
+      } catch {
+        // Migration de doação pendente — não bloqueia o admin.
+      }
+      try {
+        await releaseExpiredClaimReservations(schoolId);
+      } catch {
+        // Não bloqueia o admin se a rotina de expiração falhar.
+      }
       const [itemsData, pendingData] = await Promise.all([
         listAdminItems(schoolId),
         listPendingClaimRequests(schoolId),
@@ -135,10 +152,59 @@ export default function LostFoundAdminPage({ schoolId, reviewerIdentity, registe
     }
   }
 
-  async function onUpdateStatus(itemId: string, status: LostFoundItemStatus) {
+  async function onEditItem(data: {
+    title: string;
+    keptImageUrls: string[];
+    newImageFiles: File[];
+  }) {
+    if (!editingItem) return;
+    setEditingSaving(true);
     try {
-      await updateAdminItem(itemId, { status, createdBy: reviewerIdentity });
-      toast.success("Status atualizado.");
+      await editAdminItem(editingItem.id, {
+        schoolId,
+        title: data.title,
+        keptImageUrls: data.keptImageUrls,
+        newImageFiles: data.newImageFiles,
+        editedBy: registeredByEmail.trim() || reviewerIdentity,
+      });
+      toast.success("Item atualizado e marcado como alterado.");
+      setEditDialogOpen(false);
+      setEditingItem(null);
+      await loadData();
+    } catch (error) {
+      toast.error(toLostFoundError(error, "Não foi possível salvar as alterações."));
+    } finally {
+      setEditingSaving(false);
+    }
+  }
+
+  function openEditItem(item: LostFoundItem) {
+    if (item.status === "returned" || item.returned_at) {
+      toast.error("Itens já entregues não podem ser editados.");
+      return;
+    }
+    if (item.status === "donation") {
+      toast.error("Itens encaminhados para doação não podem ser editados.");
+      return;
+    }
+    setEditingItem(item);
+    setEditDialogOpen(true);
+  }
+
+  async function onUpdateStatus(itemId: string, status: LostFoundItemStatus) {
+    if (status === "returned" && !registeredByEmail.trim()) {
+      toast.error("É necessário estar logado com e-mail para registrar a entrega do item.");
+      return;
+    }
+    try {
+      await updateAdminItem(itemId, {
+        status,
+        createdBy: reviewerIdentity,
+        ...(status === "returned"
+          ? { returnedByEmail: registeredByEmail.trim(), returnedBy: reviewerIdentity }
+          : {}),
+      });
+      toast.success(status === "returned" ? "Item marcado como devolvido." : "Status atualizado.");
       await loadData();
     } catch (error) {
       toast.error(toLostFoundError(error, "Não foi possível atualizar o status."));
@@ -151,12 +217,17 @@ export default function LostFoundAdminPage({ schoolId, reviewerIdentity, registe
   }
 
   async function onReviewClaim(claim: LostFoundClaimRequest, decision: "approved" | "rejected") {
+    if (decision === "approved" && !registeredByEmail.trim()) {
+      toast.error("É necessário estar logado com e-mail para registrar a entrega do item.");
+      return;
+    }
     setReviewingClaim(true);
     try {
       await reviewClaimRequest({
         requestId: claim.id,
         itemId: claim.item_id,
         reviewedBy: reviewerIdentity,
+        returnedByEmail: decision === "approved" ? registeredByEmail.trim() : undefined,
         decision,
       });
       toast.success(decision === "approved" ? "Reivindicação aprovada." : "Reivindicação rejeitada.");
@@ -192,6 +263,17 @@ export default function LostFoundAdminPage({ schoolId, reviewerIdentity, registe
 
   return (
     <div className="flex min-h-[calc(100vh-3.5rem)] flex-col">
+      <AdminEditItemDialog
+        item={editingItem}
+        open={editDialogOpen}
+        saving={editingSaving}
+        onOpenChange={(open) => {
+          setEditDialogOpen(open);
+          if (!open) setEditingItem(null);
+        }}
+        onSave={onEditItem}
+      />
+
       <PendingClaimDetailDialog
         claim={selectedClaim}
         open={claimDialogOpen}
@@ -263,7 +345,12 @@ export default function LostFoundAdminPage({ schoolId, reviewerIdentity, registe
           </TabsContent>
 
           <TabsContent value="itens" className="mt-0 h-full focus-visible:outline-none">
-            <AdminItemsTab items={items} formatDate={toBrDate} onUpdateStatus={(id, s) => void onUpdateStatus(id, s)} />
+            <AdminItemsTab
+              items={items}
+              formatDate={toBrDate}
+              onUpdateStatus={(id, s) => void onUpdateStatus(id, s)}
+              onEdit={openEditItem}
+            />
           </TabsContent>
         </div>
       </Tabs>
