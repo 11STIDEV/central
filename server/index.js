@@ -1420,8 +1420,8 @@ app.post("/api/agenda-cci/google-events", async (req, res) => {
     } catch (apiErr) {
       const msg = mensagemErroGoogle(apiErr);
       console.error("[google-calendar] Erro geral ao listar eventos do Google Calendar:", msg, apiErr?.response?.data || apiErr);
-      // Retorna sucesso com array vazio para resili├¬ncia no frontend, mas informando que houve falha
-      return res.json({ events: [], error: msg || "Erro de permiss├úo ou API no Google Calendar." });
+      // Retorna sucesso com array vazio para resiliência no frontend, mas informando que houve falha
+      return res.json({ events: [], error: msg || "Erro de permissão ou API no Google Calendar." });
     }
   } catch (err) {
     const msg = mensagemErroGoogle(err);
@@ -1447,10 +1447,10 @@ function obterNomeAmigavelSetor(setor) {
     secretaria: "Secretaria",
     financeiro: "DP / Financeiro",
     dp: "DP / Financeiro",
-    direcao: "Dire├º├úo",
+    direcao: "Direção",
     disciplinar: "Disciplinar",
     biblioteca: "Biblioteca",
-    servicosgerais: "Servi├ºos Gerais",
+    servicosgerais: "Serviços Gerais",
     almoxarifado: "Almoxarifado",
     primeirossocorros: "Primeiros Socorros",
     clat: "CLAT",
@@ -1460,8 +1460,8 @@ function obterNomeAmigavelSetor(setor) {
 }
 
 /**
- * Envia e-mail de notifica├º├úo de solu├º├úo de chamado via Gmail API (service account).
- * Disparado de forma ass├¡ncrona ÔÇö n├úo bloqueia a resposta HTTP.
+ * Envia e-mail de notificação de solução de chamado via Gmail API (service account).
+ * Disparado de forma assíncrona — não bloqueia a resposta HTTP.
  * @param {{ id: string, titulo: string, solicitante: string, solicitanteEmail: string, data: string, setorDestino?: string, solucao: { autor: string, texto: string, data: string } }} chamado
  */
 async function enviarEmailSolucaoChamado(chamado) {
@@ -1472,13 +1472,13 @@ async function enviarEmailSolucaoChamado(chamado) {
   ).trim();
 
   if (!remetente) {
-    console.warn("[email-chamado] EMAIL_REMETENTE n├úo configurado ÔÇö e-mail de solu├º├úo n├úo enviado.");
+    console.warn("[email-chamado] EMAIL_REMETENTE não configurado — e-mail de solução não enviado.");
     return;
   }
 
   const auth = getJwtParaEmail();
   if (!auth) {
-    console.warn("[email-chamado] Sem credenciais para enviar e-mail (EMAIL_REMETENTE ou service account n├úo configurado).");
+    console.warn("[email-chamado] Sem credenciais para enviar e-mail (EMAIL_REMETENTE ou service account não configurado).");
     return;
   }
 
@@ -1486,12 +1486,12 @@ async function enviarEmailSolucaoChamado(chamado) {
     await auth.authorize();
   } catch (e) {
     console.error("[email-chamado] Falha ao autorizar JWT Gmail:", e.message);
-    console.error("[email-chamado] Verifique se o escopo https://www.googleapis.com/auth/gmail.send est├í na delega├º├úo em todo o dom├¡nio.");
+    console.error("[email-chamado] Verifique se o escopo https://www.googleapis.com/auth/gmail.send está na delegação em todo o domínio.");
     return;
   }
 
   const destinatario = chamado.solicitanteEmail;
-  const assunto = `Ô£à Seu chamado [${chamado.id}] foi resolvido`;
+  const assunto = `✅ Seu chamado [${chamado.id}] foi resolvido`;
   const solucaoTexto = chamado.solucao?.texto || "";
   const dests = Array.isArray(chamado.setorDestino) ? chamado.setorDestino : [chamado.setorDestino || "setape"];
   const nomesSetores = dests.map(obterNomeAmigavelSetor).join(" & ");
@@ -1524,41 +1524,44 @@ async function enviarEmailSolucaoChamado(chamado) {
 <body>
   <div class="container">
     <div class="header">
-      <h1>Ô£à Chamado Resolvido</h1>
+      <h1>✅ Chamado Resolvido</h1>
     </div>
     <div class="body">
-      <p>Ol├í, <strong>${chamado.solicitante}</strong>!</p>
+      <p>Olá, <strong>${chamado.solicitante}</strong>!</p>
       <p>Seu chamado foi resolvido. Confira os detalhes abaixo:</p>
       <div class="info-box">
-        <p><strong>­ƒôî Chamado:</strong> ${chamado.titulo}</p>
-        <p><strong>­ƒåö ID:</strong> ${chamado.id}</p>
-        <p><strong>­ƒôà Aberto em:</strong> ${chamado.data}</p>
+        <p><strong>📌 Chamado:</strong> ${chamado.titulo}</p>
+        <p><strong>🆔 ID:</strong> ${chamado.id}</p>
+        <p><strong>📅 Aberto em:</strong> ${chamado.data}</p>
       </div>
-      <p><strong>Ô£à Solu├º├úo registrada por ${solucaoAutor}${solucaoData ? ` em ${solucaoData}` : ""}:</strong></p>
+      <p><strong>✅ Solução registrada por ${solucaoAutor}${solucaoData ? ` em ${solucaoData}` : ""}:</strong></p>
       <div class="solution-box">${solucaoTexto}</div>
-      <p>Se tiver d├║vidas, acesse a intranet e consulte o chamado.</p>
+      <p>Se tiver dúvidas, acesse a intranet e consulte o chamado.</p>
     </div>
-    <div class="footer">Este ├® um e-mail autom├ítico da Intranet CCI. N├úo responda este e-mail.</div>
+    <div class="footer">Este é um e-mail automático da Intranet CCI. Não responda este e-mail.</div>
   </div>
 </body>
 </html>`;
 
-  // Monta a mensagem RFC 2822 em Base64url
+  const htmlBase64 = Buffer.from(htmlBody, "utf-8").toString("base64");
+  const subjectBase64 = Buffer.from(assunto, "utf-8").toString("base64");
+
   const rawMessage = [
     `From: Intranet CCI <${remetente}>`,
     `To: ${destinatario}`,
     `Reply-To: ${remetente}`,
-    `Subject: =?UTF-8?B?${Buffer.from(assunto).toString("base64")}?=`,
+    `Subject: =?UTF-8?B?${subjectBase64}?=`,
     "MIME-Version: 1.0",
     'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
     "X-Mailer: Intranet-CCI/1.0",
     "X-Auto-Submitted: auto-generated",
     "Precedence: transactional",
     "",
-    htmlBody,
+    htmlBase64,
   ].join("\r\n");
 
-  const encoded = Buffer.from(rawMessage)
+  const encoded = Buffer.from(rawMessage, "utf-8")
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
@@ -1570,7 +1573,7 @@ async function enviarEmailSolucaoChamado(chamado) {
       userId: remetente,
       requestBody: { raw: encoded },
     });
-    console.log(`[email-chamado] E-mail de solu├º├úo enviado para ${destinatario} (chamado ${chamado.id}).`);
+    console.log(`[email-chamado] E-mail de solução enviado para ${destinatario} (chamado ${chamado.id}).`);
   } catch (e) {
     console.error(`[email-chamado] Falha ao enviar e-mail para ${destinatario}:`, e.message);
   }
@@ -1584,7 +1587,7 @@ async function enviarEmailNovoChamado(chamado) {
   ).trim();
 
   if (!remetente) {
-    console.warn("[email-novo-chamado] EMAIL_REMETENTE n├úo configurado ÔÇö e-mail de aviso de novo chamado n├úo enviado.");
+    console.warn("[email-novo-chamado] EMAIL_REMETENTE não configurado — e-mail de aviso de novo chamado não enviado.");
     return;
   }
 
@@ -1602,18 +1605,18 @@ async function enviarEmailNovoChamado(chamado) {
   }
 
   const SETOR_EMAILS = {
-    setape: ["setape@portalcci.com.br"],
-    secretaria: ["atendimento@portalcci.com.br"],
-    dp: ["dp@portalcci.com.br", "financeiro@portalcci.com.br"],
-    financeiro: ["dp@portalcci.com.br", "financeiro@portalcci.com.br"],
-    direcao: ["dir@portalcci.com.br"],
-    disciplinar: ["disciplinar@portalcci.com.br"],
-    biblioteca: ["biblioteca@portalcci.com.br"],
-    servicosgerais: ["sgerais@portalcci.com.br"],
-    almoxarifado: ["almoxarifado@portalcci.com.br"],
-    primeirossocorros: ["enfermaria@portalcci.com.br"],
-    clat: ["equipeclat@clat.com.br"],
-    publicidade: ["publicidade@portalcci.com.br"],
+    setape: process.env.EMAIL_SETOR_SETAPE ? process.env.EMAIL_SETOR_SETAPE.split(",").map((s) => s.trim()) : ["setape@portalcci.com.br"],
+    secretaria: process.env.EMAIL_SETOR_SECRETARIA ? process.env.EMAIL_SETOR_SECRETARIA.split(",").map((s) => s.trim()) : ["atendimento@portalcci.com.br"],
+    dp: process.env.EMAIL_SETOR_DP ? process.env.EMAIL_SETOR_DP.split(",").map((s) => s.trim()) : ["dp@portalcci.com.br", "financeiro@portalcci.com.br"],
+    financeiro: process.env.EMAIL_SETOR_FINANCEIRO ? process.env.EMAIL_SETOR_FINANCEIRO.split(",").map((s) => s.trim()) : ["dp@portalcci.com.br", "financeiro@portalcci.com.br"],
+    direcao: process.env.EMAIL_SETOR_DIRECAO ? process.env.EMAIL_SETOR_DIRECAO.split(",").map((s) => s.trim()) : ["dir@portalcci.com.br"],
+    disciplinar: process.env.EMAIL_SETOR_DISCIPLINAR ? process.env.EMAIL_SETOR_DISCIPLINAR.split(",").map((s) => s.trim()) : ["disciplinar@portalcci.com.br"],
+    biblioteca: process.env.EMAIL_SETOR_BIBLIOTECA ? process.env.EMAIL_SETOR_BIBLIOTECA.split(",").map((s) => s.trim()) : ["biblioteca@portalcci.com.br"],
+    servicosgerais: process.env.EMAIL_SETOR_SERVICOSGERAIS ? process.env.EMAIL_SETOR_SERVICOSGERAIS.split(",").map((s) => s.trim()) : ["sgerais@portalcci.com.br"],
+    almoxarifado: process.env.EMAIL_SETOR_ALMOXARIFADO ? process.env.EMAIL_SETOR_ALMOXARIFADO.split(",").map((s) => s.trim()) : ["almoxarifado@portalcci.com.br"],
+    primeirossocorros: process.env.EMAIL_SETOR_PRIMEIROSSOCORROS ? process.env.EMAIL_SETOR_PRIMEIROSSOCORROS.split(",").map((s) => s.trim()) : ["enfermaria@portalcci.com.br"],
+    clat: process.env.EMAIL_SETOR_CLAT ? process.env.EMAIL_SETOR_CLAT.split(",").map((s) => s.trim()) : ["equipeclat@clat.com.br"],
+    publicidade: process.env.EMAIL_SETOR_PUBLICIDADE ? process.env.EMAIL_SETOR_PUBLICIDADE.split(",").map((s) => s.trim()) : ["publicidade@portalcci.com.br"],
   };
 
   const dests = Array.isArray(chamado.setorDestino) ? chamado.setorDestino : [chamado.setorDestino || "setape"];
@@ -1633,7 +1636,7 @@ async function enviarEmailNovoChamado(chamado) {
   }
 
   const destinatarioStr = destinatariosUnicos.join(", ");
-  const assunto = `­ƒöö Novo chamado aberto: [${chamado.id}] - ${chamado.titulo}`;
+  const assunto = `🔔 Novo chamado aberto: [${chamado.id}] - ${chamado.titulo}`;
   
   const nomesSetores = dests.map(obterNomeAmigavelSetor).join(" & ");
   
@@ -1656,44 +1659,49 @@ async function enviarEmailNovoChamado(chamado) {
 <body>
   <div class="container">
     <div class="header">
-      <h1>­ƒöö Novo Chamado Aberto</h1>
+      <h1>🔔 Novo Chamado Aberto</h1>
     </div>
     <div class="body">
       <p>Um novo chamado foi aberto por <strong>${chamado.solicitante}</strong> (${chamado.solicitanteEmail}).</p>
       
       <div class="info-box">
-        <p><strong>­ƒôî ID:</strong> ${chamado.id}</p>
-        <p><strong>­ƒôï Solicita├º├úo:</strong> ${chamado.titulo}</p>
-        <p><strong>­ƒÅó Setor Destino:</strong> ${nomesSetores}</p>
-        <p><strong>ÔÜá´©Å Prioridade:</strong> ${chamado.prioridade ? chamado.prioridade.toUpperCase() : "M├ëDIA"}</p>
-        <p><strong>­ƒôà Data:</strong> ${chamado.data}</p>
+        <p><strong>📌 ID:</strong> ${chamado.id}</p>
+        <p><strong>📋 Solicitação:</strong> ${chamado.titulo}</p>
+        <p><strong>🏷️ Categoria:</strong> ${chamado.categoria || "Geral"}</p>
+        <p><strong>🏢 Setor Destino:</strong> ${nomesSetores}</p>
+        <p><strong>⚠️ Prioridade:</strong> ${chamado.prioridade ? chamado.prioridade.toUpperCase() : "MÉDIA"}</p>
+        <p><strong>📅 Data:</strong> ${chamado.data}</p>
       </div>
 
-      <p><strong>­ƒôØ Descri├º├úo:</strong></p>
-      <div class="desc-box">${chamado.descricao || "Sem descri├º├úo."}</div>
+      <p><strong>📝 Descrição:</strong></p>
+      <div class="desc-box">${chamado.descricao || "Sem descrição."}</div>
       
-      <p>Acesse a Gest├úo de Chamados na intranet para visualizar e interagir com este chamado.</p>
+      <p>Acesse a Gestão de Chamados na intranet para visualizar e interagir com este chamado.</p>
     </div>
-    <div class="footer">Este ├® um e-mail autom├ítico da Intranet CCI. N├úo responda este e-mail.</div>
+    <div class="footer">Este é um e-mail automático da Intranet CCI. Não responda este e-mail.</div>
   </div>
 </body>
 </html>`;
+
+  const htmlBase64 = Buffer.from(htmlBody, "utf-8").toString("base64");
+  const subjectBase64 = Buffer.from(assunto, "utf-8").toString("base64");
 
   const rawMessage = [
     `From: Intranet CCI <${remetente}>`,
     `To: ${destinatarioStr}`,
     `Reply-To: ${remetente}`,
-    `Subject: =?UTF-8?B?${Buffer.from(assunto).toString("base64")}?=`,
+    `Subject: =?UTF-8?B?${subjectBase64}?=`,
     "MIME-Version: 1.0",
     'Content-Type: text/html; charset="UTF-8"',
+    "Content-Transfer-Encoding: base64",
     "X-Mailer: Intranet-CCI/1.0",
     "X-Auto-Submitted: auto-generated",
     "Precedence: transactional",
     "",
-    htmlBody,
+    htmlBase64,
   ].join("\r\n");
 
-  const encoded = Buffer.from(rawMessage)
+  const encoded = Buffer.from(rawMessage, "utf-8")
     .toString("base64")
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
@@ -1705,7 +1713,7 @@ async function enviarEmailNovoChamado(chamado) {
       userId: remetente,
       requestBody: { raw: encoded },
     });
-    console.log(`[email-novo-chamado] E-mail de notifica├º├úo de novo chamado enviado para ${destinatarioStr} (chamado ${chamado.id}).`);
+    console.log(`[email-novo-chamado] E-mail de notificação de novo chamado enviado para ${destinatarioStr} (chamado ${chamado.id}).`);
   } catch (e) {
     console.error(`[email-novo-chamado] Falha ao enviar e-mail para ${destinatarioStr}:`, e.message);
   }
@@ -2122,17 +2130,28 @@ app.post("/api/chamados/atualizar", async (req, res) => {
       atualizado.reaberturas = sanitizarReaberturas(chamado.reaberturas);
     }
 
-    // Detecta se a solu├º├úo foi adicionada agora (antes n├úo existia, agora existe)
+    // Detecta se a solução foi adicionada agora (antes não existia, agora existe)
     const solucaoEraAusente = !existente.solucao;
     const solucaoFoiAdicionada = Boolean(atualizado.solucao);
 
+    // Detecta se o setorDestino mudou para notificar os novos setores destinatários
+    const setoresAntigos = (existente.setorDestino || []).sort().join(",");
+    const setoresNovos = (atualizado.setorDestino || []).sort().join(",");
+    const setorFoiAlterado = setoresAntigos !== setoresNovos;
+
     await atualizarChamado(supabase, atualizado);
 
-    // Dispara e-mail de solu├º├úo de forma ass├¡ncrona (n├úo bloqueia a resposta)
+    // Dispara e-mail de solução de forma assíncrona (não bloqueia a resposta)
     if (solucaoEraAusente && solucaoFoiAdicionada) {
       setImmediate(() =>
         enviarEmailSolucaoChamado(atualizado).catch((e) =>
           console.error("[email-chamado] Erro inesperado:", e.message)
+        )
+      );
+    } else if (setorFoiAlterado) {
+      setImmediate(() =>
+        enviarEmailNovoChamado(atualizado).catch((e) =>
+          console.error("[email-novo-chamado] Erro ao notificar novo setor:", e.message)
         )
       );
     }
