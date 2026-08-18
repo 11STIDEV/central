@@ -2770,6 +2770,11 @@ async function criarUsuarioGoogleWorkspace(email, nome, sobrenome, senhaProvisor
 }
 
 
+app.get(["/api/webhooks/ischolar", "/webhooks/ischolar"], (req, res) => {
+  console.log(`[webhook-ischolar] GET Ping/Teste de validação em ${req.originalUrl}`);
+  return res.json({ ok: true, active: true, message: "Webhook iScholar ativo e aguardando eventos." });
+});
+
 app.post(["/api/webhooks/ischolar", "/webhooks/ischolar"], async (req, res) => {
   const payload = {
     timestamp: new Date().toISOString(),
