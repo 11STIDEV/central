@@ -70,6 +70,7 @@ const HOST = process.env.HOST || "0.0.0.0";
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: "2mb" }));
+app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
 /** Um ou mais sufixos permitidos, separados por v├¡rgula. Alinhar ao front (`AuthProvider`) e ao `server/.env.example`. */
 function parseDominiosPermitidos() {
@@ -2769,7 +2770,7 @@ async function criarUsuarioGoogleWorkspace(email, nome, sobrenome, senhaProvisor
 }
 
 
-app.post("/api/webhooks/ischolar", async (req, res) => {
+app.post(["/api/webhooks/ischolar", "/webhooks/ischolar"], async (req, res) => {
   const payload = {
     timestamp: new Date().toISOString(),
     headers: req.headers,
@@ -2777,41 +2778,51 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
     body: req.body,
     automacao: {
       status: "sem_acao",
-      motivo: "Evento n├úo processado por este webhook"
+      motivo: "Evento não processado por este webhook"
     }
   };
 
   try {
-    const evento = req.body?.evento || req.body?.event;
-    console.log(`[webhook-ischolar] Recebido webhook do iScholar: ${evento}`);
+    const rawEvento = req.body?.evento || req.body?.event || req.body?.type || req.body?.action || "";
+    const evento = String(rawEvento).trim().toLowerCase();
+    
+    const dadosDepois = req.body?.data?.depois || req.body?.depois || req.body?.data || req.body;
+    const idAluno = dadosDepois?.id_aluno || req.body?.id_aluno || req.body?.aluno_id;
+    const idMatricula = dadosDepois?.id_matricula || req.body?.id_matricula;
+    const idTurma = dadosDepois?.id_turma || req.body?.id_turma;
 
-    if (evento === "secretaria.matriculas.novo") {
-      const dadosDepois = req.body?.data?.depois;
-      const idAluno = dadosDepois?.id_aluno;
-      const idMatricula = dadosDepois?.id_matricula;
-      const idTurma = dadosDepois?.id_turma;
+    console.log(`[webhook-ischolar] Recebido webhook em ${req.originalUrl}: evento="${rawEvento}", idAluno=${idAluno || "N/A"}`);
 
+    const ehEventoMatricula =
+      evento === "secretaria.matriculas.novo" ||
+      evento === "secretaria.matricula.novo" ||
+      evento === "secretaria.matriculas.criado" ||
+      evento === "secretaria.matricula.criado" ||
+      evento.includes("matricula") ||
+      Boolean(idAluno);
+
+    if (ehEventoMatricula) {
       if (!idAluno) {
         payload.automacao = {
           status: "erro",
           motivo: "id_aluno ausente no payload"
         };
       } else {
-        console.log(`[webhook-ischolar] Buscando matr├¡cula do aluno ${idAluno}...`);
+        console.log(`[webhook-ischolar] Buscando matrícula do aluno ${idAluno}...`);
         const infoMatricula = await obterMatriculaIscholar(idAluno);
         const matricula = infoMatricula.dados?.[0];
 
         if (!matricula) {
           payload.automacao = {
             status: "erro",
-            motivo: `Nenhuma matr├¡cula encontrada para o aluno ID ${idAluno}`
+            motivo: `Nenhuma matrícula encontrada para o aluno ID ${idAluno}`
           };
         } else {
           const nomeAluno = matricula.nome_aluno || "";
           const periodo = matricula.periodo || "";
           const nomeTurma = matricula.nome_turma || "";
 
-          // Normalizar para compara├º├Áes seguras
+          // Normalizar para comparações seguras
           const normalizarTexto = (txt) => {
             return (txt || "")
               .toUpperCase()
@@ -2825,7 +2836,7 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
           const tCursoRef = normalizarTexto(matricula.curso || "");
           const tModalidade = normalizarTexto(matricula.modalidade || "");
 
-          // 1. Filtrar Per├¡odos Letivos
+          // 1. Filtrar Períodos Letivos
           const periodosIgnorados = ["P1NEGOCCIA", "PEC 2026", "ESTAGIO OBRIGT FACS"];
           const deveIgnorarPeriodo = periodosIgnorados.some(p => tPeriodo.includes(p));
 
@@ -2843,21 +2854,21 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
           const deveIgnorarTurma = termosTurmasIgnorados.some(termo => tTurma.includes(termo));
 
           if (deveIgnorarPeriodo) {
-            console.log(`[webhook-ischolar] Descartado aluno ${nomeAluno}: Per├¡odo letivo ${periodo} ignorado.`);
+            console.log(`[webhook-ischolar] Descartado aluno ${nomeAluno}: Período letivo ${periodo} ignorado.`);
             payload.automacao = {
               status: "ignorado",
-              motivo: `Per├¡odo letivo "${periodo}" est├í na lista de exclus├úo.`,
+              motivo: `Período letivo "${periodo}" está na lista de exclusão.`,
               aluno: nomeAluno
             };
           } else if (deveIgnorarTurma) {
             console.log(`[webhook-ischolar] Descartado aluno ${nomeAluno}: Turma ${nomeTurma} ignorada.`);
             payload.automacao = {
               status: "ignorado",
-              motivo: `Turma "${nomeTurma}" est├í na lista de exclus├úo (extracurricular/especial).`,
+              motivo: `Turma "${nomeTurma}" está na lista de exclusão (extracurricular/especial).`,
               aluno: nomeAluno
             };
           } else {
-            // Determinar o dom├¡nio correto do e-mail e unidade organizacional (OU)
+            // Determinar o domínio correto do e-mail e unidade organizacional (OU)
             let dominioEmail = "";
             let orgUnitPath = "";
             if (tTurma.includes("TECNICO") || tCurso.includes("TECNICO") || tCursoRef.includes("TECNICO")) {
@@ -2885,15 +2896,13 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
               orgUnitPath = "/Alunos REGULAR";
             }
 
-
-            // Obter n├║mero de matr├¡cula (numero_re)
+            // Obter número de matrícula (numero_re)
             const numeroRe = (matricula.numero_re || dadosDepois?.numero_re || "").trim();
 
             // Gerar local part (username) do e-mail
             const localPart = gerarEmailLocalPart(nomeAluno, numeroRe);
             const emailCandidato = `${localPart}${dominioEmail}`;
             const senhaProvisoria = "cci@2026";
-
 
             console.log(`[webhook-ischolar] Criando e-mail ${emailCandidato} no Google Workspace...`);
             
@@ -2913,9 +2922,9 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
               erroWorkspace = errGoogle.message;
               console.error(`[webhook-ischolar] Erro ao criar conta no Google Workspace:`, erroWorkspace);
               
-              // Se for um erro de duplicidade (409), podemos considerar que a conta j├í existe e atualizar no iScholar mesmo assim
+              // Se for um erro de duplicidade (409), podemos considerar que a conta já existe e atualizar no iScholar mesmo assim
               if (errGoogle.code === 409 || erroWorkspace.includes("Entity already exists") || erroWorkspace.includes("already exists")) {
-                console.log(`[webhook-ischolar] A conta ${emailCandidato} j├í existe no Google Workspace. Prosseguindo com o v├¡nculo.`);
+                console.log(`[webhook-ischolar] A conta ${emailCandidato} já existe no Google Workspace. Prosseguindo com o vínculo.`);
                 contaCriada = true;
               }
             }
@@ -2931,7 +2940,7 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
                 aluno: nomeAluno,
                 turma: nomeTurma,
                 periodo: periodo,
-                warning: erroWorkspace ? `Conta j├í existia no Workspace: ${erroWorkspace}` : null
+                warning: erroWorkspace ? `Conta já existia no Workspace: ${erroWorkspace}` : null
               };
             } else {
               payload.automacao = {
@@ -2944,16 +2953,18 @@ app.post("/api/webhooks/ischolar", async (req, res) => {
           }
         }
       }
+    } else {
+      console.log(`[webhook-ischolar] Evento não processado: "${rawEvento}". Body keys: ${Object.keys(req.body || {}).join(", ")}`);
     }
   } catch (e) {
-    console.error("[webhook-ischolar] Erro geral ao processar automa├º├úo:", e);
+    console.error("[webhook-ischolar] Erro geral ao processar automação:", e);
     payload.automacao = {
       status: "erro",
       motivo: `Erro geral no processamento: ${e.message}`
     };
   }
 
-  // Salvar o log no arquivo local (mantendo os ├║ltimos 100 logs)
+  // Salvar o log no arquivo local (mantendo os últimos 100 logs)
   try {
     const logPath = path.join(__dirname, "webhook-logs.json");
     let logs = [];
