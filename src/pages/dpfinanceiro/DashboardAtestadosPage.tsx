@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { PageHero } from "@/components/PageHero";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,7 +21,8 @@ import {
   SlidersHorizontal,
   LayoutList,
   LayoutGrid,
-  Briefcase
+  Briefcase,
+  Trash2
 } from "lucide-react";
 
 export interface AtestadoItem {
@@ -38,6 +39,8 @@ export interface AtestadoItem {
   status: "Homologado" | "Em Análise" | "Encaminhado INSS" | "Rejeitado";
   observacao?: string;
 }
+
+const LOCAL_STORAGE_KEY = "dp_atestados_data_cache_v1";
 
 const MOCK_ATESTADOS: AtestadoItem[] = [
   // Almoxarifado
@@ -110,7 +113,7 @@ const MOCK_ATESTADOS: AtestadoItem[] = [
   }
 ];
 
-// Parser inteligente de linhas CSV
+// Parser de linhas CSV
 function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let current = '';
@@ -188,7 +191,6 @@ export default function DashboardAtestadosPage() {
   const [rawCSVHeaders, setRawCSVHeaders] = useState<string[]>([]);
   const [rawCSVRows, setRawCSVRows] = useState<string[][]>([]);
 
-  // Visão em Lista por padrão
   const [visualizacao, setVisualizacao] = useState<"lista" | "cards">("lista");
 
   const [mapping, setMapping] = useState({
@@ -205,7 +207,97 @@ export default function DashboardAtestadosPage() {
   const [carregandoSync, setCarregandoSync] = useState(false);
   const [menssagemSync, setMenssagemSync] = useState<{ tipo: "sucesso" | "erro" | "info"; texto: string } | null>(null);
 
-  const reprocessarCSV = (rows: string[][], mapObj: typeof mapping) => {
+  // 1. CARREGAR DADOS PERSISTIDOS NO STARTUP (localStorage + Server)
+  useEffect(() => {
+    // Tenta carregar do localStorage do navegador
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.atestados && parsed.atestados.length > 0) {
+          setAtestados(parsed.atestados);
+          if (parsed.headers) setRawCSVHeaders(parsed.headers);
+          if (parsed.rows) setRawCSVRows(parsed.rows);
+          if (parsed.mapping) setMapping(parsed.mapping);
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn("Erro ao ler localStorage de atestados:", e);
+    }
+
+    // Se não tiver local, busca do servidor
+    void carregarDoServidor();
+  }, []);
+
+  const carregarDoServidor = async () => {
+    try {
+      const res = await fetch("/api/dp-financeiro/atestados");
+      const data = await res.json();
+      if (data.success && Array.isArray(data.rows) && data.rows.length > 0) {
+        const headers = data.headers || data.rows[0].map((h: any) => String(h || ''));
+        const rows = data.headers ? data.rows : data.rows.slice(1);
+
+        setRawCSVHeaders(headers);
+        setRawCSVRows(rows);
+
+        const detected = autoDetectColumns(headers, rows[0] || []);
+        setMapping(detected);
+        reprocessarCSV(rows, detected, false);
+      }
+    } catch {
+      // usa mock padrão
+    }
+  };
+
+  // Persistir dados no servidor e localStorage
+  const salvarPersistencia = (novosAtestados: AtestadoItem[], rows: string[][], headers: string[], mapObj: typeof mapping) => {
+    // 1. Salvar no localStorage do navegador
+    try {
+      localStorage.setItem(
+        LOCAL_STORAGE_KEY,
+        JSON.stringify({
+          atestados: novosAtestados,
+          rows,
+          headers,
+          mapping: mapObj,
+          savedAt: new Date().toISOString()
+        })
+      );
+    } catch (e) {
+      console.warn("Erro ao salvar no localStorage:", e);
+    }
+
+    // 2. Salvar no backend (para outros computadores/usuários)
+    fetch("/api/dp-financeiro/atestados", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rows, headers, title: "Planilha Importada de Atestados" })
+    }).catch(err => console.warn("Erro ao persistir no servidor:", err));
+  };
+
+  // Limpar dados salvos
+  const limparDadosSalvos = async () => {
+    localStorage.removeItem(LOCAL_STORAGE_KEY);
+    setAtestados(MOCK_ATESTADOS);
+    setRawCSVHeaders([]);
+    setRawCSVRows([]);
+    setMostrarConfigurador(false);
+    
+    try {
+      await fetch("/api/dp-financeiro/atestados", { method: "DELETE" });
+    } catch {
+      // ignore
+    }
+
+    setMenssagemSync({
+      tipo: "info",
+      texto: "Dados importados limpos. Exibindo dados padrão."
+    });
+  };
+
+  // Reprocessar CSV
+  const reprocessarCSV = (rows: string[][], mapObj: typeof mapping, persistir = true) => {
     const processados: AtestadoItem[] = [];
 
     for (let i = 0; i < rows.length; i++) {
@@ -236,9 +328,12 @@ export default function DashboardAtestadosPage() {
 
     if (processados.length > 0) {
       setAtestados(processados);
+      if (persistir) {
+        salvarPersistencia(processados, rows, rawCSVHeaders, mapObj);
+      }
       setMenssagemSync({
         tipo: "sucesso",
-        texto: `${processados.length} registros importados com sucesso!`
+        texto: `${processados.length} registros importados e SALVOS com sucesso! Os dados continuarão salvos mesmo ao navegar entre páginas.`
       });
     }
   };
@@ -265,7 +360,7 @@ export default function DashboardAtestadosPage() {
       setMapping(detected);
       setMostrarConfigurador(true);
 
-      reprocessarCSV(dataRows, detected);
+      reprocessarCSV(dataRows, detected, true);
     };
 
     reader.readAsText(file, "UTF-8");
@@ -276,7 +371,7 @@ export default function DashboardAtestadosPage() {
     const updated = { ...mapping, [field]: val };
     setMapping(updated);
     if (rawCSVRows.length > 0) {
-      reprocessarCSV(rawCSVRows, updated);
+      reprocessarCSV(rawCSVRows, updated, true);
     }
   };
 
@@ -288,16 +383,16 @@ export default function DashboardAtestadosPage() {
       const data = await res.json();
       
       if (data.success && Array.isArray(data.rows) && data.rows.length > 1) {
-        const headers = data.rows[0].map((h: any) => String(h || ''));
-        const dataRows = data.rows.slice(1).map((r: any) => r.map((c: any) => String(c || '').trim()));
-        
+        const headers = data.headers || data.rows[0].map((h: any) => String(h || ''));
+        const dataRows = data.headers ? data.rows : data.rows.slice(1);
+
         setRawCSVHeaders(headers);
         setRawCSVRows(dataRows);
 
         const detected = autoDetectColumns(headers, dataRows[0] || []);
         setMapping(detected);
 
-        reprocessarCSV(dataRows, detected);
+        reprocessarCSV(dataRows, detected, true);
       } else {
         setMenssagemSync({
           tipo: "info",
@@ -334,7 +429,7 @@ export default function DashboardAtestadosPage() {
     return Array.from(s).filter(Boolean).sort();
   }, [atestados]);
 
-  // 🏆 RANKING TOP 3 ORDENADO PRINCIPALMENTE POR DIAS DE AFASTAMENTO
+  // 🏆 RANKING TOP 3 POR SETOR (ORDENADO POR DIAS DE AFASTAMENTO)
   const rankingTop3PorSetor = useMemo(() => {
     const sectorMap = new Map<string, Map<string, { funcionario: string; empresa: string; count: number; totalDias: number }>>();
 
@@ -368,7 +463,6 @@ export default function DashboardAtestadosPage() {
     }> = [];
 
     sectorMap.forEach((empMap, setor) => {
-      // Ordenação prioritária por DIAS de afastamento (decrescente)
       const list = Array.from(empMap.values()).sort((a, b) => {
         if (b.totalDias !== a.totalDias) return b.totalDias - a.totalDias;
         return b.count - a.count;
@@ -425,7 +519,7 @@ export default function DashboardAtestadosPage() {
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
         
-        {/* Barra Principal de Upload & Alternador de Visão */}
+        {/* Barra Principal de Upload & Persistência */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-xl bg-card border border-border/60 shadow-xs">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
@@ -434,9 +528,14 @@ export default function DashboardAtestadosPage() {
             <div>
               <h3 className="font-semibold text-foreground text-sm flex items-center gap-2">
                 Planilha de Atestados DP
+                {rawCSVRows.length > 0 && (
+                  <Badge variant="outline" className="text-[11px] bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                    Dados Salvos
+                  </Badge>
+                )}
               </h3>
               <p className="text-xs text-muted-foreground">
-                {rawCSVRows.length > 0 ? `${rawCSVRows.length} linhas importadas` : "Dados demonstrativos"}
+                {rawCSVRows.length > 0 ? `${rawCSVRows.length} linhas persistidas` : "Dados demonstrativos"}
               </p>
             </div>
           </div>
@@ -485,15 +584,28 @@ export default function DashboardAtestadosPage() {
             </label>
 
             {rawCSVHeaders.length > 0 && (
-              <Button
-                variant={mostrarConfigurador ? "secondary" : "outline"}
-                size="sm"
-                onClick={() => setMostrarConfigurador(!mostrarConfigurador)}
-                className="gap-1.5 text-xs"
-              >
-                <SlidersHorizontal className="h-3.5 w-3.5" />
-                Ajustar Colunas
-              </Button>
+              <>
+                <Button
+                  variant={mostrarConfigurador ? "secondary" : "outline"}
+                  size="sm"
+                  onClick={() => setMostrarConfigurador(!mostrarConfigurador)}
+                  className="gap-1.5 text-xs"
+                >
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  Ajustar Colunas
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={limparDadosSalvos}
+                  className="gap-1.5 text-xs text-red-600 hover:text-red-700 hover:bg-red-500/10"
+                  title="Limpar dados salvos e restaurar padrão"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Limpar Salvos
+                </Button>
+              </>
             )}
           </div>
         </div>
@@ -666,7 +778,7 @@ export default function DashboardAtestadosPage() {
             </Badge>
           </div>
 
-          {/* VISÃO EM LISTA (APENAS OS DIAS DE AFASTAMENTO DESTACADOS EM DESTAQUE) */}
+          {/* VISÃO EM LISTA */}
           {visualizacao === "lista" ? (
             <div className="space-y-4">
               {rankingTop3PorSetor.length > 0 ? (
