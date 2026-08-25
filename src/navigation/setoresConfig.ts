@@ -117,6 +117,9 @@ export const SETORES_CONFIG: SetorConfig[] = [
     temLinks: true,
     temKanban: true,
     descricao: "RH, folha e rotinas financeiras.",
+    extras: [
+      { title: "Dashboard de Atestados", url: "/dp-financeiro/atestados", icon: FileText },
+    ],
   },
   {
     id: "setores-primeiros-socorros",
@@ -355,6 +358,7 @@ function shortToolLabel(fullTitle: string): string {
   if (fullTitle === "Totem") return "Totem";
   if (fullTitle === "Painel TV") return "Painel TV";
   if (fullTitle.startsWith("Administração")) return "Senhas admin";
+  if (fullTitle.includes("Atestados")) return "Atestados";
   return fullTitle;
 }
 

@@ -68,6 +68,7 @@ export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/setores/servicos-gerais": ["servicosgerais"],
   "/setores/publicidade": ["publicidade"],
   "/setores/dp-financeiro": ["dp", "financeiro"],
+  "/dp-financeiro/atestados": ["dp", "financeiro", "gerente_dp", "gerente_financeiro"],
   "/setores/primeiros-socorros": ["primeirossocorros"],
   "/setores/direcao": ["direcao"],
   "/setores/clat": ["clat"],

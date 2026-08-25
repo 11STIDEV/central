@@ -25,6 +25,7 @@ import {
 import { registerSetorLinksRoutes } from "./setorLinks.js";
 import { registerCcipayRoutes } from "./ccipayRoutes.js";
 import { registerCcipayParceiroRoutes } from "./ccipayParceiroRoutes.js";
+import { registerAtestadosRoutes } from "./atestadosRoutes.js";
 import { createRequestAuth } from "./requestAuth.js";
 import {
   encerrarSessaoRequest,
@@ -71,6 +72,8 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+
+registerAtestadosRoutes(app);
 
 /** Um ou mais sufixos permitidos, separados por v├¡rgula. Alinhar ao front (`AuthProvider`) e ao `server/.env.example`. */
 function parseDominiosPermitidos() {

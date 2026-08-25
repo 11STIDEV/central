@@ -25,6 +25,7 @@ import ControleMateriaisTI from "./pages/ControleMateriaisTI";
 import ControleMateriaisAlmoxarifado from "./pages/ControleMateriaisAlmoxarifado";
 import ValeAdiantamento from "./pages/ValeAdiantamento";
 import FinanceiroValesAdiantamento from "./pages/FinanceiroValesAdiantamento";
+import DashboardAtestadosPage from "./pages/dpfinanceiro/DashboardAtestadosPage";
 import CcipayHub from "./pages/CcipayHub";
 import CcipayLancamentos from "./pages/CcipayLancamentos";
 import CcipayLoja from "./pages/CcipayLoja";
@@ -167,6 +168,14 @@ function CentralIntranetApp() {
                 element={
                   <RequireRouteAccess>
                     <FinanceiroValesAdiantamento />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/dp-financeiro/atestados"
+                element={
+                  <RequireRouteAccess>
+                    <DashboardAtestadosPage />
                   </RequireRouteAccess>
                 }
               />
