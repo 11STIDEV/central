@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { PageHero } from "@/components/PageHero";
-import { BookOpen, Key, Eye, EyeOff, Copy, Search, Plus, Lock, School, Upload, CheckCircle2, XCircle, Loader2, Users, RefreshCw, AlertCircle, Check, FileText, ChevronDown, FileSpreadsheet } from "lucide-react";
+import { BookOpen, Key, Eye, EyeOff, Copy, Search, Plus, Lock, School, Upload, CheckCircle2, XCircle, Loader2, Users, RefreshCw, AlertCircle, Check, FileText, ChevronDown, FileSpreadsheet, Server } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { apiUrl } from "@/lib/apiBase";
+import { AlterdataTester } from "@/components/ti/AlterdataTester";
 
 const tutoriaisInternos = [
   {
@@ -38,7 +39,7 @@ const senhasCompartilhadas = [
 
 export default function AreaTI() {
   const { googleIdToken } = useAuth();
-  const [tab, setTab] = useState<"tutoriais" | "senhas" | "classroom">("tutoriais");
+  const [tab, setTab] = useState<"tutoriais" | "senhas" | "classroom" | "alterdata">("tutoriais");
   const [visiblePasswords, setVisiblePasswords] = useState<Set<number>>(new Set());
   const [search, setSearch] = useState("");
   const [selectedTutorial, setSelectedTutorial] = useState<number | null>(null);
@@ -696,6 +697,15 @@ export default function AreaTI() {
             <School className="h-4 w-4" />
             Criar Turmas Classroom
           </button>
+          <button
+            onClick={() => { setTab("alterdata"); setSelectedTutorial(null); }}
+            className={`flex flex-1 items-center justify-center gap-2 rounded-md px-4 py-2.5 text-sm font-medium transition-all ${
+              tab === "alterdata" ? "bg-card text-card-foreground shadow-sm" : "text-muted-foreground"
+            }`}
+          >
+            <Server className="h-4 w-4" />
+            Alterdata (Testes)
+          </button>
         </div>
 
         {tab === "tutoriais" && !selectedTutorial && (
@@ -792,6 +802,12 @@ export default function AreaTI() {
                 </tbody>
               </table>
             </div>
+          </div>
+        )}
+
+        {tab === "alterdata" && (
+          <div className="animate-fade-in">
+            <AlterdataTester />
           </div>
         )}
 

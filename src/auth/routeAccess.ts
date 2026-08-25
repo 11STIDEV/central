@@ -50,6 +50,7 @@ export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/ti-interno": ["setape"],
   "/controle-materiais-ti": ["setape"],
   "/ti/ischolar": ["setape"],
+  "/ti/alterdata": ["setape"],
   "/controle-materiais-almoxarifado": ["almoxarifado"],
   "/financeiro/vales-adiantamento": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
   "/cci-pay/financeiro": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],

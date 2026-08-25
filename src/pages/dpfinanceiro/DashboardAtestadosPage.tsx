@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
+import * as XLSX from "xlsx";
 import { PageHero } from "@/components/PageHero";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,7 +23,18 @@ import {
   LayoutList,
   LayoutGrid,
   Briefcase,
-  Trash2
+  Trash2,
+  Printer,
+  FileBarChart,
+  Users,
+  Plus,
+  Pencil,
+  Save,
+  Undo2,
+  Check,
+  X,
+  Eye,
+  Edit3
 } from "lucide-react";
 
 export interface AtestadoItem {
@@ -41,6 +53,21 @@ export interface AtestadoItem {
 }
 
 const LOCAL_STORAGE_KEY = "dp_atestados_data_cache_v1";
+const RELATORIO_STORAGE_KEY = "dp_relatorio_atestados_custom_v1";
+
+export interface RelatorioSetorItem {
+  id: string;
+  setor: string;
+  totalAtestadosSetor: number;
+  totalDiasSetor: number;
+  totalPessoasSetor: number;
+  ranking: Array<{
+    funcionario: string;
+    empresa: string;
+    count: number;
+    totalDias: number;
+  }>;
+}
 
 const MOCK_ATESTADOS: AtestadoItem[] = [
   // Almoxarifado
@@ -58,6 +85,19 @@ const MOCK_ATESTADOS: AtestadoItem[] = [
     status: "Homologado",
   },
   {
+    id: "AT-1001-B",
+    funcionario: "Jaira Pereira Fernandes",
+    empresa: "SERVIBRAGA SERVICOS LTDA",
+    cpfMatricula: "123.456.789-01",
+    setor: "Almoxarifado",
+    cargo: "Auxiliar de Almoxarifado",
+    dataInicio: "2026-06-15",
+    diasAfastamento: 15,
+    dataFim: "2026-06-30",
+    cid: "M54.5 - Dor lombar baixa",
+    status: "Homologado",
+  },
+  {
     id: "AT-1002",
     funcionario: "Junnya Mara de Matos Dantas",
     empresa: "Terceiros CCI",
@@ -67,6 +107,19 @@ const MOCK_ATESTADOS: AtestadoItem[] = [
     dataInicio: "2026-08-05",
     diasAfastamento: 32,
     dataFim: "2026-09-06",
+    cid: "F41 - Ansiedade",
+    status: "Homologado",
+  },
+  {
+    id: "AT-1002-B",
+    funcionario: "Junnya Mara de Matos Dantas",
+    empresa: "Terceiros CCI",
+    cpfMatricula: "234.567.890-12",
+    setor: "Almoxarifado",
+    cargo: "Auxiliar",
+    dataInicio: "2026-05-10",
+    diasAfastamento: 10,
+    dataFim: "2026-05-20",
     cid: "F41 - Ansiedade",
     status: "Homologado",
   },
@@ -99,6 +152,32 @@ const MOCK_ATESTADOS: AtestadoItem[] = [
     status: "Homologado",
   },
   {
+    id: "AT-1004-B",
+    funcionario: "Adriano Linhares da Silva",
+    empresa: "SERVIBRAGA SERVICOS LTDA",
+    cpfMatricula: "456.789.012-34",
+    setor: "Professores do 5º ao 8º ano",
+    cargo: "Professor",
+    dataInicio: "2026-04-12",
+    diasAfastamento: 5,
+    dataFim: "2026-04-17",
+    cid: "J06 - Infecção respiratória",
+    status: "Homologado",
+  },
+  {
+    id: "AT-1004-C",
+    funcionario: "Adriano Linhares da Silva",
+    empresa: "SERVIBRAGA SERVICOS LTDA",
+    cpfMatricula: "456.789.012-34",
+    setor: "Professores do 5º ao 8º ano",
+    cargo: "Professor",
+    dataInicio: "2026-02-18",
+    diasAfastamento: 3,
+    dataFim: "2026-02-21",
+    cid: "R49.0 - Rouquidão",
+    status: "Homologado",
+  },
+  {
     id: "AT-1005",
     funcionario: "Allan Ribeiro da Silva",
     empresa: "SERVISENIOR SERVICOS LTDA",
@@ -109,6 +188,86 @@ const MOCK_ATESTADOS: AtestadoItem[] = [
     diasAfastamento: 7,
     dataFim: "2026-08-12",
     cid: "Z00 - Consulta",
+    status: "Homologado",
+  },
+  {
+    id: "AT-1005-B",
+    funcionario: "Allan Ribeiro da Silva",
+    empresa: "SERVISENIOR SERVICOS LTDA",
+    cpfMatricula: "567.890.123-45",
+    setor: "Professores do 5º ao 8º ano",
+    cargo: "Professor",
+    dataInicio: "2026-03-01",
+    diasAfastamento: 4,
+    dataFim: "2026-03-05",
+    cid: "Z00 - Consulta",
+    status: "Homologado",
+  },
+  {
+    id: "AT-1006",
+    funcionario: "Carla Mendes de Oliveira",
+    empresa: "SERVISENIOR SERVICOS LTDA",
+    cpfMatricula: "678.901.234-56",
+    setor: "Professores do 5º ao 8º ano",
+    cargo: "Professora",
+    dataInicio: "2026-07-01",
+    diasAfastamento: 12,
+    dataFim: "2026-07-13",
+    cid: "J11 - Gripe",
+    status: "Homologado",
+  },
+
+  // Manutenção e Infraestrutura
+  {
+    id: "AT-1007",
+    funcionario: "Carlos Eduardo Santos",
+    empresa: "GRUPO CCI",
+    cpfMatricula: "789.012.345-67",
+    setor: "Manutenção e Infraestrutura",
+    cargo: "Técnico de Manutenção",
+    dataInicio: "2026-08-02",
+    diasAfastamento: 22,
+    dataFim: "2026-08-24",
+    cid: "S61 - Ferimento de mão",
+    status: "Homologado",
+  },
+  {
+    id: "AT-1007-B",
+    funcionario: "Carlos Eduardo Santos",
+    empresa: "GRUPO CCI",
+    cpfMatricula: "789.012.345-67",
+    setor: "Manutenção e Infraestrutura",
+    cargo: "Técnico de Manutenção",
+    dataInicio: "2026-05-04",
+    diasAfastamento: 8,
+    dataFim: "2026-05-12",
+    cid: "M54 - Dorsalgia",
+    status: "Homologado",
+  },
+  {
+    id: "AT-1008",
+    funcionario: "Roberto Souza Lima",
+    empresa: "GRUPO CCI",
+    cpfMatricula: "890.123.456-78",
+    setor: "Manutenção e Infraestrutura",
+    cargo: "Auxiliar de Serviços Gerais",
+    dataInicio: "2026-07-15",
+    diasAfastamento: 18,
+    dataFim: "2026-08-02",
+    cid: "K29 - Gastrite",
+    status: "Homologado",
+  },
+  {
+    id: "AT-1009",
+    funcionario: "Marcos Vinicius Alves",
+    empresa: "GRUPO CCI",
+    cpfMatricula: "901.234.567-89",
+    setor: "Manutenção e Infraestrutura",
+    cargo: "Eletricista",
+    dataInicio: "2026-08-10",
+    diasAfastamento: 11,
+    dataFim: "2026-08-21",
+    cid: "H10 - Conjuntivite",
     status: "Homologado",
   }
 ];
@@ -191,7 +350,10 @@ export default function DashboardAtestadosPage() {
   const [rawCSVHeaders, setRawCSVHeaders] = useState<string[]>([]);
   const [rawCSVRows, setRawCSVRows] = useState<string[][]>([]);
 
-  const [visualizacao, setVisualizacao] = useState<"lista" | "cards">("lista");
+  const [visualizacao, setVisualizacao] = useState<"relatorio" | "lista" | "cards">("relatorio");
+  const [criterioRanking, setCriterioRanking] = useState<"atestados" | "dias">("atestados");
+  const [modoEdicaoRelatorio, setModoEdicaoRelatorio] = useState(false);
+  const [relatorioCustom, setRelatorioCustom] = useState<RelatorioSetorItem[] | null>(null);
 
   const [mapping, setMapping] = useState({
     colEmpresa: 0,
@@ -211,6 +373,14 @@ export default function DashboardAtestadosPage() {
   useEffect(() => {
     // Tenta carregar do localStorage do navegador
     try {
+      const savedRel = localStorage.getItem(RELATORIO_STORAGE_KEY);
+      if (savedRel) {
+        const parsedRel = JSON.parse(savedRel);
+        if (Array.isArray(parsedRel) && parsedRel.length > 0) {
+          setRelatorioCustom(parsedRel);
+        }
+      }
+
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
@@ -344,26 +514,33 @@ export default function DashboardAtestadosPage() {
 
     const reader = new FileReader();
     reader.onload = (e) => {
-      const content = e.target?.result as string;
-      if (!content) return;
+      try {
+        const buffer = e.target?.result as ArrayBuffer;
+        const workbook = XLSX.read(buffer, { type: "array" });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        const jsonRows = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
 
-      const lines = content.split(/\r?\n/).filter(line => line.trim().length > 0);
-      if (lines.length <= 1) return;
+        if (jsonRows.length <= 1) return;
 
-      const headers = parseCSVLine(lines[0]);
-      const dataRows = lines.slice(1).map(line => parseCSVLine(line));
+        const headers = (jsonRows[0] || []).map(h => String(h || ''));
+        const dataRows = jsonRows.slice(1).map(r => (r || []).map(cell => String(cell ?? '')));
 
-      setRawCSVHeaders(headers);
-      setRawCSVRows(dataRows);
+        setRawCSVHeaders(headers);
+        setRawCSVRows(dataRows);
 
-      const detected = autoDetectColumns(headers, dataRows[0] || []);
-      setMapping(detected);
-      setMostrarConfigurador(true);
+        const detected = autoDetectColumns(headers, dataRows[0] || []);
+        setMapping(detected);
+        setMostrarConfigurador(true);
 
-      reprocessarCSV(dataRows, detected, true);
+        reprocessarCSV(dataRows, detected, true);
+      } catch (err) {
+        console.error("Erro ao ler planilha:", err);
+        setMenssagemSync({ tipo: "erro", texto: "Falha ao ler arquivo. Verifique se o arquivo está no formato .xlsx ou .csv válido." });
+      }
     };
 
-    reader.readAsText(file, "UTF-8");
+    reader.readAsArrayBuffer(file);
   };
 
   const handleMappingChange = (field: keyof typeof mapping, valStr: string) => {
@@ -454,6 +631,7 @@ export default function DashboardAtestadosPage() {
       setor: string;
       totalAtestadosSetor: number;
       totalDiasSetor: number;
+      totalPessoasSetor: number;
       ranking: Array<{
         funcionario: string;
         empresa: string;
@@ -464,8 +642,13 @@ export default function DashboardAtestadosPage() {
 
     sectorMap.forEach((empMap, setor) => {
       const list = Array.from(empMap.values()).sort((a, b) => {
-        if (b.totalDias !== a.totalDias) return b.totalDias - a.totalDias;
-        return b.count - a.count;
+        if (criterioRanking === "atestados") {
+          if (b.count !== a.count) return b.count - a.count;
+          return b.totalDias - a.totalDias;
+        } else {
+          if (b.totalDias !== a.totalDias) return b.totalDias - a.totalDias;
+          return b.count - a.count;
+        }
       });
 
       const totalAtestadosSetor = list.reduce((acc, curr) => acc + curr.count, 0);
@@ -475,18 +658,179 @@ export default function DashboardAtestadosPage() {
         setor,
         totalAtestadosSetor,
         totalDiasSetor,
+        totalPessoasSetor: list.length,
         ranking: list.slice(0, 3), // Top 3
       });
     });
 
     return result.sort((a, b) => a.setor.localeCompare(b.setor));
-  }, [atestadosFiltrados]);
+  }, [atestadosFiltrados, criterioRanking]);
 
   const metricas = useMemo(() => {
     const total = atestadosFiltrados.length;
     const totalDias = atestadosFiltrados.reduce((acc, curr) => acc + curr.diasAfastamento, 0);
     return { total, totalDias };
   }, [atestadosFiltrados]);
+
+  const dadosRelatorioExibicao = useMemo(() => {
+    if (relatorioCustom) return relatorioCustom;
+    return rankingTop3PorSetor.map((dept, idx) => ({
+      id: `sec-${idx}`,
+      setor: dept.setor,
+      totalAtestadosSetor: dept.totalAtestadosSetor,
+      totalDiasSetor: dept.totalDiasSetor,
+      totalPessoasSetor: dept.totalPessoasSetor,
+      ranking: dept.ranking.map(p => ({ ...p }))
+    }));
+  }, [relatorioCustom, rankingTop3PorSetor]);
+
+  const iniciarEdicaoRelatorio = () => {
+    if (!relatorioCustom) {
+      setRelatorioCustom(dadosRelatorioExibicao);
+    }
+    setModoEdicaoRelatorio(true);
+  };
+
+  const atualizarSetorRelatorio = (index: number, campo: keyof RelatorioSetorItem, valor: any) => {
+    setRelatorioCustom(prev => {
+      const atual = prev || dadosRelatorioExibicao;
+      const copy = [...atual];
+      copy[index] = { ...copy[index], [campo]: valor };
+      return copy;
+    });
+  };
+
+  const atualizarPessoaTop3Relatorio = (
+    setorIdx: number,
+    pessoaIdx: number,
+    campo: "funcionario" | "empresa" | "count" | "totalDias",
+    valor: any
+  ) => {
+    setRelatorioCustom(prev => {
+      const atual = prev || dadosRelatorioExibicao;
+      const copy = [...atual];
+      const rankingCopy = [...copy[setorIdx].ranking];
+      rankingCopy[pessoaIdx] = { ...rankingCopy[pessoaIdx], [campo]: valor };
+      copy[setorIdx] = { ...copy[setorIdx], ranking: rankingCopy };
+      return copy;
+    });
+  };
+
+  const adicionarPessoaTop3Relatorio = (setorIdx: number) => {
+    setRelatorioCustom(prev => {
+      const atual = prev || dadosRelatorioExibicao;
+      const copy = [...atual];
+      const rankingCopy = [
+        ...copy[setorIdx].ranking,
+        { funcionario: "Novo Colaborador", empresa: "SERVIBRAGA", count: 1, totalDias: 5 }
+      ];
+      copy[setorIdx] = { ...copy[setorIdx], ranking: rankingCopy };
+      return copy;
+    });
+  };
+
+  const removerPessoaTop3Relatorio = (setorIdx: number, pessoaIdx: number) => {
+    setRelatorioCustom(prev => {
+      const atual = prev || dadosRelatorioExibicao;
+      const copy = [...atual];
+      const rankingCopy = copy[setorIdx].ranking.filter((_, idx) => idx !== pessoaIdx);
+      copy[setorIdx] = { ...copy[setorIdx], ranking: rankingCopy };
+      return copy;
+    });
+  };
+
+  const adicionarSetorRelatorio = () => {
+    setRelatorioCustom(prev => {
+      const atual = prev || dadosRelatorioExibicao;
+      const novoSetor: RelatorioSetorItem = {
+        id: `sec-new-${Date.now()}`,
+        setor: "Novo Departamento",
+        totalAtestadosSetor: 1,
+        totalDiasSetor: 7,
+        totalPessoasSetor: 1,
+        ranking: [
+          { funcionario: "Nome do Colaborador", empresa: "SERVIBRAGA", count: 1, totalDias: 7 }
+        ]
+      };
+      return [...atual, novoSetor];
+    });
+    setModoEdicaoRelatorio(true);
+  };
+
+  const removerSetorRelatorio = (setorIdx: number) => {
+    setRelatorioCustom(prev => {
+      const atual = prev || dadosRelatorioExibicao;
+      return atual.filter((_, idx) => idx !== setorIdx);
+    });
+  };
+
+  const salvarRelatorioCustom = () => {
+    if (relatorioCustom) {
+      localStorage.setItem(RELATORIO_STORAGE_KEY, JSON.stringify(relatorioCustom));
+      setMenssagemSync({ tipo: "sucesso", texto: "Relatório personalizado salvo com sucesso!" });
+    }
+    setModoEdicaoRelatorio(false);
+  };
+
+  const restaurarRelatorioCalculado = () => {
+    localStorage.removeItem(RELATORIO_STORAGE_KEY);
+    setRelatorioCustom(null);
+    setModoEdicaoRelatorio(false);
+    setMenssagemSync({ tipo: "info", texto: "Relatório restaurado para os dados reais calculados da planilha." });
+  };
+
+  const imprimirRelatorio = () => {
+    window.print();
+  };
+
+  const exportarExcelXLSX = () => {
+    const dados = dadosRelatorioExibicao;
+
+    const rows = dados.map(dept => {
+      const p1 = dept.ranking[0] || { funcionario: "-", empresa: "-", count: 0, totalDias: 0 };
+      const p2 = dept.ranking[1] || { funcionario: "-", empresa: "-", count: 0, totalDias: 0 };
+      const p3 = dept.ranking[2] || { funcionario: "-", empresa: "-", count: 0, totalDias: 0 };
+
+      return {
+        "Departamento / Setor": dept.setor,
+        "Total Atestados no Setor": dept.totalAtestadosSetor,
+        "Total Dias Acumulados": dept.totalDiasSetor,
+        "1º Lugar - Nome": p1.funcionario,
+        "1º Lugar - Empresa": p1.empresa || "-",
+        "1º Lugar - Qtd. Atestados": p1.count,
+        "1º Lugar - Dias": p1.totalDias,
+        "2º Lugar - Nome": p2.funcionario,
+        "2º Lugar - Empresa": p2.empresa || "-",
+        "2º Lugar - Qtd. Atestados": p2.count,
+        "2º Lugar - Dias": p2.totalDias,
+        "3º Lugar - Nome": p3.funcionario,
+        "3º Lugar - Empresa": p3.empresa || "-",
+        "3º Lugar - Qtd. Atestados": p3.count,
+        "3º Lugar - Dias": p3.totalDias,
+      };
+    });
+
+    const wb = XLSX.utils.book_new();
+    const ws1 = XLSX.utils.json_to_sheet(rows);
+    XLSX.utils.book_append_sheet(wb, ws1, "Relatório por Setor");
+
+    const atestadosRows = atestadosFiltrados.map(a => ({
+      "ID": a.id,
+      "Funcionário": a.funcionario,
+      "Empresa": a.empresa,
+      "Setor / Departamento": a.setor,
+      "Dias de Afastamento": a.diasAfastamento,
+      "Data Início": a.dataInicio,
+      "Data Fim": a.dataFim || "-",
+      "CID": a.cid || "-",
+      "Status": a.status
+    }));
+    const ws2 = XLSX.utils.json_to_sheet(atestadosRows);
+    XLSX.utils.book_append_sheet(wb, ws2, "Registros Detalhados");
+
+    const fileName = `relatorio_atestados_${new Date().toISOString().split("T")[0]}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
 
   const exportarCSV = () => {
     const headers = ["ID", "Funcionário", "Empresa", "Setor", "Dias", "Data Início"];
@@ -512,15 +856,15 @@ export default function DashboardAtestadosPage() {
   return (
     <div className="animate-fade-in pb-16">
       <PageHero
-        title="Dashboard de Atestados — Dias de Afastamento por Setor"
-        subtitle="Identificação rápida dos colaboradores com maior número de dias de afastamento em cada setor."
+        title="Relatório & Dashboard de Atestados — Por Departamento"
+        subtitle="Relatório gerencial consolidado com total de atestados por departamento e Top 3 colaboradores com mais ausências em cada setor."
         eyebrow="Setor DP & Financeiro · Central Connect"
       />
 
       <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 space-y-6">
         
         {/* Barra Principal de Upload & Persistência */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-xl bg-card border border-border/60 shadow-xs">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 p-4 rounded-xl bg-card border border-border/60 shadow-xs print:hidden">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-lg bg-primary/10 text-primary">
               <FileSpreadsheet className="h-6 w-6" />
@@ -542,6 +886,15 @@ export default function DashboardAtestadosPage() {
 
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center p-1 rounded-lg bg-muted border border-border/60">
+              <Button
+                variant={visualizacao === "relatorio" ? "default" : "ghost"}
+                size="sm"
+                onClick={() => setVisualizacao("relatorio")}
+                className="h-7 text-xs gap-1.5 px-3 font-semibold"
+              >
+                <FileBarChart className="h-3.5 w-3.5 text-amber-400" />
+                Relatório por Departamento
+              </Button>
               <Button
                 variant={visualizacao === "lista" ? "default" : "ghost"}
                 size="sm"
@@ -766,8 +1119,303 @@ export default function DashboardAtestadosPage() {
           </div>
         </div>
 
-        {/* 🏆 SEÇÃO PRINCIPAL: TOP 3 PESSOAS POR SETOR */}
-        <div className="space-y-4 pt-2">
+        {/* 📄 RELATÓRIO EDITÁVEL SIMPLES E DIRETO POR DEPARTAMENTO */}
+        {visualizacao === "relatorio" && (
+          <Card className="border-border/80 shadow-xs overflow-hidden">
+            {/* Cabeçalho do Relatório */}
+            <CardHeader className="py-4 px-6 border-b border-border/60 bg-muted/30 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-primary" />
+                    Relatório Sintético de Atestados por Departamento
+                  </CardTitle>
+                  {modoEdicaoRelatorio ? (
+                    <Badge className="bg-amber-500 text-white font-bold text-xs animate-pulse">
+                      ✏️ Modo de Edição Ativo
+                    </Badge>
+                  ) : relatorioCustom ? (
+                    <Badge variant="outline" className="text-xs bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-semibold">
+                      Editado / Personalizado
+                    </Badge>
+                  ) : null}
+                </div>
+                <CardDescription className="text-xs">
+                  {modoEdicaoRelatorio
+                    ? "Altere os valores, nomes de setores ou colaboradores diretamente na tabela e clique em Salvar."
+                    : "Visão simplificada: Total de atestados e o Top 3 colaboradores com mais ausências por setor."}
+                </CardDescription>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 print:hidden">
+                {!modoEdicaoRelatorio ? (
+                  <>
+                    <div className="flex items-center gap-1.5 bg-background px-2.5 py-1 rounded-md border text-xs">
+                      <span className="text-muted-foreground font-medium">Top 3 por:</span>
+                      <button
+                        onClick={() => setCriterioRanking("atestados")}
+                        className={`px-2 py-0.5 rounded font-semibold text-xs transition-colors ${
+                          criterioRanking === "atestados" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                        }`}
+                      >
+                        Qtd. Atestados
+                      </button>
+                      <button
+                        onClick={() => setCriterioRanking("dias")}
+                        className={`px-2 py-0.5 rounded font-semibold text-xs transition-colors ${
+                          criterioRanking === "dias" ? "bg-primary text-primary-foreground" : "hover:bg-muted text-foreground"
+                        }`}
+                      >
+                        Dias de Afastamento
+                      </button>
+                    </div>
+
+                    <Button onClick={iniciarEdicaoRelatorio} size="sm" variant="default" className="gap-2 text-xs font-semibold h-8 bg-amber-600 hover:bg-amber-700">
+                      <Pencil className="h-3.5 w-3.5" />
+                      Editar Relatório
+                    </Button>
+
+                    <Button onClick={exportarExcelXLSX} size="sm" variant="outline" className="gap-2 text-xs font-semibold h-8 border-emerald-500/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10">
+                      <Download className="h-3.5 w-3.5 text-emerald-600" />
+                      Exportar Excel (.xlsx)
+                    </Button>
+
+                    <Button onClick={imprimirRelatorio} size="sm" variant="outline" className="gap-2 text-xs font-semibold h-8">
+                      <Printer className="h-3.5 w-3.5" />
+                      Imprimir PDF
+                    </Button>
+
+                    {relatorioCustom && (
+                      <Button onClick={restaurarRelatorioCalculado} size="sm" variant="ghost" className="gap-1.5 text-xs text-muted-foreground hover:text-red-600 h-8">
+                        <Undo2 className="h-3.5 w-3.5" />
+                        Restaurar Planilha
+                      </Button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Button onClick={adicionarSetorRelatorio} size="sm" variant="outline" className="gap-1.5 text-xs font-semibold h-8 border-dashed">
+                      <Plus className="h-3.5 w-3.5 text-primary" />
+                      + Adicionar Setor
+                    </Button>
+
+                    <Button onClick={salvarRelatorioCustom} size="sm" variant="default" className="gap-2 text-xs font-semibold h-8 bg-emerald-600 hover:bg-emerald-700">
+                      <Save className="h-3.5 w-3.5" />
+                      Salvar Alterações
+                    </Button>
+
+                    <Button onClick={() => setModoEdicaoRelatorio(false)} size="sm" variant="ghost" className="gap-1.5 text-xs h-8">
+                      <Eye className="h-3.5 w-3.5" />
+                      Visualizar
+                    </Button>
+                  </>
+                )}
+              </div>
+            </CardHeader>
+
+            {/* Conteúdo do Relatório */}
+            <CardContent className="p-0">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50 border-b border-border">
+                      <TableHead className="font-bold text-foreground text-xs py-3 pl-6 w-1/4">Departamento / Setor</TableHead>
+                      <TableHead className="font-bold text-foreground text-xs py-3 text-center w-40 whitespace-nowrap">Total Atestados</TableHead>
+                      <TableHead className="font-bold text-foreground text-xs py-3 text-center w-36 whitespace-nowrap">Total Dias</TableHead>
+                      <TableHead className="font-bold text-foreground text-xs py-3 pr-6">
+                        Top 3 Colaboradores ({criterioRanking === "atestados" ? "Mais Atestados" : "Mais Dias Afastados"})
+                      </TableHead>
+                      {modoEdicaoRelatorio && (
+                        <TableHead className="w-16 text-center font-bold text-xs py-3 pr-4">Ação</TableHead>
+                      )}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {dadosRelatorioExibicao.length > 0 ? (
+                      dadosRelatorioExibicao.map((dept, sIdx) => (
+                        <TableRow key={dept.id || dept.setor + sIdx} className={sIdx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                          {/* Setor */}
+                          <TableCell className="py-4 pl-6 align-top">
+                            {modoEdicaoRelatorio ? (
+                              <div className="space-y-1">
+                                <label className="text-[10px] text-muted-foreground font-semibold block uppercase">Nome do Setor</label>
+                                <Input
+                                  value={dept.setor}
+                                  onChange={(e) => atualizarSetorRelatorio(sIdx, "setor", e.target.value)}
+                                  className="text-xs font-bold bg-background h-8"
+                                  placeholder="Nome do Setor"
+                                />
+                              </div>
+                            ) : (
+                              <div>
+                                <div className="font-bold text-foreground text-sm flex items-center gap-2">
+                                  <Building2 className="h-4 w-4 text-primary shrink-0" />
+                                  {dept.setor}
+                                </div>
+                                <span className="text-[11px] text-muted-foreground block mt-0.5">
+                                  {dept.totalPessoasSetor || dept.ranking.length} colaborador(es) no setor
+                                </span>
+                              </div>
+                            )}
+                          </TableCell>
+
+                          {/* Total Atestados */}
+                          <TableCell className="py-4 text-center align-top whitespace-nowrap">
+                            {modoEdicaoRelatorio ? (
+                              <div className="space-y-1 flex flex-col items-center">
+                                <label className="text-[10px] text-muted-foreground font-semibold block uppercase">Qtd Atestados</label>
+                                <Input
+                                  type="number"
+                                  value={dept.totalAtestadosSetor}
+                                  onChange={(e) => atualizarSetorRelatorio(sIdx, "totalAtestadosSetor", parseInt(e.target.value) || 0)}
+                                  className="text-xs font-bold text-center w-24 bg-background h-8"
+                                />
+                              </div>
+                            ) : (
+                              <Badge variant="secondary" className="font-semibold text-xs px-2.5 py-1 inline-flex items-center justify-center whitespace-nowrap bg-primary/10 text-primary border border-primary/20 shadow-none">
+                                {dept.totalAtestadosSetor} {dept.totalAtestadosSetor === 1 ? "atestado" : "atestados"}
+                              </Badge>
+                            )}
+                          </TableCell>
+
+                          {/* Total Dias */}
+                          <TableCell className="py-4 text-center align-top whitespace-nowrap">
+                            {modoEdicaoRelatorio ? (
+                              <div className="space-y-1 flex flex-col items-center">
+                                <label className="text-[10px] text-muted-foreground font-semibold block uppercase">Total Dias</label>
+                                <Input
+                                  type="number"
+                                  value={dept.totalDiasSetor}
+                                  onChange={(e) => atualizarSetorRelatorio(sIdx, "totalDiasSetor", parseInt(e.target.value) || 0)}
+                                  className="text-xs font-bold text-center w-24 bg-background h-8"
+                                />
+                              </div>
+                            ) : (
+                              <Badge variant="outline" className="font-semibold text-xs px-2.5 py-1 inline-flex items-center justify-center whitespace-nowrap bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-none">
+                                {dept.totalDiasSetor} {dept.totalDiasSetor === 1 ? "dia" : "dias"}
+                              </Badge>
+                            )}
+                          </TableCell>
+
+                          {/* Top 3 Colaboradores */}
+                          <TableCell className="py-4 pr-6 align-top">
+                            <div className="space-y-2">
+                              {dept.ranking.map((pessoa, pIdx) => {
+                                const medalha = pIdx === 0 ? "🥇 1º" : pIdx === 1 ? "🥈 2º" : "🥉 3º";
+                                return modoEdicaoRelatorio ? (
+                                  <div key={pIdx} className="p-2 rounded bg-card border border-border/70 space-y-1.5 shadow-2xs">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="text-xs font-bold text-primary">{medalha} Lugar</span>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        onClick={() => removerPessoaTop3Relatorio(sIdx, pIdx)}
+                                        className="h-5 w-5 text-red-500 hover:text-red-700 hover:bg-red-500/10"
+                                        title="Remover Colaborador"
+                                      >
+                                        <X className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                      <Input
+                                        value={pessoa.funcionario}
+                                        onChange={(e) => atualizarPessoaTop3Relatorio(sIdx, pIdx, "funcionario", e.target.value)}
+                                        placeholder="Nome Completo"
+                                        className="text-xs h-7 bg-background"
+                                      />
+                                      <Input
+                                        value={pessoa.empresa || ""}
+                                        onChange={(e) => atualizarPessoaTop3Relatorio(sIdx, pIdx, "empresa", e.target.value)}
+                                        placeholder="Empresa / Terceiro"
+                                        className="text-xs h-7 bg-background"
+                                      />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <div className="flex-1 flex items-center gap-1">
+                                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">Atestados:</span>
+                                        <Input
+                                          type="number"
+                                          value={pessoa.count}
+                                          onChange={(e) => atualizarPessoaTop3Relatorio(sIdx, pIdx, "count", parseInt(e.target.value) || 0)}
+                                          className="text-xs h-7 w-16 text-center bg-background"
+                                        />
+                                      </div>
+                                      <div className="flex-1 flex items-center gap-1">
+                                        <span className="text-[10px] text-muted-foreground whitespace-nowrap">Dias:</span>
+                                        <Input
+                                          type="number"
+                                          value={pessoa.totalDias}
+                                          onChange={(e) => atualizarPessoaTop3Relatorio(sIdx, pIdx, "totalDias", parseInt(e.target.value) || 0)}
+                                          className="text-xs h-7 w-16 text-center bg-background"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div key={pessoa.funcionario + pIdx} className="flex items-center justify-between text-xs p-1.5 rounded bg-card border border-border/50 shadow-2xs">
+                                    <span className="font-semibold text-foreground flex items-center gap-1.5 min-w-0">
+                                      <span className="shrink-0">{medalha}</span>
+                                      <span className="truncate">{pessoa.funcionario}</span>
+                                      {pessoa.empresa && (
+                                        <span className="text-[10px] text-muted-foreground font-normal truncate hidden sm:inline">
+                                          ({pessoa.empresa})
+                                        </span>
+                                      )}
+                                    </span>
+                                    <span className="font-bold text-primary shrink-0 ml-2">
+                                      {pessoa.count} {pessoa.count === 1 ? "atestado" : "atestados"} · {pessoa.totalDias}d
+                                    </span>
+                                  </div>
+                                );
+                              })}
+
+                              {modoEdicaoRelatorio && (
+                                <Button
+                                  onClick={() => adicionarPessoaTop3Relatorio(sIdx)}
+                                  variant="outline"
+                                  size="sm"
+                                  className="w-full text-[11px] h-7 gap-1 border-dashed mt-1"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                  Adicionar Colaborador ao Top 3
+                                </Button>
+                              )}
+                            </div>
+                          </TableCell>
+
+                          {/* Ação Excluir Setor no Modo Edição */}
+                          {modoEdicaoRelatorio && (
+                            <TableCell className="py-4 text-center align-top pr-4">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => removerSetorRelatorio(sIdx)}
+                                className="h-8 w-8 text-red-600 hover:text-red-700 hover:bg-red-500/10"
+                                title="Excluir Setor do Relatório"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TableCell>
+                          )}
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={modoEdicaoRelatorio ? 5 : 4} className="py-8 text-center text-muted-foreground text-sm">
+                          Nenhum departamento no relatório. Clique em "+ Adicionar Setor" para incluir.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* 🏆 SEÇÃO PRINCIPAL: TOP 3 PESSOAS POR SETOR (MODO DASHBOARD) */}
+        {visualizacao !== "relatorio" && (
+          <div className="space-y-4 pt-2">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
               <Trophy className="h-6 w-6 text-amber-500" />
@@ -918,6 +1566,7 @@ export default function DashboardAtestadosPage() {
             </div>
           )}
         </div>
+        )}
 
         {/* Tabela Completa de Registros */}
         <Card className="border-border/60 shadow-xs mt-8">

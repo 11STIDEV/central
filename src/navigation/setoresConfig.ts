@@ -12,6 +12,7 @@ import {
   PenLine,
   School,
   Search,
+  Server,
   ShieldCheck,
   Ticket,
   Tv,
@@ -164,6 +165,7 @@ export const SETORES_CONFIG: SetorConfig[] = [
       { title: "Área Interna TI", url: "/ti-interno", icon: ShieldCheck },
       { title: "Controle Materiais (TI)", url: "/controle-materiais-ti", icon: Boxes },
       { title: "iScholar", url: "/ti/ischolar", icon: GraduationCap },
+      { title: "Alterdata (Testes)", url: "/ti/alterdata", icon: Server },
       { title: "Agenda CCI — Admin", url: "/agenda-cci/admin", icon: CalendarDays },
       { title: "Publicar aviso", url: "/avisos/publicar", icon: PenLine },
       { title: "Totem", url: "/senhas/totem", icon: Ticket },
@@ -358,6 +360,7 @@ function shortToolLabel(fullTitle: string): string {
   if (fullTitle === "Totem") return "Totem";
   if (fullTitle === "Painel TV") return "Painel TV";
   if (fullTitle.startsWith("Administração")) return "Senhas admin";
+  if (fullTitle.includes("Alterdata")) return "Alterdata";
   if (fullTitle.includes("Atestados")) return "Atestados";
   return fullTitle;
 }

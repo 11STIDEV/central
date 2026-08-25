@@ -16,6 +16,7 @@ import AbrirChamado from "./pages/AbrirChamado";
 import GestaoChamados from "./pages/GestaoChamados";
 import AreaTI from "./pages/AreaTI";
 import IScholar from "./pages/IScholar";
+import AlterdataPage from "./pages/AlterdataPage";
 import Documentos from "./pages/Documentos";
 import AgendaCCI from "./pages/AgendaCCI";
 import AgendaCCIAdmin from "./pages/AgendaCCIAdmin";
@@ -128,6 +129,14 @@ function CentralIntranetApp() {
                 element={
                   <RequireRouteAccess>
                     <IScholar />
+                  </RequireRouteAccess>
+                }
+              />
+              <Route
+                path="/ti/alterdata"
+                element={
+                  <RequireRouteAccess>
+                    <AlterdataPage />
                   </RequireRouteAccess>
                 }
               />
