@@ -244,8 +244,8 @@ const GOOGLE_CLIENT_IDS = (process.env.GOOGLE_CLIENT_ID || "")
 const GOOGLE_ADMIN_IMPERSONATE = process.env.GOOGLE_ADMIN_IMPERSONATE;
 const GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
 const GOOGLE_SERVICE_ACCOUNT_PATH = process.env.GOOGLE_SERVICE_ACCOUNT_PATH;
-/** Opcional: caminho da OU (ex.: /Administrativo/CCI) para listar s├│ Chromebooks dessa unidade. */
-const GOOGLE_CHROMEBOOK_ORG_UNIT = process.env.GOOGLE_CHROMEBOOK_ORG_UNIT?.trim() || "";
+/** Opcional: caminho da OU (ex.: /Administrativo/Setape) para listar só Chromebooks dessa unidade. Default: /Administrativo/Setape */
+const GOOGLE_CHROMEBOOK_ORG_UNIT = process.env.GOOGLE_CHROMEBOOK_ORG_UNIT?.trim() || "/Administrativo/Setape";
 
 const DATA_DIR = path.join(__dirname, "data");
 const ARQUIVO_RESERVAS_AGENDA = path.join(DATA_DIR, "agenda-cci-reservas.json");
@@ -876,13 +876,12 @@ function emailTemPapelAdminNoArquivo(email) {
 }
 
 async function listarTodosChromeosAdmin(admin) {
+  const targetOu = GOOGLE_CHROMEBOOK_ORG_UNIT || "/Administrativo/Setape";
   const listParams = {
     customerId: "my_customer",
     maxResults: 200,
+    orgUnitPath: targetOu,
   };
-  if (GOOGLE_CHROMEBOOK_ORG_UNIT) {
-    listParams.orgUnitPath = GOOGLE_CHROMEBOOK_ORG_UNIT;
-  }
   const out = [];
   let pageToken;
   do {
@@ -894,6 +893,8 @@ async function listarTodosChromeosAdmin(admin) {
     for (const d of list) {
       const st = (d.status || "").toUpperCase();
       if (st === "DEPROVISIONED") continue;
+      // Garante filtragem estrita da OU (descarta sub-OUs ou OUs divergentes)
+      if (d.orgUnitPath && d.orgUnitPath !== targetOu) continue;
       out.push(d);
     }
     pageToken = r.data.nextPageToken;
@@ -3224,6 +3225,88 @@ function salvarMapeamentosClassroom(mapeamentos) {
   }
 }
 
+const STUDENT_ENROLLMENTS_FILE = path.join(__dirname, "data", "studentEnrollments.json");
+
+function lerHistoricoEnsalamentoAlunos() {
+  try {
+    if (!fs.existsSync(STUDENT_ENROLLMENTS_FILE)) {
+      return {};
+    }
+    const raw = fs.readFileSync(STUDENT_ENROLLMENTS_FILE, "utf-8");
+    return JSON.parse(raw || "{}");
+  } catch (e) {
+    console.error("[student-enrollments] Erro ao ler histórico de ensalamento:", e.message);
+    return {};
+  }
+}
+
+function salvarHistoricoEnsalamentoAlunos(historico) {
+  try {
+    const dir = path.dirname(STUDENT_ENROLLMENTS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(STUDENT_ENROLLMENTS_FILE, JSON.stringify(historico, null, 2), "utf-8");
+  } catch (e) {
+    console.error("[student-enrollments] Erro ao salvar histórico de ensalamento:", e.message);
+  }
+}
+
+function isAlunoEnsaladoLocal(courseId, emailAluno, historico) {
+  if (!courseId || !emailAluno) return false;
+  const key = `${courseId}_${String(emailAluno).toLowerCase().trim()}`;
+  const record = historico[key];
+  return Boolean(record && record.status !== "excluido_manualmente");
+}
+
+function isAlunoExcluidoManualmenteLocal(courseId, emailAluno, historico) {
+  if (!courseId || !emailAluno) return false;
+  const key = `${courseId}_${String(emailAluno).toLowerCase().trim()}`;
+  const record = historico[key];
+  return Boolean(record && record.status === "excluido_manualmente");
+}
+
+function registrarAlunoEnsaladoLocal(courseId, emailAluno, nomeAluno, idTurma, historico) {
+  if (!courseId || !emailAluno) return;
+  const emailClean = String(emailAluno).toLowerCase().trim();
+  const key = `${courseId}_${emailClean}`;
+  historico[key] = {
+    courseId: String(courseId),
+    email: emailClean,
+    nome: nomeAluno || historico[key]?.nome || "",
+    id_turma: idTurma ? String(idTurma) : (historico[key]?.id_turma || ""),
+    status: "matriculado",
+    enrolled_at: new Date().toISOString()
+  };
+}
+
+function marcarAlunoExcluidoManualmenteLocal(courseId, emailAluno, historico) {
+  if (!courseId || !emailAluno) return false;
+  const emailClean = String(emailAluno).toLowerCase().trim();
+  const key = `${courseId}_${emailClean}`;
+  const existing = historico[key] || {};
+  historico[key] = {
+    courseId: String(courseId),
+    email: emailClean,
+    nome: existing.nome || "",
+    id_turma: existing.id_turma || "",
+    status: "excluido_manualmente",
+    excluded_at: new Date().toISOString()
+  };
+  return true;
+}
+
+function removerBloqueioAlunoLocal(courseId, emailAluno, historico) {
+  if (!courseId || !emailAluno) return false;
+  const emailClean = String(emailAluno).toLowerCase().trim();
+  const key = `${courseId}_${emailClean}`;
+  if (historico[key]) {
+    delete historico[key];
+    return true;
+  }
+  return false;
+}
+
 async function safeFetchIscholarJson(url, options = {}) {
   const response = await fetch(url, options);
   const text = await response.text();
@@ -4260,12 +4343,16 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
     }
 
     const classroom = await criarGoogleClassroomClientAuth();
+    const historicoEnsalamento = lerHistoricoEnsalamentoAlunos();
+    let historicoModificado = false;
 
     const relatorio = {
       totalAlunos: alunos.length,
       totalSalas: salasMapeadas.length,
       sucessos: 0,
       jaMatriculados: 0,
+      puladosHistorico: 0,
+      bloqueadosManualmente: 0,
       falhas: 0,
       detalhes: []
     };
@@ -4275,9 +4362,35 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
       if (!emailAluno) continue;
 
       for (const sala of salasMapeadas) {
+        const courseId = sala.google_course_id;
+
+        if (isAlunoExcluidoManualmenteLocal(courseId, emailAluno, historicoEnsalamento)) {
+          relatorio.bloqueadosManualmente++;
+          relatorio.jaMatriculados++;
+          relatorio.detalhes.push({
+            aluno: aluno.nome_aluno,
+            email: emailAluno,
+            sala: sala.google_course_name,
+            status: "bloqueado_manualmente"
+          });
+          continue;
+        }
+
+        if (isAlunoEnsaladoLocal(courseId, emailAluno, historicoEnsalamento)) {
+          relatorio.jaMatriculados++;
+          relatorio.puladosHistorico++;
+          relatorio.detalhes.push({
+            aluno: aluno.nome_aluno,
+            email: emailAluno,
+            sala: sala.google_course_name,
+            status: "ja_existia"
+          });
+          continue;
+        }
+
         try {
           await classroom.courses.students.create({
-            courseId: sala.google_course_id,
+            courseId: courseId,
             requestBody: {
               userId: emailAluno
             }
@@ -4290,6 +4403,9 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
             sala: sala.google_course_name,
             status: "matriculado"
           });
+
+          registrarAlunoEnsaladoLocal(courseId, emailAluno, aluno.nome_aluno, idTurma, historicoEnsalamento);
+          historicoModificado = true;
         } catch (errStudent) {
           const status = errStudent.response?.status;
           const msg = errStudent.response?.data?.error?.message || errStudent.message;
@@ -4302,6 +4418,9 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
               sala: sala.google_course_name,
               status: "ja_existia"
             });
+
+            registrarAlunoEnsaladoLocal(courseId, emailAluno, aluno.nome_aluno, idTurma, historicoEnsalamento);
+            historicoModificado = true;
           } else {
             relatorio.falhas++;
             relatorio.detalhes.push({
@@ -4315,6 +4434,10 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
         }
         await new Promise(r => setTimeout(r, 150));
       }
+    }
+
+    if (historicoModificado) {
+      salvarHistoricoEnsalamentoAlunos(historicoEnsalamento);
     }
 
     return res.json({
@@ -4348,6 +4471,7 @@ app.post("/api/ti/google-classroom/aluno-salas", async (req, res) => {
 
     const classroom = await criarGoogleClassroomClientAuth();
     const mapeamentos = lerMapeamentosClassroom();
+    const historico = lerHistoricoEnsalamentoAlunos();
 
     let response;
     try {
@@ -4357,7 +4481,7 @@ app.post("/api/ti/google-classroom/aluno-salas", async (req, res) => {
       });
     } catch (errList) {
       console.warn(`[classroom-aluno-salas] Erro ao listar turmas via studentId (${emailAluno}):`, errList.message);
-      return res.json({ ok: true, studentEmail: emailAluno, total: 0, salas: [] });
+      return res.json({ ok: true, studentEmail: emailAluno, total: 0, salas: [], bloqueadas: [] });
     }
 
     const courses = response.data.courses || [];
@@ -4376,7 +4500,21 @@ app.post("/api/ti/google-classroom/aluno-salas", async (req, res) => {
       };
     });
 
-    return res.json({ ok: true, studentEmail: emailAluno, total: salas.length, salas });
+    const bloqueadas = [];
+    for (const [key, record] of Object.entries(historico)) {
+      if (record && record.email === emailAluno && record.status === "excluido_manualmente") {
+        const cId = record.courseId;
+        const mItem = Object.values(mapeamentos).find((m) => m && m.google_course_id === cId);
+        bloqueadas.push({
+          google_course_id: cId,
+          google_course_name: mItem?.google_course_name || mItem?.nome_disciplina || `Sala ID ${cId}`,
+          id_turma: record.id_turma || mItem?.id_turma || "",
+          excluded_at: record.excluded_at || ""
+        });
+      }
+    }
+
+    return res.json({ ok: true, studentEmail: emailAluno, total: salas.length, salas, bloqueadas });
   } catch (e) {
     console.error("[google-classroom-aluno-salas] Erro geral:", e);
     return res.status(500).json({ error: e.message });
@@ -4407,6 +4545,9 @@ app.post("/api/ti/google-classroom/remover-aluno-salas", async (req, res) => {
     }
 
     const classroom = await criarGoogleClassroomClientAuth();
+    const historicoEnsalamento = lerHistoricoEnsalamentoAlunos();
+    let historicoModificado = false;
+
     const relatorio = {
       emailAluno,
       totalSalas: courseIds.length,
@@ -4427,7 +4568,10 @@ app.post("/api/ti/google-classroom/remover-aluno-salas", async (req, res) => {
           courseId: cId,
           status: "removido"
         });
-        console.log(`[desenturmalizacao] Aluno ${emailAluno} removido da sala ${cId}`);
+        if (marcarAlunoExcluidoManualmenteLocal(cId, emailAluno, historicoEnsalamento)) {
+          historicoModificado = true;
+        }
+        console.log(`[desenturmalizacao] Aluno ${emailAluno} removido da sala ${cId} e registrado bloqueio manual`);
       } catch (errDelete) {
         const msg = errDelete.response?.data?.error?.message || errDelete.message;
         relatorio.falhas++;
@@ -4441,9 +4585,149 @@ app.post("/api/ti/google-classroom/remover-aluno-salas", async (req, res) => {
       await new Promise((r) => setTimeout(r, 100));
     }
 
+    if (historicoModificado) {
+      salvarHistoricoEnsalamentoAlunos(historicoEnsalamento);
+    }
+
     return res.json({ ok: true, relatorio });
   } catch (e) {
     console.error("[google-classroom-remover-aluno-salas] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/google-classroom/reincluso-aluno-salas", async (req, res) => {
+  try {
+    const { idToken, email, courseIds } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    const emailAluno = String(email || "").trim().toLowerCase();
+    if (!emailAluno || !emailAluno.includes("@")) {
+      return res.status(400).json({ error: "E-mail do aluno inválido ou ausente." });
+    }
+
+    if (!courseIds || !Array.isArray(courseIds) || courseIds.length === 0) {
+      return res.status(400).json({ error: "Nenhuma disciplina foi selecionada para re-inclusão." });
+    }
+
+    const classroom = await criarGoogleClassroomClientAuth();
+    const historicoEnsalamento = lerHistoricoEnsalamentoAlunos();
+    let historicoModificado = false;
+
+    const relatorio = {
+      emailAluno,
+      totalSalas: courseIds.length,
+      reinclusos: 0,
+      falhas: 0,
+      detalhes: []
+    };
+
+    for (const cId of courseIds) {
+      try {
+        await classroom.courses.students.create({
+          courseId: String(cId),
+          requestBody: { userId: emailAluno }
+        });
+        relatorio.reinclusos++;
+        relatorio.detalhes.push({ courseId: cId, status: "reincluso" });
+
+        registrarAlunoEnsaladoLocal(cId, emailAluno, "", "", historicoEnsalamento);
+        historicoModificado = true;
+      } catch (errCreate) {
+        const msg = errCreate.response?.data?.error?.message || errCreate.message;
+        if (errCreate.response?.status === 409 || msg.includes("already exists")) {
+          relatorio.reinclusos++;
+          relatorio.detalhes.push({ courseId: cId, status: "ja_existia" });
+          registrarAlunoEnsaladoLocal(cId, emailAluno, "", "", historicoEnsalamento);
+          historicoModificado = true;
+        } else {
+          relatorio.falhas++;
+          relatorio.detalhes.push({ courseId: cId, status: "erro", erro: msg });
+        }
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    if (historicoModificado) {
+      salvarHistoricoEnsalamentoAlunos(historicoEnsalamento);
+    }
+
+    return res.json({ ok: true, relatorio });
+  } catch (e) {
+    console.error("[google-classroom-reincluso-aluno-salas] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/google-classroom/historico-ensalamento", async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    const historico = lerHistoricoEnsalamentoAlunos();
+    const total = Object.keys(historico).length;
+    return res.json({ ok: true, total, historico });
+  } catch (e) {
+    console.error("[google-classroom-historico-ensalamento] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/google-classroom/limpar-historico-ensalamento", async (req, res) => {
+  try {
+    const { idToken, idTurma } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    let historico = lerHistoricoEnsalamentoAlunos();
+    let removidosCount = 0;
+
+    if (idTurma) {
+      const idTurmaStr = String(idTurma);
+      const novoHistorico = {};
+      for (const [key, item] of Object.entries(historico)) {
+        if (item && item.id_turma === idTurmaStr) {
+          removidosCount++;
+        } else {
+          novoHistorico[key] = item;
+        }
+      }
+      historico = novoHistorico;
+    } else {
+      removidosCount = Object.keys(historico).length;
+      historico = {};
+    }
+
+    salvarHistoricoEnsalamentoAlunos(historico);
+    return res.json({ ok: true, removidos: removidosCount, totalRestante: Object.keys(historico).length });
+  } catch (e) {
+    console.error("[google-classroom-limpar-historico-ensalamento] Erro geral:", e);
     return res.status(500).json({ error: e.message });
   }
 });
@@ -5104,7 +5388,10 @@ app.post("/api/ti/grade/criar-salas", async (req, res) => {
 
     // ── Helper: ensala alunos de uma turma iScholar em um curso do Classroom
     async function ensalarAlunosTurmaNoClassroom(courseId, idTurma) {
-      const resultado = { ensalados: 0, jaExistiam: 0, semEmail: 0, erros: 0, detalhes: [] };
+      const resultado = { ensalados: 0, jaExistiam: 0, puladosHistorico: 0, semEmail: 0, erros: 0, detalhes: [] };
+      const historico = lerHistoricoEnsalamentoAlunos();
+      let modificado = false;
+
       try {
         const alunos = await obterAlunosTurmaIscholar(idTurma);
         for (const aluno of alunos) {
@@ -5114,6 +5401,21 @@ app.post("/api/ti/grade/criar-salas", async (req, res) => {
             resultado.detalhes.push({ nome: aluno.nome_aluno, status: "sem_email" });
             continue;
           }
+
+          if (isAlunoExcluidoManualmenteLocal(courseId, email, historico)) {
+            resultado.jaExistiam++;
+            resultado.puladosHistorico++;
+            resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "bloqueado_manualmente" });
+            continue;
+          }
+
+          if (isAlunoEnsaladoLocal(courseId, email, historico)) {
+            resultado.jaExistiam++;
+            resultado.puladosHistorico++;
+            resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "ja_existia" });
+            continue;
+          }
+
           try {
             await classroom.courses.students.create({
               courseId,
@@ -5121,17 +5423,25 @@ app.post("/api/ti/grade/criar-salas", async (req, res) => {
             });
             resultado.ensalados++;
             resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "ensalado" });
+            registrarAlunoEnsaladoLocal(courseId, email, aluno.nome_aluno, idTurma, historico);
+            modificado = true;
           } catch (errAluno) {
             const msg = errAluno.response?.data?.error?.message || errAluno.message || "";
             if (errAluno.response?.status === 409 || msg.toLowerCase().includes("already")) {
               resultado.jaExistiam++;
               resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "ja_existia" });
+              registrarAlunoEnsaladoLocal(courseId, email, aluno.nome_aluno, idTurma, historico);
+              modificado = true;
             } else {
               resultado.erros++;
               resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "erro", erro: msg });
               console.warn(`[ensalamento] Erro ao ensalar ${email} no curso ${courseId}:`, msg);
             }
           }
+        }
+
+        if (modificado) {
+          salvarHistoricoEnsalamentoAlunos(historico);
         }
       } catch (e) {
         console.error(`[ensalamento] Erro ao buscar alunos da turma ${idTurma}:`, e.message);

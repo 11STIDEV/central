@@ -99,7 +99,10 @@ export default function AreaTI() {
   const [isSearchingStudentSalas, setIsSearchingStudentSalas] = useState(false);
   const [studentSalasEncontradas, setStudentSalasEncontradas] = useState<any[] | null>(null);
   const [studentSalasSelecionadas, setStudentSalasSelecionadas] = useState<Set<string>>(new Set());
+  const [studentSalasBloqueadas, setStudentSalasBloqueadas] = useState<any[]>([]);
+  const [studentBloqueadasSelecionadas, setStudentBloqueadasSelecionadas] = useState<Set<string>>(new Set());
   const [isRemovendoAlunoSalas, setIsRemovendoAlunoSalas] = useState(false);
+  const [isReincluindoAlunoSalas, setIsReincluindoAlunoSalas] = useState(false);
 
   const parseCSV = (text: string) => {
     const lines = text.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
@@ -469,8 +472,11 @@ export default function AreaTI() {
       if (ok && json.ok) {
         setLastSearchedStudentEmail(emailClean);
         const list = json.salas || [];
+        const blqList = json.bloqueadas || [];
         setStudentSalasEncontradas(list);
         setStudentSalasSelecionadas(new Set(list.map((s: any) => s.google_course_id)));
+        setStudentSalasBloqueadas(blqList);
+        setStudentBloqueadasSelecionadas(new Set());
       } else {
         setErrorMsgIscholar(json.error || "Erro ao buscar disciplinas do aluno.");
       }
@@ -511,9 +517,8 @@ export default function AreaTI() {
 
       if (ok && json.ok) {
         const rel = json.relatorio || {};
-        setStatusMsg(`Sucesso! Aluno ${lastSearchedStudentEmail} removido de ${rel.removidos || 0} disciplina(s).`);
-        setStudentSalasEncontradas(prev => (prev || []).filter(s => !studentSalasSelecionadas.has(s.google_course_id)));
-        setStudentSalasSelecionadas(new Set());
+        setStatusMsg(`Sucesso! Aluno ${lastSearchedStudentEmail} desassociado de ${rel.removidos || 0} disciplina(s) e marcado como bloqueado no histórico.`);
+        handleBuscarSalasAluno();
       } else {
         setErrorMsgIscholar(json.error || "Erro ao desassociar aluno das disciplinas.");
       }
@@ -521,6 +526,48 @@ export default function AreaTI() {
       setErrorMsgIscholar(e.message || "Erro de conexão ao remover aluno.");
     } finally {
       setIsRemovendoAlunoSalas(false);
+    }
+  };
+
+  const handleReincluirAlunoSalas = async () => {
+    if (!lastSearchedStudentEmail || studentBloqueadasSelecionadas.size === 0) return;
+    if (!googleIdToken) {
+      alert("Atenção: É necessário estar autenticado com uma conta do Google.");
+      return;
+    }
+
+    const qtd = studentBloqueadasSelecionadas.size;
+    if (!window.confirm(`Tem certeza que deseja re-incluir o aluno ${lastSearchedStudentEmail} em ${qtd} disciplina(s) no Google Classroom?`)) {
+      return;
+    }
+
+    setIsReincluindoAlunoSalas(true);
+    setErrorMsgIscholar(null);
+    setStatusMsg(null);
+
+    try {
+      const courseIds = Array.from(studentBloqueadasSelecionadas);
+      const { ok, json } = await safeFetchJson(apiUrl("/api/ti/google-classroom/reincluso-aluno-salas"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idToken: googleIdToken,
+          email: lastSearchedStudentEmail,
+          courseIds
+        })
+      });
+
+      if (ok && json.ok) {
+        const rel = json.relatorio || {};
+        setStatusMsg(`Sucesso! Aluno ${lastSearchedStudentEmail} re-incluído em ${rel.reinclusos || 0} disciplina(s).`);
+        handleBuscarSalasAluno();
+      } else {
+        setErrorMsgIscholar(json.error || "Erro ao re-incluir aluno nas disciplinas.");
+      }
+    } catch (e: any) {
+      setErrorMsgIscholar(e.message || "Erro de conexão ao re-incluir aluno.");
+    } finally {
+      setIsReincluindoAlunoSalas(false);
     }
   };
 
@@ -1247,7 +1294,7 @@ export default function AreaTI() {
                         <p className="text-xl font-bold text-card-foreground">{relatorioEnsalamento.totalAlunos}</p>
                       </div>
                       <div className="rounded-lg bg-emerald-500/10 text-emerald-900 dark:text-emerald-300 p-3">
-                        <p className="text-xs font-semibold">Inseridos</p>
+                        <p className="text-xs font-semibold">Novas Matrículas</p>
                         <p className="text-xl font-bold text-emerald-600">{relatorioEnsalamento.sucessos}</p>
                       </div>
                       <div className="rounded-lg bg-blue-500/10 text-blue-900 dark:text-blue-300 p-3">
@@ -1259,6 +1306,29 @@ export default function AreaTI() {
                         <p className="text-xl font-bold text-destructive">{relatorioEnsalamento.falhas}</p>
                       </div>
                     </div>
+
+                    {relatorioEnsalamento.puladosHistorico > 0 && (
+                      <div className="rounded-lg border border-primary/20 bg-primary/5 p-2.5 text-xs text-primary flex items-center justify-between">
+                        <span className="font-semibold">
+                          ⚡ Otimização do Histórico Local:
+                        </span>
+                        <span className="opacity-90">
+                          {relatorioEnsalamento.puladosHistorico} verificação(ões) pulada(s) instantaneamente (já ensalados anteriormente).
+                        </span>
+                      </div>
+                    )}
+
+                    {relatorioEnsalamento.bloqueadosManualmente > 0 && (
+                      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                        <span className="font-semibold flex items-center gap-1.5">
+                          <Lock className="h-3.5 w-3.5" />
+                          Bloqueio por Grade Aberta:
+                        </span>
+                        <span className="opacity-90">
+                          {relatorioEnsalamento.bloqueadosManualmente} matrícula(s) ignorada(s) devido a desenturmação manual.
+                        </span>
+                      </div>
+                    )}
 
                     <div className="max-h-[250px] overflow-y-auto rounded-lg border border-border">
                       <table className="w-full text-xs">
@@ -1904,6 +1974,103 @@ export default function AreaTI() {
                           </button>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* SEÇÃO DE DISCIPLINAS BLOQUEADAS MANUALMENTE */}
+                  {studentSalasBloqueadas.length > 0 && (
+                    <div className="pt-4 border-t border-border space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-bold text-card-foreground flex items-center gap-2">
+                            <Lock className="h-4 w-4 text-amber-500" />
+                            Disciplinas Bloqueadas / Removidas Manualmente ({studentSalasBloqueadas.length})
+                          </h4>
+                          <p className="text-xs text-muted-foreground">
+                            Estas disciplinas foram desassociadas manualmente e <span className="font-semibold text-foreground">serão ignoradas</span> no ensalamento automático da turma.
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setStudentBloqueadasSelecionadas(new Set(studentSalasBloqueadas.map(b => b.google_course_id)))}
+                            className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+                          >
+                            ✓ Todas
+                          </button>
+                          <button
+                            onClick={() => setStudentBloqueadasSelecionadas(new Set())}
+                            className="rounded-md border border-border bg-muted px-2.5 py-1 text-[11px] font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+                          >
+                            ✗ Nenhuma
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[250px] overflow-y-auto pr-1">
+                        {studentSalasBloqueadas.map((b) => {
+                          const checked = studentBloqueadasSelecionadas.has(b.google_course_id);
+                          return (
+                            <div
+                              key={b.google_course_id}
+                              onClick={() => {
+                                setStudentBloqueadasSelecionadas(prev => {
+                                  const next = new Set(prev);
+                                  next.has(b.google_course_id) ? next.delete(b.google_course_id) : next.add(b.google_course_id);
+                                  return next;
+                                });
+                              }}
+                              className={`flex items-start justify-between rounded-lg border p-3 text-xs cursor-pointer select-none transition-all ${
+                                checked
+                                  ? "border-amber-500/50 bg-amber-500/10 dark:bg-amber-500/20"
+                                  : "border-amber-500/20 bg-amber-500/5 opacity-80 hover:opacity-100"
+                              }`}
+                            >
+                              <div className="flex items-start gap-2.5">
+                                <div className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all ${
+                                  checked
+                                    ? "border-amber-600 bg-amber-600 text-white"
+                                    : "border-border bg-card"
+                                }`}>
+                                  {checked && <Check className="h-2.5 w-2.5" />}
+                                </div>
+                                <div>
+                                  <p className="font-semibold text-card-foreground">{b.google_course_name}</p>
+                                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                                    ID: {b.google_course_id}
+                                    {b.id_turma && <span className="ml-1 text-amber-700 dark:text-amber-300 font-medium">• Turma ID: {b.id_turma}</span>}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 shrink-0 ml-2">
+                                Bloqueado
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="pt-2 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-muted-foreground">
+                          {studentBloqueadasSelecionadas.size} disciplina(s) selecionada(s) para re-inclusão
+                        </span>
+                        <button
+                          onClick={handleReincluirAlunoSalas}
+                          disabled={isReincluindoAlunoSalas || studentBloqueadasSelecionadas.size === 0}
+                          className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-xs font-semibold text-white shadow hover:bg-emerald-700 transition-all disabled:opacity-50"
+                        >
+                          {isReincluindoAlunoSalas ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Re-incluindo Aluno...
+                            </>
+                          ) : (
+                            <>
+                              <RefreshCw className="h-4 w-4" />
+                              Re-incluir e Desbloquear {studentBloqueadasSelecionadas.size} Disciplina(s)
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
