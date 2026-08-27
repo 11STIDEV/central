@@ -376,6 +376,32 @@ function getAdminJwtForScopes(scopes) {
   }
 }
 
+/**
+ * JWT dedicado para operações no Google Calendar.
+ * Usa GOOGLE_CALENDAR_IMPERSONATE se definido; caso contrário, cai para GOOGLE_ADMIN_IMPERSONATE.
+ * Isso permite que os eventos sejam criados em nome de uma conta de sistema dedicada
+ * (ex: sistema@portalcci.com.br) em vez da conta de administração principal.
+ */
+function getCalendarJwt() {
+  const credentials = getServiceAccountCredentials();
+  if (!credentials) return null;
+  const subject =
+    process.env.GOOGLE_CALENDAR_IMPERSONATE ||
+    GOOGLE_ADMIN_IMPERSONATE;
+  if (!subject) return null;
+  try {
+    return new google.auth.JWT({
+      email: credentials.client_email,
+      key: credentials.private_key,
+      scopes: ["https://www.googleapis.com/auth/calendar"],
+      subject,
+    });
+  } catch (e) {
+    console.error("Erro ao criar JWT Calendar:", e.message);
+    return null;
+  }
+}
+
 /** S├│ para `/api/organizacao` (OU ÔåÆ pap├®is no front). */
 function getJwtOrganizacao() {
   return getAdminJwtForScopes([SCOPE_ADMIN_USER_READONLY]);
@@ -631,7 +657,7 @@ async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
   const salasCalendarId = process.env.GOOGLE_CALENDAR_SALAS_ID || mainCalendarId;
   if (!mainCalendarId) return;
 
-  const auth = getAdminJwtForScopes(["https://www.googleapis.com/auth/calendar"]);
+  const auth = getCalendarJwt();
   if (!auth) {
     console.warn("[google-calendar-sync] Sem credenciais para sincronizar.");
     return;
@@ -674,9 +700,22 @@ async function sincronizarReservasComGoogleCalendar(novaLista, oldLista) {
       }
 
       // Reserva ativa
+      const summary = r.titulo
+        ? `${r.titulo} - ${r.solicitanteNome}`
+        : `${textoResumoReservasParaGoogle(r)} - ${r.solicitanteNome}`;
+
+      const descriptionLines = [
+        "Reserva Intranet CCI",
+        "",
+        `Solicitante: ${r.solicitanteNome} (${r.solicitanteEmail})`,
+        `Recursos: ${textoResumoReservasParaGoogle(r)}`,
+        `Observa\u00e7\u00e3o: ${r.observacao || "Nenhuma"}`,
+        `ID da Reserva: ${r.id}`,
+      ];
+
       const eventDetails = {
-        summary: r.titulo ? `${r.titulo} - ${r.solicitanteNome}` : `${textoResumoReservasParaGoogle(r)} - ${r.solicitanteNome}`,
-        description: `Reserva Intranet CCI\n\nSolicitante: ${r.solicitanteNome} (${r.solicitanteEmail})\nRecursos: ${textoResumoReservasParaGoogle(r)}\nObserva├º├úo: ${r.observacao || "Nenhuma"}\nID da Reserva: ${r.id}`,
+        summary,
+        description: descriptionLines.join("\n"),
         start: {
           dateTime: `${r.data}T${r.inicio}:00`,
           timeZone: AGENDA_CCI_TIMEZONE,
