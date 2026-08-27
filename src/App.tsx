@@ -15,6 +15,7 @@ import Ramais from "./pages/Ramais";
 import AbrirChamado from "./pages/AbrirChamado";
 import GestaoChamados from "./pages/GestaoChamados";
 import AreaTI from "./pages/AreaTI";
+import ComunicadosIntersetoriaisPage from "./pages/ComunicadosIntersetoriaisPage";
 import IScholar from "./pages/IScholar";
 import Documentos from "./pages/Documentos";
 import AgendaCCI from "./pages/AgendaCCI";
@@ -130,6 +131,7 @@ function CentralIntranetApp() {
                   </RequireRouteAccess>
                 }
               />
+              <Route path="/comunicados-intersetoriais" element={<ComunicadosIntersetoriaisPage />} />
               <Route path="/documentos" element={<Documentos />} />
               <Route path="/agenda-cci" element={<AgendaCCI />} />
               <Route path="/reserva-espacos-equipamentos" element={<ReservaEspacosEquipamentos />} />

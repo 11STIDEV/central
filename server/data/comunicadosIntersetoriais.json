@@ -1,0 +1,153 @@
+[
+  {
+    "id": "comunicado_1787851405153_m57k9",
+    "titulo": "Teste DP",
+    "setorOrigem": "SETAPE",
+    "setoresDestino": [
+      "DP / FINANCEIRO"
+    ],
+    "canaisDivulgacao": [
+      "Whatsapp / Umbler Talk",
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "Teste dp",
+    "dataValidade": "2026-08-28",
+    "anexosOuLinks": [],
+    "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
+    "criadoPorNome": "Thiago Santos Ferreira",
+    "criadoEm": "2026-08-27T17:23:25.154+00:00",
+    "atualizadoEm": "2026-08-27T17:23:48.114+00:00",
+    "cientes": [
+      {
+        "data": "2026-08-27T17:23:48.112Z",
+        "nome": "Candidato Cci",
+        "email": "candidato@portalcci.com.br",
+        "setor": "DP / FINANCEIRO"
+      }
+    ]
+  },
+  {
+    "id": "comunicado_1787849045907_za85z",
+    "titulo": "último teste",
+    "setorOrigem": "SETAPE",
+    "setoresDestino": [
+      "SECRETARIA"
+    ],
+    "canaisDivulgacao": [
+      "Whatsapp / Umbler Talk",
+      "Compartilhar com funcionários",
+      "Agenda CCI"
+    ],
+    "descricao": "Teste",
+    "dataValidade": "2026-08-28",
+    "anexosOuLinks": [],
+    "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
+    "criadoPorNome": "Thiago Santos Ferreira",
+    "criadoEm": "2026-08-27T16:44:05.908+00:00",
+    "atualizadoEm": "2026-08-27T16:44:05.908+00:00",
+    "cientes": []
+  },
+  {
+    "id": "comunicado_1787848138412_pwyqu",
+    "titulo": "Mais um teste",
+    "setorOrigem": "SETAPE",
+    "setoresDestino": [
+      "SETAPE"
+    ],
+    "canaisDivulgacao": [
+      "Whatsapp / Umbler Talk",
+      "Compartilhar com funcionários",
+      "Agenda CCI"
+    ],
+    "descricao": "Teste 2.0",
+    "dataValidade": "2026-08-27",
+    "anexosOuLinks": [],
+    "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
+    "criadoPorNome": "Thiago Santos Ferreira",
+    "criadoEm": "2026-08-27T16:28:58.412+00:00",
+    "atualizadoEm": "2026-08-27T16:29:17.217+00:00",
+    "cientes": [
+      {
+        "data": "2026-08-27T16:29:17.213Z",
+        "nome": "Thiago Santos Ferreira",
+        "email": "thiago.ferreira@portalcci.com.br",
+        "setor": "SETAPE"
+      }
+    ]
+  },
+  {
+    "id": "comunicado_1787777263217_rq0ig",
+    "titulo": "Mais um teste",
+    "setorOrigem": "SETAPE",
+    "setoresDestino": [
+      "SETAPE"
+    ],
+    "canaisDivulgacao": [
+      "Whatsapp / Umbler Talk",
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "Teste 2",
+    "dataValidade": "2026-08-18",
+    "anexosOuLinks": [],
+    "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
+    "criadoPorNome": "Thiago Santos Ferreira",
+    "criadoEm": "2026-08-26T20:47:43.218+00:00",
+    "atualizadoEm": "2026-08-26T20:47:43.218+00:00",
+    "cientes": []
+  },
+  {
+    "id": "comunicado_1787777033996_vb2qv",
+    "titulo": "Comunicado para o DP",
+    "setorOrigem": "SETAPE",
+    "setoresDestino": [
+      "DP / FINANCEIRO"
+    ],
+    "canaisDivulgacao": [
+      "Whatsapp / Umbler Talk",
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "Teste de comunicado",
+    "dataValidade": "2026-08-25",
+    "anexosOuLinks": [],
+    "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
+    "criadoPorNome": "Thiago Santos Ferreira",
+    "criadoEm": "2026-08-26T20:43:53.996+00:00",
+    "atualizadoEm": "2026-08-26T20:47:54.006+00:00",
+    "cientes": [
+      {
+        "data": "2026-08-26T20:47:54.003Z",
+        "nome": "Thiago Santos Ferreira",
+        "email": "thiago.ferreira@portalcci.com.br",
+        "setor": "Secretaria / Atendimento"
+      }
+    ]
+  },
+  {
+    "id": "comunicado_1787776282656_72qg2",
+    "titulo": "Teste de comunicado",
+    "setorOrigem": "TI",
+    "setoresDestino": [
+      "TI"
+    ],
+    "canaisDivulgacao": [
+      "Whatsapp / Umbler Talk",
+      "Comunicação interna (compartilhar com funcionários)",
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "Estamos fazendo um teste",
+    "dataValidade": "2026-08-27",
+    "anexosOuLinks": [],
+    "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
+    "criadoPorNome": "Thiago Santos Ferreira",
+    "criadoEm": "2026-08-26T20:31:22.656+00:00",
+    "atualizadoEm": "2026-08-26T20:46:51.112+00:00",
+    "cientes": [
+      {
+        "data": "2026-08-26T20:46:51.109Z",
+        "nome": "Thiago Santos Ferreira",
+        "email": "thiago.ferreira@portalcci.com.br",
+        "setor": "Secretaria / Atendimento"
+      }
+    ]
+  }
+]

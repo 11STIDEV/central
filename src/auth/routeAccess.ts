@@ -28,6 +28,7 @@ const ROTAS_INTRANET_COMUM = new Set([
   "/vale-adiantamento",
   "/cci-pay/loja",
   "/cci-pay/meus-pedidos",
+  "/comunicados-intersetoriais",
 ]);
 
 const PAPEIS_PROFESSORES: Papel[] = ["professorfac", "professortecs", "professorregular"];
