@@ -401,7 +401,7 @@ export default function ReservaEspacosEquipamentos() {
         : undefined,
       status: "ativa",
       criadoEm: new Date().toISOString(),
-      destinoCalendar: podeAgendarNaAgendaCCI ? destinoCalendar : "salas_labs",
+      destinoCalendar: "salas_labs",
     };
 
     return nova;

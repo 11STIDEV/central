@@ -57,6 +57,12 @@ import {
   atualizarCard,
   excluirCard,
 } from "./kanbanStore.js";
+import {
+  listarComunicadosStore,
+  criarComunicadoStore,
+  atualizarComunicadoStore,
+  excluirComunicadoStore,
+} from "./comunicadosStore.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -248,8 +254,8 @@ const GOOGLE_CLIENT_IDS = (process.env.GOOGLE_CLIENT_ID || "")
 const GOOGLE_ADMIN_IMPERSONATE = process.env.GOOGLE_ADMIN_IMPERSONATE;
 const GOOGLE_SERVICE_ACCOUNT_JSON = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
 const GOOGLE_SERVICE_ACCOUNT_PATH = process.env.GOOGLE_SERVICE_ACCOUNT_PATH;
-/** Opcional: caminho da OU (ex.: /Administrativo/CCI) para listar s├│ Chromebooks dessa unidade. */
-const GOOGLE_CHROMEBOOK_ORG_UNIT = process.env.GOOGLE_CHROMEBOOK_ORG_UNIT?.trim() || "";
+/** Opcional: caminho da OU (ex.: /Administrativo/Setape) para listar só Chromebooks dessa unidade. Default: /Administrativo/Setape */
+const GOOGLE_CHROMEBOOK_ORG_UNIT = process.env.GOOGLE_CHROMEBOOK_ORG_UNIT?.trim() || "/Administrativo/Setape";
 
 const DATA_DIR = path.join(__dirname, "data");
 const ARQUIVO_RESERVAS_AGENDA = path.join(DATA_DIR, "agenda-cci-reservas.json");
@@ -880,13 +886,12 @@ function emailTemPapelAdminNoArquivo(email) {
 }
 
 async function listarTodosChromeosAdmin(admin) {
+  const targetOu = GOOGLE_CHROMEBOOK_ORG_UNIT || "/Administrativo/Setape";
   const listParams = {
     customerId: "my_customer",
     maxResults: 200,
+    orgUnitPath: targetOu,
   };
-  if (GOOGLE_CHROMEBOOK_ORG_UNIT) {
-    listParams.orgUnitPath = GOOGLE_CHROMEBOOK_ORG_UNIT;
-  }
   const out = [];
   let pageToken;
   do {
@@ -898,6 +903,8 @@ async function listarTodosChromeosAdmin(admin) {
     for (const d of list) {
       const st = (d.status || "").toUpperCase();
       if (st === "DEPROVISIONED") continue;
+      // Garante filtragem estrita da OU (descarta sub-OUs ou OUs divergentes)
+      if (d.orgUnitPath && d.orgUnitPath !== targetOu) continue;
       out.push(d);
     }
     pageToken = r.data.nextPageToken;
@@ -1345,6 +1352,78 @@ app.post("/api/agenda-cci/reservas/obter", async (req, res) => {
     const msg = mensagemErroGoogle(err);
     console.error("Erro /api/agenda-cci/reservas/obter:", msg);
     return res.status(500).json({ error: msg || "Erro ao ler reservas." });
+  }
+});
+
+/**
+ * POST /api/agenda-cci/migrar-eventos-calendario
+ * Remove eventos de reservas do calendário principal (Agenda CCI) e força recriação no calendário de salas/labs.
+ * Body: { idToken }
+ */
+app.post("/api/agenda-cci/migrar-eventos-calendario", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis.includes("admin") && !ctx.papeis.includes("setape")) {
+      return res.status(403).json({ error: "Acesso restrito a Setape ou administradores." });
+    }
+
+    const mainCalendarId = process.env.GOOGLE_CALENDAR_ID;
+    const salasCalendarId = process.env.GOOGLE_CALENDAR_SALAS_ID;
+    if (!mainCalendarId || !salasCalendarId) {
+      return res.status(400).json({ error: "GOOGLE_CALENDAR_ID e GOOGLE_CALENDAR_SALAS_ID precisam estar configurados no server/.env." });
+    }
+    if (mainCalendarId === salasCalendarId) {
+      return res.json({ ok: true, msg: "Os dois calendários são o mesmo — nada a migrar.", migrados: 0 });
+    }
+
+    const auth = getAdminJwtForScopes(["https://www.googleapis.com/auth/calendar"]);
+    if (!auth) {
+      return res.status(500).json({ error: "Sem credenciais de service account para o Google Calendar." });
+    }
+    await auth.authorize();
+    const calendar = google.calendar({ version: "v3", auth });
+
+    const reservas = await lerReservasPersistidas();
+
+    // Reservas que devem estar no salasCalendarId (toda reserva de equipamento/chromebook/espaço)
+    // mas que ainda têm googleEventId salvo (provavelmente criadas no mainCalendarId)
+    const paraCorrigir = reservas.filter(
+      (r) => r.status === "ativa" && r.googleEventId && r.destinoCalendar !== "agenda_cci"
+    );
+
+    let migrados = 0;
+    let erros = 0;
+
+    for (const r of paraCorrigir) {
+      // Tenta deletar do calendário principal (onde pode estar erroneamente)
+      try {
+        await calendar.events.delete({
+          calendarId: mainCalendarId,
+          eventId: r.googleEventId,
+        });
+        console.log(`[migrar-calendario] Removido evento ${r.googleEventId} do calendário principal para reserva ${r.id}`);
+      } catch (e) {
+        // Ignora 404 (já não estava lá ou já foi apagado)
+        if (e.response?.status !== 404) {
+          console.warn(`[migrar-calendario] Erro ao remover ${r.googleEventId} do calendário principal:`, e.message);
+        }
+      }
+      // Apaga googleEventId para forçar recriação no calendário correto na próxima sincronização
+      delete r.googleEventId;
+      migrados++;
+    }
+
+    if (migrados > 0) {
+      // Persiste a lista com googleEventId removido e dispara sincronização
+      await salvarReservasPersistidas(reservas);
+      console.log(`[migrar-calendario] ${migrados} reservas migradas para o calendário de salas/labs.`);
+    }
+
+    return res.json({ ok: true, migrados, erros, total: paraCorrigir.length });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[migrar-calendario] Erro:", e.message);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
   }
 });
 
@@ -3262,6 +3341,88 @@ function salvarMapeamentosClassroom(mapeamentos) {
   }
 }
 
+const STUDENT_ENROLLMENTS_FILE = path.join(__dirname, "data", "studentEnrollments.json");
+
+function lerHistoricoEnsalamentoAlunos() {
+  try {
+    if (!fs.existsSync(STUDENT_ENROLLMENTS_FILE)) {
+      return {};
+    }
+    const raw = fs.readFileSync(STUDENT_ENROLLMENTS_FILE, "utf-8");
+    return JSON.parse(raw || "{}");
+  } catch (e) {
+    console.error("[student-enrollments] Erro ao ler histórico de ensalamento:", e.message);
+    return {};
+  }
+}
+
+function salvarHistoricoEnsalamentoAlunos(historico) {
+  try {
+    const dir = path.dirname(STUDENT_ENROLLMENTS_FILE);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    fs.writeFileSync(STUDENT_ENROLLMENTS_FILE, JSON.stringify(historico, null, 2), "utf-8");
+  } catch (e) {
+    console.error("[student-enrollments] Erro ao salvar histórico de ensalamento:", e.message);
+  }
+}
+
+function isAlunoEnsaladoLocal(courseId, emailAluno, historico) {
+  if (!courseId || !emailAluno) return false;
+  const key = `${courseId}_${String(emailAluno).toLowerCase().trim()}`;
+  const record = historico[key];
+  return Boolean(record && record.status !== "excluido_manualmente");
+}
+
+function isAlunoExcluidoManualmenteLocal(courseId, emailAluno, historico) {
+  if (!courseId || !emailAluno) return false;
+  const key = `${courseId}_${String(emailAluno).toLowerCase().trim()}`;
+  const record = historico[key];
+  return Boolean(record && record.status === "excluido_manualmente");
+}
+
+function registrarAlunoEnsaladoLocal(courseId, emailAluno, nomeAluno, idTurma, historico) {
+  if (!courseId || !emailAluno) return;
+  const emailClean = String(emailAluno).toLowerCase().trim();
+  const key = `${courseId}_${emailClean}`;
+  historico[key] = {
+    courseId: String(courseId),
+    email: emailClean,
+    nome: nomeAluno || historico[key]?.nome || "",
+    id_turma: idTurma ? String(idTurma) : (historico[key]?.id_turma || ""),
+    status: "matriculado",
+    enrolled_at: new Date().toISOString()
+  };
+}
+
+function marcarAlunoExcluidoManualmenteLocal(courseId, emailAluno, historico) {
+  if (!courseId || !emailAluno) return false;
+  const emailClean = String(emailAluno).toLowerCase().trim();
+  const key = `${courseId}_${emailClean}`;
+  const existing = historico[key] || {};
+  historico[key] = {
+    courseId: String(courseId),
+    email: emailClean,
+    nome: existing.nome || "",
+    id_turma: existing.id_turma || "",
+    status: "excluido_manualmente",
+    excluded_at: new Date().toISOString()
+  };
+  return true;
+}
+
+function removerBloqueioAlunoLocal(courseId, emailAluno, historico) {
+  if (!courseId || !emailAluno) return false;
+  const emailClean = String(emailAluno).toLowerCase().trim();
+  const key = `${courseId}_${emailClean}`;
+  if (historico[key]) {
+    delete historico[key];
+    return true;
+  }
+  return false;
+}
+
 async function safeFetchIscholarJson(url, options = {}) {
   const response = await fetch(url, options);
   const text = await response.text();
@@ -4298,12 +4459,16 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
     }
 
     const classroom = await criarGoogleClassroomClientAuth();
+    const historicoEnsalamento = lerHistoricoEnsalamentoAlunos();
+    let historicoModificado = false;
 
     const relatorio = {
       totalAlunos: alunos.length,
       totalSalas: salasMapeadas.length,
       sucessos: 0,
       jaMatriculados: 0,
+      puladosHistorico: 0,
+      bloqueadosManualmente: 0,
       falhas: 0,
       detalhes: []
     };
@@ -4313,9 +4478,35 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
       if (!emailAluno) continue;
 
       for (const sala of salasMapeadas) {
+        const courseId = sala.google_course_id;
+
+        if (isAlunoExcluidoManualmenteLocal(courseId, emailAluno, historicoEnsalamento)) {
+          relatorio.bloqueadosManualmente++;
+          relatorio.jaMatriculados++;
+          relatorio.detalhes.push({
+            aluno: aluno.nome_aluno,
+            email: emailAluno,
+            sala: sala.google_course_name,
+            status: "bloqueado_manualmente"
+          });
+          continue;
+        }
+
+        if (isAlunoEnsaladoLocal(courseId, emailAluno, historicoEnsalamento)) {
+          relatorio.jaMatriculados++;
+          relatorio.puladosHistorico++;
+          relatorio.detalhes.push({
+            aluno: aluno.nome_aluno,
+            email: emailAluno,
+            sala: sala.google_course_name,
+            status: "ja_existia"
+          });
+          continue;
+        }
+
         try {
           await classroom.courses.students.create({
-            courseId: sala.google_course_id,
+            courseId: courseId,
             requestBody: {
               userId: emailAluno
             }
@@ -4328,6 +4519,9 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
             sala: sala.google_course_name,
             status: "matriculado"
           });
+
+          registrarAlunoEnsaladoLocal(courseId, emailAluno, aluno.nome_aluno, idTurma, historicoEnsalamento);
+          historicoModificado = true;
         } catch (errStudent) {
           const status = errStudent.response?.status;
           const msg = errStudent.response?.data?.error?.message || errStudent.message;
@@ -4340,6 +4534,9 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
               sala: sala.google_course_name,
               status: "ja_existia"
             });
+
+            registrarAlunoEnsaladoLocal(courseId, emailAluno, aluno.nome_aluno, idTurma, historicoEnsalamento);
+            historicoModificado = true;
           } else {
             relatorio.falhas++;
             relatorio.detalhes.push({
@@ -4353,6 +4550,10 @@ app.post("/api/ti/google-classroom/ensalar-turma", async (req, res) => {
         }
         await new Promise(r => setTimeout(r, 150));
       }
+    }
+
+    if (historicoModificado) {
+      salvarHistoricoEnsalamentoAlunos(historicoEnsalamento);
     }
 
     return res.json({
@@ -4386,6 +4587,7 @@ app.post("/api/ti/google-classroom/aluno-salas", async (req, res) => {
 
     const classroom = await criarGoogleClassroomClientAuth();
     const mapeamentos = lerMapeamentosClassroom();
+    const historico = lerHistoricoEnsalamentoAlunos();
 
     let response;
     try {
@@ -4395,7 +4597,7 @@ app.post("/api/ti/google-classroom/aluno-salas", async (req, res) => {
       });
     } catch (errList) {
       console.warn(`[classroom-aluno-salas] Erro ao listar turmas via studentId (${emailAluno}):`, errList.message);
-      return res.json({ ok: true, studentEmail: emailAluno, total: 0, salas: [] });
+      return res.json({ ok: true, studentEmail: emailAluno, total: 0, salas: [], bloqueadas: [] });
     }
 
     const courses = response.data.courses || [];
@@ -4414,7 +4616,21 @@ app.post("/api/ti/google-classroom/aluno-salas", async (req, res) => {
       };
     });
 
-    return res.json({ ok: true, studentEmail: emailAluno, total: salas.length, salas });
+    const bloqueadas = [];
+    for (const [key, record] of Object.entries(historico)) {
+      if (record && record.email === emailAluno && record.status === "excluido_manualmente") {
+        const cId = record.courseId;
+        const mItem = Object.values(mapeamentos).find((m) => m && m.google_course_id === cId);
+        bloqueadas.push({
+          google_course_id: cId,
+          google_course_name: mItem?.google_course_name || mItem?.nome_disciplina || `Sala ID ${cId}`,
+          id_turma: record.id_turma || mItem?.id_turma || "",
+          excluded_at: record.excluded_at || ""
+        });
+      }
+    }
+
+    return res.json({ ok: true, studentEmail: emailAluno, total: salas.length, salas, bloqueadas });
   } catch (e) {
     console.error("[google-classroom-aluno-salas] Erro geral:", e);
     return res.status(500).json({ error: e.message });
@@ -4445,6 +4661,9 @@ app.post("/api/ti/google-classroom/remover-aluno-salas", async (req, res) => {
     }
 
     const classroom = await criarGoogleClassroomClientAuth();
+    const historicoEnsalamento = lerHistoricoEnsalamentoAlunos();
+    let historicoModificado = false;
+
     const relatorio = {
       emailAluno,
       totalSalas: courseIds.length,
@@ -4465,7 +4684,10 @@ app.post("/api/ti/google-classroom/remover-aluno-salas", async (req, res) => {
           courseId: cId,
           status: "removido"
         });
-        console.log(`[desenturmalizacao] Aluno ${emailAluno} removido da sala ${cId}`);
+        if (marcarAlunoExcluidoManualmenteLocal(cId, emailAluno, historicoEnsalamento)) {
+          historicoModificado = true;
+        }
+        console.log(`[desenturmalizacao] Aluno ${emailAluno} removido da sala ${cId} e registrado bloqueio manual`);
       } catch (errDelete) {
         const msg = errDelete.response?.data?.error?.message || errDelete.message;
         relatorio.falhas++;
@@ -4479,9 +4701,149 @@ app.post("/api/ti/google-classroom/remover-aluno-salas", async (req, res) => {
       await new Promise((r) => setTimeout(r, 100));
     }
 
+    if (historicoModificado) {
+      salvarHistoricoEnsalamentoAlunos(historicoEnsalamento);
+    }
+
     return res.json({ ok: true, relatorio });
   } catch (e) {
     console.error("[google-classroom-remover-aluno-salas] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/google-classroom/reincluso-aluno-salas", async (req, res) => {
+  try {
+    const { idToken, email, courseIds } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    const emailAluno = String(email || "").trim().toLowerCase();
+    if (!emailAluno || !emailAluno.includes("@")) {
+      return res.status(400).json({ error: "E-mail do aluno inválido ou ausente." });
+    }
+
+    if (!courseIds || !Array.isArray(courseIds) || courseIds.length === 0) {
+      return res.status(400).json({ error: "Nenhuma disciplina foi selecionada para re-inclusão." });
+    }
+
+    const classroom = await criarGoogleClassroomClientAuth();
+    const historicoEnsalamento = lerHistoricoEnsalamentoAlunos();
+    let historicoModificado = false;
+
+    const relatorio = {
+      emailAluno,
+      totalSalas: courseIds.length,
+      reinclusos: 0,
+      falhas: 0,
+      detalhes: []
+    };
+
+    for (const cId of courseIds) {
+      try {
+        await classroom.courses.students.create({
+          courseId: String(cId),
+          requestBody: { userId: emailAluno }
+        });
+        relatorio.reinclusos++;
+        relatorio.detalhes.push({ courseId: cId, status: "reincluso" });
+
+        registrarAlunoEnsaladoLocal(cId, emailAluno, "", "", historicoEnsalamento);
+        historicoModificado = true;
+      } catch (errCreate) {
+        const msg = errCreate.response?.data?.error?.message || errCreate.message;
+        if (errCreate.response?.status === 409 || msg.includes("already exists")) {
+          relatorio.reinclusos++;
+          relatorio.detalhes.push({ courseId: cId, status: "ja_existia" });
+          registrarAlunoEnsaladoLocal(cId, emailAluno, "", "", historicoEnsalamento);
+          historicoModificado = true;
+        } else {
+          relatorio.falhas++;
+          relatorio.detalhes.push({ courseId: cId, status: "erro", erro: msg });
+        }
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    if (historicoModificado) {
+      salvarHistoricoEnsalamentoAlunos(historicoEnsalamento);
+    }
+
+    return res.json({ ok: true, relatorio });
+  } catch (e) {
+    console.error("[google-classroom-reincluso-aluno-salas] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/google-classroom/historico-ensalamento", async (req, res) => {
+  try {
+    const { idToken } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    const historico = lerHistoricoEnsalamentoAlunos();
+    const total = Object.keys(historico).length;
+    return res.json({ ok: true, total, historico });
+  } catch (e) {
+    console.error("[google-classroom-historico-ensalamento] Erro geral:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ti/google-classroom/limpar-historico-ensalamento", async (req, res) => {
+  try {
+    const { idToken, idTurma } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "idToken ausente. Faça login no topo do site." });
+    }
+    const { email: userEmail } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+    if (!papeis.includes("setape") && !papeis.includes("admin")) {
+      return res.status(403).json({ error: "Acesso negado: apenas equipe de TI." });
+    }
+
+    let historico = lerHistoricoEnsalamentoAlunos();
+    let removidosCount = 0;
+
+    if (idTurma) {
+      const idTurmaStr = String(idTurma);
+      const novoHistorico = {};
+      for (const [key, item] of Object.entries(historico)) {
+        if (item && item.id_turma === idTurmaStr) {
+          removidosCount++;
+        } else {
+          novoHistorico[key] = item;
+        }
+      }
+      historico = novoHistorico;
+    } else {
+      removidosCount = Object.keys(historico).length;
+      historico = {};
+    }
+
+    salvarHistoricoEnsalamentoAlunos(historico);
+    return res.json({ ok: true, removidos: removidosCount, totalRestante: Object.keys(historico).length });
+  } catch (e) {
+    console.error("[google-classroom-limpar-historico-ensalamento] Erro geral:", e);
     return res.status(500).json({ error: e.message });
   }
 });
@@ -5142,7 +5504,10 @@ app.post("/api/ti/grade/criar-salas", async (req, res) => {
 
     // ── Helper: ensala alunos de uma turma iScholar em um curso do Classroom
     async function ensalarAlunosTurmaNoClassroom(courseId, idTurma) {
-      const resultado = { ensalados: 0, jaExistiam: 0, semEmail: 0, erros: 0, detalhes: [] };
+      const resultado = { ensalados: 0, jaExistiam: 0, puladosHistorico: 0, semEmail: 0, erros: 0, detalhes: [] };
+      const historico = lerHistoricoEnsalamentoAlunos();
+      let modificado = false;
+
       try {
         const alunos = await obterAlunosTurmaIscholar(idTurma);
         for (const aluno of alunos) {
@@ -5152,6 +5517,21 @@ app.post("/api/ti/grade/criar-salas", async (req, res) => {
             resultado.detalhes.push({ nome: aluno.nome_aluno, status: "sem_email" });
             continue;
           }
+
+          if (isAlunoExcluidoManualmenteLocal(courseId, email, historico)) {
+            resultado.jaExistiam++;
+            resultado.puladosHistorico++;
+            resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "bloqueado_manualmente" });
+            continue;
+          }
+
+          if (isAlunoEnsaladoLocal(courseId, email, historico)) {
+            resultado.jaExistiam++;
+            resultado.puladosHistorico++;
+            resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "ja_existia" });
+            continue;
+          }
+
           try {
             await classroom.courses.students.create({
               courseId,
@@ -5159,17 +5539,25 @@ app.post("/api/ti/grade/criar-salas", async (req, res) => {
             });
             resultado.ensalados++;
             resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "ensalado" });
+            registrarAlunoEnsaladoLocal(courseId, email, aluno.nome_aluno, idTurma, historico);
+            modificado = true;
           } catch (errAluno) {
             const msg = errAluno.response?.data?.error?.message || errAluno.message || "";
             if (errAluno.response?.status === 409 || msg.toLowerCase().includes("already")) {
               resultado.jaExistiam++;
               resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "ja_existia" });
+              registrarAlunoEnsaladoLocal(courseId, email, aluno.nome_aluno, idTurma, historico);
+              modificado = true;
             } else {
               resultado.erros++;
               resultado.detalhes.push({ nome: aluno.nome_aluno, email, status: "erro", erro: msg });
               console.warn(`[ensalamento] Erro ao ensalar ${email} no curso ${courseId}:`, msg);
             }
           }
+        }
+
+        if (modificado) {
+          salvarHistoricoEnsalamentoAlunos(historico);
         }
       } catch (e) {
         console.error(`[ensalamento] Erro ao buscar alunos da turma ${idTurma}:`, e.message);
@@ -5339,3 +5727,375 @@ app.post("/api/ti/grade/criar-salas", async (req, res) => {
     return res.status(500).json({ error: e.message });
   }
 });
+
+
+// ── Comunicados Intersetoriais ──────────────────────────────────────────
+const COMUNICADOS_INTERSETORIAIS_FILE = path.join(__dirname, "data", "comunicadosIntersetoriais.json");
+
+function lerComunicadosIntersetoriais() {
+  try {
+    if (!fs.existsSync(COMUNICADOS_INTERSETORIAIS_FILE)) {
+      return [];
+    }
+    const raw = fs.readFileSync(COMUNICADOS_INTERSETORIAIS_FILE, "utf-8");
+    return JSON.parse(raw || "[]");
+  } catch (e) {
+    console.error("[comunicados-intersetoriais] Erro ao ler arquivo:", e.message);
+    return [];
+  }
+}
+
+function salvarComunicadosIntersetoriais(dados) {
+  try {
+    const dir = path.dirname(COMUNICADOS_INTERSETORIAIS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(COMUNICADOS_INTERSETORIAIS_FILE, JSON.stringify(dados, null, 2), "utf-8");
+  } catch (e) {
+    console.error("[comunicados-intersetoriais] Erro ao salvar arquivo:", e.message);
+  }
+}
+
+// Listar Comunicados (com filtros)
+app.post("/api/comunicados-intersetoriais/listar", async (req, res) => {
+  try {
+    const { idToken, setor, status, busca } = req.body || {};
+    const supabase = getSupabaseAdmin();
+    let comunicados = await listarComunicadosStore(supabase);
+
+    const hojeStr = new Date().toISOString().split("T")[0];
+
+    // Calcula status dinamico (ativo vs expirado) baseado na dataValidade
+    comunicados = comunicados.map((c) => {
+      let isExpirado = false;
+      if (c.dataValidade) {
+        isExpirado = c.dataValidade < hojeStr;
+      }
+      return {
+        ...c,
+        isExpirado,
+        statusCalculado: isExpirado ? "expirado" : "ativo"
+      };
+    });
+
+    // Identifica usuário e seus papéis para filtrar visibilidade por setor
+    let userEmail = "";
+    let papeis = [];
+    if (idToken && typeof idToken === "string") {
+      try {
+        const usr = await verificarIdTokenUsuario(idToken);
+        userEmail = (usr.email || "").toLowerCase();
+        const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+        const manual = lerPapeisManuaisArquivo()[userEmail] || [];
+        papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+      } catch (errToken) {
+        console.warn("[comunicados-listar] Falha ao verificar idToken para escopo de setor:", errToken.message);
+      }
+    }
+
+    function extrairSetoresDoUsuario(papeis) {
+      const p = Array.isArray(papeis) ? papeis.map(x => String(x).toLowerCase()) : [];
+      if (p.includes("admin") || p.includes("setape")) return ["*"];
+      const s = [];
+      if (p.includes("secretaria")) s.push("SECRETARIA");
+      if (p.includes("dp") || p.includes("financeiro")) s.push("DP / FINANCEIRO");
+      if (p.includes("direcao")) s.push("DIREÇÃO");
+      if (p.includes("disciplinar")) s.push("DISCIPLINAR");
+      if (p.includes("biblioteca")) s.push("BIBLIOTECA");
+      if (p.includes("servicosgerais")) s.push("SERVIÇOS GERAIS");
+      if (p.includes("almoxarifado")) s.push("ALMOXARIFADO");
+      if (p.includes("primeirossocorros")) s.push("PRIMEIROS SOCORROS");
+      if (p.includes("clat")) s.push("CLAT");
+      if (p.includes("publicidade")) s.push("PUBLICIDADE");
+      return s;
+    }
+
+    const setoresUsuario = extrairSetoresDoUsuario(papeis);
+    const isAdminOuSetape = setoresUsuario.includes("*");
+
+    // Restringe visibilidade aos comunicados direcionados ao setor do usuário ou publicados por ele
+    if (!isAdminOuSetape && setoresUsuario.length > 0) {
+      comunicados = comunicados.filter((c) => {
+        if (userEmail && c.criadoPorEmail?.toLowerCase() === userEmail) return true;
+        const dest = c.setoresDestino || [];
+        if (dest.includes("Todos")) return true;
+        return setoresUsuario.some(s => dest.includes(s) || c.setorOrigem === s);
+      });
+    }
+
+    if (setor && setor !== "Todos") {
+      comunicados = comunicados.filter((c) => {
+        const dest = c.setoresDestino || [];
+        return dest.includes("Todos") || dest.includes(setor) || c.setorOrigem === setor;
+      });
+    }
+
+    if (status && status !== "todos") {
+      comunicados = comunicados.filter((c) => c.statusCalculado === status);
+    }
+
+    if (busca && typeof busca === "string" && busca.trim()) {
+      const q = busca.trim().toLowerCase();
+      comunicados = comunicados.filter((c) => {
+        return (
+          c.titulo?.toLowerCase().includes(q) ||
+          c.descricao?.toLowerCase().includes(q) ||
+          c.setorOrigem?.toLowerCase().includes(q) ||
+          c.criadoPorNome?.toLowerCase().includes(q)
+        );
+      });
+    }
+
+    comunicados.sort((a, b) => new Date(b.criadoEm || 0).getTime() - new Date(a.criadoEm || 0).getTime());
+
+    return res.json({ ok: true, comunicados });
+  } catch (e) {
+    console.error("[comunicados-intersetoriais-listar] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Criar Comunicado
+app.post("/api/comunicados-intersetoriais/criar", async (req, res) => {
+  try {
+    const { idToken, novoComunicado } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "Faça login para criar um comunicado." });
+    }
+
+    const { email: userEmail, name: userNome } = await verificarIdTokenUsuario(idToken);
+
+    if (!novoComunicado || !novoComunicado.titulo || !novoComunicado.descricao) {
+      return res.status(400).json({ error: "Título e descrição são obrigatórios." });
+    }
+
+    if (novoComunicado.dataValidade) {
+      const agora = new Date();
+      const hojeLocalStr = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, "0")}-${String(agora.getDate()).padStart(2, "0")}`;
+      if (novoComunicado.dataValidade < hojeLocalStr) {
+        return res.status(400).json({ error: "A data de validade não pode ser uma data passada." });
+      }
+    }
+
+    const item = {
+      id: `comunicado_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      titulo: String(novoComunicado.titulo).trim(),
+      setorOrigem: String(novoComunicado.setorOrigem || "Coordenação").trim(),
+      setoresDestino: Array.isArray(novoComunicado.setoresDestino) && novoComunicado.setoresDestino.length > 0 ? novoComunicado.setoresDestino : ["Secretaria"],
+      canaisDivulgacao: Array.isArray(novoComunicado.canaisDivulgacao) ? novoComunicado.canaisDivulgacao : [],
+      descricao: String(novoComunicado.descricao).trim(),
+      dataValidade: novoComunicado.dataValidade || null,
+      anexosOuLinks: Array.isArray(novoComunicado.anexosOuLinks) ? novoComunicado.anexosOuLinks : [],
+      criadoPorEmail: userEmail,
+      criadoPorNome: userNome || userEmail,
+      criadoEm: new Date().toISOString(),
+      atualizadoEm: new Date().toISOString(),
+      cientes: []
+    };
+
+    const supabase = getSupabaseAdmin();
+    await criarComunicadoStore(supabase, item);
+
+    // Dispara backup assíncrono para o Google Planilhas (Webhook / Sheets API)
+    sincronizarComunicadoComGoogleSheets(item).catch(err => {
+      console.warn("[comunicados-sheets] Falha no backup automático para Google Planilhas:", err.message);
+    });
+
+    return res.json({ ok: true, comunicado: item });
+  } catch (e) {
+    console.error("[comunicados-intersetoriais-criar] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Helper de Sincronização e Backup no Google Planilhas
+async function sincronizarComunicadoComGoogleSheets(item) {
+  const webhookUrl = process.env.GOOGLE_SHEETS_COMUNICADOS_WEBHOOK_URL;
+  const spreadsheetId = process.env.GOOGLE_SHEETS_COMUNICADOS_SPREADSHEET_ID;
+
+  const dataFormatada = new Date(item.criadoEm || Date.now()).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+  const validadeFormatada = item.dataValidade ? new Date(item.dataValidade + "T00:00:00").toLocaleDateString("pt-BR") : "Sem validade";
+  const setoresDestinoStr = (item.setoresDestino || []).join(", ");
+  const canaisDivulgacaoStr = (item.canaisDivulgacao || []).join(", ");
+  const linksStr = (item.anexosOuLinks || []).map(l => `${l.titulo}: ${l.url}`).join(" | ");
+
+  // Método 1: Webhook do Google Apps Script (Recomendado e simples)
+  if (webhookUrl && webhookUrl.startsWith("http")) {
+    try {
+      await fetch(webhookUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          dataHora: dataFormatada,
+          id: item.id,
+          titulo: item.titulo,
+          setorOrigem: item.setorOrigem,
+          setoresDestino: setoresDestinoStr,
+          publicadoPor: `${item.criadoPorNome} (${item.criadoPorEmail})`,
+          canaisDivulgacao: canaisDivulgacaoStr,
+          dataValidade: validadeFormatada,
+          descricao: item.descricao,
+          links: linksStr
+        })
+      });
+      console.log(`[comunicados-sheets] Backup enviado via Webhook para ${item.id}`);
+    } catch (e) {
+      console.warn(`[comunicados-sheets] Erro ao enviar Webhook:`, e.message);
+    }
+  }
+
+  // Método 2: Google Sheets API v4 via Service Account (se SPREADSHEET_ID estiver configurado)
+  if (spreadsheetId) {
+    try {
+      const sa = typeof getServiceAccountCredentials === "function" ? getServiceAccountCredentials() : null;
+      if (sa && sa.client_email && sa.private_key) {
+        const auth = new google.auth.JWT(
+          sa.client_email,
+          null,
+          sa.private_key.replace(/\\n/g, "\n"),
+          ["https://www.googleapis.com/auth/spreadsheets"]
+        );
+        const sheets = google.sheets({ version: "v4", auth });
+        await sheets.spreadsheets.values.append({
+          spreadsheetId,
+          range: "Página1!A:J",
+          valueInputOption: "USER_ENTERED",
+          requestBody: {
+            values: [
+              [
+                dataFormatada,
+                item.id,
+                item.titulo,
+                item.setorOrigem,
+                setoresDestinoStr,
+                `${item.criadoPorNome} (${item.criadoPorEmail})`,
+                canaisDivulgacaoStr,
+                validadeFormatada,
+                item.descricao,
+                linksStr
+              ]
+            ]
+          }
+        });
+        console.log(`[comunicados-sheets] Linha adicionada na planilha ${spreadsheetId} via Google Sheets API`);
+      }
+    } catch (e) {
+      console.warn(`[comunicados-sheets] Erro ao usar Google Sheets API:`, e.message);
+    }
+  }
+}
+
+// Atualizar Comunicado / Alterar Status
+app.post("/api/comunicados-intersetoriais/atualizar", async (req, res) => {
+  try {
+    const { idToken, id, dadosAtualizados } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "Faça login para atualizar." });
+    }
+
+    await verificarIdTokenUsuario(idToken);
+
+    if (!id) {
+      return res.status(400).json({ error: "ID do comunicado não informado." });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const itemAtualizado = await atualizarComunicadoStore(supabase, id, dadosAtualizados || {});
+    if (!itemAtualizado) {
+      return res.status(404).json({ error: "Comunicado não encontrado." });
+    }
+
+    return res.json({ ok: true, comunicado: itemAtualizado });
+  } catch (e) {
+    console.error("[comunicados-intersetoriais-atualizar] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Registrar "Ciente" (Secretaria / Atendimento)
+app.post("/api/comunicados-intersetoriais/marcar-ciente", async (req, res) => {
+  try {
+    const { idToken, id, setorUsuario } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "Faça login para registrar ciente." });
+    }
+
+    const { email: userEmail, name: userNome } = await verificarIdTokenUsuario(idToken);
+    const orgUnitPath = await obterOrgUnitPathUsuario(userEmail);
+    const manual = lerPapeisManuaisArquivo()[userEmail.toLowerCase()] || [];
+    const papeis = mesclarPapeisManuais(mapearPapeisDoOrgUnit(orgUnitPath), manual);
+
+    function resolverSetorPorPapeis(papeis, setorEnviado) {
+      const p = Array.isArray(papeis) ? papeis.map(x => String(x).toLowerCase()) : [];
+      if (p.includes("setape") || p.includes("admin")) return "SETAPE";
+      if (p.includes("secretaria")) return "SECRETARIA";
+      if (p.includes("dp") || p.includes("financeiro")) return "DP / FINANCEIRO";
+      if (p.includes("direcao")) return "DIREÇÃO";
+      if (p.includes("disciplinar")) return "DISCIPLINAR";
+      if (p.includes("biblioteca")) return "BIBLIOTECA";
+      if (p.includes("servicosgerais")) return "SERVIÇOS GERAIS";
+      if (p.includes("almoxarifado")) return "ALMOXARIFADO";
+      if (p.includes("primeirossocorros")) return "PRIMEIROS SOCORROS";
+      if (p.includes("clat")) return "CLAT";
+      if (p.includes("publicidade")) return "PUBLICIDADE";
+      if (setorEnviado && typeof setorEnviado === "string" && !setorEnviado.includes("Atendimento")) {
+        return setorEnviado;
+      }
+      return "SETAPE";
+    }
+
+    const setorCalculado = resolverSetorPorPapeis(papeis, setorUsuario);
+
+    if (!id) {
+      return res.status(400).json({ error: "ID do comunicado não informado." });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const comunicados = await listarComunicadosStore(supabase);
+    const item = comunicados.find((c) => c.id === id);
+    if (!item) {
+      return res.status(404).json({ error: "Comunicado não encontrado." });
+    }
+
+    const cientes = Array.isArray(item.cientes) ? [...item.cientes] : [];
+    const jaDeuCiente = cientes.some((c) => c.email.toLowerCase() === userEmail.toLowerCase());
+    if (!jaDeuCiente) {
+      cientes.push({
+        email: userEmail,
+        nome: userNome || userEmail,
+        setor: setorCalculado,
+        data: new Date().toISOString()
+      });
+      await atualizarComunicadoStore(supabase, id, { cientes });
+    }
+
+    return res.json({ ok: true, cientes });
+  } catch (e) {
+    console.error("[comunicados-intersetoriais-marcar-ciente] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// Excluir Comunicado
+app.post("/api/comunicados-intersetoriais/excluir", async (req, res) => {
+  try {
+    const { idToken, id } = req.body || {};
+    if (!idToken || typeof idToken !== "string") {
+      return res.status(400).json({ error: "Faça login para excluir." });
+    }
+
+    await verificarIdTokenUsuario(idToken);
+
+    if (!id) {
+      return res.status(400).json({ error: "ID do comunicado não informado." });
+    }
+
+    const supabase = getSupabaseAdmin();
+    await excluirComunicadoStore(supabase, id);
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("[comunicados-intersetoriais-excluir] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+

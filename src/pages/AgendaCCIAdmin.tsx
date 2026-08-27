@@ -8,6 +8,7 @@ import {
   Layers,
   MapPin,
   Package,
+  RefreshCw,
   Search,
   Shield,
   XCircle,
@@ -233,6 +234,35 @@ export default function AgendaCCIAdmin() {
     URL.revokeObjectURL(url);
   }
 
+  async function migrarEventosCalendario() {
+    try {
+      const res = await fetch("/api/agenda-cci/migrar-eventos-calendario", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(googleIdToken ? { Authorization: `Bearer ${googleIdToken}` } : {}),
+        },
+        body: JSON.stringify({ idToken: googleIdToken }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(
+          data.migrados > 0
+            ? `Migração concluída: ${data.migrados} reserva(s) movida(s) para a agenda Salas, Labs e Equipamentos.`
+            : "Nenhuma reserva precisava ser migrada.",
+          { duration: 8000 }
+        );
+        // Recarrega reservas após migração
+        const r = await obterReservasDoServidor(googleIdToken);
+        if (r) setReservas(r);
+      } else {
+        toast.error(data.error || "Erro ao migrar eventos.", { duration: 8000 });
+      }
+    } catch (e: any) {
+      toast.error("Erro de conexão ao migrar eventos.", { duration: 8000 });
+    }
+  }
+
   function podeCancelar(r: ReservaAgendaCCI): boolean {
     const agora = new Date(agoraTick);
     const sx = statusExibicaoReserva(r, agora);
@@ -258,16 +288,28 @@ export default function AgendaCCIAdmin() {
                 detalhes. Os dados são sincronizados com o servidor quando disponível.
               </p>
             </div>
-            <Button
-              asChild
-              variant="secondary"
-              className="shrink-0 border border-hero-border bg-background/50 text-hero-foreground hover:bg-background"
-            >
-              <Link to="/agenda-cci" className="inline-flex items-center gap-2">
-                <ArrowLeft className="h-4 w-4" />
-                Voltar à Agenda
-              </Link>
-            </Button>
+            <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                variant="outline"
+                className="inline-flex items-center gap-2 border border-amber-500/40 bg-amber-500/10 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+                onClick={() => void migrarEventosCalendario()}
+                title="Move reservas de equipamentos/espaços que estejam na Agenda CCI para a agenda Salas, Labs e Equipamentos no Google Calendar"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Corrigir Agenda Google
+              </Button>
+              <Button
+                asChild
+                variant="secondary"
+                className="shrink-0 border border-hero-border bg-background/50 text-hero-foreground hover:bg-background"
+              >
+                <Link to="/agenda-cci" className="inline-flex items-center gap-2">
+                  <ArrowLeft className="h-4 w-4" />
+                  Voltar à Agenda
+                </Link>
+              </Button>
+            </div>
           </div>
         </>
       </PageHero>
