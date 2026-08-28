@@ -17,7 +17,11 @@ import {
   FileText,
   User,
   AlertCircle,
-  Share2
+  Share2,
+  Paperclip,
+  Link as LinkIcon,
+  Pencil,
+  RefreshCw
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { apiUrl } from "@/lib/apiBase";
@@ -65,7 +69,7 @@ const CANAIS_DIVULGACAO_OPCOES = [
   { id: "Banco de informações", label: "Banco de informações", icon: "🗄️" }
 ];
 
-export function formatarUrlLink(url?: string): string {
+function formatarUrlLink(url?: string): string {
   if (!url) return "";
   const trimmed = url.trim();
   if (!trimmed) return "";
@@ -113,8 +117,9 @@ export default function ComunicadosIntersetoriais() {
   const isAdmin = isSetapeOuAdmin(usuario?.papeis);
   const setorProprio = obterNomeSetorUsuario(usuario?.papeis);
 
-  // Modal de Criação
+  // Modal de Criação / Edição
   const [showModal, setShowModal] = useState(false);
+  const [editingComunicado, setEditingComunicado] = useState<ComunicadoIntersetorial | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -161,7 +166,27 @@ export default function ComunicadosIntersetoriais() {
     carregarComunicados();
   }, [filterStatus, search]);
 
-  const handleCriarComunicado = async (e: React.FormEvent) => {
+  const handleAbrirCriar = () => {
+    setEditingComunicado(null);
+    resetForm();
+    setShowModal(true);
+  };
+
+  const handleAbrirEditar = (c: ComunicadoIntersetorial) => {
+    setEditingComunicado(c);
+    setFormTitulo(c.titulo || "");
+    setFormSetorOrigem(c.setorOrigem || "SETAPE");
+    setFormSetoresDestino(c.setoresDestino || []);
+    setFormCanaisDivulgacao(c.canaisDivulgacao || []);
+    setFormDescricao(c.descricao || "");
+    setFormDataValidade(c.dataValidade ? c.dataValidade.split("T")[0] : "");
+    setFormLinksList(c.anexosOuLinks || []);
+    setFormLinkTitulo("");
+    setFormLinkUrl("");
+    setShowModal(true);
+  };
+
+  const handleSalvarComunicado = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitulo.trim() || !formDescricao.trim()) {
       toast.error("Título e descrição são obrigatórios");
@@ -173,8 +198,17 @@ export default function ComunicadosIntersetoriais() {
       return;
     }
 
-    if (formDataValidade && formDataValidade < hojeStr) {
+    if (formDataValidade && formDataValidade < hojeStr && !editingComunicado) {
       toast.error("A data de validade não pode ser anterior à data de hoje.");
+      return;
+    }
+
+    // Trava de segurança: impede salvar se houver link digitado que não foi adicionado (+ Add)
+    if (formLinkUrl.trim() || formLinkTitulo.trim()) {
+      toast.warning(
+        "Você digitou um link ou nome no anexo mas não clicou em '+ Add'. Clique no botão '+ Add' (ou aperte Enter) para incluí-lo na lista antes de salvar.",
+        { duration: 5000 }
+      );
       return;
     }
 
@@ -190,23 +224,46 @@ export default function ComunicadosIntersetoriais() {
         anexosOuLinks: formLinksList
       };
 
-      const res = await fetch(apiUrl("/api/comunicados-intersetoriais/criar"), {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idToken: googleIdToken,
-          novoComunicado: payload
-        })
-      });
+      if (editingComunicado) {
+        const res = await fetch(apiUrl("/api/comunicados-intersetoriais/atualizar"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken: googleIdToken,
+            id: editingComunicado.id,
+            dadosAtualizados: payload
+          })
+        });
 
-      const data = await res.json();
-      if (data.ok) {
-        toast.success("Comunicado publicado com sucesso!");
-        setShowModal(false);
-        resetForm();
-        carregarComunicados();
+        const data = await res.json();
+        if (data.ok) {
+          toast.success("Comunicado atualizado com sucesso!");
+          setShowModal(false);
+          setEditingComunicado(null);
+          resetForm();
+          carregarComunicados();
+        } else {
+          toast.error(data.error || "Erro ao atualizar comunicado");
+        }
       } else {
-        toast.error(data.error || "Erro ao publicar comunicado");
+        const res = await fetch(apiUrl("/api/comunicados-intersetoriais/criar"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            idToken: googleIdToken,
+            novoComunicado: payload
+          })
+        });
+
+        const data = await res.json();
+        if (data.ok) {
+          toast.success("Comunicado publicado com sucesso!");
+          setShowModal(false);
+          resetForm();
+          carregarComunicados();
+        } else {
+          toast.error(data.error || "Erro ao publicar comunicado");
+        }
       }
     } catch (e: any) {
       toast.error("Erro ao salvar comunicado");
@@ -350,7 +407,16 @@ export default function ComunicadosIntersetoriais() {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={() => setShowModal(true)}
+              onClick={carregarComunicados}
+              disabled={loading}
+              className="flex items-center justify-center gap-1.5 rounded-xl border border-indigo-400/30 bg-indigo-500/10 px-3.5 py-3 text-xs font-semibold text-indigo-100 backdrop-blur-md transition-all hover:bg-indigo-500/20 active:scale-95 disabled:opacity-50 sm:text-sm shrink-0"
+              title="Recarregar comunicados"
+            >
+              <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              <span>Atualizar</span>
+            </button>
+            <button
+              onClick={handleAbrirCriar}
               className="flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-3 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] hover:from-emerald-400 hover:to-teal-500 active:scale-95 sm:text-sm shrink-0"
             >
               <Plus className="h-5 w-5" />
@@ -425,6 +491,14 @@ export default function ComunicadosIntersetoriais() {
             const jaDeuCiente = (c.cientes || []).some(
               (ci) => ci.email.toLowerCase() === userEmailLower
             );
+
+            const podeEditarOuExcluir =
+              isAdmin ||
+              Boolean(
+                c.criadoPorEmail &&
+                  usuario?.email &&
+                  c.criadoPorEmail.toLowerCase() === userEmailLower
+              );
 
             // Validade
             const isExpirado = c.dataValidade ? c.dataValidade < hojeStr : false;
@@ -524,37 +598,72 @@ export default function ComunicadosIntersetoriais() {
                   </div>
                 )}
 
-                {/* DATA DE VALIDADE E LINKS / ANEXOS */}
-                <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs pt-3 border-t border-border/40">
+                {/* LINKS E DOCUMENTOS ANEXOS (GRID DEDICADO) */}
+                {c.anexosOuLinks && c.anexosOuLinks.length > 0 && (
+                  <div className="mt-4 rounded-xl border border-border/80 bg-muted/20 p-3">
+                    <p className="text-[11px] font-bold text-muted-foreground flex items-center gap-1.5 mb-2.5">
+                      <Paperclip className="h-3.5 w-3.5 text-primary" />
+                      Documentos e Links Anexados ({c.anexosOuLinks.length}):
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                      {c.anexosOuLinks.map((link, idx) => {
+                        const urlFormatada = formatarUrlLink(link.url);
+                        const isDriveOuDoc =
+                          link.url.includes("drive.google") ||
+                          link.url.includes("docs.google") ||
+                          link.url.includes("pdf") ||
+                          link.titulo.toLowerCase().includes("pdf") ||
+                          link.titulo.toLowerCase().includes("doc");
+
+                        return (
+                          <a
+                            key={idx}
+                            href={urlFormatada}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="group flex items-center justify-between gap-2.5 rounded-lg border border-border bg-card p-2.5 text-xs font-semibold text-foreground hover:border-primary/50 hover:bg-primary/5 hover:text-primary transition-all shadow-2xs"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                                {isDriveOuDoc ? <FileText className="h-3.5 w-3.5" /> : <LinkIcon className="h-3.5 w-3.5" />}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-bold text-card-foreground group-hover:text-primary transition-colors">
+                                  {link.titulo}
+                                </p>
+                                <p className="truncate text-[10px] text-muted-foreground font-normal">
+                                  {link.url.replace(/^https?:\/\//, "").replace(/^www\./, "")}
+                                </p>
+                              </div>
+                            </div>
+                            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
+                          </a>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* DATA DE VALIDADE */}
+                <div className="mt-3 flex items-center gap-2 text-xs">
                   {c.dataValidade ? (
-                    <span className={`flex items-center gap-1.5 font-medium ${isExpirado ? "text-rose-600 dark:text-rose-400" : "text-foreground"}`}>
-                      <Calendar className="h-3.5 w-3.5 text-primary" />
-                      Data de Validade:{" "}
-                      <strong>
+                    <span className={`inline-flex items-center gap-1.5 text-xs font-medium ${isExpirado ? "text-rose-600 dark:text-rose-400 font-bold" : "text-muted-foreground"}`}>
+                      <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span>Data de Validade:</span>
+                      <strong className="text-foreground">
                         {new Date(c.dataValidade + "T00:00:00").toLocaleDateString("pt-BR")}
                       </strong>
+                      {isExpirado && (
+                        <span className="ml-1 text-[10px] bg-rose-500/10 text-rose-600 dark:text-rose-400 px-2 py-0.2 rounded-full border border-rose-500/20 font-bold">
+                          Expirado
+                        </span>
+                      )}
                     </span>
                   ) : (
-                    <span className="text-[11px] text-muted-foreground italic">Sem data de validade definida</span>
-                  )}
-
-                  {/* Links / Anexos */}
-                  {c.anexosOuLinks && c.anexosOuLinks.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {c.anexosOuLinks.map((link, idx) => (
-                        <a
-                          key={idx}
-                          href={formatarUrlLink(link.url)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors"
-                        >
-                          <FileText className="h-3 w-3" />
-                          {link.titulo}
-                          <ExternalLink className="h-3 w-3 opacity-70" />
-                        </a>
-                      ))}
-                    </div>
+                    <span className="text-[11px] text-muted-foreground italic flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground/60 shrink-0" />
+                      Sem data de validade definida
+                    </span>
                   )}
                 </div>
 
@@ -628,14 +737,28 @@ export default function ComunicadosIntersetoriais() {
                       </span>
                     )}
 
+                    {/* Botão Editar */}
+                    {podeEditarOuExcluir && (
+                      <button
+                        onClick={() => handleAbrirEditar(c)}
+                        className="flex items-center gap-1.5 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all shadow-2xs"
+                        title="Editar este comunicado"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        <span>Editar</span>
+                      </button>
+                    )}
+
                     {/* Botão Excluir */}
-                    <button
-                      onClick={() => handleExcluir(c.id)}
-                      className="rounded-xl border border-border bg-muted/60 p-2 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 hover:border-rose-500/30 transition-all"
-                      title="Excluir comunicado"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                    {podeEditarOuExcluir && (
+                      <button
+                        onClick={() => handleExcluir(c.id)}
+                        className="rounded-xl border border-border bg-muted/60 p-2 text-muted-foreground hover:bg-rose-500/10 hover:text-rose-600 hover:border-rose-500/30 transition-all"
+                        title="Excluir comunicado"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -652,26 +775,31 @@ export default function ComunicadosIntersetoriais() {
             <div className="flex items-center justify-between border-b border-border pb-4">
               <div className="flex items-center gap-2">
                 <div className="rounded-lg bg-primary/10 p-2 text-primary">
-                  <Megaphone className="h-5 w-5" />
+                  {editingComunicado ? <Pencil className="h-5 w-5" /> : <Megaphone className="h-5 w-5" />}
                 </div>
                 <div>
                   <h3 className="text-lg font-bold text-card-foreground">
-                    Publicar Comunicado
+                    {editingComunicado ? "Editar Comunicado" : "Publicar Comunicado"}
                   </h3>
                   <p className="text-xs text-muted-foreground">
-                    Preencha as informações necessárias para compartilhar com os setores.
+                    {editingComunicado
+                      ? "Atualize as informações, canais, validade ou links do comunicado."
+                      : "Preencha as informações necessárias para compartilhar com os setores."}
                   </p>
                 </div>
               </div>
               <button
-                onClick={() => setShowModal(false)}
+                onClick={() => {
+                  setShowModal(false);
+                  setEditingComunicado(null);
+                }}
                 className="rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCriarComunicado} className="space-y-4 text-xs">
+            <form onSubmit={handleSalvarComunicado} className="space-y-4 text-xs">
               {/* TÍTULO DO COMUNICADO */}
               <div>
                 <label className="block font-bold text-foreground mb-1">
@@ -804,6 +932,12 @@ export default function ComunicadosIntersetoriais() {
                     type="text"
                     value={formLinkTitulo}
                     onChange={(e) => setFormLinkTitulo(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addFormLink();
+                      }
+                    }}
                     placeholder="Nome (ex: Autorização PDF)"
                     className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-xs focus:border-primary focus:outline-none"
                   />
@@ -811,6 +945,12 @@ export default function ComunicadosIntersetoriais() {
                     type="url"
                     value={formLinkUrl}
                     onChange={(e) => setFormLinkUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addFormLink();
+                      }
+                    }}
                     placeholder="https://..."
                     className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-xs focus:border-primary focus:outline-none"
                   />
@@ -822,6 +962,16 @@ export default function ComunicadosIntersetoriais() {
                     + Add
                   </button>
                 </div>
+
+                {/* Aviso se houver link pendente digitado no input */}
+                {(formLinkUrl.trim() || formLinkTitulo.trim()) && (
+                  <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1.5 pt-0.5 animate-in fade-in">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    <span>
+                      Clique em <strong>+ Add</strong> (ou aperte Enter) para anexar o link antes de publicar.
+                    </span>
+                  </p>
+                )}
 
                 {formLinksList.length > 0 && (
                   <div className="flex flex-wrap gap-2 pt-1">
@@ -849,7 +999,10 @@ export default function ComunicadosIntersetoriais() {
               <div className="flex items-center justify-end gap-2 pt-4 border-t border-border">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={() => {
+                    setShowModal(false);
+                    setEditingComunicado(null);
+                  }}
                   className="rounded-xl border border-border bg-muted px-4 py-2.5 text-xs font-semibold text-muted-foreground hover:bg-muted/80"
                 >
                   Cancelar
@@ -862,12 +1015,12 @@ export default function ComunicadosIntersetoriais() {
                   {isSubmitting ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Publicando...
+                      {editingComunicado ? "Salvando alterações..." : "Publicando..."}
                     </>
                   ) : (
                     <>
-                      <Megaphone className="h-4 w-4" />
-                      Publicar Comunicado
+                      {editingComunicado ? <Pencil className="h-4 w-4" /> : <Megaphone className="h-4 w-4" />}
+                      {editingComunicado ? "Salvar Alterações" : "Publicar Comunicado"}
                     </>
                   )}
                 </button>

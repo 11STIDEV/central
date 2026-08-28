@@ -1,51 +1,47 @@
 [
   {
-    "id": "comunicado_1787851405153_m57k9",
-    "titulo": "Teste DP",
-    "setorOrigem": "SETAPE",
+    "id": "comunicado_1787942407594_mekjp",
+    "titulo": "CONTEÚDO DE RECUPERAÇÃO 5º AO 8º ANO",
+    "setorOrigem": "DIREÇÃO",
     "setoresDestino": [
-      "DP / FINANCEIRO"
+      "SECRETARIA",
+      "SETAPE",
+      "DIREÇÃO",
+      "DISCIPLINAR",
+      "BIBLIOTECA",
+      "COORDENAÇÃO"
     ],
     "canaisDivulgacao": [
-      "Whatsapp / Umbler Talk",
-      "Compartilhar com funcionários"
-    ],
-    "descricao": "Teste dp",
-    "dataValidade": "2026-08-28",
-    "anexosOuLinks": [],
-    "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
-    "criadoPorNome": "Thiago Santos Ferreira",
-    "criadoEm": "2026-08-27T17:23:25.154+00:00",
-    "atualizadoEm": "2026-08-27T17:23:48.114+00:00",
-    "cientes": [
-      {
-        "data": "2026-08-27T17:23:48.112Z",
-        "nome": "Candidato Cci",
-        "email": "candidato@portalcci.com.br",
-        "setor": "DP / FINANCEIRO"
-      }
-    ]
-  },
-  {
-    "id": "comunicado_1787849045907_za85z",
-    "titulo": "último teste",
-    "setorOrigem": "SETAPE",
-    "setoresDestino": [
-      "SECRETARIA"
-    ],
-    "canaisDivulgacao": [
-      "Whatsapp / Umbler Talk",
       "Compartilhar com funcionários",
+      "Banco de informações",
       "Agenda CCI"
     ],
-    "descricao": "Teste",
-    "dataValidade": "2026-08-28",
-    "anexosOuLinks": [],
-    "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
-    "criadoPorNome": "Thiago Santos Ferreira",
-    "criadoEm": "2026-08-27T16:44:05.908+00:00",
-    "atualizadoEm": "2026-08-27T16:44:05.908+00:00",
-    "cientes": []
+    "descricao": "Conteúdo de recuperação 2° trimestre 5º ao 8º ano \n(Todos os links estão nesse documento)",
+    "dataValidade": "2026-09-10",
+    "anexosOuLinks": [
+      {
+        "url": "https://docs.google.com/document/d/1_ju3lfY4VktYp3Vlt19i1unbhu647wV4nPCsoUUOfjQ/edit?tab=t.0",
+        "titulo": "Conteúdos de recuperação"
+      }
+    ],
+    "criadoPorEmail": "flavia.araujo@portalcci.com.br",
+    "criadoPorNome": "Flávia Kenany Pereira de Araujo",
+    "criadoEm": "2026-08-28T18:40:07.594+00:00",
+    "atualizadoEm": "2026-08-28T19:38:58.14+00:00",
+    "cientes": [
+      {
+        "data": "2026-08-28T18:43:54.752Z",
+        "nome": "Flávia Kenany Pereira de Araujo",
+        "email": "flavia.araujo@portalcci.com.br",
+        "setor": "SETAPE"
+      },
+      {
+        "data": "2026-08-28T19:09:40.653Z",
+        "nome": "Jediael Reis",
+        "email": "jediael.reis@portalcci.com.br",
+        "setor": "SETAPE"
+      }
+    ]
   },
   {
     "id": "comunicado_1787848138412_pwyqu",
