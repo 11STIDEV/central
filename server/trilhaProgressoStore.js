@@ -3,7 +3,7 @@
 // Persistência do progresso da Trilha de Conhecimento no Supabase
 // ============================================================
 
-const { createClient } = require("@supabase/supabase-js");
+import { createClient } from "@supabase/supabase-js";
 
 function getSupabaseAdmin() {
   const url = process.env.SUPABASE_URL;
@@ -43,7 +43,7 @@ function calcularOfensiva(ultimaAtividade, ofensivaDiasAtual) {
  * @param {string} email
  * @returns {Promise<object|null>}
  */
-async function lerProgressoUsuario(email) {
+export async function lerProgressoUsuario(email) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
 
@@ -75,7 +75,16 @@ async function lerProgressoUsuario(email) {
  * Calcula a ofensiva automaticamente com base na ultima_atividade.
  * @param {object} params
  */
-async function salvarProgressoUsuario({ email, nome, avatarUrl, xpTotal, missoesCompletas, trilhasCompletas, progressoPorTrilha, ofensivaDiasAtual }) {
+export async function salvarProgressoUsuario({
+  email,
+  nome,
+  avatarUrl,
+  xpTotal,
+  missoesCompletas,
+  trilhasCompletas,
+  progressoPorTrilha,
+  ofensivaDiasAtual,
+}) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
 
@@ -123,7 +132,7 @@ async function salvarProgressoUsuario({ email, nome, avatarUrl, xpTotal, missoes
  * @param {string} missaoId
  * @param {number} xpGanho
  */
-async function registrarXpGanho(email, trilhaId, missaoId, xpGanho) {
+export async function registrarXpGanho(email, trilhaId, missaoId, xpGanho) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return;
 
@@ -144,11 +153,11 @@ async function registrarXpGanho(email, trilhaId, missaoId, xpGanho) {
  * @param {number} limite
  * @returns {Promise<Array>}
  */
-async function obterRankingSemanal(limite = 10) {
+export async function obterRankingSemanal(limite = 10) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return [];
 
-  // Início da semana atual (segunda-feira no fuso local, usamos UTC para simplificar)
+  // Início da semana atual (segunda-feira)
   const agora = new Date();
   const diaSemana = agora.getUTCDay(); // 0=Dom, 1=Seg, ...
   const diasDesdeSegunda = diaSemana === 0 ? 6 : diaSemana - 1;
@@ -192,7 +201,19 @@ async function obterRankingSemanal(limite = 10) {
     perfilMap[p.email] = p;
   }
 
-  // Monta ranking ordenado
+  const CORES = [
+    "from-amber-400 to-orange-500",
+    "from-blue-400 to-indigo-500",
+    "from-emerald-400 to-teal-500",
+    "from-purple-400 to-violet-500",
+    "from-pink-400 to-rose-500",
+    "from-cyan-400 to-blue-500",
+    "from-rose-400 to-orange-500",
+    "from-lime-400 to-green-500",
+    "from-fuchsia-400 to-pink-500",
+    "from-yellow-400 to-amber-500",
+  ];
+
   const ranking = emails
     .map((email, idx) => {
       const perfil = perfilMap[email] ?? {};
@@ -203,18 +224,6 @@ async function obterRankingSemanal(limite = 10) {
         .slice(0, 2)
         .map((p) => p[0]?.toUpperCase() ?? "")
         .join("");
-      const CORES = [
-        "from-amber-400 to-orange-500",
-        "from-blue-400 to-indigo-500",
-        "from-emerald-400 to-teal-500",
-        "from-purple-400 to-violet-500",
-        "from-pink-400 to-rose-500",
-        "from-cyan-400 to-blue-500",
-        "from-rose-400 to-orange-500",
-        "from-lime-400 to-green-500",
-        "from-fuchsia-400 to-pink-500",
-        "from-yellow-400 to-amber-500",
-      ];
       return {
         email,
         nome,
@@ -231,10 +240,3 @@ async function obterRankingSemanal(limite = 10) {
 
   return ranking;
 }
-
-module.exports = {
-  lerProgressoUsuario,
-  salvarProgressoUsuario,
-  registrarXpGanho,
-  obterRankingSemanal,
-};
