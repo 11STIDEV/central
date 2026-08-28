@@ -9,15 +9,17 @@ import {
   BookOpen,
   CheckCircle2,
 } from "lucide-react";
-import { TRILHAS_MOCK, type UserProgress } from "@/data/trilhasMock";
+import type { UserProgress } from "@/data/trilhasMock";
 import { QuizModal } from "@/components/trilha/QuizModal";
 import { useTrilhaProgress } from "@/hooks/useTrilhaProgress";
+import { useTrilhas } from "@/hooks/useTrilhas";
 
 export default function MissaoPage() {
   const { trilhaId, missaoId } = useParams<{ trilhaId: string; missaoId: string }>();
   const navigate = useNavigate();
 
-  const trilha = TRILHAS_MOCK.find((t) => t.id === trilhaId);
+  const { trilhas } = useTrilhas();
+  const trilha = trilhas.find((t) => t.id === trilhaId);
   const missao = trilha?.missoes.find((m) => m.id === missaoId);
 
   const { progress, salvarProgresso } = useTrilhaProgress();

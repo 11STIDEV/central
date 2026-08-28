@@ -12,6 +12,7 @@ import {
   Megaphone,
   Phone,
   School,
+  Settings2,
   Shield,
   Ticket,
   Trophy,
@@ -109,7 +110,10 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
     id: "trilha-conhecimento",
     label: "Trilha de Conhecimento",
     type: "flat",
-    items: [{ title: "Trilha de Conhecimento", url: "/trilha-conhecimento", icon: Trophy }],
+    items: [
+      { title: "Trilha de Conhecimento", url: "/trilha-conhecimento", icon: Trophy },
+      { title: "Gerenciar Trilhas", url: "/trilha-conhecimento/admin", icon: Settings2, papeis: ["admin"] as Papel[] },
+    ],
   },
   {
     id: "documentos",

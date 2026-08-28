@@ -1,8 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { Flame, Zap, Trophy, Star, Target, BookOpen, ChevronRight, Loader2 } from "lucide-react";
+import { Flame, Zap, Trophy, Star, Target, BookOpen, ChevronRight, Loader2, Settings2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import {
-  TRILHAS_MOCK,
   BADGES_MOCK,
   getNivelInfo,
   type UserProgress,
@@ -13,18 +12,22 @@ import { XPBar } from "@/components/trilha/XPBar";
 import { BadgeShowcase } from "@/components/trilha/BadgeShowcase";
 import { RankingPanel } from "@/components/trilha/RankingPanel";
 import { useTrilhaProgress } from "@/hooks/useTrilhaProgress";
+import { useTrilhas } from "@/hooks/useTrilhas";
 
 export default function TrilhaConhecimento() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
-  const { progress, ranking, carregando } = useTrilhaProgress();
+  const { progress, ranking, carregando: carregandoProgress } = useTrilhaProgress();
+  const { trilhas, carregando: carregandoTrilhas } = useTrilhas();
+
+  const carregando = carregandoProgress || carregandoTrilhas;
 
   const { atual } = getNivelInfo(progress.xpTotal);
   const medalhaTempo = obterMedalhaTempoUsuario(progress.anosDeEmpresa ?? 3);
 
   // Find next recommended mission
   const proximaMissao = (() => {
-    for (const trilha of TRILHAS_MOCK) {
+    for (const trilha of trilhas) {
       const concluidas = progress.progressoPorTrilha[trilha.id] ?? [];
       const proxima = trilha.missoes.find((m) => !concluidas.includes(m.id));
       if (proxima) return { trilha, missao: proxima };
@@ -32,11 +35,11 @@ export default function TrilhaConhecimento() {
     return null;
   })();
 
-  const totalMissoesDisponiveis = TRILHAS_MOCK.reduce(
+  const totalMissoesDisponiveis = trilhas.reduce(
     (acc, t) => acc + t.missoes.length,
     0
   );
-  const totalXPDisponivel = TRILHAS_MOCK.reduce((acc, t) => acc + t.xpTotal, 0);
+  const totalXPDisponivel = trilhas.reduce((acc, t) => acc + t.xpTotal, 0);
 
   const primeiroNome = usuario?.nome.split(" ")[0] ?? "Colaborador";
 
@@ -177,7 +180,7 @@ export default function TrilhaConhecimento() {
 
             {/* Overview stats */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <OverviewStat label="Trilhas" value={TRILHAS_MOCK.length} icon="🗺️" />
+              <OverviewStat label="Trilhas" value={trilhas.length} icon="🗺️" />
               <OverviewStat label="Missões" value={totalMissoesDisponiveis} icon="🎯" />
               <OverviewStat label="XP disponível" value={totalXPDisponivel} icon="⚡" />
               <OverviewStat
@@ -194,17 +197,28 @@ export default function TrilhaConhecimento() {
                 <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground">
                   Trilhas de Conhecimento
                 </h2>
-                <span className="text-xs text-muted-foreground">
-                  {TRILHAS_MOCK.filter(
-                    (t) =>
-                      (progress.progressoPorTrilha[t.id]?.length ?? 0) === t.missoes.length
-                  ).length}{" "}
-                  de {TRILHAS_MOCK.length} concluídas
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">
+                    {trilhas.filter(
+                      (t) =>
+                        (progress.progressoPorTrilha[t.id]?.length ?? 0) === t.missoes.length
+                    ).length}{" "}
+                    de {trilhas.length} concluídas
+                  </span>
+                  {usuario?.papeis?.includes("admin") && (
+                    <button
+                      onClick={() => navigate("/trilha-conhecimento/admin")}
+                      className="flex items-center gap-1.5 rounded-lg border border-indigo-400/20 bg-indigo-400/8 px-3 py-1 text-xs font-medium text-indigo-400 transition hover:bg-indigo-400/15"
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Gerenciar
+                    </button>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {TRILHAS_MOCK.map((trilha) => (
+                {trilhas.map((trilha) => (
                   <TrilhaCard
                     key={trilha.id}
                     trilha={trilha}

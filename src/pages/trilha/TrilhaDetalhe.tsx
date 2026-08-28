@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Zap, Clock, CheckCircle2, BookOpen } from "lucide-react";
-import { TRILHAS_MOCK, USER_PROGRESS_MOCK, type UserProgress } from "@/data/trilhasMock";
+import type { UserProgress } from "@/data/trilhasMock";
 import { MissaoCard } from "@/components/trilha/MissaoCard";
 import { XPBar } from "@/components/trilha/XPBar";
+import { useTrilhas } from "@/hooks/useTrilhas";
+import { useTrilhaProgress } from "@/hooks/useTrilhaProgress";
 
 export default function TrilhaDetalhe() {
   const { trilhaId } = useParams<{ trilhaId: string }>();
   const navigate = useNavigate();
 
-  const trilha = TRILHAS_MOCK.find((t) => t.id === trilhaId);
-  const [progress] = useState<UserProgress>(USER_PROGRESS_MOCK);
+  const { trilhas } = useTrilhas();
+  const { progress } = useTrilhaProgress();
+  const trilha = trilhas.find((t) => t.id === trilhaId);
 
   if (!trilha) {
     return (
