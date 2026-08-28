@@ -26,6 +26,7 @@ import { registerSetorLinksRoutes } from "./setorLinks.js";
 import { registerCcipayRoutes } from "./ccipayRoutes.js";
 import { registerCcipayParceiroRoutes } from "./ccipayParceiroRoutes.js";
 import { registerAtestadosRoutes } from "./atestadosRoutes.js";
+import { registerAlterdataRoutes } from "./alterdataRoutes.js";
 import { createRequestAuth } from "./requestAuth.js";
 import {
   encerrarSessaoRequest,
@@ -70,10 +71,11 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 registerAtestadosRoutes(app);
+registerAlterdataRoutes(app, getSupabaseAdmin);
 
 /** Um ou mais sufixos permitidos, separados por v├¡rgula. Alinhar ao front (`AuthProvider`) e ao `server/.env.example`. */
 function parseDominiosPermitidos() {
