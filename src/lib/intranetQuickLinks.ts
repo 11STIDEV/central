@@ -1,6 +1,7 @@
 import {
   CalendarDays,
   MapPin,
+  Megaphone,
   Ticket,
   UserRoundCheck,
   type LucideIcon,
@@ -14,6 +15,12 @@ export type IntranetQuickLink = {
 
 /** Atalhos internos mais usados — ordem intencional (não alfabética). */
 export const INTRANET_QUICK_LINKS: IntranetQuickLink[] = [
+  {
+    name: "Comunicados Intersetoriais",
+    url: "/comunicados-intersetoriais",
+    icon: Megaphone,
+    description: "Compartilhamento de informações entre setores",
+  },
   {
     name: "Abrir Chamado",
     url: "/chamados/novo",
