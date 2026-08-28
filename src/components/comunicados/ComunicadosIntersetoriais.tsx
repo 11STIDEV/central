@@ -65,6 +65,16 @@ const CANAIS_DIVULGACAO_OPCOES = [
   { id: "Banco de informações", label: "Banco de informações", icon: "🗄️" }
 ];
 
+export function formatarUrlLink(url?: string): string {
+  if (!url) return "";
+  const trimmed = url.trim();
+  if (!trimmed) return "";
+  if (/^(https?:\/\/|mailto:|tel:)/i.test(trimmed)) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+}
+
 export default function ComunicadosIntersetoriais() {
   const { googleIdToken, usuario } = useAuth();
 
@@ -281,9 +291,9 @@ export default function ComunicadosIntersetoriais() {
     linhas.push(c.descricao);
 
     if (c.anexosOuLinks && c.anexosOuLinks.length > 0) {
-      linhas.push(`\n🔗 *Links / Anexos:*`);
+      linhas.push("\n📎 *Links / Anexos:*");
       c.anexosOuLinks.forEach(lk => {
-        linhas.push(`• ${lk.titulo}: ${lk.url}`);
+        linhas.push(`  • ${lk.titulo}: ${formatarUrlLink(lk.url)}`);
       });
     }
 
@@ -296,7 +306,8 @@ export default function ComunicadosIntersetoriais() {
 
   const addFormLink = () => {
     if (!formLinkTitulo.trim() || !formLinkUrl.trim()) return;
-    setFormLinksList(prev => [...prev, { titulo: formLinkTitulo.trim(), url: formLinkUrl.trim() }]);
+    const urlFormatada = formatarUrlLink(formLinkUrl);
+    setFormLinksList(prev => [...prev, { titulo: formLinkTitulo.trim(), url: urlFormatada }]);
     setFormLinkTitulo("");
     setFormLinkUrl("");
   };
@@ -533,7 +544,7 @@ export default function ComunicadosIntersetoriais() {
                       {c.anexosOuLinks.map((link, idx) => (
                         <a
                           key={idx}
-                          href={link.url}
+                          href={formatarUrlLink(link.url)}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/10 transition-colors"
