@@ -9,8 +9,9 @@ import {
   BookOpen,
   CheckCircle2,
 } from "lucide-react";
-import { TRILHAS_MOCK, USER_PROGRESS_MOCK, type UserProgress, salvarProgressoUsuario } from "@/data/trilhasMock";
+import { TRILHAS_MOCK, type UserProgress } from "@/data/trilhasMock";
 import { QuizModal } from "@/components/trilha/QuizModal";
+import { useTrilhaProgress } from "@/hooks/useTrilhaProgress";
 
 export default function MissaoPage() {
   const { trilhaId, missaoId } = useParams<{ trilhaId: string; missaoId: string }>();
@@ -19,11 +20,11 @@ export default function MissaoPage() {
   const trilha = TRILHAS_MOCK.find((t) => t.id === trilhaId);
   const missao = trilha?.missoes.find((m) => m.id === missaoId);
 
-  const [progress, setProgress] = useState<UserProgress>(USER_PROGRESS_MOCK);
+  const { progress, salvarProgresso } = useTrilhaProgress();
   const [quizAberto, setQuizAberto] = useState(false);
   const [missaoConcluida, setMissaoConcluida] = useState(
     () =>
-      USER_PROGRESS_MOCK.progressoPorTrilha[trilhaId ?? ""]?.includes(missaoId ?? "") ?? false
+      progress.progressoPorTrilha[trilhaId ?? ""]?.includes(missaoId ?? "") ?? false
   );
   const [xpGanhoAnim, setXpGanhoAnim] = useState<number | null>(null);
 
@@ -45,42 +46,41 @@ export default function MissaoPage() {
   // Próxima missão
   const proximaMissao = trilha.missoes.find((m) => m.ordem === missao.ordem + 1);
 
-  function handleConcluirQuiz(acertos: number, total: number) {
-    let xpGanho = 5;
+  function handleConcluirQuiz(_acertos: number, _total: number) {
+    const trilhaProgress = progress.progressoPorTrilha[trilhaId!] ?? [];
+    const jaConcluida = trilhaProgress.includes(missaoId!);
 
-    setProgress((prev) => {
-      const trilhaProgress = prev.progressoPorTrilha[trilhaId!] ?? [];
-      const jaConcluida = trilhaProgress.includes(missaoId!);
-      
-      if (jaConcluida) {
-        return prev;
-      }
+    if (jaConcluida) {
+      setQuizAberto(false);
+      return;
+    }
 
-      const novasConcluidas = [...trilhaProgress, missaoId!];
-      const trilhaCompletaAgora = novasConcluidas.length === trilha.missoes.length;
-      
-      xpGanho = 5 + (trilhaCompletaAgora ? 10 : 0);
+    const novasConcluidas = [...trilhaProgress, missaoId!];
+    const trilhaCompletaAgora = novasConcluidas.length === trilha!.missoes.length;
+    const xpGanho = 5 + (trilhaCompletaAgora ? 10 : 0);
 
-      const novoProgresso = {
-        ...prev,
-        xpTotal: prev.xpTotal + xpGanho,
-        missoesCompletas: prev.missoesCompletas + 1,
-        trilhasCompletas: prev.trilhasCompletas + (trilhaCompletaAgora ? 1 : 0),
-        progressoPorTrilha: {
-          ...prev.progressoPorTrilha,
-          [trilhaId!]: novasConcluidas,
-        },
-      };
+    const novoProgresso: UserProgress = {
+      ...progress,
+      xpTotal: progress.xpTotal + xpGanho,
+      missoesCompletas: progress.missoesCompletas + 1,
+      trilhasCompletas: progress.trilhasCompletas + (trilhaCompletaAgora ? 1 : 0),
+      progressoPorTrilha: {
+        ...progress.progressoPorTrilha,
+        [trilhaId!]: novasConcluidas,
+      },
+    };
 
-      salvarProgressoUsuario(novoProgresso);
-      return novoProgresso;
+    // Salva localmente + sincroniza com Supabase (incluindo histórico XP para ranking)
+    void salvarProgresso(novoProgresso, {
+      xpGanho,
+      trilhaId: trilhaId!,
+      missaoId: missaoId!,
     });
 
     setMissaoConcluida(true);
     setXpGanhoAnim(xpGanho);
     setQuizAberto(false);
 
-    // Clear animation after delay
     setTimeout(() => setXpGanhoAnim(null), 3000);
   }
 

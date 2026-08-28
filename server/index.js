@@ -63,6 +63,12 @@ import {
   atualizarComunicadoStore,
   excluirComunicadoStore,
 } from "./comunicadosStore.js";
+import {
+  lerProgressoUsuario,
+  salvarProgressoUsuario,
+  registrarXpGanho,
+  obterRankingSemanal,
+} from "./trilhaProgressoStore.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -6138,3 +6144,86 @@ app.post("/api/comunicados-intersetoriais/excluir", async (req, res) => {
   }
 });
 
+// ============================================================
+// Trilha de Conhecimento — Endpoints
+// ============================================================
+
+/**
+ * POST /api/trilha/progresso/obter
+ * Retorna o progresso do usuário autenticado.
+ */
+app.post("/api/trilha/progresso/obter", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    const progresso = await lerProgressoUsuario(ctx.email);
+    return res.json({ progresso });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilha/progresso/obter] Erro:", e.message);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/**
+ * POST /api/trilha/progresso/salvar
+ * Salva o progresso do usuário e registra XP ganho no histórico.
+ * Body: { xpTotal, missoesCompletas, trilhasCompletas, progressoPorTrilha,
+ *         ofensivaDiasAtual, xpGanho?, trilhaId?, missaoId? }
+ */
+app.post("/api/trilha/progresso/salvar", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    const {
+      xpTotal,
+      missoesCompletas,
+      trilhasCompletas,
+      progressoPorTrilha,
+      ofensivaDiasAtual,
+      xpGanho,
+      trilhaId,
+      missaoId,
+    } = req.body || {};
+
+    if (typeof xpTotal !== "number") {
+      return res.status(400).json({ error: "xpTotal obrigatório." });
+    }
+
+    const resultado = await salvarProgressoUsuario({
+      email: ctx.email,
+      nome: ctx.nome,
+      avatarUrl: ctx.picture ?? null,
+      xpTotal,
+      missoesCompletas: missoesCompletas ?? 0,
+      trilhasCompletas: trilhasCompletas ?? 0,
+      progressoPorTrilha: progressoPorTrilha ?? {},
+      ofensivaDiasAtual: ofensivaDiasAtual ?? 0,
+    });
+
+    // Registra XP no histórico se uma missão foi concluída
+    if (typeof xpGanho === "number" && trilhaId && missaoId) {
+      await registrarXpGanho(ctx.email, trilhaId, missaoId, xpGanho);
+    }
+
+    return res.json({ ok: true, ofensivaDias: resultado?.ofensivaDias ?? ofensivaDiasAtual });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilha/progresso/salvar] Erro:", e.message);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/**
+ * GET /api/trilha/ranking-semanal
+ * Retorna o ranking semanal de XP (autenticado).
+ */
+app.get("/api/trilha/ranking-semanal", async (req, res) => {
+  try {
+    await verificarAutenticacaoRequest(req);
+    const ranking = await obterRankingSemanal(10);
+    return res.json({ ranking });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilha/ranking-semanal] Erro:", e.message);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});

@@ -1,12 +1,9 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Flame, Zap, Trophy, Star, Target, BookOpen, ChevronRight } from "lucide-react";
+import { Flame, Zap, Trophy, Star, Target, BookOpen, ChevronRight, Loader2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   TRILHAS_MOCK,
   BADGES_MOCK,
-  RANKING_MOCK,
-  USER_PROGRESS_MOCK,
   getNivelInfo,
   type UserProgress,
   obterMedalhaTempoUsuario,
@@ -15,11 +12,12 @@ import { TrilhaCard } from "@/components/trilha/TrilhaCard";
 import { XPBar } from "@/components/trilha/XPBar";
 import { BadgeShowcase } from "@/components/trilha/BadgeShowcase";
 import { RankingPanel } from "@/components/trilha/RankingPanel";
+import { useTrilhaProgress } from "@/hooks/useTrilhaProgress";
 
 export default function TrilhaConhecimento() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
-  const [progress] = useState<UserProgress>(USER_PROGRESS_MOCK);
+  const { progress, ranking, carregando } = useTrilhaProgress();
 
   const { atual } = getNivelInfo(progress.xpTotal);
   const medalhaTempo = obterMedalhaTempoUsuario(progress.anosDeEmpresa ?? 3);
@@ -227,7 +225,14 @@ export default function TrilhaConhecimento() {
 
             {/* Ranking */}
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
-              <RankingPanel entries={RANKING_MOCK} meuNome={usuario?.nome} />
+              {carregando ? (
+                <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-xs">Carregando ranking...</span>
+                </div>
+              ) : (
+                <RankingPanel entries={ranking} meuNome={usuario?.nome} />
+              )}
             </div>
 
             {/* Tip of the day */}
