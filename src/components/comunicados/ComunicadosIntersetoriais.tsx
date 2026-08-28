@@ -44,6 +44,7 @@ export interface ComunicadoIntersetorial {
 const SETORES_DISPONIVEIS = [
   "SETAPE",
   "SECRETARIA",
+  "COORDENAÇÃO",
   "DP / FINANCEIRO",
   "DIREÇÃO",
   "DISCIPLINAR",
@@ -80,8 +81,9 @@ export default function ComunicadosIntersetoriais() {
     const p = papeis.map((x) => String(x).toLowerCase());
     if (p.includes("setape") || p.includes("admin")) return "SETAPE";
     if (p.includes("secretaria")) return "SECRETARIA";
+    if (p.includes("coordenacao") || p.includes("coordenação") || p.includes("coordenador") || p.includes("coordenadora")) return "COORDENAÇÃO";
     if (p.includes("dp") || p.includes("financeiro")) return "DP / FINANCEIRO";
-    if (p.includes("direcao")) return "DIREÇÃO";
+    if (p.includes("direcao") || p.includes("direção")) return "DIREÇÃO";
     if (p.includes("disciplinar")) return "DISCIPLINAR";
     if (p.includes("biblioteca")) return "BIBLIOTECA";
     if (p.includes("servicosgerais")) return "SERVIÇOS GERAIS";
