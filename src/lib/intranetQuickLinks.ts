@@ -2,6 +2,7 @@ import {
   CalendarDays,
   MapPin,
   Megaphone,
+  Sparkles,
   Ticket,
   UserRoundCheck,
   type LucideIcon,
@@ -15,6 +16,12 @@ export type IntranetQuickLink = {
 
 /** Atalhos internos mais usados — ordem intencional (não alfabética). */
 export const INTRANET_QUICK_LINKS: IntranetQuickLink[] = [
+  {
+    name: "Massoterapia e Bem-Estar",
+    url: "/massoterapia",
+    icon: Sparkles,
+    description: "Agendamento de sessões de massagem relaxante",
+  },
   {
     name: "Comunicados Intersetoriais",
     url: "/comunicados-intersetoriais",

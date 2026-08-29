@@ -63,6 +63,14 @@ import {
   atualizarComunicadoStore,
   excluirComunicadoStore,
 } from "./comunicadosStore.js";
+import {
+  listarAgendamentosStore,
+  criarAgendamentoStore,
+  cancelarAgendamentoStore,
+  obterConfigMassoterapiaStore,
+  atualizarConfigMassoterapiaStore,
+  zerarAgendamentosStore,
+} from "./massoterapiaStore.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -6137,4 +6145,192 @@ app.post("/api/comunicados-intersetoriais/excluir", async (req, res) => {
     return res.status(500).json({ error: e.message });
   }
 });
+
+// ── Massoterapia e Bem-Estar ──────────────────────────────────────────
+
+/**
+ * POST /api/massoterapia/listar
+ * Body: { data?: string } (data no formato YYYY-MM-DD)
+ */
+app.post("/api/massoterapia/listar", async (req, res) => {
+  try {
+    const { data } = req.body || {};
+    const supabase = getSupabaseAdmin();
+    const agendamentos = await listarAgendamentosStore(supabase, data);
+    return res.json({ ok: true, agendamentos });
+  } catch (e) {
+    console.error("[massoterapia-listar] Erro:", e);
+    return res.status(500).json({ error: e.message || "Erro ao listar agendamentos." });
+  }
+});
+
+/**
+ * POST /api/massoterapia/agendar
+ * Body: { nomeCompleto, email, setor, data, horario, observacoes }
+ */
+app.post("/api/massoterapia/agendar", async (req, res) => {
+  try {
+    let { nomeCompleto, email, setor, data, horario, observacoes } = req.body || {};
+    
+    // Tenta obter dados do usuário logado se disponíveis
+    try {
+      const ctx = await resolverContextoFromRequest(req);
+      if (ctx?.email) email = ctx.email;
+      if (ctx?.nome && !nomeCompleto) nomeCompleto = ctx.nome;
+    } catch {
+      // Caso a chamada seja enviada com os campos no body
+    }
+
+    const nomeFinal = typeof nomeCompleto === "string" ? nomeCompleto.trim() : "";
+    const emailFinal = typeof email === "string" ? email.trim().toLowerCase() : "";
+    const dataFinal = typeof data === "string" ? data.trim() : "";
+    const horarioFinal = typeof horario === "string" ? horario.trim() : "";
+
+    if (!nomeFinal) {
+      return res.status(400).json({ error: "Nome completo é obrigatório." });
+    }
+    if (!emailFinal) {
+      return res.status(400).json({ error: "E-mail é obrigatório." });
+    }
+    if (!dataFinal) {
+      return res.status(400).json({ error: "Data do agendamento é obrigatória." });
+    }
+    if (!horarioFinal) {
+      return res.status(400).json({ error: "Horário de atendimento é obrigatório." });
+    }
+
+    const novoAgendamento = {
+      id: `MASS-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      nomeCompleto: nomeFinal,
+      email: emailFinal,
+      setor: typeof setor === "string" ? setor.trim() : "",
+      data: dataFinal,
+      horario: horarioFinal,
+      duracaoMinutos: 15,
+      observacoes: typeof observacoes === "string" ? observacoes.trim() : "",
+      status: "agendado",
+      criadoEm: new Date().toISOString(),
+      atualizadoEm: new Date().toISOString(),
+    };
+
+    const supabase = getSupabaseAdmin();
+    const salvo = await criarAgendamentoStore(supabase, novoAgendamento);
+
+    return res.json({ ok: true, agendamento: salvo });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes("já foi reservado")) {
+      return res.status(409).json({ error: msg });
+    }
+    console.error("[massoterapia-agendar] Erro:", e);
+    return res.status(500).json({ error: msg || "Erro ao realizar agendamento." });
+  }
+});
+
+/**
+ * POST /api/massoterapia/cancelar
+ * Body: { id }
+ */
+app.post("/api/massoterapia/cancelar", async (req, res) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) {
+      return res.status(400).json({ error: "ID do agendamento é obrigatório." });
+    }
+
+    let userEmail = "sistema";
+    try {
+      const ctx = await resolverContextoFromRequest(req);
+      if (ctx?.email) userEmail = ctx.email;
+    } catch {
+      // Fallback
+    }
+
+    const supabase = getSupabaseAdmin();
+    const atualizado = await cancelarAgendamentoStore(supabase, id, userEmail);
+
+    return res.json({ ok: true, agendamento: atualizado });
+  } catch (e) {
+    console.error("[massoterapia-cancelar] Erro:", e);
+    return res.status(500).json({ error: e.message || "Erro ao cancelar agendamento." });
+  }
+});
+
+/**
+ * POST /api/massoterapia/obter-config
+ */
+app.post("/api/massoterapia/obter-config", async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    const config = await obterConfigMassoterapiaStore(supabase);
+    return res.json({ ok: true, config });
+  } catch (e) {
+    console.error("[massoterapia-obter-config] Erro:", e);
+    return res.status(500).json({ error: e.message || "Erro ao obter configurações." });
+  }
+});
+
+/**
+ * POST /api/massoterapia/salvar-config
+ * Body: { titulo, dataEventoTexto, dataEventoYmd, descricao, ativo }
+ */
+app.post("/api/massoterapia/salvar-config", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    const papeis = ctx?.papeis || [];
+    const podeEditar =
+      papeis.includes("admin") ||
+      papeis.includes("dp") ||
+      papeis.includes("gerente_dp");
+
+    if (!podeEditar) {
+      return res.status(403).json({ error: "Apenas a OU DP ou Administradores podem alterar a configuração do evento." });
+    }
+
+    const { titulo, dataEventoTexto, dataEventoYmd, descricao, ativo } = req.body || {};
+    const supabase = getSupabaseAdmin();
+    const configAtualizada = await atualizarConfigMassoterapiaStore(supabase, {
+      titulo,
+      dataEventoTexto,
+      dataEventoYmd,
+      descricao,
+      ativo,
+    });
+
+    return res.json({ ok: true, config: configAtualizada });
+  } catch (e) {
+    console.error("[massoterapia-salvar-config] Erro:", e);
+    return res.status(500).json({ error: e.message || "Erro ao salvar configurações." });
+  }
+});
+
+/**
+ * POST /api/massoterapia/zerar
+ * Limpa todos os agendamentos atuais para iniciar uma nova rodada (apenas DP/Admin)
+ */
+app.post("/api/massoterapia/zerar", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    const papeis = ctx?.papeis || [];
+    const podeZerar =
+      papeis.includes("admin") ||
+      papeis.includes("dp") ||
+      papeis.includes("gerente_dp");
+
+    if (!podeZerar) {
+      return res.status(403).json({ error: "Apenas a OU DP ou Administradores podem zerar os agendamentos." });
+    }
+
+    const supabase = getSupabaseAdmin();
+    await zerarAgendamentosStore(supabase);
+
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("[massoterapia-zerar] Erro:", e);
+    return res.status(500).json({ error: e.message || "Erro ao zerar agendamentos." });
+  }
+});
+
+
+
 

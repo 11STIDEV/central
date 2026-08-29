@@ -28,6 +28,7 @@ const ROTAS_INTRANET_COMUM = new Set([
   "/cci-pay/loja",
   "/cci-pay/meus-pedidos",
   "/comunicados-intersetoriais",
+  "/massoterapia",
 ]);
 
 const PAPEIS_PROFESSORES: Papel[] = ["professorfac", "professortecs", "professorregular"];
