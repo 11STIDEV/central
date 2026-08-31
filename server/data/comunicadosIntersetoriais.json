@@ -1,51 +1,159 @@
 [
   {
-    "id": "comunicado_1787851405153_m57k9",
-    "titulo": "Teste DP",
-    "setorOrigem": "SETAPE",
+    "id": "comunicado_1788201727258_47pro",
+    "titulo": "Livros didáticos 2027",
+    "setorOrigem": "COORDENAÇÃO",
     "setoresDestino": [
-      "DP / FINANCEIRO"
+      "SECRETARIA",
+      "COORDENAÇÃO",
+      "DIREÇÃO",
+      "BIBLIOTECA"
     ],
     "canaisDivulgacao": [
-      "Whatsapp / Umbler Talk",
       "Compartilhar com funcionários"
     ],
-    "descricao": "Teste dp",
-    "dataValidade": "2026-08-28",
-    "anexosOuLinks": [],
-    "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
-    "criadoPorNome": "Thiago Santos Ferreira",
-    "criadoEm": "2026-08-27T17:23:25.154+00:00",
-    "atualizadoEm": "2026-08-27T17:23:48.114+00:00",
-    "cientes": [
+    "descricao": "Lista de livros didáticos 2027 por série para auxiliar na explicação aos pais do que compõe os recursos didáticos.",
+    "dataValidade": "2027-08-04",
+    "anexosOuLinks": [
       {
-        "data": "2026-08-27T17:23:48.112Z",
-        "nome": "Candidato Cci",
-        "email": "candidato@portalcci.com.br",
-        "setor": "DP / FINANCEIRO"
+        "url": "https://docs.google.com/document/d/1iVKTWec7K1U739V7Wz9du8ih78ESCW50QFunnTUc3-w/edit?usp=sharing",
+        "titulo": "Materiais 2027"
       }
-    ]
+    ],
+    "criadoPorEmail": "cassia.tinoco@portalcci.com.br",
+    "criadoPorNome": "Cássia Tinoco",
+    "criadoEm": "2026-08-31T18:42:07.258+00:00",
+    "atualizadoEm": "2026-08-31T18:42:55.412+00:00",
+    "cientes": []
   },
   {
-    "id": "comunicado_1787849045907_za85z",
-    "titulo": "último teste",
-    "setorOrigem": "SETAPE",
+    "id": "comunicado_1788197895446_8v3nf",
+    "titulo": "CONTRATURNO E RECUPERAÇÃO",
+    "setorOrigem": "COORDENAÇÃO",
     "setoresDestino": [
-      "SECRETARIA"
+      "SECRETARIA",
+      "COORDENAÇÃO",
+      "DIREÇÃO",
+      "DISCIPLINAR"
+    ],
+    "canaisDivulgacao": [
+      "Banco de informações",
+      "Agenda CCI",
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "CONTRATURNO E RECUPERAÇÃO\n\n\nInformamos que não haverá contraturno para os estudantes do 6º ao 8º ano no período de 31/08/2026 a 04/09/2026, em razão da realização das avaliações de recuperação do 2º trimestre, conforme o calendário de recuperação.\n\n📌 Atenção: na sexta-feira, 04/09/2026, não haverá aula regular. Neste dia, somente os estudantes que estiverem em recuperação deverão comparecer à escola para a realização das provas, conforme os horários previamente informados.",
+    "dataValidade": "2026-09-07",
+    "anexosOuLinks": [],
+    "criadoPorEmail": "flavia.araujo@portalcci.com.br",
+    "criadoPorNome": "Flávia Kenany Pereira de Araujo",
+    "criadoEm": "2026-08-31T17:38:15.446+00:00",
+    "atualizadoEm": "2026-08-31T17:38:48.635+00:00",
+    "cientes": []
+  },
+  {
+    "id": "comunicado_1788197132779_qr8hs",
+    "titulo": "saída pedagógica - THOMAS JEFFERSON",
+    "setorOrigem": "COORDENAÇÃO",
+    "setoresDestino": [
+      "SECRETARIA",
+      "DP / FINANCEIRO",
+      "COORDENAÇÃO",
+      "DISCIPLINAR",
+      "PUBLICIDADE"
+    ],
+    "canaisDivulgacao": [
+      "Banco de informações",
+      "Agenda CCI",
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "Estamos organizando uma experiência muito especial para os estudantes do 6º ano: uma Saída Pedagógica a casa Thomas Jefferson – Asa Sul, com uma vivência em Língua Inglesa. \n 25 alunos por casa saída \n\n📌 6º A, B e C: 08/09 – escolha entre os períodos matutino ou vespertino.\n📌 6º D e E: 10/09   só período vespertino.\n\n Contribuição para o transporte: R$ 25,00 por estudante.\n\n🔗 Formulário de autorização:  6º A, B e C https://forms.gle/GdZEe7KrdSZvrjtk9\n\n🔗 Formulário de autorização: 6º D e E https://forms.gle/YcKU4tCqfNmN8GRh7\n\nI",
+    "dataValidade": "2026-09-11",
+    "anexosOuLinks": [
+      {
+        "url": "https://forms.gle/YcKU4tCqfNmN8GRh7",
+        "titulo": "6º D e 6º E"
+      },
+      {
+        "url": "https://forms.gle/GdZEe7KrdSZvrjtk9",
+        "titulo": "6º A, 6º B e 6º C"
+      }
+    ],
+    "criadoPorEmail": "flavia.araujo@portalcci.com.br",
+    "criadoPorNome": "Flávia Kenany Pereira de Araujo",
+    "criadoEm": "2026-08-31T17:25:32.779+00:00",
+    "atualizadoEm": "2026-08-31T17:25:32.779+00:00",
+    "cientes": []
+  },
+  {
+    "id": "comunicado_1787952153831_0cwz6",
+    "titulo": "Comunicado PROERD",
+    "setorOrigem": "COORDENAÇÃO",
+    "setoresDestino": [
+      "SECRETARIA",
+      "DISCIPLINAR",
+      "COORDENAÇÃO",
+      "DIREÇÃO",
+      "BIBLIOTECA",
+      "PUBLICIDADE"
     ],
     "canaisDivulgacao": [
       "Whatsapp / Umbler Talk",
       "Compartilhar com funcionários",
+      "Banco de informações",
       "Agenda CCI"
     ],
-    "descricao": "Teste",
-    "dataValidade": "2026-08-28",
+    "descricao": "Passando para informar que, na próxima semana, iniciaremos o PROERD – Programa Educacional de Resistência às Drogas e à Violência com os estudantes do 5º ano D e E – Vespertino.\n\nAs aulas acontecerão uma vez por semana, alternando entre terça e quarta-feira, conforme a organização do programa.\n\nNesta primeira semana, excepcionalmente, o encontro acontecerá na quarta-feira, dia 02/09/2026.",
+    "dataValidade": "2026-11-30",
     "anexosOuLinks": [],
-    "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
-    "criadoPorNome": "Thiago Santos Ferreira",
-    "criadoEm": "2026-08-27T16:44:05.908+00:00",
-    "atualizadoEm": "2026-08-27T16:44:05.908+00:00",
+    "criadoPorEmail": "mabia.santos@portalcci.com.br",
+    "criadoPorNome": "Mábia Lucy Félix dos Santos",
+    "criadoEm": "2026-08-28T21:22:33.831+00:00",
+    "atualizadoEm": "2026-08-28T21:22:33.831+00:00",
     "cientes": []
+  },
+  {
+    "id": "comunicado_1787942407594_mekjp",
+    "titulo": "CONTEÚDO DE RECUPERAÇÃO 5º AO 8º ANO",
+    "setorOrigem": "DIREÇÃO",
+    "setoresDestino": [
+      "SECRETARIA",
+      "SETAPE",
+      "DIREÇÃO",
+      "DISCIPLINAR",
+      "BIBLIOTECA",
+      "COORDENAÇÃO"
+    ],
+    "canaisDivulgacao": [
+      "Compartilhar com funcionários",
+      "Banco de informações",
+      "Agenda CCI"
+    ],
+    "descricao": "Conteúdo de recuperação 2° trimestre 5º ao 8º ano \n(Todos os links estão nesse documento)",
+    "dataValidade": "2026-09-10",
+    "anexosOuLinks": [
+      {
+        "url": "https://docs.google.com/document/d/1_ju3lfY4VktYp3Vlt19i1unbhu647wV4nPCsoUUOfjQ/edit?tab=t.0",
+        "titulo": "Conteúdos de recuperação"
+      }
+    ],
+    "criadoPorEmail": "flavia.araujo@portalcci.com.br",
+    "criadoPorNome": "Flávia Kenany Pereira de Araujo",
+    "criadoEm": "2026-08-28T18:40:07.594+00:00",
+    "atualizadoEm": "2026-08-28T19:38:58.14+00:00",
+    "cientes": [
+      {
+        "data": "2026-08-28T18:43:54.752Z",
+        "nome": "Flávia Kenany Pereira de Araujo",
+        "email": "flavia.araujo@portalcci.com.br",
+        "setor": "SETAPE"
+      },
+      {
+        "data": "2026-08-28T19:09:40.653Z",
+        "nome": "Jediael Reis",
+        "email": "jediael.reis@portalcci.com.br",
+        "setor": "SETAPE"
+      }
+    ]
   },
   {
     "id": "comunicado_1787848138412_pwyqu",
