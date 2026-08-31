@@ -5,7 +5,6 @@ import {
   BADGES_MOCK,
   getNivelInfo,
   type UserProgress,
-  obterMedalhaTempoUsuario,
 } from "@/data/trilhasMock";
 import { TrilhaCard } from "@/components/trilha/TrilhaCard";
 import { XPBar } from "@/components/trilha/XPBar";
@@ -23,7 +22,6 @@ export default function TrilhaConhecimento() {
   const carregando = carregandoProgress || carregandoTrilhas;
 
   const { atual } = getNivelInfo(progress.xpTotal);
-  const medalhaTempo = obterMedalhaTempoUsuario(progress.anosDeEmpresa ?? 3);
 
   // Find next recommended mission
   const proximaMissao = (() => {
@@ -77,14 +75,6 @@ export default function TrilhaConhecimento() {
                   <p className="text-xs text-muted-foreground">Bem-vindo de volta,</p>
                   <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
                     <span>{primeiroNome}!</span>
-                    {medalhaTempo && (
-                      <img
-                        src={`${medalhaTempo.icone}?v=2`}
-                        alt={medalhaTempo.nome}
-                        title={`${medalhaTempo.nome}: ${medalhaTempo.descricao}`}
-                        className="h-6 w-6 object-contain inline-block hover:scale-110 transition-transform duration-200"
-                      />
-                    )}
                     <span className="text-lg">{atual.icone}</span>
                   </h1>
                 </div>
