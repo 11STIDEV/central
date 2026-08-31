@@ -15,31 +15,59 @@ function getSupabaseAdmin() {
 }
 
 /**
- * Calcula a nova ofensiva de dias consecutivos.
- * @param {string|null} ultimaAtividade — ISO date (YYYY-MM-DD) do último acesso
- * @param {number} ofensivaDiasAtual
+ * Retorna a data de hoje no fuso horário do Brasil (America/Sao_Paulo) no formato YYYY-MM-DD.
+ */
+function getDataHojeBrasil() {
+  return new Intl.DateTimeFormat("fr-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+}
+
+/**
+ * Calcula a diferença em dias entre duas datas no formato YYYY-MM-DD.
+ * @param {string|null} dataStr1 - Data anterior (ex: ultima_atividade)
+ * @param {string} dataStr2 - Data de referência (ex: hoje)
+ * @returns {number} Diferença em dias inteiros (ex: 0 = mesmo dia, 1 = ontem, >= 2 = 2 dias ou mais)
+ */
+function calcularDiferencaDias(dataStr1, dataStr2) {
+  if (!dataStr1 || !dataStr2) return Infinity;
+  const [y1, m1, d1] = dataStr1.slice(0, 10).split("-").map(Number);
+  const [y2, m2, d2] = dataStr2.slice(0, 10).split("-").map(Number);
+  const utc1 = Date.UTC(y1, m1 - 1, d1);
+  const utc2 = Date.UTC(y2, m2 - 1, d2);
+  return Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Calcula a ofensiva ao realizar uma atividade (missão ou trilha concluída).
+ * @param {string|null} ultimaAtividade - YYYY-MM-DD da última atividade
+ * @param {number} ofensivaDiasAtual - ofensiva atual registrada
  * @returns {{ ofensivaDias: number, ultimaAtividade: string }}
  */
-function calcularOfensiva(ultimaAtividade, ofensivaDiasAtual) {
-  const hoje = new Date().toISOString().slice(0, 10);
+function calcularOfensivaAoRealizarAtividade(ultimaAtividade, ofensivaDiasAtual) {
+  const hoje = getDataHojeBrasil();
   if (!ultimaAtividade) {
     return { ofensivaDias: 1, ultimaAtividade: hoje };
   }
-  if (ultimaAtividade === hoje) {
-    // Já contou hoje — mantém
-    return { ofensivaDias: ofensivaDiasAtual, ultimaAtividade: hoje };
+
+  const diff = calcularDiferencaDias(ultimaAtividade, hoje);
+
+  if (diff === 0) {
+    // Já realizou atividade hoje — mantém a ofensiva de hoje
+    return { ofensivaDias: Math.max(ofensivaDiasAtual, 1), ultimaAtividade: hoje };
   }
-  const ontem = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-  if (ultimaAtividade === ontem) {
-    // Dia consecutivo — incrementa
-    return { ofensivaDias: ofensivaDiasAtual + 1, ultimaAtividade: hoje };
+
+  if (diff === 1) {
+    // Realizou atividade ontem — sequência contínua mantida com sucesso!
+    return { ofensivaDias: Math.max(ofensivaDiasAtual, 0) + 1, ultimaAtividade: hoje };
   }
-  // Quebrou a sequência — reseta
+
+  // diff >= 2: ficou mais de 24h / 1 dia inteiro sem atividade — quebrou a sequência.
+  // Como completou uma missão hoje, inicia uma nova ofensiva de 1 dia!
   return { ofensivaDias: 1, ultimaAtividade: hoje };
 }
 
 /**
  * Carrega o progresso de um usuário pelo email.
+ * Zera automaticamente a ofensiva se o usuário tiver ficado mais de 1 dia sem atividade.
  * @param {string} email
  * @returns {Promise<object|null>}
  */
@@ -60,11 +88,34 @@ export async function lerProgressoUsuario(email) {
 
   if (!data) return null;
 
+  const hoje = getDataHojeBrasil();
+  const ultimaAtividade = data.ultima_atividade ? data.ultima_atividade.slice(0, 10) : null;
+  let ofensivaDias = data.ofensiva_dias ?? 0;
+
+  if (ultimaAtividade) {
+    const diff = calcularDiferencaDias(ultimaAtividade, hoje);
+    // diff === 0: fez atividade hoje -> ofensiva ativa
+    // diff === 1: fez atividade ontem -> ofensiva ativa (aguardando atividade de hoje)
+    // diff >= 2: ficou mais de 1 dia sem atividade -> ofensiva expirou e está ZERADA
+    if (diff >= 2 && ofensivaDias > 0) {
+      ofensivaDias = 0;
+      // Atualiza no banco em background para manter consistência
+      supabase
+        .from("trilha_progresso")
+        .update({ ofensiva_dias: 0 })
+        .eq("email", email)
+        .then(() => {})
+        .catch((err) => console.error("[trilha] Erro ao sincronizar ofensiva zerada:", err));
+    }
+  } else {
+    ofensivaDias = 0;
+  }
+
   return {
     xpTotal: data.xp_total,
     missoesCompletas: data.missoes_completas,
     trilhasCompletas: data.trilhas_completas,
-    ofensivaDias: data.ofensiva_dias,
+    ofensivaDias,
     progressoPorTrilha: data.progresso_por_trilha ?? {},
     ultimaAtividade: data.ultima_atividade,
   };
@@ -72,7 +123,6 @@ export async function lerProgressoUsuario(email) {
 
 /**
  * Salva o progresso de um usuário no Supabase.
- * Calcula a ofensiva automaticamente com base na ultima_atividade.
  * @param {object} params
  */
 export async function salvarProgressoUsuario({
@@ -84,22 +134,39 @@ export async function salvarProgressoUsuario({
   trilhasCompletas,
   progressoPorTrilha,
   ofensivaDiasAtual,
+  teveAtividadeRealizada = false,
 }) {
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
 
-  // Busca o registro atual apenas para calcular a ofensiva
+  // Busca o registro atual para calcular a ofensiva
   const { data: atual } = await supabase
     .from("trilha_progresso")
     .select("ofensiva_dias, ultima_atividade")
     .eq("email", email)
     .maybeSingle();
 
+  const hoje = getDataHojeBrasil();
+  const ultimaAtividadeAntiga = atual?.ultima_atividade ? atual.ultima_atividade.slice(0, 10) : null;
   const ofensivaBase = atual?.ofensiva_dias ?? ofensivaDiasAtual ?? 0;
-  const { ofensivaDias, ultimaAtividade } = calcularOfensiva(
-    atual?.ultima_atividade ?? null,
-    ofensivaBase
-  );
+
+  let novaOfensiva = ofensivaBase;
+  let novaUltimaAtividade = ultimaAtividadeAntiga;
+
+  if (teveAtividadeRealizada) {
+    const res = calcularOfensivaAoRealizarAtividade(ultimaAtividadeAntiga, ofensivaBase);
+    novaOfensiva = res.ofensivaDias;
+    novaUltimaAtividade = res.ultimaAtividade;
+  } else {
+    if (ultimaAtividadeAntiga) {
+      const diff = calcularDiferencaDias(ultimaAtividadeAntiga, hoje);
+      if (diff >= 2) {
+        novaOfensiva = 0;
+      }
+    } else {
+      novaOfensiva = 0;
+    }
+  }
 
   const row = {
     email,
@@ -108,8 +175,8 @@ export async function salvarProgressoUsuario({
     xp_total: xpTotal,
     missoes_completas: missoesCompletas,
     trilhas_completas: trilhasCompletas,
-    ofensiva_dias: ofensivaDias,
-    ultima_atividade: ultimaAtividade,
+    ofensiva_dias: novaOfensiva,
+    ultima_atividade: novaUltimaAtividade,
     progresso_por_trilha: progressoPorTrilha ?? {},
   };
 
@@ -122,7 +189,7 @@ export async function salvarProgressoUsuario({
     return null;
   }
 
-  return { ofensivaDias, ultimaAtividade };
+  return { ofensivaDias: novaOfensiva, ultimaAtividade: novaUltimaAtividade };
 }
 
 /**

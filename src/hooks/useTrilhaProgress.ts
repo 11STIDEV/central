@@ -60,7 +60,8 @@ export function useTrilhaProgress(): UseTrilhaProgressReturn {
             ...USER_PROGRESS_MOCK,
             ...progressoServidor,
             ...stats,
-            ofensivaDias: progressoServidor.ofensivaDias,
+            ofensivaDias: progressoServidor.ofensivaDias ?? 0,
+            ultimaAtividade: progressoServidor.ultimaAtividade ?? undefined,
           };
           atualizarBadgesConquistadas(merged);
           // Sincroniza com localStorage para fallback
@@ -96,7 +97,7 @@ export function useTrilhaProgress(): UseTrilhaProgressReturn {
       // 2. Sincroniza com o servidor em background
       try {
         const resultado = await salvarProgressoServidor(novoProgresso, opts);
-        if (resultado && resultado.ofensivaDias !== novoProgresso.ofensivaDias) {
+        if (resultado && typeof resultado.ofensivaDias === "number") {
           // Atualiza ofensiva calculada pelo servidor (mais confiável)
           const comOfensiva: UserProgress = {
             ...novoProgresso,

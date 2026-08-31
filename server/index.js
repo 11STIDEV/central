@@ -6199,6 +6199,8 @@ app.post("/api/trilha/progresso/salvar", async (req, res) => {
       return res.status(400).json({ error: "xpTotal obrigatório." });
     }
 
+    const teveAtividade = Boolean((typeof xpGanho === "number" && xpGanho > 0) || missaoId || trilhaId);
+
     const resultado = await salvarProgressoUsuario({
       email: ctx.email,
       nome: ctx.nome,
@@ -6208,6 +6210,7 @@ app.post("/api/trilha/progresso/salvar", async (req, res) => {
       trilhasCompletas: trilhasCompletas ?? 0,
       progressoPorTrilha: progressoPorTrilha ?? {},
       ofensivaDiasAtual: ofensivaDiasAtual ?? 0,
+      teveAtividadeRealizada: teveAtividade,
     });
 
     // Registra XP no histórico se uma missão foi concluída

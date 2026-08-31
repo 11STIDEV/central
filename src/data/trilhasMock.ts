@@ -67,6 +67,7 @@ export type UserProgress = {
   missoesCompletas: number;
   trilhasCompletas: number;
   progressoPorTrilha: Record<string, string[]>; // trilhaId → [missaoId concluída]
+  ultimaAtividade?: string; // YYYY-MM-DD
 };
 
 // ── Níveis ──────────────────────────────────────────────────
@@ -362,6 +363,23 @@ const baseMock: UserProgress = {
   anosDeEmpresa: 3, // Mock padrão para fins de demonstração (desbloqueia medalhas de 1 e 3 anos)
 };
 
+function getDataHojeBrasilStr(): string {
+  try {
+    return new Intl.DateTimeFormat("fr-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+function calcularDiferencaDiasStr(d1?: string, d2?: string): number {
+  if (!d1 || !d2) return Infinity;
+  const [y1, m1, day1] = d1.slice(0, 10).split("-").map(Number);
+  const [y2, m2, day2] = d2.slice(0, 10).split("-").map(Number);
+  const utc1 = Date.UTC(y1, m1 - 1, day1);
+  const utc2 = Date.UTC(y2, m2 - 1, day2);
+  return Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
+}
+
 function carregarProgressoInicial(): UserProgress {
   if (typeof window === "undefined") return baseMock;
   const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -371,15 +389,29 @@ function carregarProgressoInicial(): UserProgress {
   }
   try {
     const parsed = JSON.parse(raw);
-    const ofensivaDias = typeof parsed.ofensivaDias === "number"
+    let ofensivaDias = typeof parsed.ofensivaDias === "number"
       ? parsed.ofensivaDias
       : (parsed.streakDias ?? 0);
+    const ultimaAtividade = parsed.ultimaAtividade ?? null;
+
+    // Se ficou 2 dias ou mais sem atividade, zera ofensiva
+    if (ultimaAtividade) {
+      const hoje = getDataHojeBrasilStr();
+      const diff = calcularDiferencaDiasStr(ultimaAtividade, hoje);
+      if (diff >= 2) {
+        ofensivaDias = 0;
+      }
+    } else {
+      ofensivaDias = 0;
+    }
+
     const progressoPorTrilha = parsed.progressoPorTrilha ?? {};
     const stats = calcularProgresso(progressoPorTrilha);
-    const progress = {
+    const progress: UserProgress = {
       ...baseMock,
       ...parsed,
       ofensivaDias,
+      ultimaAtividade: ultimaAtividade || undefined,
       ...stats,
     };
     atualizarBadgesConquistadas(progress);
