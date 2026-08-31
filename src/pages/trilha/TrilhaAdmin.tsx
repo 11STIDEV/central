@@ -41,6 +41,26 @@ const DIFICULDADES: { label: string; value: Dificuldade }[] = [
   { label: "Avançado", value: "avancado" },
 ];
 
+// ── Emojis disponíveis para seleção ──────────────────────────
+const EMOJIS_TRILHA = [
+  // Conhecimento & Aprendizado
+  "📚", "📖", "📝", "🎓", "🏫", "🧑‍🎓", "🧠", "💡", "🔬", "🔭",
+  // Tecnologia
+  "💻", "🖥️", "📱", "⌨️", "🖱️", "🤖", "⚙️", "🔧", "🛠️", "📡",
+  // Negócios & Trabalho
+  "💼", "📊", "📈", "📉", "🗂️", "📋", "📌", "🏢", "🤝", "💰",
+  // Comunicação
+  "💬", "📣", "🗣️", "📧", "📞", "📢", "🔔", "✉️", "📨", "🗺️",
+  // Segurança & Compliance
+  "🔐", "🔒", "🛡️", "🔑", "⚠️", "✅", "🚦", "🚨", "🧩", "📜",
+  // Pessoas & Cultura
+  "👥", "🧑‍🤝‍🧑", "🌍", "🌱", "🏆", "🥇", "🎯", "🎪", "🎨", "🎭",
+  // Saúde & Bem-estar
+  "❤️", "🩺", "💊", "🧘", "🏃", "🌿", "☀️", "🌟", "⭐", "✨",
+  // Extras
+  "🚀", "🌐", "🧭", "🏗️", "📦", "🗓️", "⏰", "🎲", "🔎", "📍",
+];
+
 function gerarSlug(texto: string): string {
   return texto
     .toLowerCase()
@@ -579,23 +599,25 @@ function ModalTrilha({
                 placeholder="Ex: Missão, Princípios e Visão do CCI"
               />
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">ID (slug)</label>
-              <input
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                value={form.id}
-                onChange={(e) => onChange({ ...form, id: e.target.value })}
-                placeholder="missao-visao-cci"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Ícone (emoji)</label>
-              <input
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xl text-center focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                value={form.icone}
-                onChange={(e) => onChange({ ...form, icone: e.target.value })}
-                maxLength={2}
-              />
+            <div className="col-span-2">
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Ícone da trilha</label>
+              <div className="grid grid-cols-10 gap-1.5 rounded-xl border border-white/10 bg-white/5 p-3">
+                {EMOJIS_TRILHA.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    title={emoji}
+                    onClick={() => onChange({ ...form, icone: emoji })}
+                    className={`flex items-center justify-center rounded-lg p-1.5 text-xl leading-none transition hover:bg-white/10 ${
+                      form.icone === emoji
+                        ? "bg-indigo-500/30 ring-1 ring-indigo-400 scale-110"
+                        : ""
+                    }`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
             </div>
             <div className="col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Descrição</label>
@@ -754,17 +776,8 @@ function ModalMissao({
                   <input
                     className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
                     value={form.titulo}
-                    onChange={(e) => onChange({ ...form, titulo: e.target.value, id: form.id || `missao-${Date.now()}` })}
+                    onChange={(e) => onChange({ ...form, titulo: e.target.value })}
                     placeholder="Ex: Introdução ao Google Drive"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">ID (slug)</label>
-                  <input
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                    value={form.id}
-                    onChange={(e) => onChange({ ...form, id: e.target.value })}
-                    placeholder="drive-m1"
                   />
                 </div>
                 <div>
