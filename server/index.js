@@ -63,6 +63,23 @@ import {
   atualizarComunicadoStore,
   excluirComunicadoStore,
 } from "./comunicadosStore.js";
+import {
+  lerProgressoUsuario,
+  salvarProgressoUsuario,
+  registrarXpGanho,
+  obterRankingSemanal,
+} from "./trilhaProgressoStore.js";
+import {
+  listarTrilhas,
+  listarTrilhasAdmin,
+  criarTrilha,
+  atualizarTrilha,
+  excluirTrilha,
+  criarMissao,
+  atualizarMissao,
+  excluirMissao,
+  importarTrilhasPadrao,
+} from "./trilhaStore.js";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -6138,3 +6155,253 @@ app.post("/api/comunicados-intersetoriais/excluir", async (req, res) => {
   }
 });
 
+// ============================================================
+// Trilha de Conhecimento — Endpoints
+// ============================================================
+
+/**
+ * POST /api/trilha/progresso/obter
+ * Retorna o progresso do usuário autenticado.
+ */
+app.post("/api/trilha/progresso/obter", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    const progresso = await lerProgressoUsuario(ctx.email);
+    return res.json({ progresso });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilha/progresso/obter] Erro:", e.message);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/**
+ * POST /api/trilha/progresso/salvar
+ * Salva o progresso do usuário e registra XP ganho no histórico.
+ * Body: { xpTotal, missoesCompletas, trilhasCompletas, progressoPorTrilha,
+ *         ofensivaDiasAtual, xpGanho?, trilhaId?, missaoId? }
+ */
+app.post("/api/trilha/progresso/salvar", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    const {
+      xpTotal,
+      missoesCompletas,
+      trilhasCompletas,
+      progressoPorTrilha,
+      ofensivaDiasAtual,
+      xpGanho,
+      trilhaId,
+      missaoId,
+    } = req.body || {};
+
+    if (typeof xpTotal !== "number") {
+      return res.status(400).json({ error: "xpTotal obrigatório." });
+    }
+
+    const teveAtividade = Boolean((typeof xpGanho === "number" && xpGanho > 0) || missaoId || trilhaId);
+
+    const resultado = await salvarProgressoUsuario({
+      email: ctx.email,
+      nome: ctx.nome,
+      avatarUrl: ctx.picture ?? null,
+      xpTotal,
+      missoesCompletas: missoesCompletas ?? 0,
+      trilhasCompletas: trilhasCompletas ?? 0,
+      progressoPorTrilha: progressoPorTrilha ?? {},
+      ofensivaDiasAtual: ofensivaDiasAtual ?? 0,
+      teveAtividadeRealizada: teveAtividade,
+    });
+
+    // Registra XP no histórico se uma missão foi concluída
+    if (typeof xpGanho === "number" && trilhaId && missaoId) {
+      await registrarXpGanho(ctx.email, trilhaId, missaoId, xpGanho);
+    }
+
+    return res.json({ ok: true, ofensivaDias: resultado?.ofensivaDias ?? ofensivaDiasAtual });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilha/progresso/salvar] Erro:", e.message);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/**
+ * GET /api/trilha/ranking-semanal
+ * Retorna o ranking semanal de XP (autenticado).
+ */
+app.get("/api/trilha/ranking-semanal", async (req, res) => {
+  try {
+    await verificarAutenticacaoRequest(req);
+    const ranking = await obterRankingSemanal(10);
+    return res.json({ ranking });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilha/ranking-semanal] Erro:", e.message);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+// ============================================================
+// Trilhas de Conhecimento — CRUD (conteúdo)
+// ============================================================
+
+/**
+ * GET /api/trilhas
+ * Lista trilhas ativas com missões (para todos os usuários autenticados).
+ */
+app.get("/api/trilhas", async (req, res) => {
+  try {
+    await verificarAutenticacaoRequest(req);
+    const trilhas = await listarTrilhas();
+    return res.json({ trilhas: trilhas || [] });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilhas/listar] Erro:", e.message);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/trilhas/importar-padrao — Importa as trilhas padrão [admin]
+ */
+app.post("/api/trilhas/importar-padrao", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis?.includes("admin")) {
+      return res.status(403).json({ error: "Acesso restrito a administradores." });
+    }
+    const resultado = await importarTrilhasPadrao();
+    return res.json(resultado);
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilhas/importar-padrao] Erro:", e.message);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * GET /api/trilhas/admin
+ * Lista todas as trilhas (inclusive inativas) para o painel admin.
+ */
+app.get("/api/trilhas/admin", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis?.includes("admin")) {
+      return res.status(403).json({ error: "Acesso restrito a administradores." });
+    }
+    const trilhas = await listarTrilhasAdmin();
+    return res.json({ trilhas });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilhas/admin/listar] Erro:", e.message);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/trilhas — Cria uma trilha [admin]
+ */
+app.post("/api/trilhas", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis?.includes("admin")) {
+      return res.status(403).json({ error: "Acesso restrito a administradores." });
+    }
+    const trilha = await criarTrilha(req.body);
+    return res.status(201).json({ trilha });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilhas/criar] Erro:", e.message);
+    return res.status(400).json({ error: e.message });
+  }
+});
+
+/**
+ * PUT /api/trilhas/:id — Atualiza uma trilha [admin]
+ */
+app.put("/api/trilhas/:id", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis?.includes("admin")) {
+      return res.status(403).json({ error: "Acesso restrito a administradores." });
+    }
+    await atualizarTrilha(req.params.id, req.body);
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilhas/atualizar] Erro:", e.message);
+    return res.status(400).json({ error: e.message });
+  }
+});
+
+/**
+ * DELETE /api/trilhas/:id — Exclui uma trilha [admin]
+ */
+app.delete("/api/trilhas/:id", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis?.includes("admin")) {
+      return res.status(403).json({ error: "Acesso restrito a administradores." });
+    }
+    await excluirTrilha(req.params.id);
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilhas/excluir] Erro:", e.message);
+    return res.status(400).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/trilhas/:id/missoes — Cria missão [admin]
+ */
+app.post("/api/trilhas/:id/missoes", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis?.includes("admin")) {
+      return res.status(403).json({ error: "Acesso restrito a administradores." });
+    }
+    const missao = await criarMissao(req.params.id, req.body);
+    return res.status(201).json({ missao });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilhas/missoes/criar] Erro:", e.message);
+    return res.status(400).json({ error: e.message });
+  }
+});
+
+/**
+ * PUT /api/trilhas/:id/missoes/:mid — Atualiza missão [admin]
+ */
+app.put("/api/trilhas/:id/missoes/:mid", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis?.includes("admin")) {
+      return res.status(403).json({ error: "Acesso restrito a administradores." });
+    }
+    await atualizarMissao(req.params.mid, req.body);
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilhas/missoes/atualizar] Erro:", e.message);
+    return res.status(400).json({ error: e.message });
+  }
+});
+
+/**
+ * DELETE /api/trilhas/:id/missoes/:mid — Exclui missão [admin]
+ */
+app.delete("/api/trilhas/:id/missoes/:mid", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis?.includes("admin")) {
+      return res.status(403).json({ error: "Acesso restrito a administradores." });
+    }
+    await excluirMissao(req.params.mid);
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilhas/missoes/excluir] Erro:", e.message);
+    return res.status(400).json({ error: e.message });
+  }
+});

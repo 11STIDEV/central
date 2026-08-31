@@ -1,0 +1,861 @@
+[
+  {
+    "id": "missao-visao-cci",
+    "titulo": "Missão, Princípios e Visão do CCI",
+    "descricao": "Conheça as instituições do Grupo Educacional CCI, sua missão, valores, visão e estrutura de credenciamento.",
+    "categoria": "Institucional",
+    "icone": "🏫",
+    "cor": "from-amber-500 to-orange-600",
+    "xpTotal": 25,
+    "dificuldade": "iniciante",
+    "missoes": [
+      {
+        "id": "mvc-m1",
+        "trilhaId": "missao-visao-cci",
+        "ordem": 1,
+        "titulo": "Instituições do Grupo CCI",
+        "descricao": "Unidades educacionais, endereços e empresas mantenedoras.",
+        "linkExterno": "https://docs.google.com/document/d/1cOFHBtOWxIjBA7b4yuskJ2XWs4fNjeqHcLBQ1vks6Sk/edit?usp=sharing",
+        "conteudo": "## Instituições de Ensino do Grupo Educacional CCI\n\n### CCI — Centro de Criatividade Infantojuvenil\n- Oferta: Educação Infantil ao 5º ano\n- Mantenedoras: Soc Educ Braga e Elói Ltda e Soc Educ CCI Sênior Ltda\n- Endereço: QN 401 conjunto B lote 03, Samambaia/DF — CEP 72319-502\n\n### Centro Educacional CCI Sênior\n- Oferta: 6º ano ao Ensino Médio e cursos técnicos (CED CCI Sênior)\n- Mantenedoras: Soc Educ CCI Sênior Ltda e Soc Educ Tecs CCI Eireli\n- Endereço: QN 401 conjunto D lotes 1-2, Samambaia/DF — CEP 72319-504\n\n### Faculdade CCI\n- Oferta: cursos superiores e pós-graduação\n- Mantenedora: Soc Educ Tecs CCI Eireli\n- Endereço: QN 401 conjunto D lote 3, Samambaia/DF — CEP 72319-504\n\n### Empresas vinculadas\n- **Hotel Fazenda CLAT** — passeios, treinamentos e educação ambiental\n- **ClimedCCI** — clínica popular (atividades suspensas)\n- A escola técnica TecsCCI é sub-unidade do CCI Sênior; documentos oficiais usam o cabeçalho **Centro Educacional CCI Sênior**",
+        "xpRecompensa": 60,
+        "tempoEstimadoMin": 8,
+        "quiz": [
+          {
+            "id": "mvc-m1-q1",
+            "texto": "Qual instituição oferece da Educação Infantil ao 5º ano?",
+            "opcoes": [
+              "Faculdade CCI",
+              "CCI Sênior",
+              "CCI — Centro de Criatividade Infantojuvenil",
+              "Escola Técnica isolada"
+            ],
+            "respostaCorreta": 2,
+            "explicacao": "O CCI (Centro de Criatividade Infantojuvenil) atende da Ed. Infantil ao 5º ano em Samambaia."
+          },
+          {
+            "id": "mvc-m1-q2",
+            "texto": "Onde ficam os cursos técnicos vinculados ao CED CCI Sênior?",
+            "opcoes": [
+              "Na Faculdade CCI",
+              "No Centro Educacional CCI Sênior",
+              "Apenas no CLAT",
+              "Na Educação Infantil"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Os cursos técnicos são ofertados pelo Centro Educacional CCI Sênior."
+          }
+        ]
+      },
+      {
+        "id": "mvc-m2",
+        "trilhaId": "missao-visao-cci",
+        "ordem": 2,
+        "titulo": "Missão, Princípios e Visão",
+        "descricao": "Propósito institucional e valores que orientam decisões da equipe.",
+        "conteudo": "## Missão do CCI\nOferecer **Educação de Qualidade** através do trabalho voltado para o aperfeiçoamento sociocultural, humano e solidário em ambiente acolhedor e ético.\n\n## Propósito\n**Formar agentes da PAZ e do BEM.**\n\n## Princípios\n1. Respeito\n2. Incentivo à autonomia, à inovação e à criatividade\n3. Formação de Agentes da Paz e do Bem, baseada nos valores éticos e cristãos\n4. Qualificação constante das equipes\n5. Preocupação e ação com a sustentabilidade do Planeta\n6. Excelência na formação, valorização da cultura e história da humanidade\n7. Eficiência dos resultados\n\n## Valores (ordem de decisão da equipe)\n1. Respeito (solidariedade, ética, empatia)\n2. Aprendizagem (ciência, pesquisa, conhecimento)\n3. Autonomia\n4. Excelência\n5. Inovação (criatividade, pesquisa, renovação)\n6. Eficiência (prosperidade, resultado)\n\n## Visão\nSer reconhecido no DF por sua **excelência nos serviços educacionais**, transformador da comunidade.",
+        "xpRecompensa": 70,
+        "tempoEstimadoMin": 10,
+        "quiz": [
+          {
+            "id": "mvc-m2-q1",
+            "texto": "Qual é o Propósito do Grupo Educacional CCI?",
+            "opcoes": [
+              "Maximizar lucro das mantenedoras",
+              "Formar agentes da PAZ e do BEM",
+              "Expandir apenas cursos técnicos",
+              "Substituir o ensino presencial"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O propósito institucional é formar agentes da Paz e do Bem."
+          },
+          {
+            "id": "mvc-m2-q2",
+            "texto": "Qual valor aparece em primeiro lugar na ordem de decisão da equipe?",
+            "opcoes": [
+              "Eficiência",
+              "Inovação",
+              "Respeito",
+              "Autonomia"
+            ],
+            "respostaCorreta": 2,
+            "explicacao": "Respeito é o primeiro valor na ordem de decisão, seguido de Aprendizagem, Autonomia, Excelência, Inovação e Eficiência."
+          },
+          {
+            "id": "mvc-m2-q3",
+            "texto": "A Visão do CCI aponta para qual reconhecimento?",
+            "opcoes": [
+              "Ser a maior rede privada do Brasil",
+              "Excelência nos serviços educacionais no DF",
+              "Liderança em vendas de material didático",
+              "Expansão internacional imediata"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "A visão é ser reconhecido no DF pela excelência nos serviços educacionais e transformação da comunidade."
+          }
+        ]
+      },
+      {
+        "id": "mvc-m3",
+        "trilhaId": "missao-visao-cci",
+        "ordem": 3,
+        "titulo": "Unidades no iScholar e Credenciamentos",
+        "descricao": "Como as unidades aparecem no sistema e panorama de atos autorizativos.",
+        "conteudo": "## Unidades no Sistema iScholar\n- **CCI** — Ed. Infantil ao 5º ano\n- **CCI Sênior** — 6º ano ao Ensino Médio\n- **Escola Técnica** — Cursos técnicos\n- **Faculdade** — Cursos superiores\n- **Pós-Graduação** — Cursos de pós\n\n## Credenciamentos e autorizações (resumo)\nAs instituições possuem atos de recredenciamento, aprovação de proposta pedagógica, regimento e autorizações de cursos superiores publicados em portarias MEC/SEEDF.\n\nExemplos relevantes:\n- **CCI Infantojuvenil**: recredenciamento com validade documentada; processos de renovação em andamento quando aplicável\n- **CCI Sênior**: recredenciamento, proposta pedagógica e regimento aprovados\n- **Faculdade CCI**: recredenciamento MEC, autorizações e reconhecimentos de cursos (Pedagogia, Enfermagem, Administração, ADS, Psicologia, Direito, entre outros)\n\n> Consulte o livro de atos e autorizações institucional para datas e portarias vigentes.",
+        "xpRecompensa": 70,
+        "tempoEstimadoMin": 8,
+        "quiz": [
+          {
+            "id": "mvc-m3-q1",
+            "texto": "No iScholar, qual unidade corresponde ao Ensino Médio?",
+            "opcoes": [
+              "CCI (Infantil ao 5º)",
+              "CCI Sênior",
+              "Pós-Graduação",
+              "Biblioteca"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O CCI Sênior abrange do 6º ano ao Ensino Médio no sistema de gestão."
+          },
+          {
+            "id": "mvc-m3-q2",
+            "texto": "Por que é importante conhecer os atos de credenciamento?",
+            "opcoes": [
+              "Apenas para marketing",
+              "Para entender a regularidade e oferta legal de cada instituição",
+              "Só interessa ao setor de TI",
+              "Não tem relevância operacional"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Os atos garantem a base legal da oferta educacional de cada unidade do grupo."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "google-drive",
+    "titulo": "Google Drive — Drives Compartilhados",
+    "descricao": "Aprenda a usar os Drives compartilhados do Google Workspace no dia a dia do CCI.",
+    "categoria": "Ferramentas",
+    "icone": "📁",
+    "cor": "from-blue-500 to-cyan-600",
+    "xpTotal": 20,
+    "dificuldade": "iniciante",
+    "missoes": [
+      {
+        "id": "gd-m1",
+        "trilhaId": "google-drive",
+        "ordem": 1,
+        "titulo": "Drives compartilhados vs. Meu Drive",
+        "descricao": "Entenda a diferença e quando usar cada um.",
+        "conteudo": "## O que são Drives compartilhados?\n\nNo Google Workspace do CCI, os **Drives compartilhados** (Shared Drives) são espaços de arquivos que pertencem à **equipe ou setor**, não a uma pessoa específica.\n\n### Meu Drive (pessoal)\n- Arquivos ficam vinculados à **sua conta**\n- Se você sair da instituição, o acesso aos arquivos pessoais pode ser perdido pela equipe\n- Indicado para rascunhos pessoais e trabalho temporário\n\n### Drive compartilhado (equipe)\n- Arquivos pertencem ao **setor/projeto**\n- Membros do drive mantêm acesso conforme permissões do grupo\n- Indicado para documentos oficiais, modelos, atas, POPs e materiais do CCI\n\n### No CCI usamos drives compartilhados para:\n- Documentos pedagógicos e administrativos por setor\n- Modelos padronizados (comunicados, planos, relatórios)\n- Arquivos que precisam sobreviver à troca de colaboradores",
+        "xpRecompensa": 50,
+        "tempoEstimadoMin": 6,
+        "quiz": [
+          {
+            "id": "gd-m1-q1",
+            "texto": "Qual a principal vantagem do Drive compartilhado?",
+            "opcoes": [
+              "Arquivos pertencem a uma pessoa só",
+              "Arquivos pertencem à equipe/setor e permanecem com o grupo",
+              "Não permite compartilhamento",
+              "Só funciona no celular"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Em drives compartilhados, os arquivos pertencem ao time, não ao indivíduo que os criou."
+          }
+        ]
+      },
+      {
+        "id": "gd-m2",
+        "trilhaId": "google-drive",
+        "ordem": 2,
+        "titulo": "Boas práticas no CCI",
+        "descricao": "Organização, nomenclatura e permissões.",
+        "conteudo": "## Boas práticas nos Drives compartilhados\n\n### Organização\n- Use **pastas por ano, setor ou projeto** (ex.: `2026/Secretaria/Comunicados`)\n- Nomeie arquivos de forma clara: `AAAA-MM-DD_assunto_responsavel`\n- Evite duplicar o mesmo documento em vários lugares\n\n### Permissões\n- **Leitor**: quem só precisa consultar\n- **Comentador**: revisão sem editar\n- **Colaborador**: edição no dia a dia\n- **Gerente de conteúdo**: organiza pastas e permissões (use com parcimônia)\n\n### Segurança institucional\n- Não mova arquivos oficiais para o Meu Drive pessoal\n- Não compartilhe links publicamente sem autorização\n- Dados de alunos e colaboradores exigem cuidado extra (LGPD)\n\n### Colaboração\n- Use **comentários** e **sugestões** no Google Docs/Sheets\n- Prefira **um documento vivo** a várias cópias por e-mail\n- Verifique se está no drive **correto do seu setor** antes de salvar",
+        "xpRecompensa": 50,
+        "tempoEstimadoMin": 7,
+        "quiz": [
+          {
+            "id": "gd-m2-q1",
+            "texto": "Onde devem ficar documentos oficiais do setor?",
+            "opcoes": [
+              "No Meu Drive pessoal",
+              "No Drive compartilhado do setor",
+              "No e-mail",
+              "Na área de trabalho do PC"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Documentos oficiais devem ficar no drive compartilhado do setor para continuidade e governança."
+          },
+          {
+            "id": "gd-m2-q2",
+            "texto": "Qual permissão permite editar arquivos no dia a dia?",
+            "opcoes": [
+              "Leitor",
+              "Comentador",
+              "Colaborador",
+              "Nenhuma"
+            ],
+            "respostaCorreta": 2,
+            "explicacao": "Colaborador permite editar; leitor só visualiza e comentador só comenta."
+          },
+          {
+            "id": "gd-m2-q3",
+            "texto": "Por que evitar várias cópias do mesmo arquivo?",
+            "opcoes": [
+              "Ocupa menos espaço visual",
+              "Gera versões conflitantes e perda de rastreabilidade",
+              "É mais rápido para o Google",
+              "Não há problema em duplicar"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Múltiplas cópias geram confusão sobre qual é a versão oficial e dificultam o trabalho em equipe."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "ischolar",
+    "titulo": "iScholar — Gestão Escolar",
+    "descricao": "Conheça o sistema de gestão usado no CCI para rotinas acadêmicas e administrativas.",
+    "categoria": "Sistemas",
+    "icone": "🎓",
+    "cor": "from-indigo-500 to-violet-600",
+    "xpTotal": 25,
+    "dificuldade": "intermediario",
+    "missoes": [
+      {
+        "id": "is-m1",
+        "trilhaId": "ischolar",
+        "ordem": 1,
+        "titulo": "Introdução ao iScholar",
+        "descricao": "O que é o sistema e como as unidades do CCI estão organizadas.",
+        "linkExterno": "https://ajuda.ischolar.com.br/pt-BR/",
+        "conteudo": "## O que é o iScholar?\n\nO **iScholar** é o sistema de **gestão escolar** utilizado pelo Grupo Educacional CCI para centralizar rotinas acadêmicas, administrativas e financeiras.\n\n### Unidades no sistema\n- **CCI** — Educação Infantil ao 5º ano\n- **CCI Sênior** — 6º ano ao Ensino Médio\n- **Escola Técnica** — Cursos técnicos\n- **Faculdade** — Graduação\n- **Pós-Graduação**\n\n### Central de Ajuda\nA documentação oficial está em [ajuda.ischolar.com.br](https://ajuda.ischolar.com.br/pt-BR/), com artigos por área: Administração, Coordenação, Secretaria, Financeiro, Catraca, Biblioteca e mais.\n\n### Por que dominar o iScholar?\n- Registros oficiais de alunos, turmas e ocorrências\n- Comunicação e histórico padronizado\n- Integração entre setores (secretaria, coordenação, financeiro)",
+        "xpRecompensa": 60,
+        "tempoEstimadoMin": 7,
+        "quiz": [
+          {
+            "id": "is-m1-q1",
+            "texto": "O iScholar é usado principalmente para:",
+            "opcoes": [
+              "Jogos educativos",
+              "Gestão escolar integrada",
+              "Edição de vídeos",
+              "Redes sociais"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O iScholar é o sistema de gestão escolar do CCI."
+          }
+        ]
+      },
+      {
+        "id": "is-m2",
+        "trilhaId": "ischolar",
+        "ordem": 2,
+        "titulo": "Módulos por setor",
+        "descricao": "Secretaria, Coordenação, Financeiro e demais áreas.",
+        "conteudo": "## Principais módulos (Central de Ajuda)\n\n### Secretaria\nMatrículas, documentos, cadastros, rotinas de atendimento a famílias e registros acadêmicos.\n\n### Coordenação\nAcompanhamento pedagógico, turmas, planejamentos e apoio à gestão de aprendizagem.\n\n### Financeiro\nMensalidades, boletos, inadimplência e rotinas de cobrança (conforme perfil de acesso).\n\n### Administração\nConfigurações gerais, usuários, parâmetros e governança do sistema.\n\n### Outros módulos\n- **Catraca** — controle de acesso\n- **Biblioteca** — empréstimos e acervo\n- **Mensagens** — comunicação institucional\n\n> Cada colaborador enxerga apenas o que seu perfil permite. Em dúvida, consulte a TI ou o responsável do setor.",
+        "xpRecompensa": 70,
+        "tempoEstimadoMin": 10,
+        "quiz": [
+          {
+            "id": "is-m2-q1",
+            "texto": "Qual módulo costuma tratar de matrículas e documentos de alunos?",
+            "opcoes": [
+              "Catraca",
+              "Secretaria",
+              "Biblioteca",
+              "Publicidade"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "A Secretaria concentra rotinas de matrícula, cadastro e documentação."
+          },
+          {
+            "id": "is-m2-q2",
+            "texto": "Onde encontrar tutoriais oficiais do sistema?",
+            "opcoes": [
+              "Somente no WhatsApp",
+              "Na Central de Ajuda iScholar (ajuda.ischolar.com.br)",
+              "Apenas em vídeos do YouTube aleatórios",
+              "Não há documentação"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "A Central de Ajuda oficial reúne artigos por módulo e perfil de uso."
+          }
+        ]
+      },
+      {
+        "id": "is-m3",
+        "trilhaId": "ischolar",
+        "ordem": 3,
+        "titulo": "Registros e boas práticas",
+        "descricao": "Como registrar ocorrências e manter dados confiáveis.",
+        "conteudo": "## Boas práticas no iScholar\n\n### Registros oficiais\n- Primeiros socorros, ocorrências disciplinares e comunicados relevantes devem ser registrados no sistema quando aplicável\n- Descreva **o que aconteceu**, **quando**, **quem foi envolvido** e **ações tomadas**\n- Alinhe o registro com mensagens enviadas às famílias (ex.: Trusty)\n\n### Qualidade dos dados\n- Confira unidade e turma corretas antes de salvar\n- Evite abreviações que ninguém mais entenderá\n- Não compartilhe login — cada colaborador usa sua conta Google institucional\n\n### Suporte\n- Dúvidas de processo: responsável do setor\n- Dúvidas técnicas: equipe de TI (Setape)\n- Tutoriais: Central de Ajuda iScholar",
+        "xpRecompensa": 70,
+        "tempoEstimadoMin": 8,
+        "quiz": [
+          {
+            "id": "is-m3-q1",
+            "texto": "Um registro de ocorrência no iScholar deve ser:",
+            "opcoes": [
+              "Vago e sem data",
+              "Claro, datado e alinhado aos fatos",
+              "Opcional em qualquer caso",
+              "Feito só por e-mail"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Registros oficiais precisam ser claros, datados e coerentes com o que foi comunicado."
+          },
+          {
+            "id": "is-m3-q2",
+            "texto": "Quem deve usar a conta no iScholar?",
+            "opcoes": [
+              "Qualquer pessoa com a senha compartilhada",
+              "Cada colaborador com seu próprio acesso institucional",
+              "Apenas diretores",
+              "Não é necessário login"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Cada colaborador deve usar seu próprio acesso para rastreabilidade e segurança."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "plurall",
+    "titulo": "Plurall — Ambiente Virtual",
+    "descricao": "Plataforma digital para professores e coordenadores publicarem conteúdos e atividades online.",
+    "categoria": "Pedagógico",
+    "icone": "💻",
+    "cor": "from-emerald-500 to-teal-600",
+    "xpTotal": 25,
+    "dificuldade": "intermediario",
+    "missoes": [
+      {
+        "id": "pl-m1",
+        "trilhaId": "plurall",
+        "ordem": 1,
+        "titulo": "O que é o Plurall?",
+        "descricao": "Plataforma, público e papel do Maestro.",
+        "linkExterno": "https://ajuda.plurall.net/hc/pt-br",
+        "conteudo": "## Plurall — plataforma digital educacional\n\nO [Plurall](https://www.plurall.net/) é a plataforma da **SOMOS Educação** que conecta professores, alunos, gestores e famílias. No CCI, professores e coordenadores usam o Plurall como **Ambiente Virtual de Aprendizagem** para postar conteúdos e atividades online.\n\n### Para quem é?\n- Professores de todas as disciplinas (inclusive sem material nativo no Plurall)\n- Coordenadores e gestores pedagógicos\n- Alunos e famílias (conforme perfil)\n\n### Maestro — módulo do professor\n- Criar e enviar **atividades** e materiais\n- Usar **banco de questões**\n- Acompanhar **relatórios** de desempenho e participação\n- Corrigir questões dissertativas\n\nProfessores de música, informática, teatro e outras disciplinas sem material próprio também podem usar o Maestro para aulas digitais quando vinculados à escola parceira.",
+        "xpRecompensa": 60,
+        "tempoEstimadoMin": 8,
+        "quiz": [
+          {
+            "id": "pl-m1-q1",
+            "texto": "O Plurall é usado no CCI principalmente para:",
+            "opcoes": [
+              "Folha de pagamento",
+              "Ensino-aprendizagem digital (conteúdos e atividades)",
+              "Controle de catraca",
+              "Gestão de estoque do almoxarifado"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O Plurall é o ambiente virtual para conteúdos, atividades e acompanhamento pedagógico."
+          },
+          {
+            "id": "pl-m1-q2",
+            "texto": "Qual módulo o professor usa para criar e enviar atividades?",
+            "opcoes": [
+              "Trusty",
+              "Maestro",
+              "iScholar",
+              "Google Drive"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O Maestro é o módulo pedagógico do professor no Plurall."
+          }
+        ]
+      },
+      {
+        "id": "pl-m2",
+        "trilhaId": "plurall",
+        "ordem": 2,
+        "titulo": "Atividades e correção no Maestro",
+        "descricao": "Publicar, corrigir dissertativas e acompanhar turmas.",
+        "linkExterno": "https://ajuda.plurall.net/hc/pt-br/articles/29138945506331-Como-corrigir-as-atividades-dos-alunos-no-Maestro",
+        "conteudo": "## Atividades no Maestro\n\n### Tipos de questões\n- **Objetivas**: corrigidas automaticamente pelo gabarito após o envio do aluno\n- **Dissertativas**: exigem correção manual do professor\n\n### Corrigir atividades — dois caminhos\n\n**1. Correção Pendente**\n- Maestro → Correção pendente\n- Expanda turma/disciplina → ícone de lápis\n- Atribua % de acerto, comente e envie\n\n**2. Minhas Turmas**\n- Maestro → Minhas turmas\n- Filtre ano/série, turma e disciplina\n- Abra a atividade e a questão → corrija por aluno\n\n### Atenção\nA opção **Selecionar Todos** aplica a mesma correção a todos — desmarque para corrigir **aluno a aluno**.\n\n### Assistente Inteligente (Plu)\nCoordenadores e professores podem gerar **planos de aula** com o assistente, escolhendo material, capítulo, duração e tema.",
+        "xpRecompensa": 70,
+        "tempoEstimadoMin": 12,
+        "quiz": [
+          {
+            "id": "pl-m2-q1",
+            "texto": "Questões dissertativas no Maestro são corrigidas:",
+            "opcoes": [
+              "Automaticamente pelo sistema",
+              "Pelo professor manualmente",
+              "Pelos pais",
+              "Pela secretaria"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Dissertativas dependem da correção do professor; objetivas usam gabarito automático."
+          },
+          {
+            "id": "pl-m2-q2",
+            "texto": "Para corrigir um aluno específico, você deve:",
+            "opcoes": [
+              "Manter 'Selecionar Todos' marcado",
+              "Desmarcar 'Selecionar Todos' e corrigir individualmente",
+              "Não é possível corrigir individualmente",
+              "Enviar por e-mail externo"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Desmarque 'Selecionar Todos' para atribuir nota e feedback por aluno."
+          }
+        ]
+      },
+      {
+        "id": "pl-m3",
+        "trilhaId": "plurall",
+        "ordem": 3,
+        "titulo": "Quiz final — Plurall no CCI",
+        "descricao": "Consolide o que aprendeu sobre o ambiente virtual.",
+        "conteudo": "## Resumo para o dia a dia\n\n1. Acesse o Plurall pelo navegador com seu perfil de professor/coordenador\n2. Use o **Maestro** para criar, enviar e corrigir atividades\n3. Acompanhe participação e desempenho nos relatórios\n4. Consulte a [Central de Ajuda do Plurall](https://ajuda.plurall.net/hc/pt-br) para tutoriais atualizados\n5. Em dúvidas técnicas, acione a TI ou suporte indicado pela coordenação",
+        "xpRecompensa": 70,
+        "tempoEstimadoMin": 5,
+        "quiz": [
+          {
+            "id": "pl-m3-q1",
+            "texto": "Onde o professor encontra tutoriais oficiais do Plurall?",
+            "opcoes": [
+              "ajuda.plurall.net",
+              "Apenas no Facebook",
+              "No iScholar",
+              "Não existem tutoriais"
+            ],
+            "respostaCorreta": 0,
+            "explicacao": "A Central de Ajuda em ajuda.plurall.net reúne artigos e passo a passo."
+          },
+          {
+            "id": "pl-m3-q2",
+            "texto": "Professor de informática sem material Plurall nativo pode usar a plataforma?",
+            "opcoes": [
+              "Não, nunca",
+              "Sim, via Maestro e Biblioteca de Conteúdos, se vinculado à escola parceira",
+              "Só alunos podem acessar",
+              "Apenas diretores"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Professores de disciplinas sem material nativo podem criar atividades e usar o Maestro normalmente."
+          },
+          {
+            "id": "pl-m3-q3",
+            "texto": "Relatórios de desempenho ficam disponíveis no:",
+            "opcoes": [
+              "Maestro",
+              "Almoxarifado",
+              "Catraca física",
+              "Portal de vales"
+            ],
+            "respostaCorreta": 0,
+            "explicacao": "O Maestro oferece relatórios de participação e desempenho nas atividades."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "taxonomia-bloom",
+    "titulo": "Taxonomia de Bloom no CCI",
+    "descricao": "Estrutura pedagógica que orienta planejamentos e operações mentais nas aulas.",
+    "categoria": "Pedagógico",
+    "icone": "🧠",
+    "cor": "from-purple-500 to-fuchsia-600",
+    "xpTotal": 25,
+    "dificuldade": "intermediario",
+    "missoes": [
+      {
+        "id": "tb-m1",
+        "trilhaId": "taxonomia-bloom",
+        "ordem": 1,
+        "titulo": "Fundamentos e níveis iniciais",
+        "descricao": "Lembrança, Entendimento e Aplicação.",
+        "linkExterno": "https://docs.google.com/document/d/1VETws3Rc8XvlnRCEHR7aK40MxGDNUNNaKZcwtwHTSgU/edit?usp=sharing",
+        "conteudo": "## Taxonomias no Grupo Educacional CCI\n\nO CCI orienta docentes a planejarem aulas com **intencionalidade**: partir do processo mental esperado do estudante.\n\n### Níveis cognitivos (visão geral)\n1. **Lembrança** — recuperar informação da memória\n2. **Entendimento** — dar significado ao conteúdo\n3. **Aplicação** — usar procedimentos em situações\n4. **Análise** — relacionar partes e o todo\n5. **Avaliação** — julgar com critérios\n6. **Elaboração de Propostas** — criar algo novo\n7. **Intercessão** — articular argumentos, mediar, intervir\n\n### 1. Lembrança\nExemplos: reconhecer, identificar, responder V/F, citar, reproduzir fórmulas.\n\n### 2. Entendimento\nExemplos: interpretar, exemplificar, classificar, resumir, comparar, explicar.\n\n### 3. Aplicação\nExemplos: executar procedimentos (cálculos, experimentos, revisões de texto, orçamentos).\n\n> Planos de aula devem explicitar **qual operação mental** se espera provocar.",
+        "xpRecompensa": 65,
+        "tempoEstimadoMin": 10,
+        "quiz": [
+          {
+            "id": "tb-m1-q1",
+            "texto": "O nível 'Lembrança' envolve principalmente:",
+            "opcoes": [
+              "Criar projetos inéditos",
+              "Recuperar informação da memória",
+              "Mediar conflitos",
+              "Julgar com critérios externos"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Lembrança é buscar e trazer informação da memória (reconhecer, citar, reproduzir)."
+          },
+          {
+            "id": "tb-m1-q2",
+            "texto": "Interpretar um enunciado e convertê-lo em equação é exemplo de:",
+            "opcoes": [
+              "Lembrança",
+              "Entendimento",
+              "Intercessão",
+              "Avaliação"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Interpretar e dar significado ao material é característica do nível Entendimento."
+          }
+        ]
+      },
+      {
+        "id": "tb-m2",
+        "trilhaId": "taxonomia-bloom",
+        "ordem": 2,
+        "titulo": "Níveis avançados e Intercessão",
+        "descricao": "Análise, Avaliação, Elaboração e Intercessão — foco CCI.",
+        "conteudo": "### 4. Análise\nDiferenciar informações relevantes, organizar dados, atribuir motivações.\n\n### 5. Avaliação\nVerificar coerência, criticar com rubricas, escolher melhores métodos.\n\n### 6. Elaboração de Propostas\nGerar hipóteses, planejar projetos, produzir textos, construir soluções — propor inovações a partir de problemas.\n\n### 7. Intercessão (ênfase CCI)\nArticula argumentos para **mediar** conflitos, **intervir** em crises, **apaziguar** e exercer **diplomacia** (negociar, representar, defender).\n\n## Por que provocar tarefas mais complexas?\nO mercado valoriza pensamento analítico, criatividade, resiliência, liderança, alfabetização tecnológica e aprendizado contínuo. Aulas que param na lembrança não preparam para essas demandas.\n\n**Meta pedagógica CCI:** provocar operações mentais cada vez mais complexas, incluindo propor e interceder.",
+        "xpRecompensa": 65,
+        "tempoEstimadoMin": 12,
+        "quiz": [
+          {
+            "id": "tb-m2-q1",
+            "texto": "Propor inovações a partir de um problema é nível de:",
+            "opcoes": [
+              "Lembrança",
+              "Elaboração de Propostas",
+              "Entendimento",
+              "Aplicação"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Elaboração de Propostas envolve gerar, planejar e produzir soluções novas."
+          },
+          {
+            "id": "tb-m2-q2",
+            "texto": "Mediar conflitos entre estudantes relaciona-se ao nível:",
+            "opcoes": [
+              "Intercessão",
+              "Lembrança",
+              "Aplicação",
+              "Entendimento"
+            ],
+            "respostaCorreta": 0,
+            "explicacao": "Intercessão inclui mediar, intervir, apaziguar e argumentar diplomaticamente."
+          }
+        ]
+      },
+      {
+        "id": "tb-m3",
+        "trilhaId": "taxonomia-bloom",
+        "ordem": 3,
+        "titulo": "Quiz final — Bloom na prática",
+        "descricao": "Aplique a taxonomia ao planejar aulas.",
+        "conteudo": "## Checklist do planejamento\n\n- [ ] Defini qual operação mental quero provocar\n- [ ] A atividade exige mais que memorizar?\n- [ ] Há momento de análise, avaliação ou criação?\n- [ ] Promovo intercessão (debate, mediação, defesa de ideias)?\n- [ ] Alinho com a Proposta Pedagógica do CCI",
+        "xpRecompensa": 70,
+        "tempoEstimadoMin": 6,
+        "quiz": [
+          {
+            "id": "tb-m3-q1",
+            "texto": "Corrigir trabalhos com rubrica e julgar qualidade é nível de:",
+            "opcoes": [
+              "Avaliação",
+              "Lembrança",
+              "Entendimento",
+              "Intercessão"
+            ],
+            "respostaCorreta": 0,
+            "explicacao": "Avaliação envolve julgamentos baseados em critérios e padrões."
+          },
+          {
+            "id": "tb-m3-q2",
+            "texto": "No CCI, os planos de aula devem começar por:",
+            "opcoes": [
+              "A quantidade de cópias no xerox",
+              "A intenção do processo mental esperado do estudante",
+              "O horário do intervalo apenas",
+              "A cor do material didático"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "A taxonomia orienta planejar a partir da operação mental que se deseja provocar."
+          },
+          {
+            "id": "tb-m3-q3",
+            "texto": "Separar dados relevantes de irrelevantes em um problema é:",
+            "opcoes": [
+              "Análise",
+              "Lembrança",
+              "Intercessão",
+              "Entendimento"
+            ],
+            "respostaCorreta": 0,
+            "explicacao": "Diferenciar e organizar informações faz parte do nível Análise."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "espacos-escola",
+    "titulo": "Espaços da Escola — O que acontece aqui?",
+    "descricao": "Conheça os ambientes pedagógicos e administrativos do campus e sua finalidade.",
+    "categoria": "Institucional",
+    "icone": "🏛️",
+    "cor": "from-rose-500 to-orange-500",
+    "xpTotal": 25,
+    "dificuldade": "iniciante",
+    "missoes": [
+      {
+        "id": "ee-m1",
+        "trilhaId": "espacos-escola",
+        "ordem": 1,
+        "titulo": "Propósito e espaços pedagógicos",
+        "descricao": "Parques, salas de aula, biblioteca e laboratórios.",
+        "linkExterno": "https://docs.google.com/document/d/16n93eG1RrAITvCsJDeMrR3tbEbVtIi_8Evn9d7wEK-A/edit?usp=sharing",
+        "conteudo": "## O que acontece aqui?\n\nDocumento institucional aplicado nas paredes dos espaços para que todos saibam a **proposta de cada ambiente**.\n\n### Parque / Quadras\nBrincadeiras, esportes (futsal, vôlei, basquete), socialização, disciplina, respeito e saúde física.\n\n### Piscina Infantil / Aqua\nCoordenação motora, natação, regras de convivência, concentração e fortalecimento físico.\n\n### Salas de Aula (Ed. Infantil, 1º–5º, 6º–EM)\nAulas ativas, taxonomias, formação de **agentes da Paz e do Bem**, projetos, avaliações e convivência.\n\n### Biblioteca e Brinquedoteca\nLeitura, pesquisa, empréstimos, jogos educativos e estimulação lúdica.\n\n### Laboratórios (Informática, Biologia, Química/Física, Saúde)\nExperimentos, práticas tecnológicas e científicas alinhadas à proposta pedagógica.\n\n### Salas especiais\nRobótica, Maker, Música, Dança, Estimulação, Oratório — desenvolvimento de habilidades específicas.",
+        "xpRecompensa": 65,
+        "tempoEstimadoMin": 10,
+        "quiz": [
+          {
+            "id": "ee-m1-q1",
+            "texto": "Qual o objetivo do documento 'O que acontece aqui?'",
+            "opcoes": [
+              "Decorar paredes sem função",
+              "Deixar transparente a proposta de cada espaço",
+              "Substituir o regimento escolar",
+              "Listar apenas telefones"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O documento comunica a todos o que se propõe em cada ambiente escolar."
+          },
+          {
+            "id": "ee-m1-q2",
+            "texto": "Nas salas de aula, os professores são descritos como:",
+            "opcoes": [
+              "Apenas aplicadores de provas",
+              "Formadores de agentes da Paz e do Bem",
+              "Somente vigilantes",
+              "Técnicos de TI"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O documento enfatiza a formação de agentes da Paz e do Bem nas salas de aula."
+          }
+        ]
+      },
+      {
+        "id": "ee-m2",
+        "trilhaId": "espacos-escola",
+        "ordem": 2,
+        "titulo": "Coordenação, SOE e espaços administrativos",
+        "descricao": "Orientação educacional, direção, secretaria e SETAPE.",
+        "conteudo": "### Coordenação\nAtende pais, orienta professores e alunos, supervisiona planejamentos, acompanha aprendizagem e eventos.\n\n### SOE — Serviço de Orientação Educacional\nIntegração família-escola, estudos de desempenho, atendimento individual (incluindo NEE).\n\n### Direção e Secretaria Acadêmica\nGestão institucional, documentos oficiais, matrículas e interfaces com famílias.\n\n### SETAPE\nSuporte tecnológico e ferramentas digitais da instituição.\n\n### Outros espaços úteis\n- **Lanchonetes** (Geração Saúde, Delíccia de Sabor)\n- **Pátios temáticos** (Artes, Matemática, Geografia, Anjos, Aquário, Heróis)\n- **Ginásio**, **Copiadora/Papelaria**, **Sala de Troféus**\n- **DP/Financeiro**, **Serviços Gerais**, **Ouvidoria**, **Publicidade**",
+        "xpRecompensa": 65,
+        "tempoEstimadoMin": 10,
+        "quiz": [
+          {
+            "id": "ee-m2-q1",
+            "texto": "O SOE atua especialmente em:",
+            "opcoes": [
+              "Manutenção de ar-condicionado",
+              "Orientação educacional e integração com famílias",
+              "Vendas da lanchonete",
+              "Programação de robótica apenas"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O SOE promove integração, acompanhamento e atendimento educacional individualizado."
+          },
+          {
+            "id": "ee-m2-q2",
+            "texto": "Suporte de tecnologia da escola concentra-se no setor:",
+            "opcoes": [
+              "Publicidade",
+              "SETAPE",
+              "Biblioteca",
+              "Piscina"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O SETAPE é o espaço de tecnologia e apoio digital institucional."
+          }
+        ]
+      },
+      {
+        "id": "ee-m3",
+        "trilhaId": "espacos-escola",
+        "ordem": 3,
+        "titulo": "Quiz final — circulando no campus",
+        "descricao": "Identifique espaços e responsabilidades.",
+        "conteudo": "## Dica para novos colaboradores\n\nAo circular pelo campus, observe as placas **\"O que acontece aqui?\"**. Elas explicam a intenção pedagógica ou administrativa de cada ambiente — útil para orientar alunos, famílias e visitantes.",
+        "xpRecompensa": 70,
+        "tempoEstimadoMin": 5,
+        "quiz": [
+          {
+            "id": "ee-m3-q1",
+            "texto": "Sala Maker e Robótica estão relacionadas a:",
+            "opcoes": [
+              "Apenas lazer sem objetivo",
+              "Criatividade, tecnologia e projetos práticos",
+              "Somente arquivo morto",
+              "Exclusivamente financeiro"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Esses espaços focam inovação, tecnologia e aprendizagem prática."
+          },
+          {
+            "id": "ee-m3-q2",
+            "texto": "A Coordenação Disciplinar envolve equipe de:",
+            "opcoes": [
+              "Cozinha apenas",
+              "Segurança, portaria e bedéis",
+              "Somente professores de música",
+              "Apenas biblioteca"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "A coordenação disciplinar trabalha com segurança externa, portaria e bedéis de corredores."
+          },
+          {
+            "id": "ee-m3-q3",
+            "texto": "O Pátio das Artes e Mezanino costumam ser usados para:",
+            "opcoes": [
+              "Depósito de lixo",
+              "Atividades artísticas e multipropósito",
+              "Aulas só de matemática",
+              "Garagem de ônibus"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Pátio das Artes/Mezanino/Pátio Multiuso são espaços de expressão e atividades coletivas."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "primeiros-socorros",
+    "titulo": "POP — Sala de Primeiros Socorros",
+    "descricao": "Procedimentos operacionais da sala de primeiros atendimentos de saúde.",
+    "categoria": "Operacional",
+    "icone": "🩺",
+    "cor": "from-red-500 to-rose-600",
+    "xpTotal": 25,
+    "dificuldade": "intermediario",
+    "missoes": [
+      {
+        "id": "ps-m1",
+        "trilhaId": "primeiros-socorros",
+        "ordem": 1,
+        "titulo": "Materiais e rotina diária",
+        "descricao": "Estoque semanal e higiene do ambiente.",
+        "linkExterno": "https://docs.google.com/document/d/1WO5_a1XbkNgTfqismql5ZHZtV2dnwGG_PIql5VaeESw/edit?usp=sharing",
+        "conteudo": "## POP — Sala de Primeiros Socorros\n\n### Materiais (levantamento semanal)\nTermômetro, esfigmomanômetro, esparadrapo, gaze, algodão, luvas, máscaras, álcool 70%, antisséptico, tesoura de ponta romba, compressas frias/quentes, analgésicos de venda livre (ex.: paracetamol), antialérgicos, pomada, soro fisiológico, gelo no frigobar exclusivo, sal, açúcar, absorvente, entre outros.\n\n### Rotina diária\n1. Ambiente **limpo e organizado** (móveis, macas, armários)\n2. **Frigobar**: repor gelo, limpar prateleiras, descongelar\n3. Lavar utensílios (vasilha de soro, talheres)\n4. **Preparar soro** no início do dia e descartar no final\n5. Manter ambiente **arejado**",
+        "xpRecompensa": 70,
+        "tempoEstimadoMin": 10,
+        "quiz": [
+          {
+            "id": "ps-m1-q1",
+            "texto": "O soro preparado na sala deve ser:",
+            "opcoes": [
+              "Reutilizado por uma semana",
+              "Preparado no início do dia e descartado no final",
+              "Deixado sem higiene",
+              "Guardado no Meu Drive"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O POP determina preparo diário e descarte no fim do dia."
+          },
+          {
+            "id": "ps-m1-q2",
+            "texto": "Com que frequência revisar materiais essenciais?",
+            "opcoes": [
+              "Nunca",
+              "Semanalmente",
+              "A cada 5 anos",
+              "Só quando acabar tudo"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O levantamento de materiais é feito semanalmente."
+          }
+        ]
+      },
+      {
+        "id": "ps-m2",
+        "trilhaId": "primeiros-socorros",
+        "ordem": 2,
+        "titulo": "Triagem e comunicação com famílias",
+        "descricao": "Atendimento, Trusty e modelos de mensagem.",
+        "conteudo": "## Atendimento e comunicação\n\n### Triagem\nReceber alunos doentes ou feridos, avaliar gravidade e prestar cuidados básicos.\n\n### Comunicação — regra geral\n**Em todas as situações os pais precisam ser informados** (Trusty e/ou ligação).\n\n| Situação | Ação |\n|----------|------|\n| **Febre** | Ligar + Trusty; orientar busca do estudante |\n| **Queixas leves** (dor de cabeça, arranhão sem gravidade) | Trusty informando que está bem |\n| **Machucado com marca** | Trusty sem expor nome de outro colega |\n| **Grave** (corte profundo, engasgo, fratura) | Cuidar do aluno → SAMU 192 se necessário → coordenação + família |\n\n### Registro\nManter registros no **iScholar** com detalhamento e mensagem enviada. Manter **Trusty** aberto no computador.",
+        "xpRecompensa": 75,
+        "tempoEstimadoMin": 12,
+        "quiz": [
+          {
+            "id": "ps-m2-q1",
+            "texto": "Em caso de febre, além do Trusty, deve-se:",
+            "opcoes": [
+              "Não avisar os pais",
+              "Ligar para os pais",
+              "Apenas enviar e-mail pessoal",
+              "Esperar uma semana"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Febre exige ligação e mensagem Trusty, recomendando busca do estudante."
+          },
+          {
+            "id": "ps-m2-q2",
+            "texto": "Onde registrar o atendimento oficialmente?",
+            "opcoes": [
+              "Somente em papel solto",
+              "No iScholar, com detalhes e comunicação",
+              "No Instagram",
+              "Não registrar"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O POP exige registro preciso no iScholar e uso do Trusty para comunicação."
+          }
+        ]
+      },
+      {
+        "id": "ps-m3",
+        "trilhaId": "primeiros-socorros",
+        "ordem": 3,
+        "titulo": "Emergências e medicação",
+        "descricao": "SAMU, hospital, administração de medicamentos.",
+        "conteudo": "## Emergências graves\n\n1. **Priorize o estudante**\n2. Dúvida, fratura, inconsciência → **SAMU 192**\n3. Comunique coordenação e família\n4. Verifique plano de saúde na pasta do aluno\n5. Se for ao hospital: Uber pela Direção, profissional da sala acompanha até chegada da família\n\n## Medicação de alunos\n\n1. Exigir prescrição médica ou registro escrito do responsável\n2. Conferir validade e adequação à idade\n3. Registrar no **iScholar** e avisar pais via **Trusty** (horário, dose)\n4. Guardar medicamento na **enfermaria** — não deixar com alunos menores na sala\n\n> Segurança e bem-estar do aluno são sempre a prioridade.",
+        "xpRecompensa": 75,
+        "tempoEstimadoMin": 10,
+        "quiz": [
+          {
+            "id": "ps-m3-q1",
+            "texto": "Em emergência grave com dúvida, ligue primeiro para:",
+            "opcoes": [
+              "Recepção de hotel",
+              "SAMU 192",
+              "Pizzaria",
+              "Suporte do Plurall"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "O POP orienta ligar imediatamente ao SAMU (192) quando necessário."
+          },
+          {
+            "id": "ps-m3-q2",
+            "texto": "Medicamento enviado pela família deve ficar:",
+            "opcoes": [
+              "Na mochila do aluno na sala",
+              "Armazenado com segurança na enfermaria",
+              "Na lanchonete",
+              "No carro do professor"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "Medicamentos ficam na enfermaria, especialmente para menores de 10 anos."
+          },
+          {
+            "id": "ps-m3-q3",
+            "texto": "Antes de administrar medicamento, é obrigatório:",
+            "opcoes": [
+              "Apenas pedir verbalmente ao aluno",
+              "Verificar prescrição/registro do responsável e validade",
+              "Não informar os pais",
+              "Dobrar a dose se esquecer"
+            ],
+            "respostaCorreta": 1,
+            "explicacao": "É necessário prescrição ou autorização formal, validade e registro da administração."
+          }
+        ]
+      }
+    ]
+  }
+]

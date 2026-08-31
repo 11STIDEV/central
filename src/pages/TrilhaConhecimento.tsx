@@ -1,32 +1,31 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Flame, Zap, Trophy, Star, Target, BookOpen, ChevronRight } from "lucide-react";
+import { Flame, Zap, Trophy, Star, Target, BookOpen, ChevronRight, Loader2, Settings2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import {
-  TRILHAS_MOCK,
   BADGES_MOCK,
-  RANKING_MOCK,
-  USER_PROGRESS_MOCK,
   getNivelInfo,
   type UserProgress,
-  obterMedalhaTempoUsuario,
 } from "@/data/trilhasMock";
 import { TrilhaCard } from "@/components/trilha/TrilhaCard";
 import { XPBar } from "@/components/trilha/XPBar";
 import { BadgeShowcase } from "@/components/trilha/BadgeShowcase";
 import { RankingPanel } from "@/components/trilha/RankingPanel";
+import { useTrilhaProgress } from "@/hooks/useTrilhaProgress";
+import { useTrilhas } from "@/hooks/useTrilhas";
 
 export default function TrilhaConhecimento() {
   const { usuario } = useAuth();
   const navigate = useNavigate();
-  const [progress] = useState<UserProgress>(USER_PROGRESS_MOCK);
+  const { progress, ranking, carregando: carregandoProgress } = useTrilhaProgress();
+  const { trilhas, carregando: carregandoTrilhas } = useTrilhas();
+
+  const carregando = carregandoProgress || carregandoTrilhas;
 
   const { atual } = getNivelInfo(progress.xpTotal);
-  const medalhaTempo = obterMedalhaTempoUsuario(progress.anosDeEmpresa ?? 3);
 
   // Find next recommended mission
   const proximaMissao = (() => {
-    for (const trilha of TRILHAS_MOCK) {
+    for (const trilha of trilhas) {
       const concluidas = progress.progressoPorTrilha[trilha.id] ?? [];
       const proxima = trilha.missoes.find((m) => !concluidas.includes(m.id));
       if (proxima) return { trilha, missao: proxima };
@@ -34,11 +33,11 @@ export default function TrilhaConhecimento() {
     return null;
   })();
 
-  const totalMissoesDisponiveis = TRILHAS_MOCK.reduce(
+  const totalMissoesDisponiveis = trilhas.reduce(
     (acc, t) => acc + t.missoes.length,
     0
   );
-  const totalXPDisponivel = TRILHAS_MOCK.reduce((acc, t) => acc + t.xpTotal, 0);
+  const totalXPDisponivel = trilhas.reduce((acc, t) => acc + t.xpTotal, 0);
 
   const primeiroNome = usuario?.nome.split(" ")[0] ?? "Colaborador";
 
@@ -76,14 +75,6 @@ export default function TrilhaConhecimento() {
                   <p className="text-xs text-muted-foreground">Bem-vindo de volta,</p>
                   <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
                     <span>{primeiroNome}!</span>
-                    {medalhaTempo && (
-                      <img
-                        src={`${medalhaTempo.icone}?v=2`}
-                        alt={medalhaTempo.nome}
-                        title={`${medalhaTempo.nome}: ${medalhaTempo.descricao}`}
-                        className="h-6 w-6 object-contain inline-block hover:scale-110 transition-transform duration-200"
-                      />
-                    )}
                     <span className="text-lg">{atual.icone}</span>
                   </h1>
                 </div>
@@ -179,7 +170,7 @@ export default function TrilhaConhecimento() {
 
             {/* Overview stats */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <OverviewStat label="Trilhas" value={TRILHAS_MOCK.length} icon="🗺️" />
+              <OverviewStat label="Trilhas" value={trilhas.length} icon="🗺️" />
               <OverviewStat label="Missões" value={totalMissoesDisponiveis} icon="🎯" />
               <OverviewStat label="XP disponível" value={totalXPDisponivel} icon="⚡" />
               <OverviewStat
@@ -196,25 +187,59 @@ export default function TrilhaConhecimento() {
                 <h2 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground">
                   Trilhas de Conhecimento
                 </h2>
-                <span className="text-xs text-muted-foreground">
-                  {TRILHAS_MOCK.filter(
-                    (t) =>
-                      (progress.progressoPorTrilha[t.id]?.length ?? 0) === t.missoes.length
-                  ).length}{" "}
-                  de {TRILHAS_MOCK.length} concluídas
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-muted-foreground">
+                    {trilhas.filter(
+                      (t) =>
+                        (progress.progressoPorTrilha[t.id]?.length ?? 0) === t.missoes.length
+                    ).length}{" "}
+                    de {trilhas.length} concluídas
+                  </span>
+                  {usuario?.papeis?.includes("admin") && (
+                    <button
+                      onClick={() => navigate("/trilha-conhecimento/admin")}
+                      className="flex items-center gap-1.5 rounded-lg border border-indigo-400/20 bg-indigo-400/8 px-3 py-1 text-xs font-medium text-indigo-400 transition hover:bg-indigo-400/15"
+                    >
+                      <Settings2 className="h-3 w-3" />
+                      Gerenciar
+                    </button>
+                  )}
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {TRILHAS_MOCK.map((trilha) => (
-                  <TrilhaCard
-                    key={trilha.id}
-                    trilha={trilha}
-                    progress={progress}
-                    onClick={() => navigate(`/trilha-conhecimento/${trilha.id}`)}
-                  />
-                ))}
-              </div>
+              {trilhas.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center sm:p-12">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400">
+                    <BookOpen className="h-7 w-7" />
+                  </div>
+                  <h3 className="mt-4 text-base font-bold text-foreground">
+                    Nenhuma trilha disponível no momento
+                  </h3>
+                  <p className="mt-1.5 max-w-md text-xs text-muted-foreground leading-relaxed">
+                    Ainda não existem trilhas de conhecimento cadastradas no sistema. Novas trilhas serão publicadas em breve pelos administradores.
+                  </p>
+                  {usuario?.papeis?.includes("admin") && (
+                    <button
+                      onClick={() => navigate("/trilha-conhecimento/admin")}
+                      className="mt-5 flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2 text-xs font-bold text-white shadow-lg transition hover:brightness-110"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      Gerenciar / Criar Trilhas
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {trilhas.map((trilha) => (
+                    <TrilhaCard
+                      key={trilha.id}
+                      trilha={trilha}
+                      progress={progress}
+                      onClick={() => navigate(`/trilha-conhecimento/${trilha.id}`)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
@@ -227,7 +252,14 @@ export default function TrilhaConhecimento() {
 
             {/* Ranking */}
             <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
-              <RankingPanel entries={RANKING_MOCK} meuNome={usuario?.nome} />
+              {carregando ? (
+                <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span className="text-xs">Carregando ranking...</span>
+                </div>
+              ) : (
+                <RankingPanel entries={ranking} meuNome={usuario?.nome} />
+              )}
             </div>
 
             {/* Tip of the day */}

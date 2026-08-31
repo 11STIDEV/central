@@ -67,6 +67,7 @@ export type UserProgress = {
   missoesCompletas: number;
   trilhasCompletas: number;
   progressoPorTrilha: Record<string, string[]>; // trilhaId → [missaoId concluída]
+  ultimaAtividade?: string; // YYYY-MM-DD
 };
 
 // ── Níveis ──────────────────────────────────────────────────
@@ -274,27 +275,38 @@ export const RANKING_MOCK: RankingEntry[] = [
 // ── Persistência Local do Progresso ──────────────────────────────
 const LOCAL_STORAGE_KEY = "central-trilha-progress";
 
-export function calcularProgresso(progressoPorTrilha: Record<string, string[]>) {
+export function calcularProgresso(
+  progressoPorTrilha: Record<string, string[]>,
+  trilhasDisponiveis?: Trilha[]
+) {
   let missoesCompletas = 0;
   let trilhasCompletas = 0;
 
-  for (const trail of TRILHAS_MOCK) {
-    const concluidas = progressoPorTrilha[trail.id] ?? [];
-    missoesCompletas += concluidas.length;
-    if (concluidas.length > 0 && concluidas.length === trail.missoes.length) {
-      trilhasCompletas += 1;
+  if (trilhasDisponiveis && trilhasDisponiveis.length > 0) {
+    for (const trail of trilhasDisponiveis) {
+      const concluidas = progressoPorTrilha[trail.id] ?? [];
+      missoesCompletas += concluidas.length;
+      if (concluidas.length > 0 && concluidas.length === trail.missoes.length) {
+        trilhasCompletas += 1;
+      }
+    }
+  } else {
+    for (const [_, concluidas] of Object.entries(progressoPorTrilha)) {
+      missoesCompletas += Array.isArray(concluidas) ? concluidas.length : 0;
     }
   }
 
   const xpTotal = (missoesCompletas * 5) + (trilhasCompletas * 10);
-  
   return { xpTotal, missoesCompletas, trilhasCompletas };
 }
 
 // Atualiza o estado das conquistas desbloqueadas dinamicamente
-export function atualizarBadgesConquistadas(progress: UserProgress) {
+export function atualizarBadgesConquistadas(
+  progress: UserProgress,
+  trilhasDisponiveis?: Trilha[]
+) {
   // 1. Conquistas por missões completadas (Primeira Missão se > 0)
-  const primeiraMissao = BADGES_MOCK.find(x => x.id === "badge-primeira-missao");
+  const primeiraMissao = BADGES_MOCK.find((x) => x.id === "badge-primeira-missao");
   if (primeiraMissao) {
     if (progress.missoesCompletas > 0) {
       primeiraMissao.desbloqueadoEm = primeiraMissao.desbloqueadoEm ?? new Date().toISOString();
@@ -309,16 +321,18 @@ export function atualizarBadgesConquistadas(progress: UserProgress) {
     { id: "badge-google-drive", trilhaId: "google-drive" },
     { id: "badge-ischolar", trilhaId: "ischolar" },
     { id: "badge-plurall", trilhaId: "plurall" },
-    { id: "badge-bloom", trilhaId: "bloom" },
-    { id: "badge-espacos", trilhaId: "espacosEscola" },
+    { id: "badge-bloom", trilhaId: "taxonomia-bloom" },
+    { id: "badge-espacos", trilhaId: "espacos-escola" },
     { id: "badge-primeiros-socorros", trilhaId: "primeiros-socorros" },
   ];
 
+  const listaTrilhas = trilhasDisponiveis ?? [];
+
   for (const item of conquistasTrilha) {
-    const b = BADGES_MOCK.find(x => x.id === item.id);
+    const b = BADGES_MOCK.find((x) => x.id === item.id);
     if (b) {
       const concluidas = progress.progressoPorTrilha[item.trilhaId] ?? [];
-      const trilha = TRILHAS_MOCK.find(t => t.id === item.trilhaId);
+      const trilha = listaTrilhas.find((t) => t.id === item.trilhaId);
       if (trilha && concluidas.length === trilha.missoes.length && trilha.missoes.length > 0) {
         b.desbloqueadoEm = b.desbloqueadoEm ?? new Date().toISOString();
       } else {
@@ -328,7 +342,7 @@ export function atualizarBadgesConquistadas(progress: UserProgress) {
   }
 
   // 3. Conquistas por Ofensiva (ex: 7 dias)
-  const ofensiva7 = BADGES_MOCK.find(x => x.id === "badge-ofensiva-7");
+  const ofensiva7 = BADGES_MOCK.find((x) => x.id === "badge-ofensiva-7");
   if (ofensiva7) {
     if (progress.ofensivaDias >= 7) {
       ofensiva7.desbloqueadoEm = ofensiva7.desbloqueadoEm ?? new Date().toISOString();
@@ -349,6 +363,23 @@ const baseMock: UserProgress = {
   anosDeEmpresa: 3, // Mock padrão para fins de demonstração (desbloqueia medalhas de 1 e 3 anos)
 };
 
+function getDataHojeBrasilStr(): string {
+  try {
+    return new Intl.DateTimeFormat("fr-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+function calcularDiferencaDiasStr(d1?: string, d2?: string): number {
+  if (!d1 || !d2) return Infinity;
+  const [y1, m1, day1] = d1.slice(0, 10).split("-").map(Number);
+  const [y2, m2, day2] = d2.slice(0, 10).split("-").map(Number);
+  const utc1 = Date.UTC(y1, m1 - 1, day1);
+  const utc2 = Date.UTC(y2, m2 - 1, day2);
+  return Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
+}
+
 function carregarProgressoInicial(): UserProgress {
   if (typeof window === "undefined") return baseMock;
   const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -358,15 +389,29 @@ function carregarProgressoInicial(): UserProgress {
   }
   try {
     const parsed = JSON.parse(raw);
-    const ofensivaDias = typeof parsed.ofensivaDias === "number"
+    let ofensivaDias = typeof parsed.ofensivaDias === "number"
       ? parsed.ofensivaDias
       : (parsed.streakDias ?? 0);
+    const ultimaAtividade = parsed.ultimaAtividade ?? null;
+
+    // Se ficou 2 dias ou mais sem atividade, zera ofensiva
+    if (ultimaAtividade) {
+      const hoje = getDataHojeBrasilStr();
+      const diff = calcularDiferencaDiasStr(ultimaAtividade, hoje);
+      if (diff >= 2) {
+        ofensivaDias = 0;
+      }
+    } else {
+      ofensivaDias = 0;
+    }
+
     const progressoPorTrilha = parsed.progressoPorTrilha ?? {};
     const stats = calcularProgresso(progressoPorTrilha);
-    const progress = {
+    const progress: UserProgress = {
       ...baseMock,
       ...parsed,
       ofensivaDias,
+      ultimaAtividade: ultimaAtividade || undefined,
       ...stats,
     };
     atualizarBadgesConquistadas(progress);

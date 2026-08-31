@@ -50,6 +50,7 @@ import NotFound from "./pages/NotFound";
 import TrilhaConhecimento from "./pages/TrilhaConhecimento";
 import TrilhaDetalhe from "./pages/trilha/TrilhaDetalhe";
 import MissaoPage from "./pages/trilha/MissaoPage";
+import TrilhaAdmin from "./pages/trilha/TrilhaAdmin";
 import PainelSenhasLayout from "./pages/senhas/PainelSenhasLayout";
 import SenhasHub from "./pages/senhas/SenhasHub";
 import SenhasTotemPage from "./pages/senhas/SenhasTotemPage";
@@ -338,6 +339,7 @@ function CentralIntranetApp() {
                 </Route>
               </Route>
               <Route path="/trilha-conhecimento" element={<TrilhaConhecimento />} />
+              <Route path="/trilha-conhecimento/admin" element={<TrilhaAdmin />} />
               <Route path="/trilha-conhecimento/:trilhaId" element={<TrilhaDetalhe />} />
               <Route path="/trilha-conhecimento/:trilhaId/missao/:missaoId" element={<MissaoPage />} />
               <Route path="*" element={<NotFound />} />

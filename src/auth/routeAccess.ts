@@ -46,6 +46,7 @@ export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/admin/papeis-manuais": ["admin"],
   "/chamados/gestao": ["admin"],
   "/setores": ["admin"],
+  "/trilha-conhecimento/admin": ["admin"],
   /** Publicar avisos — TI / administração. */
   "/avisos/publicar": ["admin", "setape"],
   "/ti-interno": ["setape"],
