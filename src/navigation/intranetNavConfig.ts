@@ -14,6 +14,7 @@ import {
   School,
   Settings2,
   Shield,
+  Sparkles,
   Ticket,
   Trophy,
   UserCog,
@@ -97,6 +98,12 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
         url: "/reserva-espacos-equipamentos",
         icon: MapPin,
         activePrefixes: ["/reserva-espacos-equipamentos"],
+      },
+      {
+        title: "Massoterapia e Bem-Estar",
+        url: "/massoterapia",
+        icon: Sparkles,
+        activePrefixes: ["/massoterapia"],
       },
       {
         title: "Minhas Reservas",

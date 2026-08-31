@@ -51,6 +51,7 @@ import TrilhaConhecimento from "./pages/TrilhaConhecimento";
 import TrilhaDetalhe from "./pages/trilha/TrilhaDetalhe";
 import MissaoPage from "./pages/trilha/MissaoPage";
 import TrilhaAdmin from "./pages/trilha/TrilhaAdmin";
+import MassoterapiaPage from "./pages/MassoterapiaPage";
 import PainelSenhasLayout from "./pages/senhas/PainelSenhasLayout";
 import SenhasHub from "./pages/senhas/SenhasHub";
 import SenhasTotemPage from "./pages/senhas/SenhasTotemPage";
@@ -145,6 +146,7 @@ function CentralIntranetApp() {
               <Route path="/comunicados-intersetoriais" element={<ComunicadosIntersetoriaisPage />} />
               <Route path="/documentos" element={<Documentos />} />
               <Route path="/agenda-cci" element={<AgendaCCI />} />
+              <Route path="/massoterapia" element={<MassoterapiaPage />} />
               <Route path="/reserva-espacos-equipamentos" element={<ReservaEspacosEquipamentos />} />
               <Route path="/minhas-reservas" element={<MinhasReservas />} />
               <Route
