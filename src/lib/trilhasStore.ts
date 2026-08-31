@@ -31,17 +31,29 @@ export type MissaoPayload = {
   quiz?: PerguntaQuiz[];
 };
 
-/** Carrega trilhas ativas do servidor. Retorna null se o servidor usar fallback estático. */
-export async function carregarTrilhasApi(): Promise<Trilha[] | null> {
+/** Carrega trilhas ativas do servidor (Supabase). Retorna array vazio se não houver trilhas. */
+export async function carregarTrilhasApi(): Promise<Trilha[]> {
   try {
     const res = await centralFetch(apiUrl("/api/trilhas"), { method: "GET" });
-    if (!res.ok) return null;
+    if (!res.ok) return [];
     const data = await res.json();
-    if (data.fonte === "estatico" || !Array.isArray(data.trilhas)) return null;
+    if (!Array.isArray(data.trilhas)) return [];
     return data.trilhas as Trilha[];
   } catch {
-    return null;
+    return [];
   }
+}
+
+/** [Admin] Importa as trilhas padrão para o Supabase. */
+export async function importarTrilhasPadraoApi(): Promise<{ count: number }> {
+  const res = await centralFetch(apiUrl("/api/trilhas/importar-padrao"), {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Erro desconhecido" }));
+    throw new Error(err.error ?? `HTTP ${res.status}`);
+  }
+  return await res.json();
 }
 
 /** [Admin] Carrega todas as trilhas (inclusive inativas). */

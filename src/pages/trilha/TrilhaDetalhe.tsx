@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Zap, Clock, CheckCircle2, BookOpen } from "lucide-react";
+import { ArrowLeft, Zap, Clock, CheckCircle2, BookOpen, Loader2 } from "lucide-react";
 import type { UserProgress } from "@/data/trilhasMock";
 import { MissaoCard } from "@/components/trilha/MissaoCard";
 import { XPBar } from "@/components/trilha/XPBar";
@@ -11,9 +11,18 @@ export default function TrilhaDetalhe() {
   const { trilhaId } = useParams<{ trilhaId: string }>();
   const navigate = useNavigate();
 
-  const { trilhas } = useTrilhas();
+  const { trilhas, carregando } = useTrilhas();
   const { progress } = useTrilhaProgress();
   const trilha = trilhas.find((t) => t.id === trilhaId);
+
+  if (carregando) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+        <span className="text-xs">Carregando trilha...</span>
+      </div>
+    );
+  }
 
   if (!trilha) {
     return (

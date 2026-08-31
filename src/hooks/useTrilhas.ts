@@ -1,10 +1,11 @@
 // ============================================================
 // src/hooks/useTrilhas.ts
-// Carrega trilhas do servidor; fallback para dados estáticos.
+// Carrega trilhas exclusivamente do banco de dados (Supabase via API).
+// Não utiliza nenhum dado estático.
 // ============================================================
 
 import { useState, useEffect, useRef } from "react";
-import { TRILHAS_MOCK, type Trilha } from "@/data/trilhasMock";
+import type { Trilha } from "@/data/trilhasMock";
 import { carregarTrilhasApi } from "@/lib/trilhasStore";
 
 export type UseTrilhasReturn = {
@@ -14,11 +15,10 @@ export type UseTrilhasReturn = {
 
 /**
  * Carrega trilhas do servidor (Supabase).
- * Se o servidor retornar null (Supabase não configurado ou sem trilhas cadastradas),
- * usa os dados estáticos de TRILHAS_MOCK como fallback.
+ * Se não houver trilhas no banco de dados, retorna array vazio [].
  */
 export function useTrilhas(): UseTrilhasReturn {
-  const [trilhas, setTrilhas] = useState<Trilha[]>(TRILHAS_MOCK);
+  const [trilhas, setTrilhas] = useState<Trilha[]>([]);
   const [carregando, setCarregando] = useState(true);
   const carregouRef = useRef(false);
 
@@ -33,13 +33,9 @@ export function useTrilhas(): UseTrilhasReturn {
       try {
         const resultado = await carregarTrilhasApi();
         if (cancelado) return;
-        if (resultado !== null && resultado.length > 0) {
-          setTrilhas(resultado);
-        }
-        // null = Supabase não configurado → mantém TRILHAS_MOCK
-        // [] vazio → também mantém TRILHAS_MOCK (nenhuma trilha cadastrada ainda)
+        setTrilhas(resultado ?? []);
       } catch {
-        // Mantém fallback estático silenciosamente
+        if (!cancelado) setTrilhas([]);
       } finally {
         if (!cancelado) setCarregando(false);
       }

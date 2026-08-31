@@ -15,9 +15,11 @@ import {
   criarMissaoApi,
   atualizarMissaoApi,
   excluirMissaoApi,
+  importarTrilhasPadraoApi,
   type TrilhaAdminPayload,
   type MissaoPayload,
 } from "@/lib/trilhasStore";
+import { DownloadCloud } from "lucide-react";
 
 // ── Gradientes disponíveis ────────────────────────────────────
 const GRADIENTES = [
@@ -85,6 +87,7 @@ export default function TrilhaAdmin() {
   const [formMissao, setFormMissao] = useState<MissaoPayload>(MISSAO_VAZIA);
 
   const [salvando, setSalvando] = useState(false);
+  const [importando, setImportando] = useState(false);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -98,6 +101,20 @@ export default function TrilhaAdmin() {
       setCarregando(false);
     }
   }, []);
+
+  async function handleImportarPadrao() {
+    if (!confirm("Deseja importar/atualizar as 7 trilhas padrão para o banco de dados?")) return;
+    setImportando(true);
+    try {
+      const res = await importarTrilhasPadraoApi();
+      toast.success(`${res.count} trilhas padrão importadas com sucesso!`);
+      void carregar();
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro ao importar trilhas padrão.");
+    } finally {
+      setImportando(false);
+    }
+  }
 
   useEffect(() => { void carregar(); }, [carregar]);
 
@@ -278,6 +295,15 @@ export default function TrilhaAdmin() {
             </div>
             <div className="flex items-center gap-3">
               <button
+                onClick={handleImportarPadrao}
+                disabled={importando}
+                title="Importa as 7 trilhas de conhecimento padrão com todas as missões"
+                className="flex items-center gap-2 rounded-xl border border-indigo-400/20 bg-indigo-500/10 px-3.5 py-2 text-sm font-medium text-indigo-300 transition hover:bg-indigo-500/20 disabled:opacity-50"
+              >
+                {importando ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
+                {importando ? "Importando..." : "Importar Padrão"}
+              </button>
+              <button
                 onClick={() => void carregar()}
                 className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-muted-foreground transition hover:bg-white/8 hover:text-foreground"
               >
@@ -318,7 +344,26 @@ export default function TrilhaAdmin() {
           <div className="text-center py-20">
             <span className="text-6xl">📚</span>
             <h2 className="mt-4 text-xl font-bold text-foreground">Nenhuma trilha cadastrada</h2>
-            <p className="mt-2 text-sm text-muted-foreground">Crie a primeira trilha clicando em "Nova Trilha".</p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Crie uma trilha do zero ou importe as 7 trilhas padrão do sistema.
+            </p>
+            <div className="mt-6 flex items-center justify-center gap-3">
+              <button
+                onClick={handleImportarPadrao}
+                disabled={importando}
+                className="flex items-center gap-2 rounded-xl border border-indigo-400/20 bg-indigo-500/10 px-4 py-2.5 text-sm font-semibold text-indigo-300 transition hover:bg-indigo-500/20"
+              >
+                <DownloadCloud className="h-4 w-4" />
+                Importar Trilhas Padrão
+              </button>
+              <button
+                onClick={abrirCriarTrilha}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg transition hover:brightness-110"
+              >
+                <Plus className="h-4 w-4" />
+                Criar Nova Trilha
+              </button>
+            </div>
           </div>
         ) : (
           <div className="space-y-4">

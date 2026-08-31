@@ -266,3 +266,75 @@ export async function excluirMissao(missaoId) {
   const { error } = await supabase.from("trilhas_missoes").delete().eq("id", missaoId);
   if (error) throw new Error(error.message);
 }
+
+/**
+ * Importa as trilhas padrão pré-configuradas para o Supabase.
+ */
+export async function importarTrilhasPadrao() {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) throw new Error("Supabase não configurado.");
+
+  const fs = await import("fs");
+  const path = await import("path");
+  const { fileURLToPath } = await import("url");
+  const __filename = fileURLToPath(import.meta.url);
+  const __dirname = path.dirname(__filename);
+
+  const jsonPath = path.join(__dirname, "../scripts/trilhas-padrao.json");
+  if (!fs.existsSync(jsonPath)) {
+    throw new Error("Arquivo trilhas-padrao.json não encontrado no servidor.");
+  }
+
+  const trilhas = JSON.parse(fs.readFileSync(jsonPath, "utf-8"));
+  let totalImportadas = 0;
+
+  let ordemTrilha = 1;
+  for (const t of trilhas) {
+    const { error: errT } = await supabase
+      .from("trilhas_conhecimento")
+      .upsert({
+        id: t.id,
+        titulo: t.titulo,
+        descricao: t.descricao || "",
+        categoria: t.categoria || "",
+        icone: t.icone || "📚",
+        cor: t.cor || "from-indigo-500 to-blue-600",
+        dificuldade: t.dificuldade || "iniciante",
+        setor_restrito: t.setorRestrito || null,
+        ativo: true,
+        ordem: ordemTrilha,
+      }, { onConflict: "id" });
+
+    if (errT) {
+      console.error(`[importarTrilhasPadrao] Erro na trilha ${t.id}:`, errT.message);
+      continue;
+    }
+
+    let ordemMissao = 1;
+    for (const m of t.missoes) {
+      const { error: errM } = await supabase
+        .from("trilhas_missoes")
+        .upsert({
+          id: m.id,
+          trilha_id: t.id,
+          ordem: m.ordem || ordemMissao,
+          titulo: m.titulo,
+          descricao: m.descricao || "",
+          conteudo: m.conteudo || "",
+          link_externo: m.linkExterno || null,
+          xp_recompensa: m.xpRecompensa || 5,
+          tempo_estimado_min: m.tempoEstimadoMin || 10,
+          quiz: m.quiz || [],
+        }, { onConflict: "id" });
+
+      if (errM) {
+        console.error(`[importarTrilhasPadrao] Erro na missão ${m.id}:`, errM.message);
+      }
+      ordemMissao++;
+    }
+    ordemTrilha++;
+    totalImportadas++;
+  }
+
+  return { count: totalImportadas };
+}

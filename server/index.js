@@ -78,6 +78,7 @@ import {
   criarMissao,
   atualizarMissao,
   excluirMissao,
+  importarTrilhasPadrao,
 } from "./trilhaStore.js";
 
 
@@ -6249,10 +6250,28 @@ app.get("/api/trilhas", async (req, res) => {
   try {
     await verificarAutenticacaoRequest(req);
     const trilhas = await listarTrilhas();
-    return res.json({ trilhas, fonte: trilhas === null ? "estatico" : "supabase" });
+    return res.json({ trilhas: trilhas || [] });
   } catch (e) {
     if (e.status) return respostaErroIdToken(res, e);
     console.error("[trilhas/listar] Erro:", e.message);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * POST /api/trilhas/importar-padrao — Importa as trilhas padrão [admin]
+ */
+app.post("/api/trilhas/importar-padrao", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis?.includes("admin")) {
+      return res.status(403).json({ error: "Acesso restrito a administradores." });
+    }
+    const resultado = await importarTrilhasPadrao();
+    return res.json(resultado);
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilhas/importar-padrao] Erro:", e.message);
     return res.status(500).json({ error: e.message });
   }
 });

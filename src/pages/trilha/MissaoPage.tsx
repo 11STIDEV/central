@@ -8,6 +8,7 @@ import {
   ChevronRight,
   BookOpen,
   CheckCircle2,
+  Loader2,
 } from "lucide-react";
 import type { UserProgress } from "@/data/trilhasMock";
 import { QuizModal } from "@/components/trilha/QuizModal";
@@ -18,7 +19,7 @@ export default function MissaoPage() {
   const { trilhaId, missaoId } = useParams<{ trilhaId: string; missaoId: string }>();
   const navigate = useNavigate();
 
-  const { trilhas } = useTrilhas();
+  const { trilhas, carregando } = useTrilhas();
   const trilha = trilhas.find((t) => t.id === trilhaId);
   const missao = trilha?.missoes.find((m) => m.id === missaoId);
 
@@ -29,6 +30,15 @@ export default function MissaoPage() {
       progress.progressoPorTrilha[trilhaId ?? ""]?.includes(missaoId ?? "") ?? false
   );
   const [xpGanhoAnim, setXpGanhoAnim] = useState<number | null>(null);
+
+  if (carregando) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+        <span className="text-xs">Carregando missão...</span>
+      </div>
+    );
+  }
 
   if (!trilha || !missao) {
     return (

@@ -217,16 +217,39 @@ export default function TrilhaConhecimento() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                {trilhas.map((trilha) => (
-                  <TrilhaCard
-                    key={trilha.id}
-                    trilha={trilha}
-                    progress={progress}
-                    onClick={() => navigate(`/trilha-conhecimento/${trilha.id}`)}
-                  />
-                ))}
-              </div>
+              {trilhas.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center sm:p-12">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400">
+                    <BookOpen className="h-7 w-7" />
+                  </div>
+                  <h3 className="mt-4 text-base font-bold text-foreground">
+                    Nenhuma trilha disponível no momento
+                  </h3>
+                  <p className="mt-1.5 max-w-md text-xs text-muted-foreground leading-relaxed">
+                    Ainda não existem trilhas de conhecimento cadastradas no sistema. Novas trilhas serão publicadas em breve pelos administradores.
+                  </p>
+                  {usuario?.papeis?.includes("admin") && (
+                    <button
+                      onClick={() => navigate("/trilha-conhecimento/admin")}
+                      className="mt-5 flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2 text-xs font-bold text-white shadow-lg transition hover:brightness-110"
+                    >
+                      <Settings2 className="h-4 w-4" />
+                      Gerenciar / Criar Trilhas
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  {trilhas.map((trilha) => (
+                    <TrilhaCard
+                      key={trilha.id}
+                      trilha={trilha}
+                      progress={progress}
+                      onClick={() => navigate(`/trilha-conhecimento/${trilha.id}`)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
