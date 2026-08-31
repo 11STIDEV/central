@@ -12,7 +12,6 @@ import {
   atualizarBadgesConquistadas,
   type UserProgress,
   type RankingEntry,
-  RANKING_MOCK,
 } from "@/data/trilhasMock";
 import {
   carregarProgressoServidor,
@@ -33,7 +32,7 @@ export type UseTrilhaProgressReturn = {
 
 export function useTrilhaProgress(): UseTrilhaProgressReturn {
   const [progress, setProgress] = useState<UserProgress>(USER_PROGRESS_MOCK);
-  const [ranking, setRanking] = useState<RankingEntry[]>(RANKING_MOCK);
+  const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [carregando, setCarregando] = useState(true);
   const carregouRef = useRef(false);
 
@@ -69,9 +68,8 @@ export function useTrilhaProgress(): UseTrilhaProgressReturn {
           setProgress(merged);
         }
 
-        if (rankingServidor.length > 0) {
-          setRanking(rankingServidor);
-        }
+        // Atualiza o ranking apenas com dados reais do servidor
+        setRanking(rankingServidor);
       } catch {
         // Silencia falhas — usa o estado atual (localStorage)
       } finally {
@@ -111,7 +109,7 @@ export function useTrilhaProgress(): UseTrilhaProgressReturn {
         // Recarrega ranking após ganho de XP
         if (opts?.xpGanho) {
           const novoRanking = await carregarRankingSemanal();
-          if (novoRanking.length > 0) setRanking(novoRanking);
+          setRanking(novoRanking);
         }
       } catch {
         // Silencia — o progresso local já foi salvo
