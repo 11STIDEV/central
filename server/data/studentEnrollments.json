@@ -30907,5 +30907,101 @@
     "id_turma": "376",
     "status": "matriculado",
     "enrolled_at": "2026-08-20T22:25:03.493Z"
+  },
+  "819901591854_cilene3735626@faculdadecci.com.br": {
+    "courseId": "819901591854",
+    "email": "cilene3735626@faculdadecci.com.br",
+    "nome": "CILENE RODRIGUES CARDOSO",
+    "id_turma": "414",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:40:58.408Z"
+  },
+  "871618846391_cilene3735626@faculdadecci.com.br": {
+    "courseId": "871618846391",
+    "email": "cilene3735626@faculdadecci.com.br",
+    "nome": "CILENE RODRIGUES CARDOSO",
+    "id_turma": "414",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:41:00.723Z"
+  },
+  "871581130726_francisco3711326@faculdadecci.com.br": {
+    "courseId": "871581130726",
+    "email": "francisco3711326@faculdadecci.com.br",
+    "nome": "FRANCISCO COSTA PAIXÃO",
+    "id_turma": "386",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:43:21.649Z"
+  },
+  "871581570288_francisco3711326@faculdadecci.com.br": {
+    "courseId": "871581570288",
+    "email": "francisco3711326@faculdadecci.com.br",
+    "nome": "FRANCISCO COSTA PAIXÃO",
+    "id_turma": "386",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:43:22.099Z"
+  },
+  "871581218727_francisco3711326@faculdadecci.com.br": {
+    "courseId": "871581218727",
+    "email": "francisco3711326@faculdadecci.com.br",
+    "nome": "FRANCISCO COSTA PAIXÃO",
+    "id_turma": "386",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:43:22.649Z"
+  },
+  "871581251515_francisco3711326@faculdadecci.com.br": {
+    "courseId": "871581251515",
+    "email": "francisco3711326@faculdadecci.com.br",
+    "nome": "FRANCISCO COSTA PAIXÃO",
+    "id_turma": "386",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:43:25.309Z"
+  },
+  "871582107828_francisco3711326@faculdadecci.com.br": {
+    "courseId": "871582107828",
+    "email": "francisco3711326@faculdadecci.com.br",
+    "nome": "FRANCISCO COSTA PAIXÃO",
+    "id_turma": "386",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:43:25.761Z"
+  },
+  "871581130726_lucas3731526@faculdadecci.com.br": {
+    "courseId": "871581130726",
+    "email": "lucas3731526@faculdadecci.com.br",
+    "nome": "LUCAS GABRIEL MESQUITA DA SILVA MATTOS",
+    "id_turma": "386",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:43:29.003Z"
+  },
+  "871581570288_lucas3731526@faculdadecci.com.br": {
+    "courseId": "871581570288",
+    "email": "lucas3731526@faculdadecci.com.br",
+    "nome": "LUCAS GABRIEL MESQUITA DA SILVA MATTOS",
+    "id_turma": "386",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:43:31.416Z"
+  },
+  "871581218727_lucas3731526@faculdadecci.com.br": {
+    "courseId": "871581218727",
+    "email": "lucas3731526@faculdadecci.com.br",
+    "nome": "LUCAS GABRIEL MESQUITA DA SILVA MATTOS",
+    "id_turma": "386",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:43:34.507Z"
+  },
+  "871581251515_lucas3731526@faculdadecci.com.br": {
+    "courseId": "871581251515",
+    "email": "lucas3731526@faculdadecci.com.br",
+    "nome": "LUCAS GABRIEL MESQUITA DA SILVA MATTOS",
+    "id_turma": "386",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:43:34.894Z"
+  },
+  "871582107828_lucas3731526@faculdadecci.com.br": {
+    "courseId": "871582107828",
+    "email": "lucas3731526@faculdadecci.com.br",
+    "nome": "LUCAS GABRIEL MESQUITA DA SILVA MATTOS",
+    "id_turma": "386",
+    "status": "matriculado",
+    "enrolled_at": "2026-08-31T23:43:38.560Z"
   }
 }

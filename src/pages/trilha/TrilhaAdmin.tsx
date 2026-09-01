@@ -352,12 +352,20 @@ export default function TrilhaAdmin() {
         ) : erro ? (
           <div className="rounded-2xl border border-red-400/20 bg-red-400/5 p-6 flex items-start gap-3">
             <AlertCircle className="h-5 w-5 text-red-400 mt-0.5 shrink-0" />
-            <div>
-              <p className="font-semibold text-red-400">Erro ao carregar</p>
-              <p className="text-sm text-muted-foreground mt-1">{erro}</p>
-              <p className="text-xs text-muted-foreground mt-2">
-                Execute o script <code>scripts/trilha-conteudo-schema.sql</code> no Supabase e reinicie o servidor.
+            <div className="space-y-1.5">
+              <p className="font-semibold text-red-400">Falha ao carregar trilhas</p>
+              <p className="text-sm font-medium text-red-200/90 bg-red-950/40 p-2.5 rounded-lg border border-red-500/20 font-mono text-xs">
+                {erro}
               </p>
+              {erro.includes("Acesso restrito") ? (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Sua conta de usuário atual não possui o papel <strong>admin</strong>. Adicione seu e-mail em <code>server/data/papeisManuais.json</code> como admin.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Se for um erro de tabela inexistente no banco de dados, certifique-se de executar o script <code>scripts/trilha-conteudo-schema.sql</code> no Supabase e reiniciar o servidor.
+                </p>
+              )}
             </div>
           </div>
         ) : trilhas.length === 0 ? (

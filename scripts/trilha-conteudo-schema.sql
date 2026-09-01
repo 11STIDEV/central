@@ -1,4 +1,4 @@
-﻿-- ============================================================
+-- ============================================================
 -- Trilha de Conhecimento — Schema de Conteúdo (Supabase)
 -- Execute após trilha-schema.sql
 -- ============================================================
@@ -53,3 +53,8 @@ DROP TRIGGER IF EXISTS trig_trilhas_missoes_ts ON trilhas_missoes;
 CREATE TRIGGER trig_trilhas_missoes_ts
   BEFORE UPDATE ON trilhas_missoes
   FOR EACH ROW EXECUTE FUNCTION atualizar_trilha_ts();
+
+-- Desativa RLS para permitir acesso de leitura/escrita com chave de API
+ALTER TABLE trilhas_conhecimento DISABLE ROW LEVEL SECURITY;
+ALTER TABLE trilhas_missoes DISABLE ROW LEVEL SECURITY;
+

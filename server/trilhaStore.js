@@ -95,7 +95,9 @@ export async function listarTrilhas() {
  */
 export async function listarTrilhasAdmin() {
   const supabase = getSupabaseAdmin();
-  if (!supabase) return null;
+  if (!supabase) {
+    throw new Error("Supabase não configurado em server/.env (verifique SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY).");
+  }
 
   const { data: trilhasRows, error: errT } = await supabase
     .from("trilhas_conhecimento")
@@ -104,7 +106,7 @@ export async function listarTrilhasAdmin() {
 
   if (errT) {
     console.error("[trilhaStore] listarTrilhasAdmin:", errT.message);
-    return null;
+    throw new Error(`Erro no Supabase (tabela trilhas_conhecimento): ${errT.message}`);
   }
 
   if (!trilhasRows || trilhasRows.length === 0) return [];
@@ -118,7 +120,7 @@ export async function listarTrilhasAdmin() {
 
   if (errM) {
     console.error("[trilhaStore] listarTrilhasAdmin (missões):", errM.message);
-    return null;
+    throw new Error(`Erro no Supabase (tabela trilhas_missoes): ${errM.message}`);
   }
 
   const missoesPorTrilha = {};
