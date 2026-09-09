@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/auth/AuthProvider";
-import { apiUrl } from "@/lib/apiBase";
+import { apiUrl, centralFetch, authJsonBody } from "@/lib/apiBase";
 import { toast } from "sonner";
 
 export interface RamalItem {
@@ -121,10 +121,20 @@ export default function Ramais() {
   // Verificação de permissão: Administrador (painel_admin / admin) ou Setape
   const podeEditar = useMemo(() => {
     const papeis = (usuario?.papeis || []).map((p) => String(p).toLowerCase());
+    const email = (usuario?.email || "").toLowerCase();
+    const painelAdminEmails = (import.meta.env.VITE_PAINEL_ADMIN_EMAILS || "")
+      .split(",")
+      .map((s: string) => s.trim().toLowerCase())
+      .filter(Boolean);
+
     return (
       papeis.includes("admin") ||
       papeis.includes("painel_admin") ||
-      papeis.includes("setape")
+      papeis.includes("setape") ||
+      papeis.includes("gerente_setape") ||
+      papeis.includes("direcao") ||
+      papeis.includes("gerente_direcao") ||
+      painelAdminEmails.includes(email)
     );
   }, [usuario]);
 
@@ -132,7 +142,7 @@ export default function Ramais() {
   const carregarRamais = async () => {
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/api/ramais"));
+      const res = await centralFetch(apiUrl("/api/ramais"));
       const data = await res.json();
       if (data.ok && Array.isArray(data.ramais) && data.ramais.length > 0) {
         setRamais(data.ramais);
@@ -224,13 +234,10 @@ export default function Ramais() {
         ordem: editingRamal?.ordem
       };
 
-      const res = await fetch(apiUrl("/api/ramais/salvar"), {
+      const res = await centralFetch(apiUrl("/api/ramais/salvar"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idToken: googleIdToken,
-          ramal: payload
-        })
+        body: authJsonBody({ ramal: payload }, googleIdToken)
       });
 
       const data = await res.json();
@@ -256,13 +263,10 @@ export default function Ramais() {
     }
 
     try {
-      const res = await fetch(apiUrl("/api/ramais/excluir"), {
+      const res = await centralFetch(apiUrl("/api/ramais/excluir"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          idToken: googleIdToken,
-          id: r.id
-        })
+        body: authJsonBody({ id: r.id }, googleIdToken)
       });
 
       const data = await res.json();

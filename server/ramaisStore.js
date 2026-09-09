@@ -56,7 +56,7 @@ function ramalToRow(item) {
   };
 }
 
-/** Listar Ramais (Tenta Supabase, com fallback para JSON local) */
+/** Listar Ramais (Tenta Supabase, com auto-população inicial e fallback para JSON local) */
 export async function listarRamaisStore(supabase) {
   if (supabase) {
     try {
@@ -65,12 +65,23 @@ export async function listarRamaisStore(supabase) {
         .select("*")
         .order("ordem", { ascending: true });
 
-      if (!error && data && data.length > 0) {
-        const listaSupa = data.map(rowToRamal);
-        salvarRamaisLocal(listaSupa);
-        return listaSupa;
+      if (!error && data) {
+        if (data.length > 0) {
+          const listaSupa = data.map(rowToRamal);
+          salvarRamaisLocal(listaSupa);
+          return listaSupa;
+        } else {
+          // Se a tabela no Supabase existir mas estiver vazia, popula automaticamente com os dados locais
+          const locais = lerRamaisLocal();
+          if (locais.length > 0) {
+            console.log("[ramais-store] Populando tabela intranet_ramais no Supabase com os dados iniciais...");
+            const rows = locais.map(ramalToRow);
+            await supabase.from("intranet_ramais").upsert(rows, { onConflict: "id" });
+            return locais;
+          }
+        }
       } else if (error) {
-        console.warn("[ramais-store] Tabela Supabase não encontrada ou vazia, usando JSON local:", error.message);
+        console.warn("[ramais-store] Tabela Supabase não encontrada ou sem permissão (usando JSON local):", error.message);
       }
     } catch (e) {
       console.warn("[ramais-store] Exceção ao consultar Supabase, usando JSON local:", e.message);
@@ -114,6 +125,8 @@ export async function salvarRamalStore(supabase, ramal) {
 
       if (error) {
         console.warn("[ramais-store] Erro ao fazer upsert no Supabase:", error.message);
+      } else {
+        console.log(`[ramais-store] Ramal ${item.id} (${item.nome}) salvo no Supabase.`);
       }
     } catch (e) {
       console.warn("[ramais-store] Exceção ao persistir no Supabase:", e.message);
@@ -138,6 +151,8 @@ export async function excluirRamalStore(supabase, id) {
 
       if (error) {
         console.warn("[ramais-store] Erro ao excluir do Supabase:", error.message);
+      } else {
+        console.log(`[ramais-store] Ramal ${id} excluído do Supabase.`);
       }
     } catch (e) {
       console.warn("[ramais-store] Exceção ao excluir do Supabase:", e.message);

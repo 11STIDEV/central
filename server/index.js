@@ -6337,7 +6337,54 @@ app.post("/api/comunicados-intersetoriais/excluir", async (req, res) => {
   }
 });
 
-// ── Ramais Telefônicos ────────────────────────────────────────────────
+async function checarPermissaoEdicaoRamais(req) {
+  let email = "";
+  let papeis = [];
+
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (ctx) {
+      email = (ctx.email || "").toLowerCase();
+      papeis = (ctx.papeis || []).map(p => String(p).toLowerCase());
+    }
+  } catch (errCtx) {
+    const idToken = req.body?.idToken;
+    if (idToken && typeof idToken === "string") {
+      try {
+        const usr = await verificarIdTokenUsuario(idToken);
+        email = (usr.email || "").toLowerCase();
+        const orgUnitPath = await obterOrgUnitPathUsuario(email);
+        const manual = lerPapeisManuaisArquivo()[email] || [];
+        papeis = resolverPapeisCompletos(orgUnitPath, email, manual, {
+          ouPainelAtendente: ouPainelAtendentePeloCaminho,
+          ouPainelAdmin: ouPainelAdminPeloCaminho,
+        }).map(p => String(p).toLowerCase());
+      } catch (errToken) {
+        console.warn("[ramais-auth] Falha ao verificar idToken no fallback:", errToken.message);
+      }
+    }
+  }
+
+  const painelAdminEmails = (process.env.VITE_PAINEL_ADMIN_EMAILS || process.env.PAINEL_ADMIN_EMAILS || "")
+    .split(",")
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  const isEmailAdmin =
+    isCentralAdminEmail(email) ||
+    painelAdminEmails.includes(email);
+
+  const podeEditar =
+    papeis.includes("admin") ||
+    papeis.includes("painel_admin") ||
+    papeis.includes("setape") ||
+    papeis.includes("gerente_setape") ||
+    papeis.includes("direcao") ||
+    papeis.includes("gerente_direcao") ||
+    isEmailAdmin;
+
+  return { podeEditar, email, papeis };
+}
 
 app.get("/api/ramais", async (req, res) => {
   try {
@@ -6368,15 +6415,10 @@ app.post("/api/ramais/salvar", async (req, res) => {
       return res.status(400).json({ error: "Nome, ramal e setor são obrigatórios." });
     }
 
-    const ctx = await resolverContextoFromRequest(req);
-    const papeis = (ctx.papeis || []).map(p => String(p).toLowerCase());
-    const podeEditar =
-      papeis.includes("admin") ||
-      papeis.includes("painel_admin") ||
-      papeis.includes("setape") ||
-      isCentralAdminEmail(ctx.email);
+    const { podeEditar, email } = await checarPermissaoEdicaoRamais(req);
 
     if (!podeEditar) {
+      console.warn(`[ramais-salvar] Acesso negado para usuário: ${email || "anônimo"}`);
       return res.status(403).json({ error: "Você não tem permissão para gerenciar ramais." });
     }
 
@@ -6396,15 +6438,10 @@ app.post("/api/ramais/excluir", async (req, res) => {
       return res.status(400).json({ error: "ID do ramal não fornecido." });
     }
 
-    const ctx = await resolverContextoFromRequest(req);
-    const papeis = (ctx.papeis || []).map(p => String(p).toLowerCase());
-    const podeEditar =
-      papeis.includes("admin") ||
-      papeis.includes("painel_admin") ||
-      papeis.includes("setape") ||
-      isCentralAdminEmail(ctx.email);
+    const { podeEditar, email } = await checarPermissaoEdicaoRamais(req);
 
     if (!podeEditar) {
+      console.warn(`[ramais-excluir] Acesso negado para usuário: ${email || "anônimo"}`);
       return res.status(403).json({ error: "Você não tem permissão para excluir ramais." });
     }
 
@@ -6424,15 +6461,10 @@ app.post("/api/ramais/salvar-todos", async (req, res) => {
       return res.status(400).json({ error: "Lista de ramais inválida." });
     }
 
-    const ctx = await resolverContextoFromRequest(req);
-    const papeis = (ctx.papeis || []).map(p => String(p).toLowerCase());
-    const podeEditar =
-      papeis.includes("admin") ||
-      papeis.includes("painel_admin") ||
-      papeis.includes("setape") ||
-      isCentralAdminEmail(ctx.email);
+    const { podeEditar, email } = await checarPermissaoEdicaoRamais(req);
 
     if (!podeEditar) {
+      console.warn(`[ramais-salvar-todos] Acesso negado para usuário: ${email || "anônimo"}`);
       return res.status(403).json({ error: "Você não tem permissão para gerenciar ramais." });
     }
 
