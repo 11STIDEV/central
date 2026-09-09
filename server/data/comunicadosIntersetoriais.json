@@ -1,5 +1,254 @@
 [
   {
+    "id": "comunicado_1788901038846_ld17o",
+    "titulo": "EM3ª Série - Universidade Católica de Brasília!",
+    "setorOrigem": "COORDENAÇÃO",
+    "setoresDestino": [
+      "SECRETARIA",
+      "COORDENAÇÃO",
+      "DIREÇÃO",
+      "PUBLICIDADE"
+    ],
+    "canaisDivulgacao": [
+      "Compartilhar com funcionários",
+      "Agenda CCI"
+    ],
+    "descricao": "Queridos alunos da EM3ª Série,\n\nVocê está convidado para viver uma experiência no universo da Universidade Católica de Brasília!\n\n📅 25 de setembro\n📍 Campus Taguatinga – UCB\n\nUma oportunidade para conhecer cursos, explorar os espaços da universidade, conversar com professores e estudantes e descobrir novas possibilidades para o seu futuro acadêmico e profissional.\n\n🕒 Horários:\n\nSaída do CCI: 08h00\nRetorno ao CCI: 12h\n\n📌Orientações importantes:\n🚍 O transporte será gratuito\n👕 Uso obrigatório do uniforme completo: calça, camiseta da escola e tênis\n💧 Levar garrafinha de água\n🍴 Não é necessário levar lanche – a Universidade irá providenciar",
+    "dataValidade": "2026-09-25",
+    "anexosOuLinks": [
+      {
+        "url": "https://forms.gle/BsQ42QP24xv6TwLDA",
+        "titulo": "Autorização"
+      }
+    ],
+    "imagens": [],
+    "criadoPorEmail": "katia.silva@portalcci.com.br",
+    "criadoPorNome": "Kátia Silva",
+    "criadoEm": "2026-09-08T20:57:18.846+00:00",
+    "atualizadoEm": "2026-09-08T20:57:18.846+00:00",
+    "cientes": []
+  },
+  {
+    "id": "comunicado_1788900781595_pqqhv",
+    "titulo": "Saída ao Clat - 1º ao 4º ano",
+    "setorOrigem": "SETAPE",
+    "setoresDestino": [
+      "SECRETARIA",
+      "DP / FINANCEIRO",
+      "COORDENAÇÃO",
+      "DISCIPLINAR",
+      "PUBLICIDADE"
+    ],
+    "canaisDivulgacao": [
+      "Whatsapp / Umbler Talk",
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "A saída ao Clat acontecerá nas seguintes datas:\n09/09 - 3º e 4º ano\n10/09 - 1º e 2º ano\nMais informações, link abaixo.",
+    "dataValidade": "2026-10-10",
+    "anexosOuLinks": [
+      {
+        "url": "https://forms.gle/6jbBEsGQLgAPebDB6",
+        "titulo": "https://forms.gle/6jbBEsGQLgAPebDB6"
+      }
+    ],
+    "imagens": [],
+    "criadoPorEmail": "aldeni.siqueira@portalcci.com.br",
+    "criadoPorNome": "Aldení Rêgo Negreiros Siqueira",
+    "criadoEm": "2026-09-08T20:53:01.595+00:00",
+    "atualizadoEm": "2026-09-08T20:53:01.595+00:00",
+    "cientes": []
+  },
+  {
+    "id": "comunicado_1788900760200_xnigp",
+    "titulo": "Convite para o Universo IESB - EM3ªSérie",
+    "setorOrigem": "COORDENAÇÃO",
+    "setoresDestino": [
+      "DP / FINANCEIRO",
+      "COORDENAÇÃO",
+      "SECRETARIA",
+      "DIREÇÃO",
+      "DISCIPLINAR",
+      "PUBLICIDADE"
+    ],
+    "canaisDivulgacao": [
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "Queridos alunos da 3ª Série,\n\n    A Universidade IESB convida os estudantes da 3ª Série do Ensino Médio, do Colégio CCI, para participar do Universo IESB, um evento imersivo que será realizado no dia 11/09 (sexta-feira) a partir das 8h.\n\n  A IESB tem como objetivo proporcionar vivências que potencializam o desenvolvimento da carreira profissional. Durante a visita, os estudantes poderão participar de Tour pelo campos, experiencias por área de interesse, atividades em laboratórios, conversas com professores, além de outras atividades. Também terão a oportunidade de realizar inscrição com descontos especiais para ingresso no ensino superior, nesta Universidade.\n\n📍 Local da visita guiada: \nCampus Sul - Localização: SGAS Quadra 613/614, Lotes 97 e 98 (via L2 Sul) Bairro/Cidade: Asa Sul, Brasília - DF - CEP: 70.200-730\n\n🕒 Horários:\nSaída do CCI: 07h30\nRetorno ao CCI: 12h\n\n📌Orientações importantes:\n🚍 O transporte será gratuito\n👕 Uso obrigatório do uniforme completo: calça, camiseta da escola e tênis\n💧 Levar garrafinha de água\n🍴 Não é necessário levar lanche – a Universidade irá providenciar",
+    "dataValidade": "2026-09-11",
+    "anexosOuLinks": [
+      {
+        "url": "https://forms.gle/2TdrYDiubdTKAm786",
+        "titulo": "Autorização"
+      }
+    ],
+    "imagens": [],
+    "criadoPorEmail": "katia.silva@portalcci.com.br",
+    "criadoPorNome": "Kátia Silva",
+    "criadoEm": "2026-09-08T20:52:40.2+00:00",
+    "atualizadoEm": "2026-09-08T20:52:40.201+00:00",
+    "cientes": []
+  },
+  {
+    "id": "comunicado_1788545814848_3n5ck",
+    "titulo": "Alunos dos Eletivos 5º ao 8º ano",
+    "setorOrigem": "COORDENAÇÃO",
+    "setoresDestino": [
+      "SECRETARIA",
+      "COORDENAÇÃO"
+    ],
+    "canaisDivulgacao": [
+      "Whatsapp / Umbler Talk",
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "Lista dos alunos das turmas e cada eletivo inscrito.",
+    "dataValidade": "2026-12-31",
+    "anexosOuLinks": [
+      {
+        "url": "https://docs.google.com/spreadsheets/d/1Sl1rtcDtJxW6prhM4IM66xYjGyUNaSW8h7FyGbrTd0E/edit?usp=sharing",
+        "titulo": "Alunos Eletivos 5º ao 8º ano"
+      }
+    ],
+    "imagens": [],
+    "criadoPorEmail": "cassia.tinoco@portalcci.com.br",
+    "criadoPorNome": "Cássia Tinoco",
+    "criadoEm": "2026-09-04T18:16:54.848+00:00",
+    "atualizadoEm": "2026-09-08T13:31:28.514+00:00",
+    "cientes": [
+      {
+        "data": "2026-09-08T13:31:28.513Z",
+        "nome": "Katrleen Kelen Araújo dos Santos Gomes",
+        "email": "katrleen.kelen@portalcci.com.br",
+        "setor": "SETAPE"
+      }
+    ]
+  },
+  {
+    "id": "comunicado_1788468434514_dyila",
+    "titulo": "Interclasse - 5º e 6º ano",
+    "setorOrigem": "COORDENAÇÃO",
+    "setoresDestino": [
+      "SECRETARIA",
+      "DP / FINANCEIRO",
+      "COORDENAÇÃO",
+      "DIREÇÃO",
+      "DISCIPLINAR"
+    ],
+    "canaisDivulgacao": [
+      "Whatsapp / Umbler Talk",
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "Informações dos dias do Interclasse do 5º e 6º ano",
+    "dataValidade": "2026-09-12",
+    "anexosOuLinks": [
+      {
+        "url": "https://docs.google.com/document/d/1JnE46Qlsq0oNzEYGt7VdRgWMJqcewvUm5rxg3RmrtKA/edit?usp=sharing",
+        "titulo": "Comunidado Famílias"
+      }
+    ],
+    "imagens": [],
+    "criadoPorEmail": "cassia.tinoco@portalcci.com.br",
+    "criadoPorNome": "Cássia Tinoco",
+    "criadoEm": "2026-09-03T20:47:14.514+00:00",
+    "atualizadoEm": "2026-09-08T13:31:33.235+00:00",
+    "cientes": [
+      {
+        "data": "2026-09-08T13:31:33.235Z",
+        "nome": "Katrleen Kelen Araújo dos Santos Gomes",
+        "email": "katrleen.kelen@portalcci.com.br",
+        "setor": "SETAPE"
+      }
+    ]
+  },
+  {
+    "id": "comunicado_1788290496886_5frhz",
+    "titulo": "Memórias em Família - Jardim 2",
+    "setorOrigem": "COORDENAÇÃO",
+    "setoresDestino": [
+      "SECRETARIA"
+    ],
+    "canaisDivulgacao": [
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "No dia 19/09 (sábado), as famílias que adquiriram o Pacote Diamante da Formatura e o serviço fotográfico terão uma experiência exclusiva: o Memórias em Família, momento de fotografia em família.\nSerá um dia especialmente preparado para registrar momentos de afeto e conexão entre a criança e sua família, com diferentes cenários fotográficos preparados para essa ocasião. E tem mais: os pets da família também poderão participar!",
+    "dataValidade": "2026-09-20",
+    "anexosOuLinks": [
+      {
+        "url": "https://docs.google.com/document/d/1RSSCkuxYNL6yIO8du6iIrnJTFGHjuHM9itgazWIf0ic/edit?usp=sharing",
+        "titulo": "momento de fotografia em família."
+      }
+    ],
+    "imagens": [],
+    "criadoPorEmail": "ivete.rosa@portalcci.com.br",
+    "criadoPorNome": "Ivete Rosa",
+    "criadoEm": "2026-09-01T19:21:36.886+00:00",
+    "atualizadoEm": "2026-09-01T19:21:36.888+00:00",
+    "cientes": []
+  },
+  {
+    "id": "comunicado_1788289691661_yxw6r",
+    "titulo": "Passeio Mansão Catavento- Jardim 2",
+    "setorOrigem": "COORDENAÇÃO",
+    "setoresDestino": [
+      "SECRETARIA"
+    ],
+    "canaisDivulgacao": [
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "Passeio à Mansão Catavento, atividade proposta na Formatura do Jardim II.\ndia 30/09 (quarta-feira)",
+    "dataValidade": "2026-10-30",
+    "anexosOuLinks": [
+      {
+        "url": "https://docs.google.com/document/d/13GQBrZbXCdj0dED2wDjGB8fU2aE6OeZ2f9_a0ptBaWQ/edit?usp=sharing",
+        "titulo": "Passeio Mansão Catavento- Jardim 2"
+      }
+    ],
+    "imagens": [],
+    "criadoPorEmail": "ivete.rosa@portalcci.com.br",
+    "criadoPorNome": "Ivete Rosa",
+    "criadoEm": "2026-09-01T19:08:11.661+00:00",
+    "atualizadoEm": "2026-09-08T13:40:41.237+00:00",
+    "cientes": [
+      {
+        "data": "2026-09-08T13:40:41.237Z",
+        "nome": "Katrleen Kelen Araújo dos Santos Gomes",
+        "email": "katrleen.kelen@portalcci.com.br",
+        "setor": "SETAPE"
+      }
+    ]
+  },
+  {
+    "id": "comunicado_1788288907293_z8aju",
+    "titulo": "Proposta de Formatura Jardim 2 - 2026",
+    "setorOrigem": "COORDENAÇÃO",
+    "setoresDestino": [
+      "SECRETARIA"
+    ],
+    "canaisDivulgacao": [
+      "Compartilhar com funcionários"
+    ],
+    "descricao": "Material com a proposta da Formatura de 2026, apresentada na Reunião.",
+    "dataValidade": "2026-12-30",
+    "anexosOuLinks": [
+      {
+        "url": "https://docs.google.com/presentation/d/1Kyv4Jz0XKTjM1O8-bGJaO8ZOGKr7KTG1EMucbBKvmwU/edit?usp=sharing",
+        "titulo": "Formatura Jardim 2"
+      }
+    ],
+    "imagens": [],
+    "criadoPorEmail": "ivete.rosa@portalcci.com.br",
+    "criadoPorNome": "Ivete Rosa",
+    "criadoEm": "2026-09-01T18:55:07.293+00:00",
+    "atualizadoEm": "2026-09-08T13:41:38.309+00:00",
+    "cientes": [
+      {
+        "data": "2026-09-08T13:41:38.308Z",
+        "nome": "Katrleen Kelen Araújo dos Santos Gomes",
+        "email": "katrleen.kelen@portalcci.com.br",
+        "setor": "SETAPE"
+      }
+    ]
+  },
+  {
     "id": "comunicado_1788201727258_47pro",
     "titulo": "Livros didáticos 2027",
     "setorOrigem": "COORDENAÇÃO",
@@ -20,11 +269,31 @@
         "titulo": "Materiais 2027"
       }
     ],
+    "imagens": [],
     "criadoPorEmail": "cassia.tinoco@portalcci.com.br",
     "criadoPorNome": "Cássia Tinoco",
     "criadoEm": "2026-08-31T18:42:07.258+00:00",
-    "atualizadoEm": "2026-08-31T18:42:55.412+00:00",
-    "cientes": []
+    "atualizadoEm": "2026-09-08T13:41:58.439+00:00",
+    "cientes": [
+      {
+        "data": "2026-08-31T19:35:34.189Z",
+        "nome": "João Felipe de Oliveira Leite",
+        "email": "joao.leite@portalcci.com.br",
+        "setor": "SECRETARIA"
+      },
+      {
+        "data": "2026-08-31T19:50:08.975Z",
+        "nome": "Leandra Layla Gonçalves de Resende",
+        "email": "leandra.resende@portalcci.com.br",
+        "setor": "SECRETARIA"
+      },
+      {
+        "data": "2026-09-08T13:41:58.438Z",
+        "nome": "Katrleen Kelen Araújo dos Santos Gomes",
+        "email": "katrleen.kelen@portalcci.com.br",
+        "setor": "SETAPE"
+      }
+    ]
   },
   {
     "id": "comunicado_1788197895446_8v3nf",
@@ -44,11 +313,25 @@
     "descricao": "CONTRATURNO E RECUPERAÇÃO\n\n\nInformamos que não haverá contraturno para os estudantes do 6º ao 8º ano no período de 31/08/2026 a 04/09/2026, em razão da realização das avaliações de recuperação do 2º trimestre, conforme o calendário de recuperação.\n\n📌 Atenção: na sexta-feira, 04/09/2026, não haverá aula regular. Neste dia, somente os estudantes que estiverem em recuperação deverão comparecer à escola para a realização das provas, conforme os horários previamente informados.",
     "dataValidade": "2026-09-07",
     "anexosOuLinks": [],
+    "imagens": [],
     "criadoPorEmail": "flavia.araujo@portalcci.com.br",
     "criadoPorNome": "Flávia Kenany Pereira de Araujo",
     "criadoEm": "2026-08-31T17:38:15.446+00:00",
-    "atualizadoEm": "2026-08-31T17:38:48.635+00:00",
-    "cientes": []
+    "atualizadoEm": "2026-08-31T19:50:19.356+00:00",
+    "cientes": [
+      {
+        "data": "2026-08-31T19:35:41.609Z",
+        "nome": "João Felipe de Oliveira Leite",
+        "email": "joao.leite@portalcci.com.br",
+        "setor": "SECRETARIA"
+      },
+      {
+        "data": "2026-08-31T19:50:19.355Z",
+        "nome": "Leandra Layla Gonçalves de Resende",
+        "email": "leandra.resende@portalcci.com.br",
+        "setor": "SECRETARIA"
+      }
+    ]
   },
   {
     "id": "comunicado_1788197132779_qr8hs",
@@ -78,11 +361,25 @@
         "titulo": "6º A, 6º B e 6º C"
       }
     ],
+    "imagens": [],
     "criadoPorEmail": "flavia.araujo@portalcci.com.br",
     "criadoPorNome": "Flávia Kenany Pereira de Araujo",
     "criadoEm": "2026-08-31T17:25:32.779+00:00",
-    "atualizadoEm": "2026-08-31T17:25:32.779+00:00",
-    "cientes": []
+    "atualizadoEm": "2026-08-31T19:50:56.354+00:00",
+    "cientes": [
+      {
+        "data": "2026-08-31T19:35:54.896Z",
+        "nome": "João Felipe de Oliveira Leite",
+        "email": "joao.leite@portalcci.com.br",
+        "setor": "SECRETARIA"
+      },
+      {
+        "data": "2026-08-31T19:50:56.354Z",
+        "nome": "Leandra Layla Gonçalves de Resende",
+        "email": "leandra.resende@portalcci.com.br",
+        "setor": "SECRETARIA"
+      }
+    ]
   },
   {
     "id": "comunicado_1787952153831_0cwz6",
@@ -105,11 +402,25 @@
     "descricao": "Passando para informar que, na próxima semana, iniciaremos o PROERD – Programa Educacional de Resistência às Drogas e à Violência com os estudantes do 5º ano D e E – Vespertino.\n\nAs aulas acontecerão uma vez por semana, alternando entre terça e quarta-feira, conforme a organização do programa.\n\nNesta primeira semana, excepcionalmente, o encontro acontecerá na quarta-feira, dia 02/09/2026.",
     "dataValidade": "2026-11-30",
     "anexosOuLinks": [],
+    "imagens": [],
     "criadoPorEmail": "mabia.santos@portalcci.com.br",
     "criadoPorNome": "Mábia Lucy Félix dos Santos",
     "criadoEm": "2026-08-28T21:22:33.831+00:00",
-    "atualizadoEm": "2026-08-28T21:22:33.831+00:00",
-    "cientes": []
+    "atualizadoEm": "2026-08-31T19:51:14.403+00:00",
+    "cientes": [
+      {
+        "data": "2026-08-31T19:36:00.836Z",
+        "nome": "João Felipe de Oliveira Leite",
+        "email": "joao.leite@portalcci.com.br",
+        "setor": "SECRETARIA"
+      },
+      {
+        "data": "2026-08-31T19:51:14.403Z",
+        "nome": "Leandra Layla Gonçalves de Resende",
+        "email": "leandra.resende@portalcci.com.br",
+        "setor": "SECRETARIA"
+      }
+    ]
   },
   {
     "id": "comunicado_1787942407594_mekjp",
@@ -136,10 +447,11 @@
         "titulo": "Conteúdos de recuperação"
       }
     ],
+    "imagens": [],
     "criadoPorEmail": "flavia.araujo@portalcci.com.br",
     "criadoPorNome": "Flávia Kenany Pereira de Araujo",
     "criadoEm": "2026-08-28T18:40:07.594+00:00",
-    "atualizadoEm": "2026-08-28T19:38:58.14+00:00",
+    "atualizadoEm": "2026-08-31T19:51:23.613+00:00",
     "cientes": [
       {
         "data": "2026-08-28T18:43:54.752Z",
@@ -152,6 +464,18 @@
         "nome": "Jediael Reis",
         "email": "jediael.reis@portalcci.com.br",
         "setor": "SETAPE"
+      },
+      {
+        "data": "2026-08-31T19:36:10.305Z",
+        "nome": "João Felipe de Oliveira Leite",
+        "email": "joao.leite@portalcci.com.br",
+        "setor": "SECRETARIA"
+      },
+      {
+        "data": "2026-08-31T19:51:23.613Z",
+        "nome": "Leandra Layla Gonçalves de Resende",
+        "email": "leandra.resende@portalcci.com.br",
+        "setor": "SECRETARIA"
       }
     ]
   },
@@ -170,6 +494,7 @@
     "descricao": "Teste 2.0",
     "dataValidade": "2026-08-27",
     "anexosOuLinks": [],
+    "imagens": [],
     "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
     "criadoPorNome": "Thiago Santos Ferreira",
     "criadoEm": "2026-08-27T16:28:58.412+00:00",
@@ -197,6 +522,7 @@
     "descricao": "Teste 2",
     "dataValidade": "2026-08-18",
     "anexosOuLinks": [],
+    "imagens": [],
     "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
     "criadoPorNome": "Thiago Santos Ferreira",
     "criadoEm": "2026-08-26T20:47:43.218+00:00",
@@ -217,6 +543,7 @@
     "descricao": "Teste de comunicado",
     "dataValidade": "2026-08-25",
     "anexosOuLinks": [],
+    "imagens": [],
     "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
     "criadoPorNome": "Thiago Santos Ferreira",
     "criadoEm": "2026-08-26T20:43:53.996+00:00",
@@ -245,6 +572,7 @@
     "descricao": "Estamos fazendo um teste",
     "dataValidade": "2026-08-27",
     "anexosOuLinks": [],
+    "imagens": [],
     "criadoPorEmail": "thiago.ferreira@portalcci.com.br",
     "criadoPorNome": "Thiago Santos Ferreira",
     "criadoEm": "2026-08-26T20:31:22.656+00:00",

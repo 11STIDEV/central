@@ -101,8 +101,8 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 registerAtestadosRoutes(app);
 
@@ -6116,6 +6116,7 @@ app.post("/api/comunicados-intersetoriais/criar", async (req, res) => {
       descricao: String(novoComunicado.descricao).trim(),
       dataValidade: novoComunicado.dataValidade || null,
       anexosOuLinks: Array.isArray(novoComunicado.anexosOuLinks) ? novoComunicado.anexosOuLinks : [],
+      imagens: Array.isArray(novoComunicado.imagens) ? novoComunicado.imagens : (novoComunicado.imagemUrl ? [novoComunicado.imagemUrl] : []),
       criadoPorEmail: userEmail,
       criadoPorNome: userNome || userEmail,
       criadoEm: new Date().toISOString(),
