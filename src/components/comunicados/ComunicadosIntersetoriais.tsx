@@ -704,11 +704,112 @@ export default function ComunicadosIntersetoriais() {
                   </span>
                 </div>
 
-                {/* CORPO: TÍTULO E DESCRIÇÃO */}
-                <div className="mt-3 space-y-2">
+                {/* CORPO: TÍTULO, BANNER DE IMAGEM E DESCRIÇÃO */}
+                <div className="mt-3 space-y-3">
                   <h3 className="text-lg font-bold text-foreground leading-snug">
                     {c.titulo}
                   </h3>
+
+                  {/* IMAGENS EM ESTILO DE BANNER (LOGO ABAIXO DO TÍTULO) */}
+                  {c.imagens && c.imagens.length > 0 && (
+                    <div>
+                      {c.imagens.length === 1 ? (
+                        /* BANNER ÚNICO FULL-WIDTH */
+                        <div
+                          onClick={() => setLightbox({ open: true, images: c.imagens!, index: 0, title: c.titulo })}
+                          className="group relative my-2 w-full overflow-hidden rounded-xl border border-border/80 bg-slate-950/5 dark:bg-slate-950/40 shadow-sm transition-all hover:shadow-md hover:border-primary/50 cursor-pointer h-52 sm:h-72 md:h-80 flex items-center justify-center"
+                          title="Clique para ampliar o banner em tela cheia"
+                        >
+                          <img
+                            src={c.imagens[0]}
+                            alt={`Banner de ${c.titulo}`}
+                            className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.02]"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 flex items-end justify-between p-3 sm:p-4">
+                            <span className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-md">
+                              <Maximize2 className="h-3.5 w-3.5" />
+                              <span>Clique para ver em tela cheia</span>
+                            </span>
+                          </div>
+                        </div>
+                      ) : c.imagens.length === 2 ? (
+                        /* 2 BANNERS LADO A LADO */
+                        <div className="my-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {c.imagens.map((imgUrl, imgIdx) => (
+                            <div
+                              key={imgIdx}
+                              onClick={() => setLightbox({ open: true, images: c.imagens!, index: imgIdx, title: c.titulo })}
+                              className="group relative overflow-hidden rounded-xl border border-border/80 bg-slate-950/5 dark:bg-slate-950/40 shadow-sm transition-all hover:shadow-md hover:border-primary/50 cursor-pointer h-48 sm:h-56"
+                              title="Clique para ampliar"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Banner ${imgIdx + 1} de ${c.titulo}`}
+                                className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.03]"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 flex items-end justify-between p-3">
+                                <span className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-md">
+                                  <Maximize2 className="h-3.5 w-3.5" />
+                                  <span>Imagem #{imgIdx + 1}</span>
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        /* 3 OU MAIS IMAGENS: BANNER PRINCIPAL + MINI-BANNERS */
+                        <div className="my-2 space-y-2">
+                          <div
+                            onClick={() => setLightbox({ open: true, images: c.imagens!, index: 0, title: c.titulo })}
+                            className="group relative w-full overflow-hidden rounded-xl border border-border/80 bg-slate-950/5 dark:bg-slate-950/40 shadow-sm transition-all hover:shadow-md hover:border-primary/50 cursor-pointer h-52 sm:h-64"
+                            title="Clique para ampliar o banner principal"
+                          >
+                            <img
+                              src={c.imagens[0]}
+                              alt={`Banner de ${c.titulo}`}
+                              className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.02]"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent flex items-end justify-between p-3 sm:p-4">
+                              <span className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-md">
+                                <Maximize2 className="h-3.5 w-3.5" />
+                                <span>Banner Principal</span>
+                              </span>
+                              <span className="rounded-lg bg-primary/90 px-2.5 py-1 text-[11px] font-bold text-primary-foreground backdrop-blur-md shadow">
+                                +{c.imagens.length - 1} fotos adicionais
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {c.imagens.slice(1).map((imgUrl, imgIdx) => {
+                              const realIdx = imgIdx + 1;
+                              return (
+                                <div
+                                  key={realIdx}
+                                  onClick={() => setLightbox({ open: true, images: c.imagens!, index: realIdx, title: c.titulo })}
+                                  className="group relative h-20 sm:h-24 overflow-hidden rounded-lg border border-border bg-slate-950/5 dark:bg-slate-950/40 cursor-pointer shadow-2xs transition-all hover:scale-[1.02] hover:border-primary/50"
+                                  title={`Ver imagem #${realIdx + 1}`}
+                                >
+                                  <img
+                                    src={imgUrl}
+                                    alt={`Imagem ${realIdx + 1} de ${c.titulo}`}
+                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Maximize2 className="h-4 w-4 text-white" />
+                                  </div>
+                                  <span className="absolute left-1.5 bottom-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white backdrop-blur-xs">
+                                    #{realIdx + 1}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <p className="whitespace-pre-line text-xs text-muted-foreground leading-relaxed">
                     {c.descricao}
                   </p>
@@ -734,48 +835,6 @@ export default function ComunicadosIntersetoriais() {
                           </span>
                         );
                       })}
-                    </div>
-                  </div>
-                )}
-
-                {/* IMAGENS / CARTAZES ANEXADOS (QUADRADOS PEQUENOS, COMPACTOS E SEM BORDAS) */}
-                {c.imagens && c.imagens.length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    <div className="flex items-center justify-between text-[11px] font-bold text-muted-foreground px-0.5">
-                      <span className="flex items-center gap-1.5">
-                        <ImageIcon className="h-3.5 w-3.5 text-primary" />
-                        <span>Imagens Anexadas ({c.imagens.length}):</span>
-                      </span>
-                      <span className="text-[10px] text-muted-foreground/80 font-medium">
-                        Clique para ampliar
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      {c.imagens.map((imgUrl, imgIdx) => (
-                        <div
-                          key={imgIdx}
-                          onClick={() => setLightbox({ open: true, images: c.imagens!, index: imgIdx, title: c.titulo })}
-                          className="group relative h-20 w-20 sm:h-24 sm:w-24 aspect-square cursor-pointer overflow-hidden rounded-xl bg-muted/20 shadow-2xs transition-all hover:scale-105 hover:opacity-95"
-                          title="Clique para ver em tela cheia"
-                        >
-                          <img
-                            src={imgUrl}
-                            alt={`Imagem ${imgIdx + 1} de ${c.titulo}`}
-                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
-                          />
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 backdrop-blur-[1px] transition-opacity duration-200 group-hover:opacity-100">
-                            <div className="flex items-center justify-center rounded-full bg-white/95 p-1.5 text-slate-900 shadow backdrop-blur-md">
-                              <Maximize2 className="h-3.5 w-3.5" />
-                            </div>
-                          </div>
-                          {c.imagens && c.imagens.length > 1 && (
-                            <span className="absolute left-1 bottom-1 rounded bg-black/70 px-1.5 py-0.5 text-[8px] font-bold text-white backdrop-blur-xs">
-                              #{imgIdx + 1}
-                            </span>
-                          )}
-                        </div>
-                      ))}
                     </div>
                   </div>
                 )}

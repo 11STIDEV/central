@@ -1,0 +1,170 @@
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const RAMAIS_FILE = path.join(__dirname, "data", "ramais.json");
+
+/** Lida com leitura fallback do JSON local */
+export function lerRamaisLocal() {
+  try {
+    if (!fs.existsSync(RAMAIS_FILE)) {
+      return [];
+    }
+    const raw = fs.readFileSync(RAMAIS_FILE, "utf-8");
+    return JSON.parse(raw || "[]");
+  } catch (e) {
+    console.error("[ramais-store] Erro ao ler JSON local:", e.message);
+    return [];
+  }
+}
+
+/** Lida com gravação local no JSON */
+export function salvarRamaisLocal(dados) {
+  try {
+    const dir = path.dirname(RAMAIS_FILE);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(RAMAIS_FILE, JSON.stringify(dados, null, 2), "utf-8");
+  } catch (e) {
+    console.error("[ramais-store] Erro ao salvar JSON local:", e.message);
+  }
+}
+
+/** Converte linha do Supabase para objeto Ramal */
+function rowToRamal(row) {
+  return {
+    id: row.id,
+    nome: row.nome,
+    ramal: row.ramal,
+    setor: row.setor,
+    ordem: row.ordem ?? 0,
+    criadoEm: row.criado_em,
+    atualizadoEm: row.atualizado_em
+  };
+}
+
+/** Converte objeto Ramal para linha do Supabase */
+function ramalToRow(item) {
+  return {
+    id: item.id,
+    nome: item.nome,
+    ramal: item.ramal,
+    setor: item.setor,
+    ordem: item.ordem ?? 0,
+    criado_em: item.criadoEm || new Date().toISOString(),
+    atualizado_em: item.atualizadoEm || new Date().toISOString()
+  };
+}
+
+/** Listar Ramais (Tenta Supabase, com fallback para JSON local) */
+export async function listarRamaisStore(supabase) {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from("intranet_ramais")
+        .select("*")
+        .order("ordem", { ascending: true });
+
+      if (!error && data && data.length > 0) {
+        const listaSupa = data.map(rowToRamal);
+        salvarRamaisLocal(listaSupa);
+        return listaSupa;
+      } else if (error) {
+        console.warn("[ramais-store] Tabela Supabase não encontrada ou vazia, usando JSON local:", error.message);
+      }
+    } catch (e) {
+      console.warn("[ramais-store] Exceção ao consultar Supabase, usando JSON local:", e.message);
+    }
+  }
+
+  return lerRamaisLocal();
+}
+
+/** Salvar ou Criar Ramal (Salva no JSON local e no Supabase) */
+export async function salvarRamalStore(supabase, ramal) {
+  const agora = new Date().toISOString();
+  const locais = lerRamaisLocal();
+  
+  let item = { ...ramal };
+  if (!item.id) {
+    item.id = `ramal-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    item.criadoEm = agora;
+  }
+  item.atualizadoEm = agora;
+
+  const idx = locais.findIndex((r) => r.id === item.id);
+  if (idx !== -1) {
+    locais[idx] = { ...locais[idx], ...item };
+    item = locais[idx];
+  } else {
+    if (item.ordem === undefined) {
+      item.ordem = locais.length + 1;
+    }
+    locais.push(item);
+  }
+
+  salvarRamaisLocal(locais);
+
+  if (supabase) {
+    try {
+      const row = ramalToRow(item);
+      const { error } = await supabase
+        .from("intranet_ramais")
+        .upsert(row, { onConflict: "id" });
+
+      if (error) {
+        console.warn("[ramais-store] Erro ao fazer upsert no Supabase:", error.message);
+      }
+    } catch (e) {
+      console.warn("[ramais-store] Exceção ao persistir no Supabase:", e.message);
+    }
+  }
+
+  return item;
+}
+
+/** Excluir Ramal */
+export async function excluirRamalStore(supabase, id) {
+  let locais = lerRamaisLocal();
+  locais = locais.filter((r) => r.id !== id);
+  salvarRamaisLocal(locais);
+
+  if (supabase) {
+    try {
+      const { error } = await supabase
+        .from("intranet_ramais")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        console.warn("[ramais-store] Erro ao excluir do Supabase:", error.message);
+      }
+    } catch (e) {
+      console.warn("[ramais-store] Exceção ao excluir do Supabase:", e.message);
+    }
+  }
+
+  return true;
+}
+
+/** Salvar lista completa / Reordenar */
+export async function salvarTodosRamaisStore(supabase, listaRamais) {
+  salvarRamaisLocal(listaRamais);
+
+  if (supabase && Array.isArray(listaRamais) && listaRamais.length > 0) {
+    try {
+      const rows = listaRamais.map(ramalToRow);
+      const { error } = await supabase
+        .from("intranet_ramais")
+        .upsert(rows, { onConflict: "id" });
+
+      if (error) {
+        console.warn("[ramais-store] Erro ao fazer upsert em lote no Supabase:", error.message);
+      }
+    } catch (e) {
+      console.warn("[ramais-store] Exceção ao fazer upsert em lote no Supabase:", e.message);
+    }
+  }
+
+  return listaRamais;
+}

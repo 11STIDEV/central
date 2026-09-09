@@ -33,7 +33,7 @@ import {
   getSessionIdFromRequest,
   iniciarSessaoUsuario,
 } from "./sessionAuth.js";
-import { resolverPapeisCompletos } from "./userContext.js";
+import { resolverPapeisCompletos, isCentralAdminEmail } from "./userContext.js";
 import {
   listarTodosChamados,
   obterChamadoPorId,
@@ -63,6 +63,12 @@ import {
   atualizarComunicadoStore,
   excluirComunicadoStore,
 } from "./comunicadosStore.js";
+import {
+  listarRamaisStore,
+  salvarRamalStore,
+  excluirRamalStore,
+  salvarTodosRamaisStore,
+} from "./ramaisStore.js";
 import {
   lerProgressoUsuario,
   salvarProgressoUsuario,
@@ -6327,6 +6333,114 @@ app.post("/api/comunicados-intersetoriais/excluir", async (req, res) => {
     return res.json({ ok: true });
   } catch (e) {
     console.error("[comunicados-intersetoriais-excluir] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+// ── Ramais Telefônicos ────────────────────────────────────────────────
+
+app.get("/api/ramais", async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    const ramais = await listarRamaisStore(supabase);
+    return res.json({ ok: true, ramais });
+  } catch (e) {
+    console.error("[ramais-listar] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ramais/listar", async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    const ramais = await listarRamaisStore(supabase);
+    return res.json({ ok: true, ramais });
+  } catch (e) {
+    console.error("[ramais-listar] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ramais/salvar", async (req, res) => {
+  try {
+    const { ramal } = req.body || {};
+    if (!ramal || !ramal.nome || !ramal.ramal || !ramal.setor) {
+      return res.status(400).json({ error: "Nome, ramal e setor são obrigatórios." });
+    }
+
+    const ctx = await resolverContextoFromRequest(req);
+    const papeis = (ctx.papeis || []).map(p => String(p).toLowerCase());
+    const podeEditar =
+      papeis.includes("admin") ||
+      papeis.includes("painel_admin") ||
+      papeis.includes("setape") ||
+      isCentralAdminEmail(ctx.email);
+
+    if (!podeEditar) {
+      return res.status(403).json({ error: "Você não tem permissão para gerenciar ramais." });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const ramalSalvo = await salvarRamalStore(supabase, ramal);
+    return res.json({ ok: true, ramal: ramalSalvo });
+  } catch (e) {
+    console.error("[ramais-salvar] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ramais/excluir", async (req, res) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) {
+      return res.status(400).json({ error: "ID do ramal não fornecido." });
+    }
+
+    const ctx = await resolverContextoFromRequest(req);
+    const papeis = (ctx.papeis || []).map(p => String(p).toLowerCase());
+    const podeEditar =
+      papeis.includes("admin") ||
+      papeis.includes("painel_admin") ||
+      papeis.includes("setape") ||
+      isCentralAdminEmail(ctx.email);
+
+    if (!podeEditar) {
+      return res.status(403).json({ error: "Você não tem permissão para excluir ramais." });
+    }
+
+    const supabase = getSupabaseAdmin();
+    await excluirRamalStore(supabase, id);
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("[ramais-excluir] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ramais/salvar-todos", async (req, res) => {
+  try {
+    const { ramais } = req.body || {};
+    if (!Array.isArray(ramais)) {
+      return res.status(400).json({ error: "Lista de ramais inválida." });
+    }
+
+    const ctx = await resolverContextoFromRequest(req);
+    const papeis = (ctx.papeis || []).map(p => String(p).toLowerCase());
+    const podeEditar =
+      papeis.includes("admin") ||
+      papeis.includes("painel_admin") ||
+      papeis.includes("setape") ||
+      isCentralAdminEmail(ctx.email);
+
+    if (!podeEditar) {
+      return res.status(403).json({ error: "Você não tem permissão para gerenciar ramais." });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const listaSalva = await salvarTodosRamaisStore(supabase, ramais);
+    return res.json({ ok: true, ramais: listaSalva });
+  } catch (e) {
+    console.error("[ramais-salvar-todos] Erro:", e);
     return res.status(500).json({ error: e.message });
   }
 });
