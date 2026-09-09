@@ -68,6 +68,7 @@ export async function listarRamaisStore(supabase) {
       if (!error && Array.isArray(data)) {
         if (data.length > 0) {
           const listaSupa = data.map(rowToRamal);
+          console.log(`[ramais-store] Retornando ${listaSupa.length} ramais do Supabase.`);
           salvarRamaisLocal(listaSupa);
           return listaSupa;
         } else {
@@ -89,6 +90,7 @@ export async function listarRamaisStore(supabase) {
   }
 
   const locais = lerRamaisLocal();
+  console.log(`[ramais-store] Retornando ${locais.length} ramais do arquivo local de contingência.`);
   return (locais || []).map(rowToRamal);
 }
 

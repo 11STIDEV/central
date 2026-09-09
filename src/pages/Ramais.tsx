@@ -76,37 +76,67 @@ export default function Ramais() {
     );
   }, [usuario]);
 
-  // Carregar lista de ramais do banco de dados via API
+  // Carregar lista de ramais do banco de dados via API (suporta GET /api/ramais e POST /api/ramais/listar como fallback)
   const carregarRamais = async () => {
     setLoading(true);
     try {
+      // 1. Tentativa principal: GET /api/ramais
       let res = await centralFetch(apiUrl("/api/ramais"));
       if (!res.ok) {
         res = await fetch(apiUrl("/api/ramais"));
       }
+
+      // 2. Se GET falhar (ex: 404 em versões antigas de proxy), tenta POST /api/ramais/listar
+      if (!res.ok) {
+        console.warn(`[Ramais] GET /api/ramais retornou status ${res.status}. Tentando fallback POST /api/ramais/listar...`);
+        res = await centralFetch(apiUrl("/api/ramais/listar"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({})
+        });
+        if (!res.ok) {
+          res = await fetch(apiUrl("/api/ramais/listar"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({})
+          });
+        }
+      }
+
+      if (!res.ok) {
+        throw new Error(`Servidor respondeu com status ${res.status}`);
+      }
+
       const data = await res.json();
+      console.log("[Ramais] Dados recebidos da API:", data);
+
       if (data && data.ok && Array.isArray(data.ramais)) {
         setRamais(data.ramais);
       } else if (Array.isArray(data)) {
         setRamais(data);
+      } else if (data && Array.isArray(data.data)) {
+        setRamais(data.data);
       } else {
+        console.warn("[Ramais] Formato de dados inesperado recebido:", data);
         setRamais([]);
       }
-    } catch (e) {
-      console.warn("Falha ao buscar ramais da API, tentando fallback direto:", e);
+    } catch (e: any) {
+      console.error("[Ramais] Erro ao carregar ramais:", e?.message || e);
+      // Tentativa extrema via POST direto
       try {
-        const res2 = await fetch(apiUrl("/api/ramais"));
-        const data2 = await res2.json();
-        if (data2 && data2.ok && Array.isArray(data2.ramais)) {
-          setRamais(data2.ramais);
-        } else if (Array.isArray(data2)) {
-          setRamais(data2);
-        } else {
-          setRamais([]);
+        const fallbackRes = await fetch(apiUrl("/api/ramais/listar"), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({})
+        });
+        const fallbackData = await fallbackRes.json();
+        if (fallbackData && fallbackData.ok && Array.isArray(fallbackData.ramais)) {
+          setRamais(fallbackData.ramais);
+        } else if (Array.isArray(fallbackData)) {
+          setRamais(fallbackData);
         }
       } catch (errFallback) {
-        console.error("Erro fatal ao carregar ramais:", errFallback);
-        setRamais([]);
+        console.error("[Ramais] Falha também no fallback emergencial:", errFallback);
       }
     } finally {
       setLoading(false);
