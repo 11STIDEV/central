@@ -80,16 +80,34 @@ export default function Ramais() {
   const carregarRamais = async () => {
     setLoading(true);
     try {
-      const res = await centralFetch(apiUrl("/api/ramais"));
+      let res = await centralFetch(apiUrl("/api/ramais"));
+      if (!res.ok) {
+        res = await fetch(apiUrl("/api/ramais"));
+      }
       const data = await res.json();
-      if (data.ok && Array.isArray(data.ramais)) {
+      if (data && data.ok && Array.isArray(data.ramais)) {
         setRamais(data.ramais);
+      } else if (Array.isArray(data)) {
+        setRamais(data);
       } else {
         setRamais([]);
       }
     } catch (e) {
-      console.warn("Falha ao buscar ramais da API:", e);
-      setRamais([]);
+      console.warn("Falha ao buscar ramais da API, tentando fallback direto:", e);
+      try {
+        const res2 = await fetch(apiUrl("/api/ramais"));
+        const data2 = await res2.json();
+        if (data2 && data2.ok && Array.isArray(data2.ramais)) {
+          setRamais(data2.ramais);
+        } else if (Array.isArray(data2)) {
+          setRamais(data2);
+        } else {
+          setRamais([]);
+        }
+      } catch (errFallback) {
+        console.error("Erro fatal ao carregar ramais:", errFallback);
+        setRamais([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -103,7 +121,8 @@ export default function Ramais() {
   const listaSetores = useMemo(() => {
     const sets = new Set<string>();
     ramais.forEach((r) => {
-      if (r.setor && r.setor.trim()) sets.add(r.setor.trim());
+      const s = String(r.setor || "").trim();
+      if (s) sets.add(s);
     });
     return Array.from(sets).sort((a, b) => a.localeCompare(b));
   }, [ramais]);
@@ -111,22 +130,24 @@ export default function Ramais() {
   // Itens filtrados por busca e setor
   const filtered = useMemo(() => {
     return ramais.filter((r) => {
+      const setorNome = String(r.setor || "").trim();
       const matchSetor =
-        setorFilter === "Todos os setores" || r.setor === setorFilter;
+        setorFilter === "Todos os setores" || setorNome === setorFilter;
       const term = search.toLowerCase().trim();
       const matchSearch =
         !term ||
-        r.nome.toLowerCase().includes(term) ||
-        r.setor.toLowerCase().includes(term) ||
-        r.ramal.includes(term);
+        String(r.nome || "").toLowerCase().includes(term) ||
+        setorNome.toLowerCase().includes(term) ||
+        String(r.ramal || "").toLowerCase().includes(term);
       return matchSetor && matchSearch;
     });
   }, [ramais, setorFilter, search]);
 
   const handleCopiarRamal = (ramal: string) => {
-    navigator.clipboard.writeText(ramal);
-    setCopiedRamal(ramal);
-    toast.success(`Ramal ${ramal} copiado!`);
+    const ramalStr = String(ramal || "");
+    navigator.clipboard.writeText(ramalStr);
+    setCopiedRamal(ramalStr);
+    toast.success(`Ramal ${ramalStr} copiado!`);
     setTimeout(() => setCopiedRamal(null), 2000);
   };
 

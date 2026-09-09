@@ -30,27 +30,27 @@ export function salvarRamaisLocal(dados) {
   }
 }
 
-/** Converte linha do Supabase para objeto Ramal */
+/** Converte linha do Supabase para objeto Ramal com tipos garantidos */
 function rowToRamal(row) {
   return {
-    id: row.id,
-    nome: row.nome,
-    ramal: row.ramal,
-    setor: row.setor,
-    ordem: row.ordem ?? 0,
-    criadoEm: row.criado_em,
-    atualizadoEm: row.atualizado_em
+    id: String(row.id || `ramal-${Math.random()}`),
+    nome: String(row.nome || ""),
+    ramal: String(row.ramal || ""),
+    setor: String(row.setor || ""),
+    ordem: Number(row.ordem ?? 0),
+    criadoEm: row.criado_em || row.criadoEm,
+    atualizadoEm: row.atualizado_em || row.atualizadoEm
   };
 }
 
 /** Converte objeto Ramal para linha do Supabase */
 function ramalToRow(item) {
   return {
-    id: item.id,
-    nome: item.nome,
-    ramal: item.ramal,
-    setor: item.setor,
-    ordem: item.ordem ?? 0,
+    id: String(item.id || `ramal-${Date.now()}`),
+    nome: String(item.nome || ""),
+    ramal: String(item.ramal || ""),
+    setor: String(item.setor || ""),
+    ordem: Number(item.ordem ?? 0),
     criado_em: item.criadoEm || new Date().toISOString(),
     atualizado_em: item.atualizadoEm || new Date().toISOString()
   };
@@ -65,7 +65,7 @@ export async function listarRamaisStore(supabase) {
         .select("*")
         .order("ordem", { ascending: true });
 
-      if (!error && data) {
+      if (!error && Array.isArray(data)) {
         if (data.length > 0) {
           const listaSupa = data.map(rowToRamal);
           salvarRamaisLocal(listaSupa);
@@ -74,10 +74,10 @@ export async function listarRamaisStore(supabase) {
           // Se a tabela no Supabase existir mas estiver vazia, popula automaticamente com os dados locais
           const locais = lerRamaisLocal();
           if (locais.length > 0) {
-            console.log("[ramais-store] Populando tabela intranet_ramais no Supabase com os dados iniciais...");
+            console.log("[ramais-store] Populando tabela intranet_ramais no Supabase com os dados locais...");
             const rows = locais.map(ramalToRow);
             await supabase.from("intranet_ramais").upsert(rows, { onConflict: "id" });
-            return locais;
+            return locais.map(rowToRamal);
           }
         }
       } else if (error) {
@@ -88,7 +88,8 @@ export async function listarRamaisStore(supabase) {
     }
   }
 
-  return lerRamaisLocal();
+  const locais = lerRamaisLocal();
+  return (locais || []).map(rowToRamal);
 }
 
 /** Salvar ou Criar Ramal (Salva no JSON local e no Supabase) */

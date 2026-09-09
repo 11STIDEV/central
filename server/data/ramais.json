@@ -4,105 +4,135 @@
     "nome": "Clayton",
     "ramal": "213",
     "setor": "Direção",
-    "ordem": 1
+    "ordem": 1,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-2",
     "nome": "Ademilton",
     "ramal": "212",
     "setor": "Direção",
-    "ordem": 2
+    "ordem": 2,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-3",
     "nome": "Valquíria/Renata",
     "ramal": "211",
     "setor": "Direção",
-    "ordem": 3
+    "ordem": 3,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-4",
     "nome": "Valquíria",
     "ramal": "210",
     "setor": "Direção",
-    "ordem": 4
+    "ordem": 4,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-5",
     "nome": "Atendente 1",
     "ramal": "203",
     "setor": "Secretaria de atendimento",
-    "ordem": 5
+    "ordem": 5,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-6",
     "nome": "Atendente 2",
     "ramal": "204",
     "setor": "Secretaria de atendimento",
-    "ordem": 6
+    "ordem": 6,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-7",
     "nome": "Atendente 3",
     "ramal": "205",
     "setor": "Secretaria de atendimento",
-    "ordem": 7
+    "ordem": 7,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-8",
     "nome": "Atendente 4",
     "ramal": "209",
     "setor": "Secretaria de atendimento",
-    "ordem": 8
+    "ordem": 8,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-9",
     "nome": "Atendente 5",
     "ramal": "208",
     "setor": "Secretaria de atendimento",
-    "ordem": 9
+    "ordem": 9,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-10",
     "nome": "Katrleen",
     "ramal": "207",
     "setor": "Secretaria de atendimento",
-    "ordem": 10
+    "ordem": 10,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-11",
     "nome": "Vanessa",
     "ramal": "206",
     "setor": "Secretaria de atendimento",
-    "ordem": 11
+    "ordem": 11,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-12",
     "nome": "Atendente 1",
     "ramal": "240",
     "setor": "Faculdade CCI",
-    "ordem": 12
+    "ordem": 12,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-13",
     "nome": "Atendente 2",
     "ramal": "241",
     "setor": "Faculdade CCI",
-    "ordem": 13
+    "ordem": 13,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-14",
     "nome": "Valéria/Jesiel",
     "ramal": "244",
     "setor": "Faculdade CCI",
-    "ordem": 14
+    "ordem": 14,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-15",
     "nome": "Giovanna/Renato/Rodrigo",
     "ramal": "250",
     "setor": "NegoCCIe",
-    "ordem": 15
+    "ordem": 15,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-16",
@@ -110,209 +140,268 @@
     "ramal": "251",
     "setor": "NegoCCIe",
     "ordem": 16,
-    "atualizadoEm": "2026-09-09T18:07:47.483Z"
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-17",
     "nome": "Michel",
     "ramal": "215",
     "setor": "Coordenação",
-    "ordem": 17
+    "ordem": 17,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-18",
     "nome": "Stephanie",
     "ramal": "216",
     "setor": "Coordenação",
-    "ordem": 18
+    "ordem": 18,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-19",
     "nome": "Luzimar",
     "ramal": "218",
     "setor": "Coordenação",
-    "ordem": 19
+    "ordem": 19,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-20",
     "nome": "Aldeni",
     "ramal": "219",
     "setor": "Coordenação",
-    "ordem": 20
+    "ordem": 20,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-21",
     "nome": "Andresa",
     "ramal": "220",
     "setor": "Coordenação",
-    "ordem": 21
+    "ordem": 21,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-22",
     "nome": "Thaisa",
     "ramal": "221",
     "setor": "Coordenação",
-    "ordem": 22
+    "ordem": 22,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-23",
     "nome": "Mábia",
     "ramal": "222",
     "setor": "Coordenação",
-    "ordem": 23
+    "ordem": 23,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-24",
     "nome": "Flávia",
     "ramal": "223",
     "setor": "Coordenação",
-    "ordem": 24
+    "ordem": 24,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-25",
     "nome": "Kátia",
     "ramal": "224",
     "setor": "Coordenação",
-    "ordem": 25
+    "ordem": 25,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-26",
     "nome": "Isabel",
     "ramal": "225",
     "setor": "Coordenação",
-    "ordem": 26
+    "ordem": 26,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-27",
     "nome": "Rafael",
     "ramal": "226",
     "setor": "Coordenação",
-    "ordem": 27
+    "ordem": 27,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-28",
     "nome": "Félix",
     "ramal": "227",
     "setor": "Coordenação",
-    "ordem": 28
+    "ordem": 28,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-29",
     "nome": "Francianne",
     "ramal": "239",
     "setor": "Coordenação",
-    "ordem": 29
+    "ordem": 29,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-30",
     "nome": "Francisco",
     "ramal": "237",
     "setor": "Departamento pessoal e financeiro",
-    "ordem": 30
+    "ordem": 30,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-31",
     "nome": "Mirla",
     "ramal": "238",
     "setor": "Departamento pessoal e financeiro",
-    "ordem": 31
+    "ordem": 31,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-32",
     "nome": "Michelle",
     "ramal": "263",
     "setor": "Departamento pessoal e financeiro",
-    "ordem": 32
+    "ordem": 32,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-33",
     "nome": "Leane/Nathalia",
     "ramal": "264",
     "setor": "Departamento pessoal e financeiro",
-    "ordem": 33
+    "ordem": 33,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-34",
     "nome": "Jediael/Thiago",
     "ramal": "232",
     "setor": "Setape",
-    "ordem": 34
+    "ordem": 34,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-35",
     "nome": "Hugo/Pedro/Yuri",
     "ramal": "235",
     "setor": "Setape",
-    "ordem": 35
+    "ordem": 35,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-36",
     "nome": "Ângela",
     "ramal": "228",
     "setor": "Coordenação infantil ao 1º EF",
-    "ordem": 36
+    "ordem": 36,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-37",
     "nome": "Regina",
     "ramal": "229",
     "setor": "Coordenação infantil ao 1º EF",
-    "ordem": 37
+    "ordem": 37,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-38",
     "nome": "Ivete",
     "ramal": "230",
     "setor": "Coordenação infantil ao 1º EF",
-    "ordem": 38
+    "ordem": 38,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-39",
     "nome": "Joyce",
     "ramal": "231",
     "setor": "Enfermaria",
-    "ordem": 39
+    "ordem": 39,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-40",
     "nome": "Bárbara",
     "ramal": "253",
     "setor": "Publicidade",
-    "ordem": 40
+    "ordem": 40,
+    "criadoEm": "2026-09-09T18:25:08.877+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-41",
     "nome": "Sirlene/Edivanete",
     "ramal": "233",
     "setor": "Biblioteca",
-    "ordem": 41
+    "ordem": 41,
+    "criadoEm": "2026-09-09T18:25:08.878+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-42",
     "nome": "Fabrício",
     "ramal": "246",
     "setor": "Xerox",
-    "ordem": 42
+    "ordem": 42,
+    "criadoEm": "2026-09-09T18:25:08.878+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-43",
     "nome": "Alessandra",
     "ramal": "260",
     "setor": "Clat",
-    "ordem": 43
+    "ordem": 43,
+    "criadoEm": "2026-09-09T18:25:08.878+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-44",
     "nome": "Geração saúde",
     "ramal": "214",
     "setor": "Lanchonetes",
-    "ordem": 44
+    "ordem": 44,
+    "criadoEm": "2026-09-09T18:25:08.878+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
     "id": "ramal-45",
     "nome": "Delícia de sabor",
     "ramal": "248",
     "setor": "Lanchonetes",
-    "ordem": 45
+    "ordem": 45,
+    "criadoEm": "2026-09-09T18:25:08.878+00:00",
+    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   }
 ]
