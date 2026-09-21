@@ -26,6 +26,9 @@ import { registerSetorLinksRoutes } from "./setorLinks.js";
 import { registerCcipayRoutes } from "./ccipayRoutes.js";
 import { registerCcipayParceiroRoutes } from "./ccipayParceiroRoutes.js";
 import { registerAtestadosRoutes } from "./atestadosRoutes.js";
+import { registerAlterdataRoutes } from "./alterdataRoutes.js";
+import { obterFuncionarioPorEmail, extrairResumoColaborador } from "./alterdataStore.js";
+import { iniciarAgendadorAlterdata } from "./alterdataMonitor.js";
 import { createRequestAuth } from "./requestAuth.js";
 import {
   encerrarSessaoRequest,
@@ -105,6 +108,10 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
 
 registerAtestadosRoutes(app);
+registerAlterdataRoutes(app, getSupabaseAdmin, {
+  resolverContextoFromRequest: (req) => resolverContextoFromRequest(req),
+});
+iniciarAgendadorAlterdata(getSupabaseAdmin);
 
 /** Um ou mais sufixos permitidos, separados por v├¡rgula. Alinhar ao front (`AuthProvider`) e ao `server/.env.example`. */
 function parseDominiosPermitidos() {
@@ -1130,6 +1137,15 @@ app.post("/api/auth/session", async (req, res) => {
       papeis: ctx.papeis,
       orgUnitPath: ctx.orgUnitPath ?? null,
     });
+
+    let alterdataResumo = null;
+    try {
+      const func = await obterFuncionarioPorEmail(getSupabaseAdmin(), ctx.email);
+      if (func) alterdataResumo = extrairResumoColaborador(func);
+    } catch (errFunc) {
+      console.warn("[auth/session] Falha ao consultar Alterdata:", errFunc.message);
+    }
+
     return res.json({
       ok: true,
       sessionId: session.id,
@@ -1138,6 +1154,7 @@ app.post("/api/auth/session", async (req, res) => {
         email: ctx.email,
         picture: ctx.picture,
         papeis: ctx.papeis,
+        alterdata: alterdataResumo,
       },
     });
   } catch (e) {
@@ -1146,19 +1163,29 @@ app.post("/api/auth/session", async (req, res) => {
 });
 
 /**
- * GET /api/auth/me ÔÇö restaura usu├írio da sess├úo (cookie ou header x-central-session).
+ * GET /api/auth/me — restaura usuário da sessão (cookie ou header x-central-session).
  */
-app.get("/api/auth/me", (req, res) => {
+app.get("/api/auth/me", async (req, res) => {
   const ctx = getContextoFromSessionRequest(req);
   if (!ctx) {
-    return res.status(401).json({ error: "Sess├úo expirada ou n├úo autenticado." });
+    return res.status(401).json({ error: "Sessão expirada ou não autenticado." });
   }
+
+  let alterdataResumo = null;
+  try {
+    const func = await obterFuncionarioPorEmail(getSupabaseAdmin(), ctx.email);
+    if (func) alterdataResumo = extrairResumoColaborador(func);
+  } catch (errFunc) {
+    console.warn("[auth/me] Falha ao consultar Alterdata:", errFunc.message);
+  }
+
   return res.json({
     user: {
       nome: ctx.nome,
       email: ctx.email,
       picture: ctx.picture,
       papeis: ctx.papeis,
+      alterdata: alterdataResumo,
     },
     sessionId: getSessionIdFromRequest(req),
   });

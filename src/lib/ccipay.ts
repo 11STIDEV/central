@@ -219,6 +219,17 @@ export async function ccipayListarFuncionarios(idToken: string) {
   return post<{ funcionarios: CcipayFuncionario[] }>("/api/ccipay/funcionarios/listar", idToken);
 }
 
+export async function ccipaySincronizarAlterdata(idToken?: string | null) {
+  return post<{
+    ok: boolean;
+    totalAlterdata: number;
+    sincronizados: number;
+    novosCadastros: number;
+    atualizadosComCodigo: number;
+    funcionarios: CcipayFuncionario[];
+  }>("/api/ccipay/funcionarios/sincronizar-alterdata", idToken);
+}
+
 export async function ccipayAtualizarFuncionario(
   idToken?: string | null,
   email: string,

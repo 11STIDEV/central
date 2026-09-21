@@ -13,6 +13,7 @@ import {
   obterFuncionario,
   listarFuncionarios,
   atualizarFuncionarioAdmin,
+  sincronizarFuncionariosAdvanceComAlterdata,
   somarAdiantamentosCompetencia,
   saldoBonificacao,
   criarMovimento,
@@ -387,6 +388,25 @@ export function registerCcipayRoutes(app, helpers) {
       if (!supabase) return;
       const funcionario = await atualizarFuncionarioAdmin(supabase, email, patch || {});
       return res.json({ ok: true, funcionario });
+    } catch (e) {
+      if (e.status) return respostaErroIdToken(res, e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/ccipay/funcionarios/sincronizar-alterdata", async (req, res) => {
+    try {
+      const { idToken } = req.body || {};
+      const ctx = await ctxFromRequest(req);
+      if (!isCcipayDp(ctx.papeis) && !isCcipayAdmin(ctx.papeis)) {
+        return res.status(403).json({ error: "Sem permissão." });
+      }
+      const supabase = supabaseOr503(res);
+      if (!supabase) return;
+
+      const resultado = await sincronizarFuncionariosAdvanceComAlterdata(supabase);
+      const funcionarios = await listarFuncionarios(supabase);
+      return res.json({ ok: true, ...resultado, funcionarios });
     } catch (e) {
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });

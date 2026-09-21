@@ -2,6 +2,7 @@
 
 import { competenciaAtual } from "./ccipayAccess.js";
 import { emailSinteticoParceiro } from "./parceiroPassword.js";
+import { obterFuncionarioPorEmail, extrairResumoColaborador } from "./alterdataStore.js";
 
 const STATUS_ADIANTAMENTO_ATIVOS = ["pendente", "aprovado", "pago", "descontado_folha"];
 
@@ -84,19 +85,127 @@ export async function obterFuncionario(supabase, email) {
   return data ? rowToFuncionario(data) : null;
 }
 
-export async function registrarOuAtualizarFuncionario(supabase, { email, nome, pixPadrao }) {
+export async function registrarOuAtualizarFuncionario(supabase, { email, nome, pixPadrao, alterdataCodigo }) {
   const now = new Date().toISOString();
-  const existente = await obterFuncionario(supabase, email);
+  const emailLower = String(email).toLowerCase();
+  const existente = await obterFuncionario(supabase, emailLower);
+
+  let alterdataCode = alterdataCodigo || existente?.alterdataCodigo || null;
+  let nomeFinal = nome || existente?.nome || emailLower;
+  let pixFinal = pixPadrao !== undefined ? (pixPadrao || null) : (existente?.pixPadrao || null);
+
+  // Se não tem código Alterdata ou PIX, tenta resolver do banco Alterdata consolidado
+  if (!alterdataCode || !pixFinal || !existente) {
+    try {
+      const alterdataFunc = await obterFuncionarioPorEmail(supabase, emailLower);
+      if (alterdataFunc) {
+        const resumo = extrairResumoColaborador(alterdataFunc);
+        if (!alterdataCode && resumo?.codigo) alterdataCode = resumo.codigo;
+        if ((!existente || !existente.nome) && resumo?.nome) nomeFinal = resumo.nome;
+        if (!pixFinal && resumo?.pixPadrao) pixFinal = resumo.pixPadrao;
+      }
+    } catch {
+      /* fallback silencioso */
+    }
+  }
+
   const row = {
-    email: String(email).toLowerCase(),
-    nome: nome || email,
+    email: emailLower,
+    nome: nomeFinal,
     updated_at: now,
-    ...(pixPadrao !== undefined ? { pix_padrao: pixPadrao || null } : {}),
+    ...(alterdataCode ? { alterdata_codigo: alterdataCode } : {}),
+    ...(pixFinal !== undefined ? { pix_padrao: pixFinal } : {}),
     ...(!existente ? { created_at: now } : {}),
   };
   const { error } = await supabase.from("ccipay_funcionarios").upsert(row, { onConflict: "email" });
   if (error) throw new Error(`[ccipay] upsert funcionario: ${error.message}`);
-  return obterFuncionario(supabase, email);
+  return obterFuncionario(supabase, emailLower);
+}
+
+export async function sincronizarFuncionariosAdvanceComAlterdata(supabase) {
+  if (!supabase) throw new Error("Supabase não configurado.");
+
+  // 1. Busca todos os colaboradores consolidados do Alterdata
+  const { data: colaboradores, error: errAlt } = await supabase
+    .from("intranet_alterdata_funcionarios")
+    .select("*")
+    .order("nome_completo", { ascending: true });
+
+  if (errAlt) throw new Error(`Erro ao consultar Alterdata no Supabase: ${errAlt.message}`);
+
+  // 2. Busca os funcionários já existentes no Advance-CCI
+  const existentes = await listarFuncionarios(supabase);
+  const mapaExistentes = new Map(existentes.map((f) => [f.email.toLowerCase(), f]));
+
+  const now = new Date().toISOString();
+  let novos = 0;
+  let atualizados = 0;
+  let ignoradosSemEmail = 0;
+
+  const rowsToUpsert = [];
+
+  for (const c of colaboradores || []) {
+    if (!c.email || !c.email.trim()) {
+      ignoradosSemEmail += 1;
+      continue;
+    }
+    const emailLower = c.email.trim().toLowerCase();
+    const ex = mapaExistentes.get(emailLower);
+    const resumo = extrairResumoColaborador(c);
+
+    const codigo = resumo?.codigo || c.codigo_contrato_vigente || null;
+    const nome = c.nome_completo || ex?.nome || emailLower;
+    const pix = ex?.pixPadrao || resumo?.pixPadrao || null;
+    const ativo = c.tem_contrato_ativo !== false;
+
+    if (!ex) {
+      novos += 1;
+      rowsToUpsert.push({
+        email: emailLower,
+        nome,
+        alterdata_codigo: codigo,
+        limite_adiantamento: 500.0,
+        limite_bonificacao: null,
+        pix_padrao: pix,
+        ativo,
+        created_at: now,
+        updated_at: now,
+      });
+    } else if (!ex.alterdataCodigo && codigo) {
+      atualizados += 1;
+      rowsToUpsert.push({
+        email: emailLower,
+        nome: ex.nome || nome,
+        alterdata_codigo: codigo,
+        limite_adiantamento: ex.limiteAdiantamento,
+        limite_bonificacao: ex.limiteBonificacao,
+        pix_padrao: ex.pixPadrao || pix,
+        ativo: ex.ativo,
+        created_at: ex.createdAt || now,
+        updated_at: now,
+      });
+    }
+  }
+
+  if (rowsToUpsert.length > 0) {
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < rowsToUpsert.length; i += CHUNK_SIZE) {
+      const chunk = rowsToUpsert.slice(i, i + CHUNK_SIZE);
+      const { error: errUp } = await supabase
+        .from("ccipay_funcionarios")
+        .upsert(chunk, { onConflict: "email" });
+      if (errUp) throw new Error(`Erro ao sincronizar ccipay_funcionarios: ${errUp.message}`);
+    }
+  }
+
+  return {
+    ok: true,
+    totalAlterdata: (colaboradores || []).length,
+    sincronizados: rowsToUpsert.length,
+    novosCadastros: novos,
+    atualizadosComCodigo: atualizados,
+    ignoradosSemEmail,
+  };
 }
 
 export async function listarFuncionarios(supabase) {

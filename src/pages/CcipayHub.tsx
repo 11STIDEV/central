@@ -12,6 +12,7 @@ import {
 } from "@/lib/ccipay";
 import { CcipayQrScannerDialog } from "@/components/ccipay/CcipayQrScannerDialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Table,
@@ -80,6 +81,23 @@ export default function CcipayHub() {
 
         {resumo && (
           <>
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4 shadow-sm">
+              <div>
+                <p className="font-semibold text-foreground">{resumo.funcionario.nome}</p>
+                <p className="text-xs text-muted-foreground">{resumo.funcionario.email}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {resumo.funcionario.alterdataCodigo ? (
+                  <Badge variant="outline" className="border-primary/40 bg-primary/5 text-primary">
+                    Matrícula: #{resumo.funcionario.alterdataCodigo}
+                  </Badge>
+                ) : null}
+                <Badge variant={resumo.funcionario.ativo ? "default" : "secondary"}>
+                  {resumo.funcionario.ativo ? "Advance Ativo" : "Advance Inativo"}
+                </Badge>
+              </div>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <SaldoCard
                 titulo="Adiantamento / vales"
