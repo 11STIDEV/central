@@ -252,6 +252,7 @@ export const EQUIPAMENTOS_CATALOGO: EquipamentoCatalogo[] = [
   { nome: "Caixa de Som", total: 4 },
   { nome: "Microfone sem fio", total: 8 },
   { nome: "Notebook", total: 10 },
+  { nome: "Canhão de luz", total: 2 },
 ];
 
 export const ESPACOS_CATALOGO = [
