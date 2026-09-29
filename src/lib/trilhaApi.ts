@@ -24,7 +24,7 @@ export async function carregarProgressoServidor(): Promise<TrilhaProgressoRaw | 
     const res = await centralFetch(apiUrl("/api/trilha/progresso/obter"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: authJsonBody({}),
     });
     if (!res.ok) return null;
     const data = await res.json();
@@ -58,7 +58,7 @@ export async function salvarProgressoServidor(
     const res = await centralFetch(apiUrl("/api/trilha/progresso/salvar"), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
+      body: authJsonBody(body),
     });
 
     if (!res.ok) return null;
@@ -66,6 +66,38 @@ export async function salvarProgressoServidor(
     return { ofensivaDias: data.ofensivaDias ?? progress.ofensivaDias };
   } catch {
     return null;
+  }
+}
+
+/**
+ * Zera o histórico e o XP do usuário autenticado no servidor.
+ */
+export async function zerarProgressoServidor(): Promise<boolean> {
+  try {
+    const res = await centralFetch(apiUrl("/api/trilha/progresso/zerar"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: authJsonBody({}),
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Zera o histórico e o XP de todos os usuários no servidor (Admin).
+ */
+export async function zerarProgressoTodosUsuariosServidor(): Promise<boolean> {
+  try {
+    const res = await centralFetch(apiUrl("/api/trilha/progresso/zerar-todos"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: authJsonBody({}),
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 
@@ -85,3 +117,4 @@ export async function carregarRankingSemanal(): Promise<RankingEntry[]> {
     return [];
   }
 }
+

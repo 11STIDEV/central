@@ -5,7 +5,10 @@ import type { PerguntaQuiz } from "@/data/trilhasMock";
 interface QuizModalProps {
   missaoTitulo: string;
   perguntas: PerguntaQuiz[];
-  xpRecompensa: number;
+  xpGanho?: number;
+  trilhaTitulo?: string;
+  isConclusaoTrilha?: boolean;
+  xpTrilha?: number;
   onConcluir: (acertos: number, total: number) => void;
   onFechar: () => void;
 }
@@ -15,7 +18,10 @@ type EstadoResposta = "aguardando" | "correto" | "errado";
 export function QuizModal({
   missaoTitulo,
   perguntas,
-  xpRecompensa,
+  xpGanho = 0,
+  trilhaTitulo,
+  isConclusaoTrilha = false,
+  xpTrilha,
   onConcluir,
   onFechar,
 }: QuizModalProps) {
@@ -47,7 +53,6 @@ export function QuizModal({
     }
   }
 
-  const xpGanho = xpRecompensa;
   const percentual = Math.round((acertos / totalPerguntas) * 100);
 
   // ── Resultado ──────────────────────────────────────────────
@@ -57,23 +62,29 @@ export function QuizModal({
         <div className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-[#0f1117] shadow-2xl">
           {/* Celebration header */}
           <div className={`relative flex flex-col items-center py-10 ${
-            percentual === 100
+            isConclusaoTrilha
               ? "bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-transparent"
               : percentual >= 60
               ? "bg-gradient-to-br from-emerald-500/20 via-teal-500/10 to-transparent"
               : "bg-gradient-to-br from-red-500/10 to-transparent"
           }`}>
             <div className="text-6xl mb-3 animate-bounce">
-              {percentual === 100 ? "🏆" : percentual >= 60 ? "🎉" : "📚"}
+              {isConclusaoTrilha ? "🏆" : percentual === 100 ? "🌟" : percentual >= 60 ? "🎉" : "📚"}
             </div>
             <h2 className="text-2xl font-bold text-foreground">
-              {percentual === 100
+              {isConclusaoTrilha
+                ? "Trilha Concluída!"
+                : percentual === 100
                 ? "Perfeito!"
                 : percentual >= 60
-                ? "Muito bem!"
+                ? "Missão Concluída!"
                 : "Continue tentando!"}
             </h2>
-            <p className="mt-1 text-sm text-muted-foreground">{missaoTitulo}</p>
+            <p className="mt-1 text-sm text-muted-foreground text-center px-4">
+              {isConclusaoTrilha && trilhaTitulo
+                ? `Você finalizou a trilha "${trilhaTitulo}"!`
+                : missaoTitulo}
+            </p>
           </div>
 
           <div className="p-6 space-y-5">
@@ -85,8 +96,17 @@ export function QuizModal({
               </div>
               <div className="h-10 w-px bg-white/10" />
               <div className="text-center">
-                <p className="text-3xl font-bold tabular-nums text-amber-400">+{xpGanho}</p>
-                <p className="text-xs text-muted-foreground mt-1">XP ganhos</p>
+                {xpGanho > 0 ? (
+                  <>
+                    <p className="text-3xl font-bold tabular-nums text-amber-400">+{xpGanho}</p>
+                    <p className="text-xs text-muted-foreground mt-1">XP da Trilha</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-2xl font-bold text-emerald-400">✓</p>
+                    <p className="text-xs text-muted-foreground mt-1">Missão Feita</p>
+                  </>
+                )}
               </div>
               <div className="h-10 w-px bg-white/10" />
               <div className="text-center">
@@ -95,11 +115,21 @@ export function QuizModal({
               </div>
             </div>
 
+            {xpGanho === 0 && xpTrilha && (
+              <p className="text-center text-xs text-amber-400/90 bg-amber-400/10 rounded-lg py-2 px-3">
+                💡 Conclua todas as missões para ganhar os <strong>{xpTrilha} XP</strong> da trilha!
+              </p>
+            )}
+
             <button
               onClick={() => onConcluir(acertos, totalPerguntas)}
               className="w-full rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 py-3 text-sm font-bold text-white shadow-lg shadow-amber-900/20 transition-all duration-150 hover:brightness-110 active:scale-95"
             >
-              {percentual >= 60 ? "Continuar →" : "Ver próxima missão →"}
+              {isConclusaoTrilha
+                ? "Finalizar Trilha 🏆"
+                : percentual >= 60
+                ? "Continuar →"
+                : "Ver próxima missão →"}
             </button>
           </div>
         </div>
@@ -120,10 +150,12 @@ export function QuizModal({
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-xs font-semibold text-amber-400">
-              <Zap className="h-3 w-3" />
-              {xpRecompensa} XP
-            </span>
+            {xpTrilha && (
+              <span className="flex items-center gap-1 text-xs font-semibold text-amber-400">
+                <Zap className="h-3 w-3" />
+                {xpTrilha} XP na trilha
+              </span>
+            )}
             <button
               onClick={onFechar}
               className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/8 hover:text-foreground transition-colors"

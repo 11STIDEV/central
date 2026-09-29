@@ -43,7 +43,8 @@ export default function TrilhaDetalhe() {
   const totalCompletas = missoesCompletas.length;
   const total = trilha.missoes.length;
   const pct = Math.round((totalCompletas / total) * 100);
-  const xpGanho = (totalCompletas * 5) + (totalCompletas === total ? 10 : 0);
+  const trilhaCompleta = totalCompletas === total && total > 0;
+  const xpGanho = trilhaCompleta ? trilha.xpTotal : 0;
 
   function getMissaoStatus(missaoId: string, ordem: number) {
     if (missoesCompletas.includes(missaoId)) return "completed";
@@ -171,8 +172,8 @@ export default function TrilhaDetalhe() {
                       <div key={m.id} className="flex items-center gap-2 text-xs">
                         <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
                         <span className="truncate text-foreground">{m.titulo}</span>
-                        <span className="ml-auto shrink-0 font-semibold text-amber-400">
-                          +{m.xpRecompensa}
+                        <span className="ml-auto shrink-0 text-[10px] text-emerald-400 font-medium">
+                          Concluída
                         </span>
                       </div>
                     ))}

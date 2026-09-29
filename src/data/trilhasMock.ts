@@ -92,12 +92,11 @@ export function getNivelInfo(xp: number) {
 
 import { TRILHAS_MOCK } from "./trilhas";
 
-// Sobrescreve as pontuações mock com as novas regras de XP (5 XP por missão, 10 XP bônus por trilha concluída)
+// As missões não têm mais XP individual; o XP é definido diretamente na trilha
 for (const trilha of TRILHAS_MOCK) {
   for (const missao of trilha.missoes) {
-    missao.xpRecompensa = 5;
+    missao.xpRecompensa = 0;
   }
-  trilha.xpTotal = (trilha.missoes.length * 5) + 10;
 }
 
 export { TRILHAS_MOCK };
@@ -272,31 +271,36 @@ export const RANKING_MOCK: RankingEntry[] = [
   { posicao: 5, nome: "Paula Rocha", iniciais: "PR", xpSemana: 150, nivel: 2, cor: "from-pink-400 to-rose-500" },
 ];
 
-// ── Persistência Local do Progresso ──────────────────────────────
-const LOCAL_STORAGE_KEY = "central-trilha-progress";
-
 export function calcularProgresso(
   progressoPorTrilha: Record<string, string[]>,
   trilhasDisponiveis?: Trilha[]
 ) {
   let missoesCompletas = 0;
   let trilhasCompletas = 0;
+  let xpTotal = 0;
 
-  if (trilhasDisponiveis && trilhasDisponiveis.length > 0) {
-    for (const trail of trilhasDisponiveis) {
-      const concluidas = progressoPorTrilha[trail.id] ?? [];
-      missoesCompletas += concluidas.length;
-      if (concluidas.length > 0 && concluidas.length === trail.missoes.length) {
-        trilhasCompletas += 1;
-      }
-    }
-  } else {
-    for (const [_, concluidas] of Object.entries(progressoPorTrilha)) {
-      missoesCompletas += Array.isArray(concluidas) ? concluidas.length : 0;
+  const listaTrilhas = trilhasDisponiveis && trilhasDisponiveis.length > 0
+    ? trilhasDisponiveis
+    : TRILHAS_MOCK;
+
+  for (const trail of listaTrilhas) {
+    const concluidas = progressoPorTrilha[trail.id] ?? [];
+    missoesCompletas += Array.isArray(concluidas) ? concluidas.length : 0;
+    if (concluidas.length > 0 && concluidas.length === trail.missoes.length) {
+      trilhasCompletas += 1;
+      xpTotal += trail.xpTotal ?? 0;
     }
   }
 
-  const xpTotal = (missoesCompletas * 5) + (trilhasCompletas * 10);
+  // Contabiliza missões de trilhas que eventualmente não estejam na lista
+  if (!trilhasDisponiveis || trilhasDisponiveis.length === 0) {
+    for (const [trilhaId, concluidas] of Object.entries(progressoPorTrilha)) {
+      if (!listaTrilhas.some((t) => t.id === trilhaId)) {
+        missoesCompletas += Array.isArray(concluidas) ? concluidas.length : 0;
+      }
+    }
+  }
+
   return { xpTotal, missoesCompletas, trilhasCompletas };
 }
 
@@ -360,79 +364,30 @@ const baseMock: UserProgress = {
   missoesCompletas: 0,
   trilhasCompletas: 0,
   progressoPorTrilha: {},
-  anosDeEmpresa: 3, // Mock padrão para fins de demonstração (desbloqueia medalhas de 1 e 3 anos)
+  anosDeEmpresa: 3,
 };
 
-function getDataHojeBrasilStr(): string {
+// Limpa qualquer dado residual do localStorage antigo para garantir exclusividade do Supabase
+if (typeof window !== "undefined") {
   try {
-    return new Intl.DateTimeFormat("fr-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
-  } catch {
-    return new Date().toISOString().slice(0, 10);
-  }
-}
-
-function calcularDiferencaDiasStr(d1?: string, d2?: string): number {
-  if (!d1 || !d2) return Infinity;
-  const [y1, m1, day1] = d1.slice(0, 10).split("-").map(Number);
-  const [y2, m2, day2] = d2.slice(0, 10).split("-").map(Number);
-  const utc1 = Date.UTC(y1, m1 - 1, day1);
-  const utc2 = Date.UTC(y2, m2 - 1, day2);
-  return Math.floor((utc2 - utc1) / (1000 * 60 * 60 * 24));
+    localStorage.removeItem("central-trilha-progress");
+  } catch {}
 }
 
 function carregarProgressoInicial(): UserProgress {
-  if (typeof window === "undefined") return baseMock;
-  const raw = localStorage.getItem(LOCAL_STORAGE_KEY);
-  if (!raw) {
-    atualizarBadgesConquistadas(baseMock);
-    return baseMock;
-  }
-  try {
-    const parsed = JSON.parse(raw);
-    let ofensivaDias = typeof parsed.ofensivaDias === "number"
-      ? parsed.ofensivaDias
-      : (parsed.streakDias ?? 0);
-    const ultimaAtividade = parsed.ultimaAtividade ?? null;
-
-    // Se ficou 2 dias ou mais sem atividade, zera ofensiva
-    if (ultimaAtividade) {
-      const hoje = getDataHojeBrasilStr();
-      const diff = calcularDiferencaDiasStr(ultimaAtividade, hoje);
-      if (diff >= 2) {
-        ofensivaDias = 0;
-      }
-    } else {
-      ofensivaDias = 0;
-    }
-
-    const progressoPorTrilha = parsed.progressoPorTrilha ?? {};
-    const stats = calcularProgresso(progressoPorTrilha);
-    const progress: UserProgress = {
-      ...baseMock,
-      ...parsed,
-      ofensivaDias,
-      ultimaAtividade: ultimaAtividade || undefined,
-      ...stats,
-    };
-    atualizarBadgesConquistadas(progress);
-    return progress;
-  } catch {
-    atualizarBadgesConquistadas(baseMock);
-    return baseMock;
-  }
+  atualizarBadgesConquistadas(baseMock);
+  return { ...baseMock };
 }
 
-// ── User Progress Mock ─────────────────────────────────────────
+// ── User Progress Mock (Supabase como única fonte de verdade) ────
 export const USER_PROGRESS_MOCK: UserProgress = carregarProgressoInicial();
 
-export function salvarProgressoUsuario(progress: UserProgress) {
-  if (typeof window === "undefined") return;
-  const stats = calcularProgresso(progress.progressoPorTrilha);
+export function salvarProgressoUsuario(progress: UserProgress, trilhasDisponiveis?: Trilha[]) {
+  const stats = calcularProgresso(progress.progressoPorTrilha, trilhasDisponiveis);
   const atualizado = {
     ...progress,
     ...stats,
   };
-  localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(atualizado));
-  atualizarBadgesConquistadas(atualizado);
+  atualizarBadgesConquistadas(atualizado, trilhasDisponiveis);
   Object.assign(USER_PROGRESS_MOCK, atualizado);
 }

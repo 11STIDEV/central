@@ -24,6 +24,16 @@ function getSupabaseAdmin() {
   });
 }
 
+const DEFAULT_XP_POR_TRILHA = {
+  "missao-visao-cci": 200,
+  "google-drive": 150,
+  "ischolar": 200,
+  "plurall": 200,
+  "taxonomia-bloom": 200,
+  "espacos-escola": 200,
+  "primeiros-socorros": 220,
+};
+
 /** Converte linha do banco para o tipo Trilha do frontend. */
 function rowToTrilha(row, missoes = []) {
   return {
@@ -35,7 +45,7 @@ function rowToTrilha(row, missoes = []) {
     cor: row.cor ?? "from-indigo-500 to-blue-600",
     dificuldade: row.dificuldade ?? "iniciante",
     setorRestrito: row.setor_restrito ?? undefined,
-    xpTotal: missoes.reduce((acc, m) => acc + (m.xp_recompensa ?? 5), 0) + 10,
+    xpTotal: typeof row.xp_total === "number" ? row.xp_total : (DEFAULT_XP_POR_TRILHA[row.id] ?? 50),
     missoes: missoes.map(rowToMissao),
     _ativo: row.ativo,
     _ordem: row.ordem,
@@ -52,7 +62,7 @@ function rowToMissao(row) {
     descricao: row.descricao ?? "",
     conteudo: row.conteudo ?? "",
     linkExterno: row.link_externo ?? undefined,
-    xpRecompensa: row.xp_recompensa ?? 5,
+    xpRecompensa: 0,
     tempoEstimadoMin: row.tempo_estimado_min ?? 10,
     quiz: Array.isArray(row.quiz) ? row.quiz : [],
   };
@@ -153,28 +163,42 @@ export async function criarTrilha(dados) {
   const supabase = getSupabaseAdmin();
   if (!supabase) throw new Error("Supabase não configurado.");
 
-  const { id, titulo, descricao, categoria, icone, cor, dificuldade, setorRestrito, ativo, ordem } = dados;
+  const { id, titulo, descricao, categoria, icone, cor, dificuldade, setorRestrito, ativo, ordem, xpTotal } = dados;
   if (!id || !titulo) throw new Error("id e titulo são obrigatórios.");
 
-  const { data, error } = await supabase
+  const row = {
+    id,
+    titulo,
+    descricao: descricao ?? "",
+    categoria: categoria ?? "",
+    icone: icone ?? "📚",
+    cor: cor ?? "from-indigo-500 to-blue-600",
+    dificuldade: dificuldade ?? "iniciante",
+    setor_restrito: setorRestrito ?? null,
+    ativo: ativo !== false,
+    ordem: ordem ?? 0,
+    xp_total: Number(xpTotal ?? 50),
+  };
+
+  let { data, error } = await supabase
     .from("trilhas_conhecimento")
-    .insert({
-      id,
-      titulo,
-      descricao: descricao ?? "",
-      categoria: categoria ?? "",
-      icone: icone ?? "📚",
-      cor: cor ?? "from-indigo-500 to-blue-600",
-      dificuldade: dificuldade ?? "iniciante",
-      setor_restrito: setorRestrito ?? null,
-      ativo: ativo !== false,
-      ordem: ordem ?? 0,
-    })
+    .insert(row)
     .select()
     .single();
 
+  if (error && (error.code === "PGRST204" || error.message.includes("xp_total"))) {
+    delete row.xp_total;
+    const retry = await supabase
+      .from("trilhas_conhecimento")
+      .insert(row)
+      .select()
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
+
   if (error) throw new Error(error.message);
-  return rowToTrilha(data, []);
+  return rowToTrilha({ ...data, xp_total: Number(xpTotal ?? 50) }, []);
 }
 
 /**
@@ -194,11 +218,21 @@ export async function atualizarTrilha(id, dados) {
   if (dados.setorRestrito !== undefined) updates.setor_restrito = dados.setorRestrito || null;
   if (dados.ativo !== undefined) updates.ativo = dados.ativo;
   if (dados.ordem !== undefined) updates.ordem = dados.ordem;
+  if (dados.xpTotal !== undefined) updates.xp_total = Number(dados.xpTotal);
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from("trilhas_conhecimento")
     .update(updates)
     .eq("id", id);
+
+  if (error && (error.code === "PGRST204" || error.message.includes("xp_total"))) {
+    delete updates.xp_total;
+    const retry = await supabase
+      .from("trilhas_conhecimento")
+      .update(updates)
+      .eq("id", id);
+    error = retry.error;
+  }
 
   if (error) throw new Error(error.message);
 }
@@ -302,20 +336,31 @@ export async function importarTrilhasPadrao() {
 
   let ordemTrilha = 1;
   for (const t of trilhas) {
-    const { error: errT } = await supabase
+    const trilhaRow = {
+      id: t.id,
+      titulo: t.titulo,
+      descricao: t.descricao || "",
+      categoria: t.categoria || "",
+      icone: t.icone || "📚",
+      cor: t.cor || "from-indigo-500 to-blue-600",
+      dificuldade: t.dificuldade || "iniciante",
+      setor_restrito: t.setorRestrito || null,
+      ativo: true,
+      ordem: ordemTrilha,
+      xp_total: t.xpTotal ?? 50,
+    };
+
+    let { error: errT } = await supabase
       .from("trilhas_conhecimento")
-      .upsert({
-        id: t.id,
-        titulo: t.titulo,
-        descricao: t.descricao || "",
-        categoria: t.categoria || "",
-        icone: t.icone || "📚",
-        cor: t.cor || "from-indigo-500 to-blue-600",
-        dificuldade: t.dificuldade || "iniciante",
-        setor_restrito: t.setorRestrito || null,
-        ativo: true,
-        ordem: ordemTrilha,
-      }, { onConflict: "id" });
+      .upsert(trilhaRow, { onConflict: "id" });
+
+    if (errT && (errT.code === "PGRST204" || errT.message.includes("xp_total"))) {
+      delete trilhaRow.xp_total;
+      const retryT = await supabase
+        .from("trilhas_conhecimento")
+        .upsert(trilhaRow, { onConflict: "id" });
+      errT = retryT.error;
+    }
 
     if (errT) {
       console.error(`[importarTrilhasPadrao] Erro na trilha ${t.id}:`, errT.message);
@@ -334,7 +379,7 @@ export async function importarTrilhasPadrao() {
           descricao: m.descricao || "",
           conteudo: m.conteudo || "",
           link_externo: m.linkExterno || null,
-          xp_recompensa: m.xpRecompensa || 5,
+          xp_recompensa: 0,
           tempo_estimado_min: m.tempoEstimadoMin || 10,
           quiz: m.quiz || [],
         }, { onConflict: "id" });

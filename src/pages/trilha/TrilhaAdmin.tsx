@@ -19,7 +19,8 @@ import {
   type TrilhaAdminPayload,
   type MissaoPayload,
 } from "@/lib/trilhasStore";
-import { DownloadCloud } from "lucide-react";
+import { zerarProgressoTodosUsuariosServidor } from "@/lib/trilhaApi";
+import { DownloadCloud, RotateCcw } from "lucide-react";
 
 // ── Gradientes disponíveis ────────────────────────────────────
 const GRADIENTES = [
@@ -75,12 +76,12 @@ function gerarSlug(texto: string): string {
 const TRILHA_VAZIA: TrilhaAdminPayload = {
   id: "", titulo: "", descricao: "", categoria: "",
   icone: "📚", cor: "from-indigo-500 to-blue-600",
-  dificuldade: "iniciante", setorRestrito: "", ativo: true, ordem: 0,
+  dificuldade: "iniciante", setorRestrito: "", xpTotal: 50, ativo: true, ordem: 0,
 };
 
 const MISSAO_VAZIA: MissaoPayload = {
   id: "", titulo: "", descricao: "", conteudo: "",
-  linkExterno: "", xpRecompensa: 5, tempoEstimadoMin: 10,
+  linkExterno: "", tempoEstimadoMin: 10,
   quiz: [],
 };
 
@@ -136,6 +137,35 @@ export default function TrilhaAdmin() {
     }
   }
 
+  const [zerandoTodos, setZerandoTodos] = useState(false);
+
+  async function handleZerarTodos() {
+    if (
+      !window.confirm(
+        "⚠️ ATENÇÃO: Deseja realmente zerar o histórico de trilhas e o XP de TODOS os usuários do sistema? Essa ação é permanente e não poderá ser desfeita."
+      )
+    ) {
+      return;
+    }
+    setZerandoTodos(true);
+    try {
+      const ok = await zerarProgressoTodosUsuariosServidor();
+      if (ok) {
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("central-trilha-progress");
+        }
+        toast.success("Histórico de trilhas e XP de todos os usuários zerados com sucesso!");
+        void carregar();
+      } else {
+        toast.error("Não foi possível zerar o histórico no servidor.");
+      }
+    } catch (e: any) {
+      toast.error(e.message ?? "Erro ao zerar histórico.");
+    } finally {
+      setZerandoTodos(false);
+    }
+  }
+
   useEffect(() => { void carregar(); }, [carregar]);
 
   // ── Trilha helpers ────────────────────────────────────────
@@ -150,6 +180,7 @@ export default function TrilhaAdmin() {
       id: t.id, titulo: t.titulo, descricao: t.descricao, categoria: t.categoria,
       icone: t.icone, cor: t.cor, dificuldade: t.dificuldade,
       setorRestrito: (t as any).setorRestrito ?? "",
+      xpTotal: t.xpTotal ?? 50,
       ativo: (t as any)._ativo !== false,
       ordem: (t as any)._ordem ?? 0,
     });
@@ -164,6 +195,7 @@ export default function TrilhaAdmin() {
       const payload = {
         ...formTrilha,
         id: formTrilha.id || gerarSlug(formTrilha.titulo),
+        xpTotal: Number(formTrilha.xpTotal ?? 50),
         setorRestrito: formTrilha.setorRestrito?.trim() || undefined,
       };
       if (modalTrilha === "criar") {
@@ -213,7 +245,7 @@ export default function TrilhaAdmin() {
   function abrirEditarMissao(trilhaId: string, m: Missao) {
     setFormMissao({
       id: m.id, titulo: m.titulo, descricao: m.descricao, conteudo: m.conteudo,
-      linkExterno: m.linkExterno ?? "", xpRecompensa: m.xpRecompensa,
+      linkExterno: m.linkExterno ?? "",
       tempoEstimadoMin: m.tempoEstimadoMin, quiz: m.quiz,
     });
     setMissaoEditando(m);
@@ -322,6 +354,15 @@ export default function TrilhaAdmin() {
               >
                 {importando ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
                 {importando ? "Importando..." : "Importar Padrão"}
+              </button>
+              <button
+                onClick={handleZerarTodos}
+                disabled={zerandoTodos}
+                title="Zerar o histórico de trilhas concluídas e o XP de todos os usuários do sistema"
+                className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3.5 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+              >
+                <RotateCcw className={`h-4 w-4 ${zerandoTodos ? "animate-spin" : ""}`} />
+                {zerandoTodos ? "Zerando..." : "Zerar Histórico e XP"}
               </button>
               <button
                 onClick={() => void carregar()}
@@ -527,7 +568,7 @@ function TrilhaItem({
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{m.titulo}</p>
                     <p className="text-xs text-muted-foreground">
-                      {m.xpRecompensa} XP · ~{m.tempoEstimadoMin} min · {m.quiz.length} perguntas
+                      ~{m.tempoEstimadoMin} min · {m.quiz.length} perguntas
                     </p>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -681,6 +722,17 @@ function ModalTrilha({
               />
             </div>
             <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">XP da Trilha (ao concluir) *</label>
+              <input
+                type="number"
+                min={0}
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                value={form.xpTotal ?? 50}
+                onChange={(e) => onChange({ ...form, xpTotal: Number(e.target.value) })}
+                placeholder="Ex: 50"
+              />
+            </div>
+            <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Ordem</label>
               <input
                 type="number"
@@ -804,15 +856,6 @@ function ModalMissao({
                     value={form.descricao}
                     onChange={(e) => onChange({ ...form, descricao: e.target.value })}
                     placeholder="Breve resumo exibido no card da missão"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-muted-foreground">XP de Recompensa</label>
-                  <input
-                    type="number" min={1}
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                    value={form.xpRecompensa ?? 5}
-                    onChange={(e) => onChange({ ...form, xpRecompensa: Number(e.target.value) })}
                   />
                 </div>
                 <div>

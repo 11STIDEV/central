@@ -10,6 +10,7 @@ import {
   type CcipayMovimento,
   type CcipayResumo,
 } from "@/lib/ccipay";
+import { useTrilhaProgress } from "@/hooks/useTrilhaProgress";
 import { CcipayQrScannerDialog } from "@/components/ccipay/CcipayQrScannerDialog";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -21,11 +22,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { QrCode, Wallet } from "lucide-react";
+import { ArrowRight, QrCode, Sparkles, Wallet } from "lucide-react";
 
 export default function CcipayHub() {
   const navigate = useNavigate();
   const { googleIdToken } = useAuth();
+  const { progress: trilhaProgress } = useTrilhaProgress();
   const [resumo, setResumo] = useState<CcipayResumo | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -55,6 +57,13 @@ export default function CcipayHub() {
   function aoDetectarToken(token: string) {
     navigate(`/cci-pay/pagar/${encodeURIComponent(token)}`);
   }
+
+  const xpTotalCalculado = resumo?.xpTotalTrilha ?? trilhaProgress?.xpTotal ?? 0;
+  const xpValorCalculado = resumo?.xpValorMonetario ?? xpTotalCalculado * 1.0;
+  const saldoBonificacaoFinal =
+    resumo?.xpTotalTrilha !== undefined
+      ? (resumo?.saldoBonificacao ?? 0)
+      : (resumo?.saldoBonificacao ?? 0) + xpValorCalculado;
 
   return (
     <div className="animate-fade-in">
@@ -90,15 +99,51 @@ export default function CcipayHub() {
               <SaldoCard
                 titulo="Bonificações"
                 subtitulo="Saldo para pagar com QR"
-                valor={resumo.saldoBonificacao}
+                valor={saldoBonificacaoFinal}
+                badge={
+                  xpTotalCalculado > 0 ? (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+                      <Sparkles className="h-3 w-3" />
+                      +{xpTotalCalculado} XP (R$ {xpValorCalculado.toFixed(2)})
+                    </span>
+                  ) : undefined
+                }
                 detalhe={
-                  resumo.bonificacaoTeto != null
-                    ? `Teto R$ ${resumo.bonificacaoTeto.toFixed(2)}${
-                        resumo.bonificacaoDisponivelCreditar != null
+                  <div className="space-y-1.5 text-xs leading-relaxed text-muted-foreground">
+                    {resumo.bonificacaoTeto != null && (
+                      <p>
+                        Teto R$ {resumo.bonificacaoTeto.toFixed(2)}
+                        {resumo.bonificacaoDisponivelCreditar != null
                           ? ` · pode receber mais R$ ${resumo.bonificacaoDisponivelCreditar.toFixed(2)}`
-                          : ""
-                      }`
-                    : "Sem teto definido pelo DP"
+                          : ""}
+                      </p>
+                    )}
+                    {xpTotalCalculado > 0 ? (
+                      <p className="flex flex-wrap items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
+                        <span>✨</span>
+                        <span>
+                          Inclui <strong>R$ {xpValorCalculado.toFixed(2)}</strong> via <strong>{xpTotalCalculado} XP</strong> da Trilha de Conhecimento.
+                        </span>
+                        <Link
+                          to="/trilha-conhecimento"
+                          className="inline-flex items-center gap-0.5 underline underline-offset-2 hover:text-foreground ml-1"
+                        >
+                          Ver Trilha <ArrowRight className="h-3 w-3" />
+                        </Link>
+                      </p>
+                    ) : (
+                      <p>
+                        Ganhe bonificações concluindo trilhas na{" "}
+                        <Link
+                          to="/trilha-conhecimento"
+                          className="font-medium underline underline-offset-2 hover:text-foreground"
+                        >
+                          Trilha de Conhecimento
+                        </Link>
+                        .
+                      </p>
+                    )}
+                  </div>
                 }
               />
             </div>
@@ -144,18 +189,23 @@ function SaldoCard({
   subtitulo,
   valor,
   detalhe,
+  badge,
 }: {
   titulo: string;
   subtitulo: string;
   valor: number;
-  detalhe: string;
+  detalhe: React.ReactNode;
+  badge?: React.ReactNode;
 }) {
   return (
     <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{titulo}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{titulo}</p>
+        {badge}
+      </div>
       <p className="mt-1 text-xs text-muted-foreground">{subtitulo}</p>
       <p className="mt-3 text-3xl font-semibold tracking-tight">R$ {valor.toFixed(2)}</p>
-      <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{detalhe}</p>
+      <div className="mt-2">{typeof detalhe === "string" ? <p className="text-xs leading-relaxed text-muted-foreground">{detalhe}</p> : detalhe}</div>
     </div>
   );
 }

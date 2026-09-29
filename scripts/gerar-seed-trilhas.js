@@ -29,12 +29,12 @@ async function main() {
     fs.unlinkSync(outfile);
   }
 
-  // Ajusta pontuações se necessário
+  // Ajusta pontuações: missões sem XP individual, trilha com o xpTotal original
   for (const trilha of trilhas) {
     for (const missao of trilha.missoes) {
-      missao.xpRecompensa = missao.xpRecompensa || 5;
+      missao.xpRecompensa = 0;
     }
-    trilha.xpTotal = (trilha.missoes.length * 5) + 10;
+    trilha.xpTotal = trilha.xpTotal || 50;
   }
 
   // Salva JSON das trilhas padrão
@@ -64,8 +64,8 @@ async function main() {
   let ordemTrilha = 1;
   for (const t of trilhas) {
     sqlLines.push(`-- Trilha: ${t.titulo}`);
-    sqlLines.push(`INSERT INTO trilhas_conhecimento (id, titulo, descricao, categoria, icone, cor, dificuldade, setor_restrito, ativo, ordem)`);
-    sqlLines.push(`VALUES (${escapeSql(t.id)}, ${escapeSql(t.titulo)}, ${escapeSql(t.descricao)}, ${escapeSql(t.categoria)}, ${escapeSql(t.icone)}, ${escapeSql(t.cor)}, ${escapeSql(t.dificuldade)}, ${t.setorRestrito ? escapeSql(t.setorRestrito) : 'NULL'}, true, ${ordemTrilha})`);
+    sqlLines.push(`INSERT INTO trilhas_conhecimento (id, titulo, descricao, categoria, icone, cor, dificuldade, setor_restrito, ativo, ordem, xp_total)`);
+    sqlLines.push(`VALUES (${escapeSql(t.id)}, ${escapeSql(t.titulo)}, ${escapeSql(t.descricao)}, ${escapeSql(t.categoria)}, ${escapeSql(t.icone)}, ${escapeSql(t.cor)}, ${escapeSql(t.dificuldade)}, ${t.setorRestrito ? escapeSql(t.setorRestrito) : 'NULL'}, true, ${ordemTrilha}, ${t.xpTotal || 50})`);
     sqlLines.push(`ON CONFLICT (id) DO UPDATE SET`);
     sqlLines.push(`  titulo = EXCLUDED.titulo,`);
     sqlLines.push(`  descricao = EXCLUDED.descricao,`);
@@ -74,13 +74,14 @@ async function main() {
     sqlLines.push(`  cor = EXCLUDED.cor,`);
     sqlLines.push(`  dificuldade = EXCLUDED.dificuldade,`);
     sqlLines.push(`  setor_restrito = EXCLUDED.setor_restrito,`);
+    sqlLines.push(`  xp_total = EXCLUDED.xp_total,`);
     sqlLines.push(`  ordem = EXCLUDED.ordem;`);
     sqlLines.push('');
 
     let ordemMissao = 1;
     for (const m of t.missoes) {
       sqlLines.push(`INSERT INTO trilhas_missoes (id, trilha_id, ordem, titulo, descricao, conteudo, link_externo, xp_recompensa, tempo_estimado_min, quiz)`);
-      sqlLines.push(`VALUES (${escapeSql(m.id)}, ${escapeSql(t.id)}, ${m.ordem || ordemMissao}, ${escapeSql(m.titulo)}, ${escapeSql(m.descricao)}, ${escapeSql(m.conteudo)}, ${m.linkExterno ? escapeSql(m.linkExterno) : 'NULL'}, ${m.xpRecompensa || 5}, ${m.tempoEstimadoMin || 10}, ${escapeJson(m.quiz || [])})`);
+      sqlLines.push(`VALUES (${escapeSql(m.id)}, ${escapeSql(t.id)}, ${m.ordem || ordemMissao}, ${escapeSql(m.titulo)}, ${escapeSql(m.descricao)}, ${escapeSql(m.conteudo)}, ${m.linkExterno ? escapeSql(m.linkExterno) : 'NULL'}, ${m.xpRecompensa || 0}, ${m.tempoEstimadoMin || 10}, ${escapeJson(m.quiz || [])})`);
       sqlLines.push(`ON CONFLICT (id) DO UPDATE SET`);
       sqlLines.push(`  trilha_id = EXCLUDED.trilha_id,`);
       sqlLines.push(`  ordem = EXCLUDED.ordem,`);

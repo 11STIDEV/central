@@ -69,7 +69,7 @@ export default function MissaoPage() {
 
     const novasConcluidas = [...trilhaProgress, missaoId!];
     const trilhaCompletaAgora = novasConcluidas.length === trilha!.missoes.length;
-    const xpGanho = 5 + (trilhaCompletaAgora ? 10 : 0);
+    const xpGanho = trilhaCompletaAgora ? (trilha!.xpTotal ?? 0) : 0;
 
     const novoProgresso: UserProgress = {
       ...progress,
@@ -138,7 +138,7 @@ export default function MissaoPage() {
             </span>
             <span className="flex items-center gap-1.5 font-semibold text-amber-400">
               <Zap className="h-4 w-4" />
-              {missao.xpRecompensa} XP
+              {trilha.xpTotal} XP na trilha
             </span>
             {missaoConcluida && (
               <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
@@ -152,10 +152,18 @@ export default function MissaoPage() {
         {/* XP gained animation */}
         {xpGanhoAnim !== null && (
           <div className="mb-6 animate-in slide-in-from-top-2 duration-500 rounded-2xl border border-amber-400/20 bg-amber-400/8 px-5 py-4 flex items-center gap-4">
-            <span className="text-3xl">🎉</span>
+            <span className="text-3xl">{xpGanhoAnim > 0 ? "🎉" : "✅"}</span>
             <div>
-              <p className="font-bold text-amber-400 text-lg">+{xpGanhoAnim} XP conquistados!</p>
-              <p className="text-xs text-muted-foreground">Missão "{missao.titulo}" concluída com sucesso!</p>
+              <p className="font-bold text-amber-400 text-lg">
+                {xpGanhoAnim > 0
+                  ? `+${xpGanhoAnim} XP conquistados!`
+                  : "Missão concluída com sucesso!"}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {xpGanhoAnim > 0
+                  ? `Parabéns! Você completou a trilha "${trilha.titulo}"!`
+                  : `Missão "${missao.titulo}" finalizada. Continue para concluir a trilha!`}
+              </p>
             </div>
           </div>
         )}
@@ -199,8 +207,12 @@ export default function MissaoPage() {
           {!missaoConcluida ? (
             <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-6 text-center">
               <p className="text-sm text-muted-foreground mb-4">
-                Leu o conteúdo? Responda o quiz para ganhar{" "}
-                <span className="font-bold text-amber-400">{missao.xpRecompensa} XP</span>!
+                Leu o conteúdo? Responda o quiz para concluir esta missão
+                {!proximaMissao ? (
+                  <> e conquistar os <span className="font-bold text-amber-400">{trilha.xpTotal} XP</span> da trilha!</>
+                ) : (
+                  <>!</>
+                )}
               </p>
               <button
                 onClick={() => setQuizAberto(true)}
@@ -262,7 +274,18 @@ export default function MissaoPage() {
         <QuizModal
           missaoTitulo={missao.titulo}
           perguntas={missao.quiz}
-          xpRecompensa={missao.xpRecompensa}
+          xpGanho={
+            !(progress.progressoPorTrilha[trilhaId!] ?? []).includes(missaoId!) &&
+            ((progress.progressoPorTrilha[trilhaId!] ?? []).length + 1) === trilha.missoes.length
+              ? (trilha.xpTotal ?? 0)
+              : 0
+          }
+          trilhaTitulo={trilha.titulo}
+          isConclusaoTrilha={
+            !(progress.progressoPorTrilha[trilhaId!] ?? []).includes(missaoId!) &&
+            ((progress.progressoPorTrilha[trilhaId!] ?? []).length + 1) === trilha.missoes.length
+          }
+          xpTrilha={trilha.xpTotal}
           onConcluir={handleConcluirQuiz}
           onFechar={() => setQuizAberto(false)}
         />

@@ -317,3 +317,69 @@ export async function obterRankingSemanal(limite = 10) {
 
   return ranking;
 }
+
+/**
+ * Zera o progresso e o histórico de XP de um usuário específico.
+ * @param {string} email
+ * @returns {Promise<boolean>}
+ */
+export async function zerarProgressoUsuario(email) {
+  const supabase = getSupabaseAdmin();
+  if (!supabase || !email) return false;
+  const emailNorm = String(email).toLowerCase();
+
+  try {
+    // 1. Remove histórico de XP do usuário
+    await supabase.from("trilha_xp_historico").delete().eq("email", emailNorm);
+
+    // 2. Reseta o registro na tabela trilha_progresso
+    await supabase
+      .from("trilha_progresso")
+      .update({
+        xp_total: 0,
+        missoes_completas: 0,
+        trilhas_completas: 0,
+        ofensiva_dias: 0,
+        ultima_atividade: null,
+        progresso_por_trilha: {},
+        atualizado_em: new Date().toISOString(),
+      })
+      .eq("email", emailNorm);
+
+    return true;
+  } catch (err) {
+    console.error("[trilha] Erro ao zerar progresso do usuário:", err);
+    return false;
+  }
+}
+
+/**
+ * Zera o progresso e o histórico de XP de TODOS os usuários.
+ * @returns {Promise<boolean>}
+ */
+export async function zerarProgressoTodosUsuarios() {
+  const supabase = getSupabaseAdmin();
+  if (!supabase) return false;
+
+  try {
+    await supabase.from("trilha_xp_historico").delete().neq("id", "00000000-0000-0000-0000-000000000000");
+
+    await supabase
+      .from("trilha_progresso")
+      .update({
+        xp_total: 0,
+        missoes_completas: 0,
+        trilhas_completas: 0,
+        ofensiva_dias: 0,
+        ultima_atividade: null,
+        progresso_por_trilha: {},
+        atualizado_em: new Date().toISOString(),
+      })
+      .neq("email", "");
+
+    return true;
+  } catch (err) {
+    console.error("[trilha] Erro ao zerar progresso de todos os usuários:", err);
+    return false;
+  }
+}

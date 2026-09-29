@@ -74,6 +74,8 @@ import {
   salvarProgressoUsuario,
   registrarXpGanho,
   obterRankingSemanal,
+  zerarProgressoUsuario,
+  zerarProgressoTodosUsuarios,
 } from "./trilhaProgressoStore.js";
 import {
   listarTrilhas,
@@ -6656,8 +6658,8 @@ app.post("/api/trilha/progresso/salvar", async (req, res) => {
       teveAtividadeRealizada: teveAtividade,
     });
 
-    // Registra XP no histórico se uma missão foi concluída
-    if (typeof xpGanho === "number" && trilhaId && missaoId) {
+    // Registra XP no histórico se houver ganho de XP (ao concluir a trilha)
+    if (typeof xpGanho === "number" && xpGanho > 0 && trilhaId && missaoId) {
       await registrarXpGanho(ctx.email, trilhaId, missaoId, xpGanho);
     }
 
@@ -6665,6 +6667,41 @@ app.post("/api/trilha/progresso/salvar", async (req, res) => {
   } catch (e) {
     if (e.status) return respostaErroIdToken(res, e);
     console.error("[trilha/progresso/salvar] Erro:", e.message);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/**
+ * POST /api/trilha/progresso/zerar
+ * Zera o progresso e o histórico de XP do usuário autenticado.
+ */
+app.post("/api/trilha/progresso/zerar", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    await zerarProgressoUsuario(ctx.email);
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilha/progresso/zerar] Erro:", e.message);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/**
+ * POST /api/trilha/progresso/zerar-todos
+ * Zera o histórico e o XP de TODOS os usuários (restrito a admin).
+ */
+app.post("/api/trilha/progresso/zerar-todos", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis?.includes("admin")) {
+      return res.status(403).json({ error: "Apenas administradores podem zerar o progresso de todos os usuários." });
+    }
+    await zerarProgressoTodosUsuarios();
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilha/progresso/zerar-todos] Erro:", e.message);
     return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
   }
 });

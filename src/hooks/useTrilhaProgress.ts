@@ -1,13 +1,12 @@
 // ============================================================
 // src/hooks/useTrilhaProgress.ts
 // Hook central para progresso da Trilha de Conhecimento.
-// Sincroniza Supabase (via servidor) ↔ localStorage (fallback offline).
+// O Supabase é a ÚNICA fonte de verdade dos dados (sem localStorage).
 // ============================================================
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import {
   USER_PROGRESS_MOCK,
-  salvarProgressoUsuario as salvarLocal,
   calcularProgresso,
   atualizarBadgesConquistadas,
   type UserProgress,
@@ -17,26 +16,51 @@ import {
   carregarProgressoServidor,
   salvarProgressoServidor,
   carregarRankingSemanal,
+  zerarProgressoServidor,
 } from "@/lib/trilhaApi";
+import { getTrilhasCache } from "@/lib/trilhasStore";
 
 export type UseTrilhaProgressReturn = {
   progress: UserProgress;
   ranking: RankingEntry[];
   carregando: boolean;
-  /** Salva progresso local + servidor. Opcional: informe xpGanho/trilhaId/missaoId para registrar no histórico. */
+  /** Salva progresso diretamente no Supabase. Opcional: informe xpGanho/trilhaId/missaoId para registrar no histórico. */
   salvarProgresso: (
     novoProgresso: UserProgress,
     opts?: { xpGanho?: number; trilhaId?: string; missaoId?: string }
   ) => Promise<void>;
+  /** Zera o progresso do usuário no Supabase */
+  zerarProgresso: () => Promise<void>;
+};
+
+const PROGRES_LIMPO: UserProgress = {
+  ...USER_PROGRESS_MOCK,
+  xpTotal: 0,
+  missoesCompletas: 0,
+  trilhasCompletas: 0,
+  ofensivaDias: 0,
+  progressoPorTrilha: {},
+  ultimaAtividade: undefined,
+  nivel: 1,
+  xpProximoNivel: 100,
 };
 
 export function useTrilhaProgress(): UseTrilhaProgressReturn {
-  const [progress, setProgress] = useState<UserProgress>(USER_PROGRESS_MOCK);
+  const [progress, setProgress] = useState<UserProgress>(PROGRES_LIMPO);
   const [ranking, setRanking] = useState<RankingEntry[]>([]);
   const [carregando, setCarregando] = useState(true);
   const carregouRef = useRef(false);
 
-  // Carrega progresso do servidor na montagem (uma única vez)
+  // Garante que qualquer resíduo antigo do localStorage seja expurgado
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("central-trilha-progress");
+      } catch {}
+    }
+  }, []);
+
+  // Carrega progresso diretamente do Supabase na montagem
   useEffect(() => {
     if (carregouRef.current) return;
     carregouRef.current = true;
@@ -46,7 +70,6 @@ export function useTrilhaProgress(): UseTrilhaProgressReturn {
     async function carregar() {
       setCarregando(true);
       try {
-        // Carrega progresso e ranking em paralelo
         const [progressoServidor, rankingServidor] = await Promise.all([
           carregarProgressoServidor(),
           carregarRankingSemanal(),
@@ -55,24 +78,24 @@ export function useTrilhaProgress(): UseTrilhaProgressReturn {
         if (cancelado) return;
 
         if (progressoServidor) {
-          const stats = calcularProgresso(progressoServidor.progressoPorTrilha);
+          const stats = calcularProgresso(progressoServidor.progressoPorTrilha, getTrilhasCache());
           const merged: UserProgress = {
-            ...USER_PROGRESS_MOCK,
+            ...PROGRES_LIMPO,
             ...progressoServidor,
             ...stats,
             ofensivaDias: progressoServidor.ofensivaDias ?? 0,
             ultimaAtividade: progressoServidor.ultimaAtividade ?? undefined,
           };
-          atualizarBadgesConquistadas(merged);
-          // Sincroniza com localStorage para fallback
-          salvarLocal(merged);
+          atualizarBadgesConquistadas(merged, getTrilhasCache());
           setProgress(merged);
+        } else {
+          // Se não há registro no Supabase, o usuário está zerado
+          setProgress(PROGRES_LIMPO);
         }
 
-        // Atualiza o ranking apenas com dados reais do servidor
         setRanking(rankingServidor);
       } catch {
-        // Silencia falhas — usa o estado atual (localStorage)
+        setProgress(PROGRES_LIMPO);
       } finally {
         if (!cancelado) setCarregando(false);
       }
@@ -90,34 +113,49 @@ export function useTrilhaProgress(): UseTrilhaProgressReturn {
       novoProgresso: UserProgress,
       opts?: { xpGanho?: number; trilhaId?: string; missaoId?: string }
     ) => {
-      // 1. Salva localmente imediatamente (UI responsiva)
-      salvarLocal(novoProgresso);
-      setProgress(novoProgresso);
+      const stats = calcularProgresso(novoProgresso.progressoPorTrilha, getTrilhasCache());
+      const atualizado: UserProgress = {
+        ...novoProgresso,
+        ...stats,
+      };
+      atualizarBadgesConquistadas(atualizado, getTrilhasCache());
+      setProgress(atualizado);
 
-      // 2. Sincroniza com o servidor em background
+      // Persiste exclusivamente no Supabase via servidor
       try {
-        const resultado = await salvarProgressoServidor(novoProgresso, opts);
+        const resultado = await salvarProgressoServidor(atualizado, opts);
         if (resultado && typeof resultado.ofensivaDias === "number") {
-          // Atualiza ofensiva calculada pelo servidor (mais confiável)
           const comOfensiva: UserProgress = {
-            ...novoProgresso,
+            ...atualizado,
             ofensivaDias: resultado.ofensivaDias,
           };
-          salvarLocal(comOfensiva);
           setProgress(comOfensiva);
         }
 
-        // Recarrega ranking após ganho de XP
         if (opts?.xpGanho) {
           const novoRanking = await carregarRankingSemanal();
           setRanking(novoRanking);
         }
-      } catch {
-        // Silencia — o progresso local já foi salvo
+      } catch (err) {
+        console.error("[useTrilhaProgress] Erro ao sincronizar com Supabase:", err);
       }
     },
     []
   );
 
-  return { progress, ranking, carregando, salvarProgresso };
+  const zerarProgresso = useCallback(async () => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("central-trilha-progress");
+      } catch {}
+    }
+    atualizarBadgesConquistadas(PROGRES_LIMPO, getTrilhasCache());
+    setProgress(PROGRES_LIMPO);
+    setRanking([]);
+
+    await zerarProgressoServidor();
+  }, []);
+
+  return { progress, ranking, carregando, salvarProgresso, zerarProgresso };
 }
+

@@ -15,6 +15,7 @@ export type TrilhaAdminPayload = {
   cor?: string;
   dificuldade?: Dificuldade;
   setorRestrito?: string;
+  xpTotal?: number;
   ativo?: boolean;
   ordem?: number;
 };
@@ -31,6 +32,14 @@ export type MissaoPayload = {
   quiz?: PerguntaQuiz[];
 };
 
+let _trilhasCache: Trilha[] = [];
+export function getTrilhasCache(): Trilha[] {
+  return _trilhasCache;
+}
+export function setTrilhasCache(trilhas: Trilha[]) {
+  _trilhasCache = trilhas;
+}
+
 /** Carrega trilhas ativas do servidor (Supabase). Retorna array vazio se não houver trilhas. */
 export async function carregarTrilhasApi(): Promise<Trilha[]> {
   try {
@@ -38,7 +47,9 @@ export async function carregarTrilhasApi(): Promise<Trilha[]> {
     if (!res.ok) return [];
     const data = await res.json();
     if (!Array.isArray(data.trilhas)) return [];
-    return data.trilhas as Trilha[];
+    const trilhas = data.trilhas as Trilha[];
+    setTrilhasCache(trilhas);
+    return trilhas;
   } catch {
     return [];
   }

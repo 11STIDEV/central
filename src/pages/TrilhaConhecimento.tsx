@@ -20,6 +20,7 @@ export default function TrilhaConhecimento() {
   const { trilhas, carregando: carregandoTrilhas } = useTrilhas();
 
   const carregando = carregandoProgress || carregandoTrilhas;
+  const isAdmin = usuario?.papeis?.includes("admin");
 
   const { atual } = getNivelInfo(progress.xpTotal);
 
@@ -85,32 +86,47 @@ export default function TrilhaConhecimento() {
               </div>
             </div>
 
-            {/* Right: Stats bar */}
-            <div className="flex flex-wrap gap-3 md:gap-4">
-              <StatChip
-                icon={<Flame className="h-4 w-4 text-orange-400" />}
-                label="Ofensiva"
-                value={`${progress.ofensivaDias}d`}
-                glow="orange"
-              />
-              <StatChip
-                icon={<Zap className="h-4 w-4 text-amber-400" />}
-                label="XP Total"
-                value={progress.xpTotal.toLocaleString("pt-BR")}
-                glow="amber"
-              />
-              <StatChip
-                icon={<Star className="h-4 w-4 text-violet-400" />}
-                label="Missões"
-                value={String(progress.missoesCompletas)}
-                glow="violet"
-              />
-              <StatChip
-                icon={<Trophy className="h-4 w-4 text-emerald-400" />}
-                label="Trilhas"
-                value={String(progress.trilhasCompletas)}
-                glow="emerald"
-              />
+            {/* Right: Stats bar + Action buttons */}
+            <div className="flex flex-col items-end gap-3">
+              <div className="flex flex-wrap gap-3 md:gap-4">
+                <StatChip
+                  icon={<Flame className="h-4 w-4 text-orange-400" />}
+                  label="Ofensiva"
+                  value={`${progress.ofensivaDias}d`}
+                  glow="orange"
+                />
+                <StatChip
+                  icon={<Zap className="h-4 w-4 text-amber-400" />}
+                  label="XP Total"
+                  value={progress.xpTotal.toLocaleString("pt-BR")}
+                  glow="amber"
+                />
+                <StatChip
+                  icon={<Star className="h-4 w-4 text-violet-400" />}
+                  label="Missões"
+                  value={String(progress.missoesCompletas)}
+                  glow="violet"
+                />
+                <StatChip
+                  icon={<Trophy className="h-4 w-4 text-emerald-400" />}
+                  label="Trilhas"
+                  value={String(progress.trilhasCompletas)}
+                  glow="emerald"
+                />
+              </div>
+
+              {isAdmin && (
+                <div className="flex items-center gap-2 mt-1">
+                  <button
+                    onClick={() => navigate("/trilha-conhecimento/admin")}
+                    className="flex items-center gap-1.5 rounded-lg border border-indigo-400/20 bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-300 transition hover:bg-indigo-500/20"
+                    title="Acessar painel de gerenciamento das trilhas"
+                  >
+                    <Settings2 className="h-3.5 w-3.5" />
+                    Gerenciar Trilhas
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -154,7 +170,7 @@ export default function TrilhaConhecimento() {
                       <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1 font-bold text-amber-400">
                           <Zap className="h-3 w-3" />
-                          {proximaMissao.missao.xpRecompensa} XP
+                          {proximaMissao.trilha.xpTotal} XP na trilha
                         </span>
                         <span>~{proximaMissao.missao.tempoEstimadoMin} min</span>
                         <span>{proximaMissao.missao.quiz.length} perguntas</span>

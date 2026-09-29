@@ -1,4 +1,4 @@
-import { CheckCircle2, Lock, Zap, Clock, ChevronRight, PlayCircle } from "lucide-react";
+import { CheckCircle2, Lock, Clock, ChevronRight, PlayCircle } from "lucide-react";
 import type { Missao } from "@/data/trilhasMock";
 
 type MissaoStatus = "locked" | "available" | "completed";
@@ -90,11 +90,7 @@ export function MissaoCard({ missao, status, isFirst, isLast, onClick }: MissaoC
             )}
           </div>
 
-          <div className="flex shrink-0 flex-col items-end gap-2">
-            <span className="flex items-center gap-1 text-xs font-bold text-amber-400">
-              <Zap className="h-3 w-3" />
-              {missao.xpRecompensa}
-            </span>
+          <div className="flex shrink-0 items-center justify-center">
             {!isLocked && (
               <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-foreground" />
             )}
