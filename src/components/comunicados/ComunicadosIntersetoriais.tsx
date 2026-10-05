@@ -21,7 +21,13 @@ import {
   Paperclip,
   Link as LinkIcon,
   Pencil,
-  RefreshCw
+  RefreshCw,
+  Image as ImageIcon,
+  UploadCloud,
+  Maximize2,
+  ChevronLeft,
+  ChevronRight,
+  Download
 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { apiUrl } from "@/lib/apiBase";
@@ -36,6 +42,7 @@ export interface ComunicadoIntersetorial {
   descricao: string;
   dataValidade?: string;
   anexosOuLinks?: Array<{ titulo: string; url: string }>;
+  imagens?: string[];
   criadoPorEmail: string;
   criadoPorNome: string;
   criadoEm: string;
@@ -79,6 +86,46 @@ function formatarUrlLink(url?: string): string {
   return `https://${trimmed}`;
 }
 
+/**
+ * Comprime e redimensiona imagens no cliente via Canvas antes de salvar/enviar,
+ * garantindo excelente qualidade visual, baixo consumo de dados e alta performance.
+ */
+async function compressImageFile(file: File, maxDimension = 1600, quality = 0.82): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) {
+            height = Math.round((height * maxDimension) / width);
+            width = maxDimension;
+          } else {
+            width = Math.round((width * maxDimension) / height);
+            height = maxDimension;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const compressed = canvas.toDataURL("image/jpeg", quality);
+        resolve(compressed);
+      };
+      img.onerror = () => reject(new Error("Falha ao carregar a imagem para processamento."));
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => reject(new Error("Falha ao ler o arquivo de imagem."));
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function ComunicadosIntersetoriais() {
   const { googleIdToken, usuario } = useAuth();
 
@@ -89,6 +136,19 @@ export default function ComunicadosIntersetoriais() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<"ativo" | "expirado" | "todos">("ativo");
+
+  // Lightbox / Visualizador de Imagens em Tela Cheia
+  const [lightbox, setLightbox] = useState<{
+    open: boolean;
+    images: string[];
+    index: number;
+    title: string;
+  }>({
+    open: false,
+    images: [],
+    index: 0,
+    title: ""
+  });
 
   const obterNomeSetorUsuario = (papeis?: string[]): string => {
     if (!papeis || papeis.length === 0) return "SETAPE";
@@ -136,6 +196,9 @@ export default function ComunicadosIntersetoriais() {
   const [formLinkTitulo, setFormLinkTitulo] = useState("");
   const [formLinkUrl, setFormLinkUrl] = useState("");
   const [formLinksList, setFormLinksList] = useState<Array<{ titulo: string; url: string }>>([]);
+  const [formImagensList, setFormImagensList] = useState<string[]>([]);
+  const [formImagemUrl, setFormImagemUrl] = useState("");
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
 
   const carregarComunicados = async () => {
     setLoading(true);
@@ -166,6 +229,28 @@ export default function ComunicadosIntersetoriais() {
     carregarComunicados();
   }, [filterStatus, search]);
 
+  // Listener para atalhos de teclado do Lightbox (Esc para fechar, setas para navegar)
+  useEffect(() => {
+    if (!lightbox.open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setLightbox(prev => ({ ...prev, open: false }));
+      } else if (e.key === "ArrowLeft") {
+        setLightbox(prev => ({
+          ...prev,
+          index: prev.index > 0 ? prev.index - 1 : prev.images.length - 1
+        }));
+      } else if (e.key === "ArrowRight") {
+        setLightbox(prev => ({
+          ...prev,
+          index: prev.index < prev.images.length - 1 ? prev.index + 1 : 0
+        }));
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [lightbox.open]);
+
   const handleAbrirCriar = () => {
     setEditingComunicado(null);
     resetForm();
@@ -181,9 +266,46 @@ export default function ComunicadosIntersetoriais() {
     setFormDescricao(c.descricao || "");
     setFormDataValidade(c.dataValidade ? c.dataValidade.split("T")[0] : "");
     setFormLinksList(c.anexosOuLinks || []);
+    setFormImagensList(c.imagens || []);
     setFormLinkTitulo("");
     setFormLinkUrl("");
+    setFormImagemUrl("");
     setShowModal(true);
+  };
+
+  const handleProcessarImagens = async (files: FileList | File[]) => {
+    const fileArray = Array.from(files).filter(f => f.type.startsWith("image/"));
+    if (fileArray.length === 0) {
+      toast.error("Selecione arquivos de imagem válidos (PNG, JPG, JPEG, WEBP).");
+      return;
+    }
+    if (formImagensList.length + fileArray.length > 8) {
+      toast.warning("Você pode anexar no máximo 8 imagens por comunicado.");
+      return;
+    }
+    setIsUploadingImages(true);
+    try {
+      const promises = fileArray.map(f => compressImageFile(f));
+      const processed = await Promise.all(promises);
+      setFormImagensList(prev => [...prev, ...processed]);
+      toast.success(`${processed.length} imagem(ns) adicionada(s) com sucesso!`);
+    } catch (err: any) {
+      toast.error("Falha ao processar as imagens selecionadas.");
+    } finally {
+      setIsUploadingImages(false);
+    }
+  };
+
+  const addFormImageUrl = () => {
+    if (!formImagemUrl.trim()) return;
+    const urlFormatada = formatarUrlLink(formImagemUrl);
+    setFormImagensList(prev => [...prev, urlFormatada]);
+    setFormImagemUrl("");
+    toast.success("Imagem adicionada por link!");
+  };
+
+  const removeFormImage = (index: number) => {
+    setFormImagensList(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSalvarComunicado = async (e: React.FormEvent) => {
@@ -212,6 +334,15 @@ export default function ComunicadosIntersetoriais() {
       return;
     }
 
+    // Trava de segurança: impede salvar se houver URL de imagem digitada mas não adicionada (+ Add)
+    if (formImagemUrl.trim()) {
+      toast.warning(
+        "Você digitou uma URL de imagem mas não clicou em '+ Anexar URL'. Clique no botão para incluí-la antes de salvar.",
+        { duration: 5000 }
+      );
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const payload = {
@@ -221,7 +352,8 @@ export default function ComunicadosIntersetoriais() {
         canaisDivulgacao: formCanaisDivulgacao,
         descricao: formDescricao,
         dataValidade: formDataValidade || undefined,
-        anexosOuLinks: formLinksList
+        anexosOuLinks: formLinksList,
+        imagens: formImagensList
       };
 
       if (editingComunicado) {
@@ -277,6 +409,10 @@ export default function ComunicadosIntersetoriais() {
     setFormDescricao("");
     setFormDataValidade("");
     setFormLinksList([]);
+    setFormImagensList([]);
+    setFormImagemUrl("");
+    setFormLinkTitulo("");
+    setFormLinkUrl("");
     setFormSetorOrigem("SETAPE");
     setFormSetoresDestino(["SECRETARIA", "DP / FINANCEIRO"]);
     setFormCanaisDivulgacao([
@@ -346,6 +482,10 @@ export default function ComunicadosIntersetoriais() {
     }
     linhas.push(`\n📝 *Descrição:*`);
     linhas.push(c.descricao);
+
+    if (c.imagens && c.imagens.length > 0) {
+      linhas.push(`\n🖼️ *Imagens / Cartazes Anexados:* ${c.imagens.length} imagem(ns) no comunicado`);
+    }
 
     if (c.anexosOuLinks && c.anexosOuLinks.length > 0) {
       linhas.push("\n📎 *Links / Anexos:*");
@@ -564,11 +704,112 @@ export default function ComunicadosIntersetoriais() {
                   </span>
                 </div>
 
-                {/* CORPO: TÍTULO E DESCRIÇÃO */}
-                <div className="mt-3 space-y-2">
+                {/* CORPO: TÍTULO, BANNER DE IMAGEM E DESCRIÇÃO */}
+                <div className="mt-3 space-y-3">
                   <h3 className="text-lg font-bold text-foreground leading-snug">
                     {c.titulo}
                   </h3>
+
+                  {/* IMAGENS EM ESTILO DE BANNER (LOGO ABAIXO DO TÍTULO) */}
+                  {c.imagens && c.imagens.length > 0 && (
+                    <div>
+                      {c.imagens.length === 1 ? (
+                        /* BANNER ÚNICO FULL-WIDTH */
+                        <div
+                          onClick={() => setLightbox({ open: true, images: c.imagens!, index: 0, title: c.titulo })}
+                          className="group relative my-2 w-full overflow-hidden rounded-xl border border-border/80 bg-slate-950/5 dark:bg-slate-950/40 shadow-sm transition-all hover:shadow-md hover:border-primary/50 cursor-pointer h-52 sm:h-72 md:h-80 flex items-center justify-center"
+                          title="Clique para ampliar o banner em tela cheia"
+                        >
+                          <img
+                            src={c.imagens[0]}
+                            alt={`Banner de ${c.titulo}`}
+                            className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.02]"
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 flex items-end justify-between p-3 sm:p-4">
+                            <span className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-md">
+                              <Maximize2 className="h-3.5 w-3.5" />
+                              <span>Clique para ver em tela cheia</span>
+                            </span>
+                          </div>
+                        </div>
+                      ) : c.imagens.length === 2 ? (
+                        /* 2 BANNERS LADO A LADO */
+                        <div className="my-2 grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {c.imagens.map((imgUrl, imgIdx) => (
+                            <div
+                              key={imgIdx}
+                              onClick={() => setLightbox({ open: true, images: c.imagens!, index: imgIdx, title: c.titulo })}
+                              className="group relative overflow-hidden rounded-xl border border-border/80 bg-slate-950/5 dark:bg-slate-950/40 shadow-sm transition-all hover:shadow-md hover:border-primary/50 cursor-pointer h-48 sm:h-56"
+                              title="Clique para ampliar"
+                            >
+                              <img
+                                src={imgUrl}
+                                alt={`Banner ${imgIdx + 1} de ${c.titulo}`}
+                                className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.03]"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100 flex items-end justify-between p-3">
+                                <span className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-md">
+                                  <Maximize2 className="h-3.5 w-3.5" />
+                                  <span>Imagem #{imgIdx + 1}</span>
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        /* 3 OU MAIS IMAGENS: BANNER PRINCIPAL + MINI-BANNERS */
+                        <div className="my-2 space-y-2">
+                          <div
+                            onClick={() => setLightbox({ open: true, images: c.imagens!, index: 0, title: c.titulo })}
+                            className="group relative w-full overflow-hidden rounded-xl border border-border/80 bg-slate-950/5 dark:bg-slate-950/40 shadow-sm transition-all hover:shadow-md hover:border-primary/50 cursor-pointer h-52 sm:h-64"
+                            title="Clique para ampliar o banner principal"
+                          >
+                            <img
+                              src={c.imagens[0]}
+                              alt={`Banner de ${c.titulo}`}
+                              className="w-full h-full object-cover object-center transition-transform duration-500 group-hover:scale-[1.02]"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent flex items-end justify-between p-3 sm:p-4">
+                              <span className="flex items-center gap-1.5 rounded-lg bg-black/60 px-2.5 py-1 text-xs font-semibold text-white backdrop-blur-md">
+                                <Maximize2 className="h-3.5 w-3.5" />
+                                <span>Banner Principal</span>
+                              </span>
+                              <span className="rounded-lg bg-primary/90 px-2.5 py-1 text-[11px] font-bold text-primary-foreground backdrop-blur-md shadow">
+                                +{c.imagens.length - 1} fotos adicionais
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {c.imagens.slice(1).map((imgUrl, imgIdx) => {
+                              const realIdx = imgIdx + 1;
+                              return (
+                                <div
+                                  key={realIdx}
+                                  onClick={() => setLightbox({ open: true, images: c.imagens!, index: realIdx, title: c.titulo })}
+                                  className="group relative h-20 sm:h-24 overflow-hidden rounded-lg border border-border bg-slate-950/5 dark:bg-slate-950/40 cursor-pointer shadow-2xs transition-all hover:scale-[1.02] hover:border-primary/50"
+                                  title={`Ver imagem #${realIdx + 1}`}
+                                >
+                                  <img
+                                    src={imgUrl}
+                                    alt={`Imagem ${realIdx + 1} de ${c.titulo}`}
+                                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                  />
+                                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                    <Maximize2 className="h-4 w-4 text-white" />
+                                  </div>
+                                  <span className="absolute left-1.5 bottom-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white backdrop-blur-xs">
+                                    #{realIdx + 1}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <p className="whitespace-pre-line text-xs text-muted-foreground leading-relaxed">
                     {c.descricao}
                   </p>
@@ -767,7 +1008,7 @@ export default function ComunicadosIntersetoriais() {
         </div>
       )}
 
-      {/* MODAL DE CRIAÇÃO */}
+      {/* MODAL DE CRIAÇÃO / EDIÇÃO */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-xl max-h-[90vh] overflow-y-auto rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-5">
@@ -783,7 +1024,7 @@ export default function ComunicadosIntersetoriais() {
                   </h3>
                   <p className="text-xs text-muted-foreground">
                     {editingComunicado
-                      ? "Atualize as informações, canais, validade ou links do comunicado."
+                      ? "Atualize as informações, canais, validade, fotos ou links do comunicado."
                       : "Preencha as informações necessárias para compartilhar com os setores."}
                   </p>
                 </div>
@@ -924,9 +1165,120 @@ export default function ComunicadosIntersetoriais() {
                 </p>
               </div>
 
+              {/* IMAGENS / CARTAZES / BANNERS ANEXADOS */}
+              <div className="space-y-2 rounded-xl border border-border bg-muted/10 p-3.5">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-foreground text-xs flex items-center gap-1.5">
+                    <ImageIcon className="h-4 w-4 text-primary" />
+                    <span>Anexar Imagens / Cartazes</span>
+                    {formImagensList.length > 0 && (
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
+                        {formImagensList.length} / 8
+                      </span>
+                    )}
+                  </label>
+                  <span className="text-[10px] text-muted-foreground">PNG, JPG, WEBP (máx. 8)</span>
+                </div>
+
+                {/* Dropzone / Upload de Arquivo */}
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                      handleProcessarImagens(e.dataTransfer.files);
+                    }
+                  }}
+                  className="relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-border/80 bg-background/50 p-4 text-center transition-all hover:border-primary/60 hover:bg-primary/5 cursor-pointer"
+                >
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    id="comunicado-image-upload"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files.length > 0) {
+                        handleProcessarImagens(e.target.files);
+                        e.target.value = "";
+                      }
+                    }}
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    disabled={isUploadingImages}
+                  />
+                  <div className="flex flex-col items-center gap-1 pointer-events-none">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                      {isUploadingImages ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <UploadCloud className="h-4 w-4" />
+                      )}
+                    </div>
+                    <p className="text-xs font-semibold text-foreground">
+                      {isUploadingImages ? "Otimizando imagens..." : "Clique para selecionar imagens ou arraste para cá"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Fotos de avisos, panfletos, convites de passeios ou cartazes
+                    </p>
+                  </div>
+                </div>
+
+                {/* Ou adicionar por URL */}
+                <div className="flex gap-2 pt-1">
+                  <input
+                    type="url"
+                    value={formImagemUrl}
+                    onChange={(e) => setFormImagemUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addFormImageUrl();
+                      }
+                    }}
+                    placeholder="Ou cole o link direto da foto/imagem (https://...)"
+                    className="flex-1 rounded-xl border border-border bg-background px-3 py-2 text-xs focus:border-primary focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={addFormImageUrl}
+                    className="rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-semibold text-secondary-foreground hover:bg-secondary/80"
+                  >
+                    + Anexar Link
+                  </button>
+                </div>
+
+                {/* Galeria de Thumbnails das Imagens Anexadas no Modal */}
+                {formImagensList.length > 0 && (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
+                    {formImagensList.map((img, idx) => (
+                      <div
+                        key={idx}
+                        className="group relative aspect-video sm:aspect-square overflow-hidden rounded-lg border border-border bg-black/10 shadow-2xs"
+                      >
+                        <img
+                          src={img}
+                          alt={`Anexo ${idx + 1}`}
+                          className="h-full w-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeFormImage(idx)}
+                          className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-rose-600/90 text-white shadow hover:bg-rose-700 transition-all"
+                          title="Remover imagem"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                        <span className="absolute left-1 bottom-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white backdrop-blur-xs">
+                          #{idx + 1}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* LINKS E ANEXOS */}
               <div className="space-y-2">
-                <label className="block font-bold text-foreground">Links / Anexos</label>
+                <label className="block font-bold text-foreground">Outros Links / Documentos (PDF / Formulários)</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -1009,7 +1361,7 @@ export default function ComunicadosIntersetoriais() {
                 </button>
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isUploadingImages}
                   className="flex items-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50"
                 >
                   {isSubmitting ? (
@@ -1027,6 +1379,91 @@ export default function ComunicadosIntersetoriais() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+
+      {/* LIGHTBOX / VISUALIZADOR DE IMAGENS EM TELA CHEIA */}
+      {lightbox.open && lightbox.images.length > 0 && (
+        <div
+          className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black/90 p-3 sm:p-6 backdrop-blur-md animate-in fade-in duration-200"
+          onClick={() => setLightbox(prev => ({ ...prev, open: false }))}
+        >
+          {/* Header da Lightbox */}
+          <div
+            className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between p-4 text-white bg-gradient-to-b from-black/80 to-transparent"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="max-w-[70%]">
+              <h4 className="truncate text-sm font-bold text-white">{lightbox.title}</h4>
+              <p className="text-xs text-white/70">
+                Imagem {lightbox.index + 1} de {lightbox.images.length}
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <a
+                href={lightbox.images[lightbox.index]}
+                download={`comunicado-imagem-${lightbox.index + 1}.jpg`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 rounded-xl border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-md hover:bg-white/20 transition-all"
+                title="Abrir / Baixar original"
+              >
+                <Download className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Baixar / Abrir</span>
+              </a>
+              <button
+                onClick={() => setLightbox(prev => ({ ...prev, open: false }))}
+                className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/10 text-white hover:bg-white/20 transition-all"
+                title="Fechar (Esc)"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Imagem Principal Centralizada */}
+          <div
+            className="relative flex max-h-[82vh] max-w-[95vw] items-center justify-center overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightbox.images[lightbox.index]}
+              alt={`Visualização ${lightbox.index + 1}`}
+              className="max-h-[80vh] max-w-full rounded-lg object-contain shadow-2xl transition-transform"
+            />
+          </div>
+
+          {/* Botões de Navegação Anterior / Próximo */}
+          {lightbox.images.length > 1 && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox(prev => ({
+                    ...prev,
+                    index: prev.index > 0 ? prev.index - 1 : prev.images.length - 1
+                  }));
+                }}
+                className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white border border-white/20 hover:bg-black/80 hover:scale-105 active:scale-95 transition-all shadow-xl backdrop-blur-sm"
+                title="Imagem anterior (Seta esquerda)"
+              >
+                <ChevronLeft className="h-6 w-6" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setLightbox(prev => ({
+                    ...prev,
+                    index: prev.index < prev.images.length - 1 ? prev.index + 1 : 0
+                  }));
+                }}
+                className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white border border-white/20 hover:bg-black/80 hover:scale-105 active:scale-95 transition-all shadow-xl backdrop-blur-sm"
+                title="Próxima imagem (Seta direita)"
+              >
+                <ChevronRight className="h-6 w-6" />
+              </button>
+            </>
+          )}
         </div>
       )}
     </div>

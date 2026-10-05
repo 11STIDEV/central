@@ -36,7 +36,7 @@ import {
   getSessionIdFromRequest,
   iniciarSessaoUsuario,
 } from "./sessionAuth.js";
-import { resolverPapeisCompletos } from "./userContext.js";
+import { resolverPapeisCompletos, isCentralAdminEmail } from "./userContext.js";
 import {
   listarTodosChamados,
   obterChamadoPorId,
@@ -66,6 +66,12 @@ import {
   atualizarComunicadoStore,
   excluirComunicadoStore,
 } from "./comunicadosStore.js";
+import {
+  listarRamaisStore,
+  salvarRamalStore,
+  excluirRamalStore,
+  salvarTodosRamaisStore,
+} from "./ramaisStore.js";
 import {
   lerProgressoUsuario,
   salvarProgressoUsuario,
@@ -104,8 +110,8 @@ const HOST = process.env.HOST || "0.0.0.0";
 
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+app.use(express.json({ limit: "15mb" }));
+app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 registerAtestadosRoutes(app);
 registerAlterdataRoutes(app, getSupabaseAdmin, {
@@ -5355,70 +5361,6 @@ function sendIndexHtml(res, next) {
   }
 }
 
-if (shouldServeStatic() && fs.existsSync(DIST_DIR)) {
-  if (process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production") {
-    app.set("trust proxy", 1);
-  }
-  /* index: false ÔÇö nunca servir dist/index.html ÔÇ£cruÔÇØ a partir do static (precisamos injetar a meta) */
-  app.use(express.static(DIST_DIR, { index: false }));
-  app.get("*", (req, res, next) => {
-    if (req.path.startsWith("/api")) {
-      return res.status(404).json({ error: "Not found" });
-    }
-    return sendIndexHtml(res, next);
-  });
-} else if (shouldServeStatic() && !fs.existsSync(DIST_DIR)) {
-  console.warn(`[static] Produ├º├úo esperada mas dist/ ausente em ${DIST_DIR}. Rode npm run build na raiz ou defina SERVE_STATIC=0.`);
-}
-
-app.listen(PORT, HOST, () => {
-  console.log(`API rodando em http://${HOST}:${PORT}`);
-  const sa = getServiceAccountCredentials();
-  if (sa?.client_id) {
-    console.log(
-      `[Google Workspace] Delega├º├úo em todo o dom├¡nio (Admin Console): use o Client ID num├®rico ${sa.client_id} desta service account ÔÇö n├úo o Client ID OAuth do frontend (VITE_GOOGLE_CLIENT_ID).`,
-    );
-    console.log(
-      "  Escopos (autorize cada URL completa):",
-      SCOPE_ADMIN_USER_READONLY,
-      "|",
-      SCOPE_ADMIN_CHROME_DEVICE,
-    );
-  }
-  const setupErr = getServiceAccountSetupError();
-  if (GOOGLE_CLIENT_IDS.length === 0 || setupErr) {
-    console.warn(
-      "Aviso: configure GOOGLE_CLIENT_ID, credenciais da service account (arquivo ou JSON) e GOOGLE_ADMIN_IMPERSONATE para /api/organizacao e /api/chromebooks.",
-      setupErr ? `ÔÇö ${setupErr}` : "",
-    );
-  }
-  const supabase = statusSupabaseEnv();
-  if (supabase.urlSet && !supabase.serviceRoleKeySet) {
-    console.warn(
-      "Aviso: SUPABASE_URL definida mas falta SUPABASE_SERVICE_ROLE_KEY (runtime no Coolify ou server/.env).",
-    );
-  } else if (!supabase.configured) {
-    console.warn(
-      "[supabase] SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY ausentes ÔÇö chamados, agenda e sync do painel n├úo funcionam.",
-    );
-  } else if (supabase.keyLooksAnon) {
-    console.warn(
-      '[supabase] A chave configurada ├® "anon", n├úo "service_role". Use a secret service_role do Supabase.',
-    );
-  } else if (supabase.configured) {
-    console.log("[supabase] OK (URL + service_role configurados).");
-  }
-  if (AGENDA_CCI_ENFORCE_DISABLE) {
-    console.log(
-      `[agenda-cci] disable/reenable ativo ÔÇö intervalo ${AGENDA_CCI_POLL_MS}ms, fuso ${AGENDA_CCI_TIMEZONE}. Lista vazia: ${AGENDA_CCI_DISABLE_WHEN_EMPTY ? "disable em todo o parque" : "s├│ reabilita bloqueados (recupera├º├úo)"}.`,
-    );
-    setInterval(() => {
-      aplicarPoliticaChromebooks().catch((e) => console.error(e));
-    }, AGENDA_CCI_POLL_MS);
-    setTimeout(() => aplicarPoliticaChromebooks().catch(console.error), 12_000);
-  }
-});
-
 // Trigger reload for reading env variables
 
 // ÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇÔöÇ
@@ -6143,6 +6085,7 @@ app.post("/api/comunicados-intersetoriais/criar", async (req, res) => {
       descricao: String(novoComunicado.descricao).trim(),
       dataValidade: novoComunicado.dataValidade || null,
       anexosOuLinks: Array.isArray(novoComunicado.anexosOuLinks) ? novoComunicado.anexosOuLinks : [],
+      imagens: Array.isArray(novoComunicado.imagens) ? novoComunicado.imagens : (novoComunicado.imagemUrl ? [novoComunicado.imagemUrl] : []),
       criadoPorEmail: userEmail,
       criadoPorNome: userNome || userEmail,
       criadoEm: new Date().toISOString(),
@@ -6353,6 +6296,146 @@ app.post("/api/comunicados-intersetoriais/excluir", async (req, res) => {
     return res.json({ ok: true });
   } catch (e) {
     console.error("[comunicados-intersetoriais-excluir] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+async function checarPermissaoEdicaoRamais(req) {
+  let email = "";
+  let papeis = [];
+
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (ctx) {
+      email = (ctx.email || "").toLowerCase();
+      papeis = (ctx.papeis || []).map(p => String(p).toLowerCase());
+    }
+  } catch (errCtx) {
+    const idToken = req.body?.idToken;
+    if (idToken && typeof idToken === "string") {
+      try {
+        const usr = await verificarIdTokenUsuario(idToken);
+        email = (usr.email || "").toLowerCase();
+        const orgUnitPath = await obterOrgUnitPathUsuario(email);
+        const manual = lerPapeisManuaisArquivo()[email] || [];
+        papeis = resolverPapeisCompletos(orgUnitPath, email, manual, {
+          ouPainelAtendente: ouPainelAtendentePeloCaminho,
+          ouPainelAdmin: ouPainelAdminPeloCaminho,
+        }).map(p => String(p).toLowerCase());
+      } catch (errToken) {
+        console.warn("[ramais-auth] Falha ao verificar idToken no fallback:", errToken.message);
+      }
+    }
+  }
+
+  const painelAdminEmails = (process.env.VITE_PAINEL_ADMIN_EMAILS || process.env.PAINEL_ADMIN_EMAILS || "")
+    .split(",")
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean);
+
+  const isEmailAdmin =
+    isCentralAdminEmail(email) ||
+    painelAdminEmails.includes(email);
+
+  const podeEditar =
+    papeis.includes("admin") ||
+    papeis.includes("painel_admin") ||
+    papeis.includes("setape") ||
+    papeis.includes("gerente_setape") ||
+    papeis.includes("direcao") ||
+    papeis.includes("gerente_direcao") ||
+    isEmailAdmin;
+
+  return { podeEditar, email, papeis };
+}
+
+app.get("/api/ramais", async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    const ramais = await listarRamaisStore(supabase);
+    return res.json({ ok: true, ramais });
+  } catch (e) {
+    console.error("[ramais-listar] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ramais/listar", async (req, res) => {
+  try {
+    const supabase = getSupabaseAdmin();
+    const ramais = await listarRamaisStore(supabase);
+    return res.json({ ok: true, ramais });
+  } catch (e) {
+    console.error("[ramais-listar] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ramais/salvar", async (req, res) => {
+  try {
+    const { ramal } = req.body || {};
+    if (!ramal || !ramal.nome || !ramal.ramal || !ramal.setor) {
+      return res.status(400).json({ error: "Nome, ramal e setor são obrigatórios." });
+    }
+
+    const { podeEditar, email } = await checarPermissaoEdicaoRamais(req);
+
+    if (!podeEditar) {
+      console.warn(`[ramais-salvar] Acesso negado para usuário: ${email || "anônimo"}`);
+      return res.status(403).json({ error: "Você não tem permissão para gerenciar ramais." });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const ramalSalvo = await salvarRamalStore(supabase, ramal);
+    return res.json({ ok: true, ramal: ramalSalvo });
+  } catch (e) {
+    console.error("[ramais-salvar] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ramais/excluir", async (req, res) => {
+  try {
+    const { id } = req.body || {};
+    if (!id) {
+      return res.status(400).json({ error: "ID do ramal não fornecido." });
+    }
+
+    const { podeEditar, email } = await checarPermissaoEdicaoRamais(req);
+
+    if (!podeEditar) {
+      console.warn(`[ramais-excluir] Acesso negado para usuário: ${email || "anônimo"}`);
+      return res.status(403).json({ error: "Você não tem permissão para excluir ramais." });
+    }
+
+    const supabase = getSupabaseAdmin();
+    await excluirRamalStore(supabase, id);
+    return res.json({ ok: true });
+  } catch (e) {
+    console.error("[ramais-excluir] Erro:", e);
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+app.post("/api/ramais/salvar-todos", async (req, res) => {
+  try {
+    const { ramais } = req.body || {};
+    if (!Array.isArray(ramais)) {
+      return res.status(400).json({ error: "Lista de ramais inválida." });
+    }
+
+    const { podeEditar, email } = await checarPermissaoEdicaoRamais(req);
+
+    if (!podeEditar) {
+      console.warn(`[ramais-salvar-todos] Acesso negado para usuário: ${email || "anônimo"}`);
+      return res.status(403).json({ error: "Você não tem permissão para gerenciar ramais." });
+    }
+
+    const supabase = getSupabaseAdmin();
+    const listaSalva = await salvarTodosRamaisStore(supabase, ramais);
+    return res.json({ ok: true, ramais: listaSalva });
+  } catch (e) {
+    console.error("[ramais-salvar-todos] Erro:", e);
     return res.status(500).json({ error: e.message });
   }
 });
@@ -6808,4 +6891,71 @@ app.delete("/api/trilhas/:trilhaId/missoes/:missaoId", async (req, res) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// SERVIR FRONTEND ESTÁTICO (PRODUÇÃO) & INICIAR SERVIDOR
+// DEVE FICAR SEMPRE APÓS TODAS AS ROTAS DA API /api/...
+// ─────────────────────────────────────────────────────────────────────────────
 
+if (shouldServeStatic() && fs.existsSync(DIST_DIR)) {
+  if (process.env.TRUST_PROXY === "1" || process.env.NODE_ENV === "production") {
+    app.set("trust proxy", 1);
+  }
+  /* index: false — nunca servir dist/index.html “cru” a partir do static (precisamos injetar a meta) */
+  app.use(express.static(DIST_DIR, { index: false }));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    return sendIndexHtml(res, next);
+  });
+} else if (shouldServeStatic() && !fs.existsSync(DIST_DIR)) {
+  console.warn(`[static] Produção esperada mas dist/ ausente em ${DIST_DIR}. Rode npm run build na raiz ou defina SERVE_STATIC=0.`);
+}
+
+app.listen(PORT, HOST, () => {
+  console.log(`API rodando em http://${HOST}:${PORT}`);
+  const sa = getServiceAccountCredentials();
+  if (sa?.client_id) {
+    console.log(
+      `[Google Workspace] Delegação em todo o domínio (Admin Console): use o Client ID numérico ${sa.client_id} desta service account — não o Client ID OAuth do frontend (VITE_GOOGLE_CLIENT_ID).`,
+    );
+    console.log(
+      "  Escopos (autorize cada URL completa):",
+      SCOPE_ADMIN_USER_READONLY,
+      "|",
+      SCOPE_ADMIN_CHROME_DEVICE,
+    );
+  }
+  const setupErr = getServiceAccountSetupError();
+  if (GOOGLE_CLIENT_IDS.length === 0 || setupErr) {
+    console.warn(
+      "Aviso: configure GOOGLE_CLIENT_ID, credenciais da service account (arquivo ou JSON) e GOOGLE_ADMIN_IMPERSONATE para /api/organizacao e /api/chromebooks.",
+      setupErr ? `— ${setupErr}` : "",
+    );
+  }
+  const supabase = statusSupabaseEnv();
+  if (supabase.urlSet && !supabase.serviceRoleKeySet) {
+    console.warn(
+      "Aviso: SUPABASE_URL definida mas falta SUPABASE_SERVICE_ROLE_KEY (runtime no Coolify ou server/.env).",
+    );
+  } else if (!supabase.configured) {
+    console.warn(
+      "[supabase] SUPABASE_URL e SUPABASE_SERVICE_ROLE_KEY ausentes — chamados, agenda e sync do painel não funcionam.",
+    );
+  } else if (supabase.keyLooksAnon) {
+    console.warn(
+      '[supabase] A chave configurada é "anon", não "service_role". Use a secret service_role do Supabase.',
+    );
+  } else if (supabase.configured) {
+    console.log("[supabase] OK (URL + service_role configurados).");
+  }
+  if (AGENDA_CCI_ENFORCE_DISABLE) {
+    console.log(
+      `[agenda-cci] disable/reenable ativo — intervalo ${AGENDA_CCI_POLL_MS}ms, fuso ${AGENDA_CCI_TIMEZONE}. Lista vazia: ${AGENDA_CCI_DISABLE_WHEN_EMPTY ? "disable em todo o parque" : "só reabilita bloqueados (recuperação)"}.`,
+    );
+    setInterval(() => {
+      aplicarPoliticaChromebooks().catch((e) => console.error(e));
+    }, AGENDA_CCI_POLL_MS);
+    setTimeout(() => aplicarPoliticaChromebooks().catch(console.error), 12_000);
+  }
+});

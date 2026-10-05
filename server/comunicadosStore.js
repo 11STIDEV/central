@@ -41,6 +41,7 @@ function rowToComunicado(row) {
     descricao: row.descricao || "",
     dataValidade: row.data_validade || null,
     anexosOuLinks: Array.isArray(row.anexos_ou_links) ? row.anexos_ou_links : [],
+    imagens: Array.isArray(row.imagens) ? row.imagens : (row.imagem_url ? [row.imagem_url] : (Array.isArray(row.imagens_urls) ? row.imagens_urls : [])),
     criadoPorEmail: row.criado_por_email,
     criadoPorNome: row.criado_por_nome,
     criadoEm: row.criado_em,
@@ -60,6 +61,7 @@ function comunicadoToRow(item) {
     descricao: item.descricao,
     data_validade: item.dataValidade || null,
     anexos_ou_links: item.anexosOuLinks || [],
+    imagens: Array.isArray(item.imagens) ? item.imagens : (item.imagemUrl ? [item.imagemUrl] : []),
     criado_por_email: item.criadoPorEmail,
     criado_por_nome: item.criadoPorNome,
     criado_em: item.criadoEm || new Date().toISOString(),
@@ -148,6 +150,7 @@ export async function atualizarComunicadoStore(supabase, id, patch) {
       if (patch.canaisDivulgacao !== undefined) rowPatch.canais_divulgacao = patch.canaisDivulgacao;
       if (patch.dataValidade !== undefined) rowPatch.data_validade = patch.dataValidade;
       if (patch.anexosOuLinks !== undefined) rowPatch.anexos_ou_links = patch.anexosOuLinks;
+      if (patch.imagens !== undefined) rowPatch.imagens = patch.imagens;
       if (patch.cientes !== undefined) rowPatch.cientes = patch.cientes;
       rowPatch.atualizado_em = new Date().toISOString();
 
