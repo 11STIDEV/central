@@ -25,6 +25,7 @@ import {
 import { registerSetorLinksRoutes } from "./setorLinks.js";
 import { registerCcipayRoutes } from "./ccipayRoutes.js";
 import { registerCcipayParceiroRoutes } from "./ccipayParceiroRoutes.js";
+import { registerAlterdataMovimentosRoutes } from "./alterdataMovimentos.js";
 import { registerAtestadosRoutes } from "./atestadosRoutes.js";
 import { registerAlterdataRoutes } from "./alterdataRoutes.js";
 import { obterFuncionarioPorEmail, extrairResumoColaborador } from "./alterdataStore.js";
@@ -2538,6 +2539,13 @@ registerCcipayParceiroRoutes(app, {
   getSupabaseAdmin,
   mensagemSupabaseNaoConfigurado,
   resolverContextoFromRequest,
+});
+
+registerAlterdataMovimentosRoutes(app, {
+  getSupabaseAdmin,
+  mensagemSupabaseNaoConfigurado,
+  resolverContextoFromRequest,
+  respostaErroIdToken,
 });
 
 /**

@@ -11,11 +11,14 @@ import {
 import {
   registrarOuAtualizarFuncionario,
   obterFuncionario,
+  buscarColaboradorAlterdataPorEmail,
+  sincronizarFuncionarioComAlterdata,
   listarFuncionarios,
   atualizarFuncionarioAdmin,
   sincronizarFuncionariosAdvanceComAlterdata,
   somarAdiantamentosCompetencia,
   saldoBonificacao,
+  saldoConvenioDisponivel,
   criarMovimento,
   listarMovimentos,
   obterMovimento,
@@ -53,6 +56,8 @@ import { randomBytes } from "node:crypto";
 import { notificarEmailCcipay } from "./ccipayEmail.js";
 import { getParceiroFromRequest } from "./parceiroSessionAuth.js";
 import { competenciaAtual } from "./ccipayAccess.js";
+import { enviarMovimentoFolhaParaAlterdata } from "./alterdataMovimentos.js";
+import { inserirChamado } from "./chamadosStore.js";
 
 function csvEscape(val) {
   const s = String(val ?? "");
@@ -128,7 +133,7 @@ export function registerCcipayRoutes(app, helpers) {
   }
 
   async function ensureFuncionario(supabase, ctx) {
-    let f = await obterFuncionario(supabase, ctx.email);
+    let f = await sincronizarFuncionarioComAlterdata(supabase, ctx.email);
     if (!f) {
       f = await registrarOuAtualizarFuncionario(supabase, {
         email: ctx.email,
@@ -161,7 +166,7 @@ export function registerCcipayRoutes(app, helpers) {
 
   app.post("/api/ccipay/adiantamentos/criar", async (req, res) => {
     try {
-      const { idToken, pix, valor } = req.body || {};
+      const { idToken, pix, valor, tipoPix } = req.body || {};
       const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
@@ -194,7 +199,10 @@ export function registerCcipayRoutes(app, helpers) {
         funcionarioEmail: ctx.email,
         funcionarioNome: ctx.nome,
         criadoPor: ctx.email,
-        metadata: { pix: String(pix).trim() },
+        metadata: {
+          pix: String(pix).trim(),
+          tipoPix: tipoPix ? String(tipoPix).trim() : null,
+        },
       });
 
       notificarEmailCcipay("adiantamento_criado", { mov, destinatario: ctx.email });
@@ -240,12 +248,53 @@ export function registerCcipayRoutes(app, helpers) {
 
       const mov = await obterMovimento(supabase, movimentoId);
       if (!mov) return res.status(404).json({ error: "Movimento não encontrado." });
+
+      // ==============================================================
+      // CASO 1: DEPOSITAR (Ação do Financeiro)
+      // Muda status para "pago" (Depositado) e aí sim envia para o Alterdata via API!
+      // ==============================================================
+      if (acao === "depositar" || acao === "marcar_depositado") {
+        if (mov.status !== "aprovado" && mov.status !== "pendente") {
+          return res.status(400).json({ error: "Apenas vales pendentes ou aprovados podem ser marcados como depositados." });
+        }
+        let atualizado = await atualizarMovimentoStatus(supabase, movimentoId, {
+          status: "pago",
+          aprovadoPor: ctx.email,
+        });
+
+        // Agora que foi depositado pelo Financeiro, envia para a folha pela API do Alterdata!
+        let alterdataEnvio = null;
+        const { token: tokenBody } = req.body || {};
+        try {
+          alterdataEnvio = await enviarMovimentoFolhaParaAlterdata({
+            supabase,
+            movimento: atualizado,
+            tokenParam: tokenBody,
+            ctx,
+          });
+          atualizado = (await obterMovimento(supabase, movimentoId)) || atualizado;
+        } catch (errAlt) {
+          console.error("[ccipay] Erro ao integrar com Alterdata no depósito:", errAlt);
+        }
+
+        notificarEmailCcipay("adiantamento_depositado", {
+          mov: atualizado,
+          destinatario: mov.funcionarioEmail,
+        });
+        return res.json({ ok: true, movimento: atualizado, alterdata: alterdataEnvio });
+      }
+
+      // ==============================================================
+      // CASO 2: APROVAR / NEGAR (Ação do DP)
+      // Se aprovado pelo DP, fica com status "aprovado" ("Aprovado aguardando recurso").
+      // NÃO envia para a folha aqui; aguarda o financeiro realizar o depósito!
+      // ==============================================================
       if (mov.status !== "pendente") {
         return res.status(400).json({ error: "Somente movimentos pendentes podem ser analisados." });
       }
 
       const aprovar = acao === "aprovar";
-      const atualizado = await atualizarMovimentoStatus(supabase, movimentoId, {
+      let atualizado = await atualizarMovimentoStatus(supabase, movimentoId, {
         status: aprovar ? "aprovado" : "negado",
         aprovadoPor: ctx.email,
         metadataPatch: aprovar ? {} : { justificativaNegacao: String(justificativa || "").trim() },
@@ -838,6 +887,246 @@ export function registerCcipayRoutes(app, helpers) {
     }
   });
 
+  // --- Venda sem celular: busca colaborador por matrícula, CPF ou e-mail ---
+  app.post("/api/ccipay/vendas/buscar-colaborador", async (req, res) => {
+    try {
+      const { lojaId, termo } = req.body || {};
+      const ctx = await ctxOrParceiro(req);
+      const supabase = supabaseOr503(res);
+      if (!supabase) return;
+
+      const ok = await podeAcessarLoja(supabase, ctx, lojaId);
+      if (!ok) {
+        return res.status(403).json({ error: "Sem permissão para esta loja." });
+      }
+
+      const t = String(termo || "").trim();
+      if (!t || t.length < 2) {
+        return res.status(400).json({ error: "Informe matrícula, CPF ou e-mail para busca." });
+      }
+
+      const digitsOnly = t.replace(/\D/g, "");
+      const digitsNoZero = digitsOnly.replace(/^0+/, "");
+      const digitsPadded11 = digitsOnly.padStart(11, "0");
+
+      let funcionario = null;
+
+      // 1. Tenta buscar no Alterdata por CPF
+      // Na base do Alterdata zeros à esquerda são frequentemente suprimidos (ex: 10 dígitos)
+      if (digitsOnly.length >= 7 && digitsOnly.length <= 11) {
+        const cpfVariants = Array.from(
+          new Set([digitsOnly, digitsNoZero, digitsPadded11, t].filter(Boolean))
+        );
+
+        const { data: listaCpf } = await supabase
+          .from("intranet_alterdata_funcionarios")
+          .select("cpf, nome_completo, email, codigo_contrato_vigente, tem_contrato_ativo")
+          .in("cpf", cpfVariants)
+          .order("tem_contrato_ativo", { ascending: false })
+          .limit(1);
+
+        if (listaCpf && listaCpf.length > 0) {
+          funcionario = listaCpf[0];
+        }
+      }
+
+      // 2. Tenta por matrícula (código do contrato no Alterdata)
+      if (!funcionario && digitsOnly.length > 0 && digitsOnly.length <= 8) {
+        const matVariants = Array.from(
+          new Set([
+            digitsOnly,
+            digitsNoZero,
+            digitsOnly.padStart(6, "0"),
+            digitsOnly.padStart(7, "0"),
+            t,
+          ].filter(Boolean))
+        );
+
+        const { data: listaMat } = await supabase
+          .from("intranet_alterdata_funcionarios")
+          .select("cpf, nome_completo, email, codigo_contrato_vigente, tem_contrato_ativo")
+          .in("codigo_contrato_vigente", matVariants)
+          .order("tem_contrato_ativo", { ascending: false })
+          .limit(1);
+
+        if (listaMat && listaMat.length > 0) {
+          funcionario = listaMat[0];
+        }
+      }
+
+      // 3. Tenta por e-mail ou nome no Alterdata
+      if (!funcionario) {
+        let q = supabase
+          .from("intranet_alterdata_funcionarios")
+          .select("cpf, nome_completo, email, codigo_contrato_vigente, tem_contrato_ativo")
+          .order("tem_contrato_ativo", { ascending: false })
+          .limit(1);
+
+        if (t.includes("@")) {
+          q = q.ilike("email", t.toLowerCase());
+        } else {
+          q = q.or(`email.ilike.%${t}%,nome_completo.ilike.%${t}%`);
+        }
+
+        const { data: listaNomeOuEmail } = await q;
+        if (listaNomeOuEmail && listaNomeOuEmail.length > 0) {
+          funcionario = listaNomeOuEmail[0];
+        }
+      }
+
+      // 4. Se não achou no Alterdata, busca na tabela ccipay_funcionarios
+      if (!funcionario) {
+        let qCcipay = supabase
+          .from("ccipay_funcionarios")
+          .select("email, nome, alterdata_codigo, ativo")
+          .order("ativo", { ascending: false })
+          .limit(1);
+
+        if (digitsOnly.length > 0) {
+          const matVariants = Array.from(
+            new Set([digitsOnly, digitsNoZero, digitsOnly.padStart(6, "0"), t].filter(Boolean))
+          );
+          qCcipay = qCcipay.or(`email.ilike.%${t}%,nome.ilike.%${t}%,alterdata_codigo.in.(${matVariants.join(",")})`);
+        } else {
+          qCcipay = qCcipay.or(`email.ilike.%${t}%,nome.ilike.%${t}%`);
+        }
+
+        const { data: listaCcipay } = await qCcipay;
+        if (listaCcipay && listaCcipay.length > 0) {
+          const c = listaCcipay[0];
+          funcionario = {
+            email: c.email,
+            nome_completo: c.nome,
+            codigo_contrato_vigente: c.alterdata_codigo,
+            cpf: null,
+            tem_contrato_ativo: c.ativo,
+          };
+        }
+      }
+
+      if (!funcionario) {
+        return res.status(404).json({ error: "Colaborador não encontrado com os dados informados." });
+      }
+
+      const email = funcionario.email ? funcionario.email.toLowerCase() : null;
+      if (!email) {
+        return res.status(400).json({ error: "Colaborador sem e-mail cadastrado no sistema." });
+      }
+
+      const comp = competenciaAtual();
+      const infoSaldo = await saldoConvenioDisponivel(supabase, email, comp);
+      const saldo = infoSaldo.disponivelFolha;
+
+      let cpfFormatado = null;
+      if (funcionario.cpf) {
+        const dig = funcionario.cpf.replace(/\D/g, "").padStart(11, "0");
+        cpfFormatado = `***.${dig.slice(3, 6)}.${dig.slice(6, 9)}-**`;
+      }
+
+      return res.json({
+        ok: true,
+        colaborador: {
+          email,
+          nome: funcionario.nome_completo,
+          matricula: funcionario.codigo_contrato_vigente || "—",
+          cpfMascarado: cpfFormatado,
+          saldoDisponivel: saldo,
+          ativo: funcionario.tem_contrato_ativo !== false,
+        },
+      });
+    } catch (e) {
+      if (e.status) return respostaErroIdToken(res, e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // --- Venda sem celular: lançamento direto debitando convênio do colaborador ---
+  app.post("/api/ccipay/vendas/lancar-direta", async (req, res) => {
+    try {
+      const { lojaId, funcionarioEmail, valor, descricao } = req.body || {};
+      const ctx = await ctxOrParceiro(req);
+      const supabase = supabaseOr503(res);
+      if (!supabase) return;
+
+      const ok = await podeAcessarLoja(supabase, ctx, lojaId);
+      if (!ok) {
+        return res.status(403).json({ error: "Sem permissão para esta loja." });
+      }
+
+      const valorNum = Number(valor);
+      if (!lojaId || !funcionarioEmail || Number.isNaN(valorNum) || valorNum <= 0) {
+        return res.status(400).json({ error: "Dados da venda incompletos ou valor inválido." });
+      }
+
+      const emailAlvo = String(funcionarioEmail).trim().toLowerCase();
+      let func = await obterFuncionario(supabase, emailAlvo);
+      if (!func) {
+        func = await sincronizarFuncionarioComAlterdata(supabase, emailAlvo);
+      }
+      if (!func || !func.ativo) {
+        return res.status(400).json({ error: "Colaborador inativo ou não cadastrado no Advance-CCI." });
+      }
+
+      const comp = competenciaAtual();
+      await validarDebitoBonificacao(supabase, emailAlvo, comp, valorNum);
+
+      const identificador = identificadorCtx(ctx);
+      const descFinal = String(descricao || "").trim() || "Compra no convênio (sem celular)";
+
+      // Cria movimento unificado no ledger
+      const mov = await criarMovimento(supabase, {
+        tipo: "compra_loja",
+        direcao: "debito",
+        valor: valorNum,
+        status: "descontado_folha",
+        competencia: comp,
+        funcionarioEmail: emailAlvo,
+        funcionarioNome: func.nome,
+        lojaId,
+        criadoPor: identificador,
+        aprovadoPor: identificador,
+        metadata: {
+          modo: "venda_direta_sem_celular",
+          descricao: descFinal,
+          operador: ctx.nome || ctx.login || ctx.email,
+          lojaId,
+        },
+      });
+
+      // Registra na tabela ccipay_vendas_qr com status pago para constar no extrato da loja parceira
+      const token = randomBytes(12).toString("hex");
+      const venda = await criarVendaQr(supabase, {
+        lojaId,
+        valor: valorNum,
+        descricao: descFinal,
+        criadoPor: identificador,
+        token,
+        expiresAt: new Date().toISOString(),
+      });
+
+      const atualizada = await atualizarVendaQr(supabase, venda.id, {
+        status: "pago",
+        funcionarioEmail: emailAlvo,
+        funcionarioNome: func.nome,
+        movimentoId: mov.id,
+        pagoEm: new Date().toISOString(),
+      });
+
+      notificarEmailCcipay("venda_direta_realizada", {
+        venda: atualizada,
+        mov,
+        destinatario: emailAlvo,
+        operador: identificador,
+      });
+
+      return res.json({ ok: true, venda: atualizada, movimento: mov });
+    } catch (e) {
+      if (e instanceof CcipayBonificacaoError) return responderErroCcipay(e, res);
+      if (e.status) return respostaErroIdToken(res, e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
   app.post("/api/ccipay/vendas/listar", async (req, res) => {
     try {
       const { idToken, lojaId, status, de, ate } = req.body || {};
@@ -974,6 +1263,65 @@ export function registerCcipayRoutes(app, helpers) {
     } catch (e) {
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });
+    }
+  });
+
+  // --- Solicitação de Aumento de Limite nos Convênios (Notifica DP) ---
+  app.post("/api/ccipay/limite/solicitar-aumento", async (req, res) => {
+    try {
+      const { idToken, novoLimite, motivo } = req.body || {};
+      const ctx = await ctxFromRequest(req);
+      const supabase = supabaseOr503(res);
+      if (!supabase) return;
+
+      const novoLimiteNum = Number(novoLimite);
+      if (Number.isNaN(novoLimiteNum) || novoLimiteNum <= 0) {
+        return res.status(400).json({ error: "Informe um valor de limite válido maior que zero." });
+      }
+
+      const func = (await obterFuncionario(supabase, ctx.email)) || {
+        email: ctx.email,
+        nome: ctx.email,
+        limiteBonificacao: 0,
+      };
+
+      const limiteAtual = func.limiteBonificacao ?? 0;
+      const idChamado = `LIM-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+
+      const chamado = {
+        id: idChamado,
+        titulo: `Solicitação de Aumento de Limite nos Convênios — ${func.nome || ctx.email}`,
+        setorDestino: ["dp"],
+        solicitante: func.nome || ctx.email,
+        solicitanteEmail: ctx.email,
+        papelAbertura: "usuario",
+        categoria: "Advance-CCI / Convênios",
+        prioridade: "media",
+        status: "aberto",
+        data: new Date().toLocaleDateString("pt-BR"),
+        descricao: `Solicitação de Aumento de Limite para Compras nos Convênios CCI.\n\n• Colaborador: ${func.nome || ctx.email} (${ctx.email})\n• Limite Atual nos Convênios: R$ ${Number(limiteAtual).toFixed(2)}\n• Novo Limite Solicitado: R$ ${novoLimiteNum.toFixed(2)}\n• Motivo / Justificativa: ${String(motivo || "").trim() || "Não informado."}\n\n*Esta solicitação foi enviada automaticamente pelo módulo Advance-CCI para análise e deliberação do DP.*`,
+      };
+
+      await inserirChamado(supabase, chamado);
+
+      notificarEmailCcipay("solicitacao_aumento_limite", {
+        solicitante: ctx.email,
+        nome: func.nome,
+        limiteAtual,
+        novoLimite: novoLimiteNum,
+        motivo,
+        chamadoId: idChamado,
+      });
+
+      return res.json({
+        ok: true,
+        mensagem: "Solicitação de aumento de limite enviada com sucesso ao DP.",
+        chamadoId: idChamado,
+      });
+    } catch (e) {
+      if (e.status) return respostaErroIdToken(res, e);
+      const msg = e instanceof Error ? e.message : String(e);
+      return res.status(500).json({ error: msg });
     }
   });
 }

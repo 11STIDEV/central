@@ -96,17 +96,13 @@ export async function parceiroLogout(): Promise<void> {
   setStoredParceiroSessionId(null);
 }
 
-/** URL da Central para pagamento QR (colaborador). */
 export function centralPagamentoQrUrl(token: string): string {
   const configured = import.meta.env.VITE_CENTRAL_PUBLIC_URL as string | undefined;
   if (configured?.trim()) {
     return `${configured.trim().replace(/\/+$/, "")}/cci-pay/pagar/${token}`;
   }
-  if (import.meta.env.DEV && typeof window !== "undefined") {
-    const h = window.location.hostname;
-    const host =
-      h === "localhost" || h === "127.0.0.1" || h === "[::1]" || h === "::1" ? "127.0.0.1" : h;
-    return `http://${host}:8080/cci-pay/pagar/${token}`;
+  if (typeof window !== "undefined" && window.location.origin) {
+    return `${window.location.origin}/cci-pay/pagar/${token}`;
   }
   return `https://central.portalcci.com.br/cci-pay/pagar/${token}`;
 }

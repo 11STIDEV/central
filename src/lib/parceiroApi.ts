@@ -47,3 +47,36 @@ export async function parceiroResumo(lojaId: string) {
 export async function parceiroCancelarVenda(vendaId: string) {
   return post<{ venda: CcipayVendaQr }>("/api/ccipay/vendas/cancelar", { vendaId });
 }
+
+export type ColaboradorConvenioBusca = {
+  email: string;
+  nome: string;
+  matricula: string;
+  cpfMascarado?: string | null;
+  saldoDisponivel: number;
+  ativo: boolean;
+};
+
+export async function parceiroBuscarColaborador(lojaId: string, termo: string) {
+  return post<{ ok: boolean; colaborador: ColaboradorConvenioBusca }>(
+    "/api/ccipay/vendas/buscar-colaborador",
+    { lojaId, termo },
+  );
+}
+
+export async function parceiroLancarVendaDireta(
+  lojaId: string,
+  funcionarioEmail: string,
+  valor: number,
+  descricao?: string,
+) {
+  return post<{ ok: boolean; venda: CcipayVendaQr; movimento: any }>(
+    "/api/ccipay/vendas/lancar-direta",
+    {
+      lojaId,
+      funcionarioEmail,
+      valor,
+      descricao,
+    },
+  );
+}

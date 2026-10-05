@@ -150,9 +150,7 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
         label: "Meu Advance-CCI",
         items: [
           { title: "Início / Extrato", url: "/cci-pay", icon: Wallet },
-          { title: "Solicitar vale", url: "/vale-adiantamento", icon: CircleDollarSign },
-          { title: "Loja", url: "/cci-pay/loja", icon: MapPin },
-          { title: "Meus pedidos", url: "/cci-pay/meus-pedidos", icon: ClipboardList },
+          { title: "Solicitar vale/pix/adiantamento", url: "/vale-adiantamento", icon: CircleDollarSign },
         ],
       },
       {

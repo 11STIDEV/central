@@ -43,6 +43,8 @@ import {
   Save,
   Zap,
   Mail,
+  DollarSign,
+  Send,
 } from "lucide-react";
 
 const HOSTS_ALTERDATA = [
@@ -62,8 +64,25 @@ export function AlterdataTester() {
   // Segmentação Principal da Tela ("monitor" | "colaboradores" | "testes")
   const [secaoPrincipal, setSecaoPrincipal] = useState<"monitor" | "colaboradores" | "testes">("monitor");
 
-  // Aba Interna do Testador Técnico
-  const [subTab, setSubTab] = useState<"funcionarios" | "funcionario_id" | "empresas" | "custom">("funcionarios");
+  // Aba Interna do Testador
+  const [subTab, setSubTab] = useState<"funcionarios" | "funcionario_id" | "empresas" | "movimentos" | "custom">("movimentos");
+
+  // --- Inclusão de Valores na Folha (POST /api/v1/movimentos) ---
+  const [movFuncionarioId, setMovFuncionarioId] = useState<string>("334");
+  const [movEmpresaId, setMovEmpresaId] = useState<string>("6");
+  const [movTipoMovimentoId, setMovTipoMovimentoId] = useState<string>("4"); // 4 = Adiantamento
+  const [movEventoId, setMovEventoId] = useState<string>("1"); // 1 = Vale (adiantamento)
+  const [movValor, setMovValor] = useState<string>("50.00");
+  const [movInicio, setMovInicio] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-01`;
+  });
+  const [movFim, setMovFim] = useState<string>(() => {
+    const d = new Date();
+    const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  });
+  const [movComentario, setMovComentario] = useState<string>("Adiantamento Advance-CCI (Teste)");
 
   // Estado da Requisição
   const [loading, setLoading] = useState(false);
@@ -531,6 +550,67 @@ export function AlterdataTester() {
 
   const handleConsultarEmpresas = () => {
     executarRequisicao("/api/v1/empresas", "GET");
+  };
+
+  const handleLancarMovimentoFolha = () => {
+    if (!movFuncionarioId.trim()) {
+      setErrorMsg("Informe o ID do funcionário no Alterdata.");
+      return;
+    }
+    if (!movEmpresaId.trim()) {
+      setErrorMsg("Informe o ID da Empresa.");
+      return;
+    }
+    if (!movValor || Number(movValor) <= 0) {
+      setErrorMsg("Informe um valor válido maior que zero.");
+      return;
+    }
+    if (!movInicio || !movFim) {
+      setErrorMsg("Informe as datas de início e fim da competência.");
+      return;
+    }
+
+    const payload = {
+      data: {
+        type: "movimentos",
+        attributes: {
+          valor: String(Number(movValor).toFixed(2)),
+          inicio: movInicio.includes("T") ? movInicio : `${movInicio}T03:00:00Z`,
+          fim: movFim.includes("T") ? movFim : `${movFim}T03:00:00Z`,
+          created: new Date().toISOString(),
+          horaquantidade: null,
+          comentario: movComentario || null,
+        },
+        relationships: {
+          funcionario: {
+            data: {
+              id: String(movFuncionarioId).trim(),
+              type: "funcionarios",
+            },
+          },
+          empresa: {
+            data: {
+              id: String(movEmpresaId).trim(),
+              type: "empresas",
+            },
+          },
+          tipomovimento: {
+            data: {
+              id: String(movTipoMovimentoId).trim(),
+              type: "tipos-movimento",
+            },
+          },
+          evento: {
+            data: {
+              id: String(movEventoId).trim(),
+              type: "eventos",
+            },
+          },
+        },
+      },
+    };
+
+    executarRequisicao("/api/v1/movimentos", "POST", payload);
   };
 
   const handleExecutarCustom = () => {
@@ -1140,6 +1220,18 @@ export function AlterdataTester() {
             </button>
 
             <button
+              onClick={() => setSubTab("movimentos")}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-all ${
+                subTab === "movimentos"
+                  ? "bg-primary text-primary-foreground shadow-sm"
+                  : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+              }`}
+            >
+              <DollarSign className="h-3.5 w-3.5 text-emerald-400" />
+              Inclusão Folha / Vales (POST)
+            </button>
+
+            <button
               onClick={() => setSubTab("custom")}
               className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs font-medium transition-all ${
                 subTab === "custom"
@@ -1347,6 +1439,157 @@ export function AlterdataTester() {
                 {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4 fill-current" />}
                 <span>Buscar Empresas</span>
               </button>
+            </div>
+          </div>
+        )}
+
+        {subTab === "movimentos" && (
+          <div className="space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-card-foreground flex items-center gap-2">
+                  <span className="rounded bg-emerald-500/20 px-2 py-0.5 font-mono text-emerald-600 dark:text-emerald-400 text-xs">POST</span>
+                  <span>/api/v1/movimentos — Inclusão de Valores na Folha</span>
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Envia lançamentos de adiantamentos/vales diretamente para a folha de pagamento do Alterdata.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMovFuncionarioId("334");
+                    setMovEmpresaId("6");
+                    setMovTipoMovimentoId("4");
+                    setMovEventoId("1");
+                    setMovComentario("Vale Advance-CCI — Teste Jediael");
+                  }}
+                  className="rounded-lg border border-border bg-card px-3 py-1.5 text-[11px] font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+                >
+                  Carregar dados de Jediael (ID: 334)
+                </button>
+
+                <button
+                  onClick={handleLancarMovimentoFolha}
+                  disabled={loading}
+                  className="flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white shadow hover:bg-emerald-700 disabled:opacity-50 transition-all"
+                >
+                  {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                  <span>Lançar na Folha</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 bg-muted/40 p-4 rounded-xl border border-border/50">
+              <div>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                  ID do Funcionário (Alterdata) *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: 334"
+                  value={movFuncionarioId}
+                  onChange={(e) => setMovFuncionarioId(e.target.value)}
+                  className="w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-xs font-mono text-card-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                  ID da Empresa *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: 1"
+                  value={movEmpresaId}
+                  onChange={(e) => setMovEmpresaId(e.target.value)}
+                  className="w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-xs font-mono text-card-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                  Tipo de Movimento *
+                </label>
+                <select
+                  value={movTipoMovimentoId}
+                  onChange={(e) => setMovTipoMovimentoId(e.target.value)}
+                  className="w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="4">4 - Adiantamento (Vale)</option>
+                  <option value="1">1 - Folha de Pagamento</option>
+                  <option value="2">2 - Férias</option>
+                  <option value="3">3 - Rescisão</option>
+                  <option value="5">5 - 1° parcela do 13º</option>
+                  <option value="6">6 - 2° parcela do 13º</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                  ID Evento / Rubrica *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: 2"
+                  value={movEventoId}
+                  onChange={(e) => setMovEventoId(e.target.value)}
+                  className="w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-xs font-mono text-card-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                  Valor (R$) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  placeholder="50.00"
+                  value={movValor}
+                  onChange={(e) => setMovValor(e.target.value)}
+                  className="w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-xs font-semibold text-card-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                  Data Início Competência *
+                </label>
+                <input
+                  type="date"
+                  value={movInicio}
+                  onChange={(e) => setMovInicio(e.target.value)}
+                  className="w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                  Data Fim Competência *
+                </label>
+                <input
+                  type="date"
+                  value={movFim}
+                  onChange={(e) => setMovFim(e.target.value)}
+                  className="w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-medium text-muted-foreground mb-1">
+                  Comentário / Observação
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Vale adiantamento"
+                  value={movComentario}
+                  onChange={(e) => setMovComentario(e.target.value)}
+                  className="w-full rounded-md border border-input bg-card px-2.5 py-1.5 text-xs text-card-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                />
+              </div>
             </div>
           </div>
         )}

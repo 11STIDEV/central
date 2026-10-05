@@ -85,7 +85,22 @@ export async function obterFuncionario(supabase, email) {
   return data ? rowToFuncionario(data) : null;
 }
 
-export async function registrarOuAtualizarFuncionario(supabase, { email, nome, pixPadrao, alterdataCodigo }) {
+export async function buscarColaboradorAlterdataPorEmail(supabase, email) {
+  if (!supabase || !email) return null;
+  const cleanEmail = String(email).trim().toLowerCase();
+  const { data, error } = await supabase
+    .from("intranet_alterdata_funcionarios")
+    .select("cpf, nome_completo, email, codigo_contrato_vigente, tem_contrato_ativo, status_atual")
+    .ilike("email", cleanEmail)
+    .maybeSingle();
+  if (error) {
+    console.error("[ccipay] Erro ao buscar intranet_alterdata_funcionarios:", error.message);
+    return null;
+  }
+  return data;
+}
+
+export async function registrarOuAtualizarFuncionario(supabase, { email, nome, pixPadrao, alterdataCodigo, ativo }) {
   const now = new Date().toISOString();
   const emailLower = String(email).toLowerCase();
   const existente = await obterFuncionario(supabase, emailLower);
@@ -114,7 +129,9 @@ export async function registrarOuAtualizarFuncionario(supabase, { email, nome, p
     nome: nomeFinal,
     updated_at: now,
     ...(alterdataCode ? { alterdata_codigo: alterdataCode } : {}),
-    ...(pixFinal !== undefined ? { pix_padrao: pixFinal } : {}),
+    ...(pixPadrao !== undefined ? { pix_padrao: pixPadrao || null } : (pixFinal !== undefined ? { pix_padrao: pixFinal } : {})),
+    ...(alterdataCodigo !== undefined ? { alterdata_codigo: alterdataCodigo || null } : {}),
+    ...(ativo !== undefined ? { ativo: Boolean(ativo) } : {}),
     ...(!existente ? { created_at: now } : {}),
   };
   const { error } = await supabase.from("ccipay_funcionarios").upsert(row, { onConflict: "email" });
@@ -208,6 +225,42 @@ export async function sincronizarFuncionariosAdvanceComAlterdata(supabase) {
   };
 }
 
+export async function sincronizarFuncionarioComAlterdata(supabase, email) {
+  if (!supabase || !email) return null;
+  const cleanEmail = String(email).trim().toLowerCase();
+  const alt = await buscarColaboradorAlterdataPorEmail(supabase, cleanEmail);
+  let func = await obterFuncionario(supabase, cleanEmail);
+
+  if (!alt) return func;
+
+  const patch = {};
+  if (alt.codigo_contrato_vigente && (!func || !func.alterdataCodigo)) {
+    patch.alterdataCodigo = alt.codigo_contrato_vigente;
+  }
+  if (alt.nome_completo && (!func || !func.nome || func.nome === func.email)) {
+    patch.nome = alt.nome_completo;
+  }
+  // Se no Alterdata está ativo com contrato vigente e no ccipay estava inativo (ou não existia)
+  if (alt.tem_contrato_ativo && (!func || !func.ativo)) {
+    patch.ativo = true;
+  }
+
+  if (!func) {
+    return registrarOuAtualizarFuncionario(supabase, {
+      email: cleanEmail,
+      nome: alt.nome_completo || cleanEmail,
+      alterdataCodigo: alt.codigo_contrato_vigente || null,
+      ativo: Boolean(alt.tem_contrato_ativo),
+    });
+  }
+
+  if (Object.keys(patch).length > 0) {
+    func = await atualizarFuncionarioAdmin(supabase, cleanEmail, patch);
+  }
+
+  return func;
+}
+
 export async function listarFuncionarios(supabase) {
   const { data, error } = await supabase
     .from("ccipay_funcionarios")
@@ -239,19 +292,64 @@ export async function somarAdiantamentosCompetencia(supabase, email, competencia
     .select("valor, status")
     .eq("funcionario_email", String(email).toLowerCase())
     .eq("competencia", competencia)
-    .in("tipo", ["adiantamento", "vale"])
+    .in("tipo", ["adiantamento", "vale", "compra_loja"])
     .in("status", STATUS_ADIANTAMENTO_ATIVOS);
   if (error) throw new Error(`[ccipay] somar adiantamentos: ${error.message}`);
   return (data || []).reduce((acc, r) => acc + Number(r.valor), 0);
 }
 
+export async function saldoConvenioDisponivel(supabase, email, competencia) {
+  const comp = competencia || competenciaAtual();
+  const func =
+    (await obterFuncionario(supabase, email)) ||
+    (await sincronizarFuncionarioComAlterdata(supabase, email));
+  const limiteTotal = func?.limiteAdiantamento ?? 500;
+
+  const { data: movs, error } = await supabase
+    .from("ccipay_movimentos")
+    .select("tipo, direcao, valor, status")
+    .eq("funcionario_email", String(email).toLowerCase())
+    .eq("competencia", comp)
+    .neq("status", "cancelado")
+    .neq("status", "negado");
+
+  if (error) throw new Error(`[ccipay] saldo convenio: ${error.message}`);
+
+  let usadoFolha = 0;
+  let saldoExtraCreditos = 0;
+
+  for (const m of movs || []) {
+    const v = Number(m.valor) || 0;
+    if (["adiantamento", "vale", "compra_loja"].includes(m.tipo) && m.direcao === "debito") {
+      if (STATUS_ADIANTAMENTO_ATIVOS.includes(m.status)) {
+        usadoFolha += v;
+      }
+    } else if (m.tipo === "bonificacao") {
+      if (m.direcao === "credito") saldoExtraCreditos += v;
+      else saldoExtraCreditos -= v;
+    }
+  }
+
+  const disponivelFolha = Math.max(0, limiteTotal - usadoFolha);
+  const totalDisponivel = disponivelFolha + Math.max(0, saldoExtraCreditos);
+
+  return {
+    limiteTotal,
+    usadoFolha,
+    disponivelFolha,
+    saldoExtraCreditos,
+    totalDisponivel,
+  };
+}
+
 export async function saldoBonificacao(supabase, email, competencia) {
+  const comp = competencia || competenciaAtual();
   const { data, error } = await supabase
     .from("ccipay_movimentos")
     .select("direcao, valor, status")
     .eq("funcionario_email", String(email).toLowerCase())
-    .eq("competencia", competencia)
-    .in("tipo", ["bonificacao", "deducao", "compra_loja"])
+    .eq("competencia", comp)
+    .in("tipo", ["bonificacao", "deducao"])
     .neq("status", "cancelado")
     .neq("status", "negado");
   if (error) throw new Error(`[ccipay] saldo bonificacao: ${error.message}`);
@@ -289,17 +387,17 @@ export async function validarCreditoBonificacao(supabase, func, email, competenc
   return { saldo, novoSaldo };
 }
 
-/** Valida débito (dedução, compra loja, QR) contra o saldo da competência. */
+/** Valida débito (dedução, compra loja, QR) contra o saldo disponível no convênio. */
 export async function validarDebitoBonificacao(supabase, email, competencia, valorDebito) {
   const valor = Number(valorDebito);
   if (Number.isNaN(valor) || valor <= 0) {
     throw new CcipayBonificacaoError("Informe um valor maior que zero.");
   }
-  const saldo = await saldoBonificacao(supabase, email, competencia);
-  if (valor > saldo) {
-    throw new CcipayBonificacaoError(`Saldo insuficiente. Disponível: R$ ${saldo.toFixed(2)}.`);
+  const info = await saldoConvenioDisponivel(supabase, email, competencia);
+  if (valor > info.totalDisponivel) {
+    throw new CcipayBonificacaoError(`Saldo insuficiente no convênio. Disponível: R$ ${info.totalDisponivel.toFixed(2)}.`);
   }
-  return { saldo, novoSaldo: saldo - valor };
+  return { saldo: info.totalDisponivel, novoSaldo: info.totalDisponivel - valor };
 }
 
 export async function criarMovimento(supabase, mov) {
@@ -675,8 +773,9 @@ export async function relatorioLojaPedidos(supabase, { lojaId, de, ate }) {
 
 export async function montarResumoFuncionario(supabase, email) {
   const comp = competenciaAtual();
-  const func = await obterFuncionario(supabase, email);
+  const func = (await sincronizarFuncionarioComAlterdata(supabase, email)) || (await obterFuncionario(supabase, email));
   if (!func) return null;
+  const alt = await buscarColaboradorAlterdataPorEmail(supabase, email);
   const usado = await somarAdiantamentosCompetencia(supabase, email, comp);
   const saldoBon = await saldoBonificacao(supabase, email, comp);
   const movimentos = await listarMovimentos(supabase, { funcionarioEmail: email });
@@ -690,6 +789,15 @@ export async function montarResumoFuncionario(supabase, email) {
 
   return {
     funcionario: func,
+    alterdata: alt
+      ? {
+          cpf: alt.cpf,
+          nomeCompleto: alt.nome_completo,
+          codigoContratoVigente: alt.codigo_contrato_vigente,
+          temContratoAtivo: alt.tem_contrato_ativo,
+          statusAtual: alt.status_atual,
+        }
+      : null,
     competencia: comp,
     adiantamentoUsado: usado,
     adiantamentoDisponivel: Math.max(0, func.limiteAdiantamento - usado),

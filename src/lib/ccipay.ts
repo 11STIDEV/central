@@ -77,6 +77,13 @@ export type CcipayPedido = {
 
 export type CcipayResumo = {
   funcionario: CcipayFuncionario;
+  alterdata?: {
+    cpf: string;
+    nomeCompleto: string;
+    codigoContratoVigente: string;
+    temContratoAtivo: boolean;
+    statusAtual: string;
+  } | null;
   competencia: string;
   adiantamentoUsado: number;
   adiantamentoDisponivel: number;
@@ -176,8 +183,13 @@ export async function ccipayMe(idToken: string): Promise<CcipayResumo> {
   };
 }
 
-export async function ccipayCriarAdiantamento(idToken?: string | null, pix: string, valor: number) {
-  return post<{ movimento: CcipayMovimento }>("/api/ccipay/adiantamentos/criar", idToken, { pix, valor });
+export async function ccipayCriarAdiantamento(
+  idToken?: string | null,
+  pix: string,
+  valor: number,
+  tipoPix?: string,
+) {
+  return post<{ movimento: CcipayMovimento }>("/api/ccipay/adiantamentos/criar", idToken, { pix, valor, tipoPix });
 }
 
 export async function ccipayListarAdiantamentos(idToken: string) {
@@ -187,14 +199,80 @@ export async function ccipayListarAdiantamentos(idToken: string) {
 export async function ccipayAprovarAdiantamento(
   idToken?: string | null,
   movimentoId: string,
-  acao: "aprovar" | "negar",
+  acao: "aprovar" | "negar" | "depositar",
   justificativa?: string,
+  token?: string,
 ) {
-  return post<{ movimento: CcipayMovimento }>("/api/ccipay/adiantamentos/aprovar", idToken, {
+  const alterdataToken =
+    token || (typeof window !== "undefined" ? localStorage.getItem("alterdata_token") || undefined : undefined);
+  return post<{ movimento: CcipayMovimento; alterdata?: any }>("/api/ccipay/adiantamentos/aprovar", idToken, {
     movimentoId,
     acao,
     justificativa,
+    token: alterdataToken,
   });
+}
+
+export async function ccipayDepositarAdiantamento(
+  idToken?: string | null,
+  movimentoId: string,
+) {
+  return ccipayAprovarAdiantamento(idToken, movimentoId, "depositar");
+}
+
+export async function ccipaySolicitarAumentoLimite(
+  idToken?: string | null,
+  dados: { novoLimite: number; motivo: string },
+) {
+  return post<{ ok: boolean; mensagem: string; chamadoId?: string }>(
+    "/api/ccipay/limite/solicitar-aumento",
+    idToken,
+    dados,
+  );
+}
+
+export async function ccipayLancarFolhaAlterdata(
+  idToken?: string | null,
+  dados?: {
+    funcionarioEmail?: string;
+    funcionarioId?: string;
+    empresaId?: string;
+    tipoMovimentoId?: string;
+    eventoId?: string;
+    valor: number;
+    inicio?: string;
+    fim?: string;
+    comentario?: string;
+    movimentoId?: string;
+    token?: string;
+  }
+) {
+  const alterdataToken =
+    dados?.token || (typeof window !== "undefined" ? localStorage.getItem("alterdata_token") || undefined : undefined);
+  return post<{ ok: boolean; status: number; data: any; payloadEnviado: any }>(
+    "/api/alterdata/movimentos",
+    idToken,
+    {
+      ...dados,
+      token: alterdataToken,
+    }
+  );
+}
+
+export async function ccipayObterAlterdataStatus(idToken?: string | null) {
+  return post<{ ok: boolean; hasEnvToken: boolean; empresaId: string; tipoMovimentoId: string; eventoId: string }>(
+    "/api/alterdata/status",
+    idToken,
+    {}
+  );
+}
+
+export async function ccipaySalvarAlterdataToken(idToken: string | null | undefined, token: string) {
+  return post<{ ok: boolean; hasEnvToken: boolean; message: string }>(
+    "/api/alterdata/config-token",
+    idToken,
+    { token }
+  );
 }
 
 export async function ccipayLancarBonificacao(
@@ -435,12 +513,13 @@ export function isCcipayLojaPapel(papeis: Papel[]): boolean {
   return papeis.some((p) => ["admin", "ccipay_admin", "ccipay_loja"].includes(p));
 }
 
-export function labelStatusMovimento(status: CcipayMovimentoStatus): string {
-  const map: Record<CcipayMovimentoStatus, string> = {
+export function labelStatusMovimento(status: CcipayMovimentoStatus | string): string {
+  const map: Record<string, string> = {
     pendente: "Pendente",
-    aprovado: "Aprovado",
+    aprovado: "Aprovado aguardando recurso",
     negado: "Negado",
-    pago: "Pago",
+    pago: "Depositado",
+    depositado: "Depositado",
     descontado_folha: "Descontado em folha",
     cancelado: "Cancelado",
   };

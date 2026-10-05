@@ -15,9 +15,10 @@ import { ArrowLeft, Download } from "lucide-react";
 const STATUS_OPCOES = [
   { value: "", label: "Todos os status" },
   { value: "pendente", label: "Pendente" },
-  { value: "aprovado", label: "Aprovado" },
+  { value: "aprovado", label: "Aprovado aguardando recurso" },
+  { value: "pago", label: "Depositado" },
   { value: "negado", label: "Negado" },
-  { value: "descontado_folha", label: "Descontado em folha" },
+  { value: "descontado_folha", label: "Descontado em folha (Contracheque)" },
   { value: "cancelado", label: "Cancelado" },
 ];
 
@@ -50,7 +51,7 @@ export default function CcipayRelatoriosDp() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `advance-cci-controle-interno-${competencia}.csv`;
+    a.download = `advance-cci-contracheques-${competencia}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -58,8 +59,8 @@ export default function CcipayRelatoriosDp() {
   return (
     <div className="animate-fade-in">
       <PageHero
-        title="Relatório DP"
-        subtitle="Controle interno de movimentos — exportação CSV para conferência mensal (sem integração Alterdata)."
+        title="Relatório DP — Vales e Contracheques"
+        subtitle="Relatório de vales a lançar nos contracheques — integração automática com o Alterdata e controle interno."
       />
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 md:px-8">
         <Button asChild variant="ghost" size="sm">

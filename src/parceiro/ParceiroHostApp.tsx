@@ -45,6 +45,15 @@ export function ParceiroHostApp() {
   return (
     <ParceiroAuthProvider>
       <ParceiroRoutes />
+      {import.meta.env.DEV && (
+        <a
+          href="/?parceiroHost=0"
+          className="fixed bottom-3 right-3 z-50 rounded-full bg-slate-900/90 text-white px-3.5 py-1.5 text-xs font-medium shadow-lg hover:bg-slate-800 transition flex items-center gap-1.5 border border-slate-700 backdrop-blur-sm"
+          title="Voltar para a Intranet Central em modo de desenvolvimento"
+        >
+          ← Voltar à Intranet (Dev)
+        </a>
+      )}
     </ParceiroAuthProvider>
   );
 }
