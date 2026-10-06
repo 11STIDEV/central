@@ -591,21 +591,31 @@ export async function vincularOperadorLoja(supabase, lojaId, { login, senhaHash,
     ? String(email).trim().toLowerCase()
     : emailSinteticoParceiro(loginNorm);
 
-  // Se não forneceu novo hash, preserva o existente se o operador já existia
+  // Se não forneceu novo hash, preserva o existente se o operador já existia ou se a loja já tinha operador
   let hashEfetivo = senhaHash;
   if (!hashEfetivo) {
     const atual = await obterOperadorPorLogin(supabase, loginNorm);
     if (atual?.senhaHash) {
       hashEfetivo = atual.senhaHash;
+    } else {
+      const { data: opLoja } = await supabase
+        .from("ccipay_loja_usuarios")
+        .select("senha_hash")
+        .eq("loja_id", lojaId)
+        .not("senha_hash", "is", null)
+        .limit(1)
+        .maybeSingle();
+      if (opLoja?.senha_hash) {
+        hashEfetivo = opLoja.senha_hash;
+      }
     }
   }
 
-  // Remove vínculo anterior desse login nesta loja para evitar conflito na PK composta (loja_id, email)
+  // Como agora o parceiro possui apenas 1 login por loja, remove qualquer vínculo anterior desta loja
   await supabase
     .from("ccipay_loja_usuarios")
     .delete()
-    .eq("loja_id", lojaId)
-    .ilike("login", loginNorm);
+    .eq("loja_id", lojaId);
 
   const { error } = await supabase.from("ccipay_loja_usuarios").insert({
     loja_id: lojaId,

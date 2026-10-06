@@ -169,7 +169,7 @@ export default function ParceiroRedefinirSenhaPage() {
                     <span>{dadosOperador.lojaNome}</span>
                   </div>
                   <div className="text-foreground">
-                    Operador: <span className="font-semibold">{dadosOperador.nome}</span> (
+                    Usuário: <span className="font-semibold">{dadosOperador.nome}</span> (
                     <code className="text-xs bg-muted px-1 py-0.5 rounded font-mono">
                       {dadosOperador.login}
                     </code>

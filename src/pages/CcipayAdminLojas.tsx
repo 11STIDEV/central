@@ -37,7 +37,6 @@ import {
   ArrowLeft,
   Store,
   KeyRound,
-  UserPlus,
   Copy,
   ExternalLink,
   ShieldCheck,
@@ -223,23 +222,21 @@ export default function CcipayAdminLojas() {
     }
   }
 
-  // Adicionar ou editar operador para uma loja já existente
+  // Salvar ou atualizar acesso único da loja parceira
   async function handleAdicionarOperadorExtra(e: React.FormEvent) {
     e.preventDefault();
     if (!googleIdToken || !lojaSelecionadaOp) return;
 
     const loginTrim = extraLoginOp.trim();
     if (!loginTrim) {
-      toast.error("Informe o usuário.");
+      toast.error("Informe o usuário de acesso.");
       return;
     }
 
-    const operadorJaExiste = (operadoresPorLoja[lojaSelecionadaOp.id] || []).some(
-      (o) => (o.login || "").toLowerCase() === loginTrim.toLowerCase(),
-    );
+    const opExistente = (operadoresPorLoja[lojaSelecionadaOp.id] || [])[0];
 
-    if (!operadorJaExiste && (!extraSenhaOp || extraSenhaOp.length < 6)) {
-      toast.error("Para novos operadores, a senha deve ter no mínimo 6 caracteres.");
+    if (!opExistente && (!extraSenhaOp || extraSenhaOp.length < 6)) {
+      toast.error("Para novos acessos, a senha deve ter no mínimo 6 caracteres.");
       return;
     }
     if (extraSenhaOp && extraSenhaOp.length < 6) {
@@ -256,7 +253,7 @@ export default function CcipayAdminLojas() {
         email: extraEmailOp.trim() || undefined,
       });
 
-      toast.success(`Operador "${loginTrim}" configurado para ${lojaSelecionadaOp.nome}!`);
+      toast.success(`Acesso de "${lojaSelecionadaOp.nome}" salvo com sucesso!`);
 
       if (extraSenhaOp) {
         const msgAcesso = `*Acesso Parceiro Advance-CCI*\nLoja: ${lojaSelecionadaOp.nome}\nLink: ${parceiroSiteUrl()}\nUsuário: ${loginTrim}\nSenha: ${extraSenhaOp}${
@@ -274,7 +271,7 @@ export default function CcipayAdminLojas() {
 
       await carregar();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao salvar operador.");
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar acesso.");
     } finally {
       setSalvandoExtraOp(false);
     }
@@ -416,36 +413,48 @@ export default function CcipayAdminLojas() {
                         </div>
                       </div>
 
-                      {/* Usuários de Acesso */}
+                      {/* Usuário de Acesso Único */}
                       <div className="pt-2 flex flex-wrap items-center gap-2">
                         <span className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                           <KeyRound className="h-3.5 w-3.5 text-primary" />
                           Acesso:
                         </span>
-                        {ops.length === 0 ? (
-                          <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded border border-amber-500/30">
-                            Sem login cadastrado
-                          </span>
+                        {!opPrincipal ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-2 py-0.5 rounded border border-amber-500/30">
+                              Sem login cadastrado
+                            </span>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              onClick={() => abrirModalEditarOperador(loja)}
+                              className="h-6 px-2 text-[11px] gap-1"
+                            >
+                              <KeyRound className="h-3 w-3" />
+                              Cadastrar Acesso
+                            </Button>
+                          </div>
                         ) : (
-                          ops.map((op) => {
+                          (() => {
                             const temEmailReal = Boolean(
-                              op.email && !op.email.toLowerCase().endsWith("@parceiro.cci"),
+                              opPrincipal.email && !opPrincipal.email.toLowerCase().endsWith("@parceiro.cci"),
                             );
-                            const enviandoEste = enviandoEmailOpLogin === op.login;
+                            const enviandoEste = enviandoEmailOpLogin === opPrincipal.login;
 
                             return (
                               <div
-                                key={op.login ?? op.nome}
+                                key={opPrincipal.login ?? opPrincipal.nome}
                                 className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-1 text-xs"
                               >
                                 <div className="flex items-center gap-1.5 font-mono">
-                                  <span className="font-semibold text-primary">@{op.login}</span>
-                                  {op.nome && op.nome !== op.login && (
+                                  <span className="font-semibold text-primary">@{opPrincipal.login}</span>
+                                  {opPrincipal.nome && opPrincipal.nome !== opPrincipal.login && (
                                     <span className="text-muted-foreground text-[11px] font-sans">
-                                      ({op.nome})
+                                      ({opPrincipal.nome})
                                     </span>
                                   )}
-                                  {op.temSenha && (
+                                  {opPrincipal.temSenha && (
                                     <ShieldCheck
                                       className="h-3 w-3 text-emerald-500"
                                       title="Senha cadastrada"
@@ -456,16 +465,16 @@ export default function CcipayAdminLojas() {
                                 {temEmailReal ? (
                                   <span
                                     className="inline-flex items-center gap-1 text-[11px] text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded border border-border/60"
-                                    title={`E-mail de recuperação: ${op.email}`}
+                                    title={`E-mail de recuperação: ${opPrincipal.email}`}
                                   >
                                     <Mail className="h-3 w-3 text-sky-500" />
-                                    <span className="font-sans max-w-[150px] truncate">{op.email}</span>
+                                    <span className="font-sans max-w-[150px] truncate">{opPrincipal.email}</span>
                                   </span>
                                 ) : (
                                   <span
                                     className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded font-sans cursor-pointer hover:underline"
-                                    onClick={() => abrirModalEditarOperador(loja, op)}
-                                    title="Clique para cadastrar um e-mail de recuperação para este operador"
+                                    onClick={() => abrirModalEditarOperador(loja, opPrincipal)}
+                                    title="Clique para cadastrar um e-mail de recuperação"
                                   >
                                     + Adicionar e-mail
                                   </span>
@@ -478,7 +487,7 @@ export default function CcipayAdminLojas() {
                                       size="sm"
                                       variant="ghost"
                                       disabled={enviandoEste}
-                                      onClick={() => handleEnviarEmailRedefinicao(op, loja.nome)}
+                                      onClick={() => handleEnviarEmailRedefinicao(opPrincipal, loja.nome)}
                                       className="h-6 px-1.5 text-[11px] text-sky-600 hover:text-sky-700 hover:bg-sky-500/10 gap-1 font-sans"
                                       title="Enviar e-mail para o parceiro redefinir sua senha"
                                     >
@@ -495,17 +504,17 @@ export default function CcipayAdminLojas() {
                                     type="button"
                                     size="sm"
                                     variant="ghost"
-                                    onClick={() => abrirModalEditarOperador(loja, op)}
+                                    onClick={() => abrirModalEditarOperador(loja, opPrincipal)}
                                     className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
-                                    title="Editar operador / e-mail / senha"
+                                    title="Editar acesso / e-mail / senha"
                                   >
                                     <Pencil className="h-3 w-3" />
-                                    <span className="sr-only">Editar Operador</span>
+                                    <span className="sr-only">Editar Acesso</span>
                                   </Button>
                                 </div>
                               </div>
                             );
-                          })
+                          })()
                         )}
                       </div>
                     </div>
@@ -535,16 +544,12 @@ export default function CcipayAdminLojas() {
                       <Button
                         size="sm"
                         variant="secondary"
-                        onClick={() => {
-                          setLojaSelecionadaOp(loja);
-                          setExtraLoginOp("");
-                          setExtraSenhaOp("");
-                          setExtraNomeOp("");
-                        }}
+                        onClick={() => abrirModalEditarOperador(loja, opPrincipal)}
                         className="gap-1.5 text-xs"
+                        title={opPrincipal ? "Editar dados de acesso do parceiro" : "Cadastrar dados de acesso do parceiro"}
                       >
-                        <UserPlus className="h-3.5 w-3.5" />
-                        {ops.length === 0 ? "Criar Login" : "+ Operador"}
+                        <Pencil className="h-3.5 w-3.5" />
+                        {opPrincipal ? "Editar Acesso" : "Criar Acesso"}
                       </Button>
 
                       <Button
@@ -716,7 +721,7 @@ export default function CcipayAdminLojas() {
         </DialogContent>
       </Dialog>
 
-      {/* Modal: Adicionar / Redefinir Operador em Loja Existente */}
+      {/* Modal: Editar ou Definir Acesso da Loja Parceira */}
       <Dialog
         open={Boolean(lojaSelecionadaOp)}
         onOpenChange={(open) => !open && setLojaSelecionadaOp(null)}
@@ -724,20 +729,19 @@ export default function CcipayAdminLojas() {
         <DialogContent className="sm:max-w-md">
           <form onSubmit={handleAdicionarOperadorExtra}>
             {(() => {
-              const opExistente = (operadoresPorLoja[lojaSelecionadaOp?.id || ""] || []).find(
-                (o) => (o.login || "").toLowerCase() === extraLoginOp.trim().toLowerCase(),
-              );
+              const opExistente = (operadoresPorLoja[lojaSelecionadaOp?.id || ""] || [])[0];
+              const jaTemAcesso = Boolean(opExistente?.login);
               return (
                 <>
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                      <UserPlus className="h-5 w-5 text-primary" />
-                      {opExistente ? "Editar Operador" : "Adicionar Operador"} — {lojaSelecionadaOp?.nome}
+                      <KeyRound className="h-5 w-5 text-primary" />
+                      {jaTemAcesso ? "Editar Acesso do Parceiro" : "Definir Acesso do Parceiro"} — {lojaSelecionadaOp?.nome}
                     </DialogTitle>
                     <DialogDescription>
-                      {opExistente
-                        ? "Atualize o e-mail de recuperação, nome ou defina uma nova senha para este operador."
-                        : "Cadastre um novo login e vincule o e-mail de recuperação para acesso autônomo."}
+                      {jaTemAcesso
+                        ? "Atualize o login, e-mail de recuperação ou defina uma nova senha para a loja parceira."
+                        : "Cadastre o login e vincule o e-mail de recuperação para acesso da loja ao portal."}
                     </DialogDescription>
                   </DialogHeader>
 
@@ -757,16 +761,15 @@ export default function CcipayAdminLojas() {
                           }
                         }}
                         required
-                        disabled={Boolean(opExistente && extraLoginOp)}
                       />
                     </div>
 
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-foreground">
-                        Nome do Operador (opcional)
+                        Nome do Responsável (opcional)
                       </label>
                       <Input
-                        placeholder="Ex: Turno Noite, João"
+                        placeholder="Ex: Maria Santos, Gerência"
                         value={extraNomeOp}
                         onChange={(e) => setExtraNomeOp(e.target.value)}
                       />
@@ -784,22 +787,22 @@ export default function CcipayAdminLojas() {
                         onChange={(e) => setExtraEmailOp(e.target.value)}
                       />
                       <p className="text-[11px] text-muted-foreground">
-                        Usado pelo parceiro para redefinir a própria senha de forma autônoma caso perca o acesso.
+                        Usado pelo parceiro para redefinir a própria senha com código de 6 dígitos no portal.
                       </p>
                     </div>
 
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-foreground">
-                        {opExistente
+                        {jaTemAcesso
                           ? "Nova Senha (opcional — deixe em branco para manter a atual)"
                           : "Senha Provisória (mínimo 6 caracteres) *"}
                       </label>
                       <Input
                         type="password"
-                        placeholder={opExistente ? "Deixe em branco para manter a senha atual" : "Mínimo 6 caracteres"}
+                        placeholder={jaTemAcesso ? "Deixe em branco para manter a senha atual" : "Mínimo 6 caracteres"}
                         value={extraSenhaOp}
                         onChange={(e) => setExtraSenhaOp(e.target.value)}
-                        required={!opExistente}
+                        required={!jaTemAcesso}
                       />
                     </div>
                   </div>
@@ -823,7 +826,7 @@ export default function CcipayAdminLojas() {
                     Salvando...
                   </>
                 ) : (
-                  "Salvar Operador"
+                  "Salvar Acesso"
                 )}
               </Button>
             </DialogFooter>
