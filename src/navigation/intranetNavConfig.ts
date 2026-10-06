@@ -303,19 +303,29 @@ export type NavSearchEntry = {
 /** Lista plana para busca global (Cmd+K). */
 export function flattenNavForSearch(sections: NavSection[]): NavSearchEntry[] {
   const out: NavSearchEntry[] = [];
+  if (!Array.isArray(sections)) return out;
   for (const sec of sections) {
-    if (sec.type === "flat") {
+    if (!sec) continue;
+    if (sec.type === "flat" && Array.isArray(sec.items)) {
       for (const item of sec.items) {
-        out.push({ title: item.title, url: item.url, group: sec.label, locked: item.locked });
+        if (!item) continue;
+        out.push({
+          title: item.title || "",
+          url: item.url || "",
+          group: sec.label || "Geral",
+          locked: Boolean(item.locked),
+        });
       }
-    } else {
+    } else if (sec.type === "nested" && Array.isArray(sec.sectors)) {
       for (const sector of sec.sectors) {
+        if (!sector || !Array.isArray(sector.items)) continue;
         for (const item of sector.items) {
+          if (!item) continue;
           out.push({
-            title: item.title,
-            url: item.url,
-            group: `${sec.label} · ${sector.label}`,
-            locked: item.locked,
+            title: item.title || "",
+            url: item.url || "",
+            group: `${sec.label || ""} · ${sector.label || ""}`.trim(),
+            locked: Boolean(item.locked),
           });
         }
       }
