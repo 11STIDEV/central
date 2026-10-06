@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { ParceiroAuthProvider, useParceiroAuth } from "./ParceiroAuthProvider";
 import ParceiroLoginPage from "./ParceiroLoginPage";
+import ParceiroRedefinirSenhaPage from "./ParceiroRedefinirSenhaPage";
 import ParceiroShell from "@/pages/ccipay/ParceiroShell";
 import ParceiroDashboard from "@/pages/ccipay/ParceiroDashboard";
 import ParceiroExtrato from "@/pages/ccipay/ParceiroExtrato";
@@ -24,6 +25,7 @@ function ParceiroRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<ParceiroLoginPage />} />
+      <Route path="/redefinir-senha" element={<ParceiroRedefinirSenhaPage />} />
       <Route
         path="/"
         element={

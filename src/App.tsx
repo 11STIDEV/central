@@ -71,6 +71,7 @@ import { isLostFoundPublicHost } from "@/achadosperdidos/publicHost";
 import { LostFoundPublicHostApp } from "@/achadosperdidos/public/LostFoundPublicHostApp";
 import { isParceiroPublicHost } from "@/parceiro/publicHost";
 import { ParceiroHostApp } from "@/parceiro/ParceiroHostApp";
+import ParceiroRedefinirSenhaPage from "@/parceiro/ParceiroRedefinirSenhaPage";
 
 const queryClient = new QueryClient();
 
@@ -246,6 +247,8 @@ function CentralIntranetApp() {
                 }
               />
               <Route path="/cci-pay/pagar/:token" element={<CcipayPagarQr />} />
+              <Route path="/redefinir-senha" element={<ParceiroRedefinirSenhaPage />} />
+              <Route path="/parceiro/redefinir-senha" element={<ParceiroRedefinirSenhaPage />} />
               <Route
                 path="/setores/professores"
                 element={

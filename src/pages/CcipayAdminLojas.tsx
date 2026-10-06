@@ -28,6 +28,7 @@ import {
   ccipayLojaUsuarios,
   ccipaySalvarLoja,
   ccipayExcluirLoja,
+  ccipayEnviarEmailRedefinicaoOperador,
   type CcipayLoja,
 } from "@/lib/ccipay";
 import { parceiroSiteUrl } from "@/parceiro/publicHost";
@@ -47,10 +48,14 @@ import {
   Plus,
   Info,
   Trash2,
+  Mail,
+  Send,
+  Pencil,
 } from "lucide-react";
 
 type OperadorLoja = {
   login?: string | null;
+  email?: string | null;
   nome: string;
   temSenha?: boolean;
 };
@@ -69,14 +74,17 @@ export default function CcipayAdminLojas() {
   const [loginOp, setLoginOp] = useState("");
   const [senhaOp, setSenhaOp] = useState("");
   const [nomeOp, setNomeOp] = useState("");
+  const [emailOp, setEmailOp] = useState("");
   const [salvandoNovaLoja, setSalvandoNovaLoja] = useState(false);
 
-  // Modal para Adicionar / Redefinir Operador em Loja Existente
+  // Modal para Adicionar / Redefinir / Editar Operador em Loja Existente
   const [lojaSelecionadaOp, setLojaSelecionadaOp] = useState<CcipayLoja | null>(null);
   const [extraLoginOp, setExtraLoginOp] = useState("");
   const [extraSenhaOp, setExtraSenhaOp] = useState("");
   const [extraNomeOp, setExtraNomeOp] = useState("");
+  const [extraEmailOp, setExtraEmailOp] = useState("");
   const [salvandoExtraOp, setSalvandoExtraOp] = useState(false);
+  const [enviandoEmailOpLogin, setEnviandoEmailOpLogin] = useState<string | null>(null);
 
   // Confirmação de Exclusão de Loja
   const [lojaParaExcluir, setLojaParaExcluir] = useState<CcipayLoja | null>(null);
@@ -144,17 +152,20 @@ export default function CcipayAdminLojas() {
         descricao: descLoja.trim() || "Loja Conveniada Advance-CCI",
       });
 
-      // 2. Vincula o operador com login e senha
+      // 2. Vincula o operador com login e senha e email de recuperação
       await ccipayLojaUsuarios(googleIdToken, novaLoja.id, "vincular", {
         login: loginTrim,
         senha: senhaOp,
         nome: nomeOp.trim() || nomeTrim,
+        email: emailOp.trim() || undefined,
       });
 
       toast.success(`Loja "${nomeTrim}" e login "${loginTrim}" criados com sucesso!`);
 
       // Copia automaticamente o template de acesso para conveniência
-      const msgAcesso = `*Portal Parceiro Advance-CCI*\nLoja: ${nomeTrim}\nLink: ${parceiroSiteUrl()}\nUsuário: ${loginTrim}\nSenha: ${senhaOp}`;
+      const msgAcesso = `*Portal Parceiro Advance-CCI*\nLoja: ${nomeTrim}\nLink: ${parceiroSiteUrl()}\nUsuário: ${loginTrim}\nSenha: ${senhaOp}${
+        emailOp.trim() ? `\nE-mail de Recuperação: ${emailOp.trim()}` : ""
+      }`;
       navigator.clipboard.writeText(msgAcesso);
       toast.info("Dados de acesso copiados para a área de transferência!");
 
@@ -164,6 +175,7 @@ export default function CcipayAdminLojas() {
       setLoginOp("");
       setSenhaOp("");
       setNomeOp("");
+      setEmailOp("");
       setMostrarNovoModal(false);
 
       await carregar();
@@ -174,7 +186,44 @@ export default function CcipayAdminLojas() {
     }
   }
 
-  // Adicionar operador para uma loja já existente
+  function abrirModalEditarOperador(loja: CcipayLoja, op?: OperadorLoja) {
+    setLojaSelecionadaOp(loja);
+    if (op) {
+      setExtraLoginOp(op.login || "");
+      setExtraNomeOp(op.nome || "");
+      const emailReal = op.email && !op.email.toLowerCase().endsWith("@parceiro.cci") ? op.email : "";
+      setExtraEmailOp(emailReal);
+      setExtraSenhaOp("");
+    } else {
+      setExtraLoginOp("");
+      setExtraNomeOp("");
+      setExtraEmailOp("");
+      setExtraSenhaOp("");
+    }
+  }
+
+  async function handleEnviarEmailRedefinicao(op: OperadorLoja, lojaNome: string) {
+    if (!googleIdToken || !op.login) return;
+    const temEmailReal = Boolean(op.email && !op.email.toLowerCase().endsWith("@parceiro.cci"));
+    if (!temEmailReal) {
+      toast.error(
+        `O operador "${op.login}" não possui e-mail de recuperação cadastrado. Clique no botão de edição para cadastrar o e-mail.`,
+      );
+      return;
+    }
+
+    setEnviandoEmailOpLogin(op.login);
+    try {
+      const res = await ccipayEnviarEmailRedefinicaoOperador(googleIdToken, op.login);
+      toast.success(`E-mail de redefinição enviado com sucesso para ${res.email}!`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao enviar e-mail de redefinição.");
+    } finally {
+      setEnviandoEmailOpLogin(null);
+    }
+  }
+
+  // Adicionar ou editar operador para uma loja já existente
   async function handleAdicionarOperadorExtra(e: React.FormEvent) {
     e.preventDefault();
     if (!googleIdToken || !lojaSelecionadaOp) return;
@@ -184,7 +233,16 @@ export default function CcipayAdminLojas() {
       toast.error("Informe o usuário.");
       return;
     }
-    if (!extraSenhaOp || extraSenhaOp.length < 6) {
+
+    const operadorJaExiste = (operadoresPorLoja[lojaSelecionadaOp.id] || []).some(
+      (o) => (o.login || "").toLowerCase() === loginTrim.toLowerCase(),
+    );
+
+    if (!operadorJaExiste && (!extraSenhaOp || extraSenhaOp.length < 6)) {
+      toast.error("Para novos operadores, a senha deve ter no mínimo 6 caracteres.");
+      return;
+    }
+    if (extraSenhaOp && extraSenhaOp.length < 6) {
       toast.error("A senha deve ter no mínimo 6 caracteres.");
       return;
     }
@@ -193,24 +251,30 @@ export default function CcipayAdminLojas() {
     try {
       await ccipayLojaUsuarios(googleIdToken, lojaSelecionadaOp.id, "vincular", {
         login: loginTrim,
-        senha: extraSenhaOp,
+        senha: extraSenhaOp || undefined,
         nome: extraNomeOp.trim() || loginTrim,
+        email: extraEmailOp.trim() || undefined,
       });
 
       toast.success(`Operador "${loginTrim}" configurado para ${lojaSelecionadaOp.nome}!`);
 
-      const msgAcesso = `*Acesso Parceiro Advance-CCI*\nLoja: ${lojaSelecionadaOp.nome}\nLink: ${parceiroSiteUrl()}\nUsuário: ${loginTrim}\nSenha: ${extraSenhaOp}`;
-      navigator.clipboard.writeText(msgAcesso);
-      toast.info("Dados de acesso copiados para a área de transferência!");
+      if (extraSenhaOp) {
+        const msgAcesso = `*Acesso Parceiro Advance-CCI*\nLoja: ${lojaSelecionadaOp.nome}\nLink: ${parceiroSiteUrl()}\nUsuário: ${loginTrim}\nSenha: ${extraSenhaOp}${
+          extraEmailOp.trim() ? `\nE-mail: ${extraEmailOp.trim()}` : ""
+        }`;
+        navigator.clipboard.writeText(msgAcesso);
+        toast.info("Dados de acesso copiados para a área de transferência!");
+      }
 
       setExtraLoginOp("");
       setExtraSenhaOp("");
       setExtraNomeOp("");
+      setExtraEmailOp("");
       setLojaSelecionadaOp(null);
 
       await carregar();
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Erro ao vincular operador.");
+      toast.error(e instanceof Error ? e.message : "Erro ao salvar operador.");
     } finally {
       setSalvandoExtraOp(false);
     }
@@ -363,20 +427,85 @@ export default function CcipayAdminLojas() {
                             Sem login cadastrado
                           </span>
                         ) : (
-                          ops.map((op) => (
-                            <span
-                              key={op.login ?? op.nome}
-                              className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted/40 px-2.5 py-1 text-xs font-mono text-foreground"
-                            >
-                              <span className="font-semibold text-primary">@{op.login}</span>
-                              {op.nome && op.nome !== op.login && (
-                                <span className="text-muted-foreground">({op.nome})</span>
-                              )}
-                              {op.temSenha && (
-                                <ShieldCheck className="h-3 w-3 text-emerald-500" title="Senha cadastrada" />
-                              )}
-                            </span>
-                          ))
+                          ops.map((op) => {
+                            const temEmailReal = Boolean(
+                              op.email && !op.email.toLowerCase().endsWith("@parceiro.cci"),
+                            );
+                            const enviandoEste = enviandoEmailOpLogin === op.login;
+
+                            return (
+                              <div
+                                key={op.login ?? op.nome}
+                                className="inline-flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-2.5 py-1 text-xs"
+                              >
+                                <div className="flex items-center gap-1.5 font-mono">
+                                  <span className="font-semibold text-primary">@{op.login}</span>
+                                  {op.nome && op.nome !== op.login && (
+                                    <span className="text-muted-foreground text-[11px] font-sans">
+                                      ({op.nome})
+                                    </span>
+                                  )}
+                                  {op.temSenha && (
+                                    <ShieldCheck
+                                      className="h-3 w-3 text-emerald-500"
+                                      title="Senha cadastrada"
+                                    />
+                                  )}
+                                </div>
+
+                                {temEmailReal ? (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[11px] text-muted-foreground bg-background/80 px-1.5 py-0.5 rounded border border-border/60"
+                                    title={`E-mail de recuperação: ${op.email}`}
+                                  >
+                                    <Mail className="h-3 w-3 text-sky-500" />
+                                    <span className="font-sans max-w-[150px] truncate">{op.email}</span>
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="text-[10px] text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded font-sans cursor-pointer hover:underline"
+                                    onClick={() => abrirModalEditarOperador(loja, op)}
+                                    title="Clique para cadastrar um e-mail de recuperação para este operador"
+                                  >
+                                    + Adicionar e-mail
+                                  </span>
+                                )}
+
+                                <div className="flex items-center gap-0.5 border-l border-border/70 pl-1.5">
+                                  {temEmailReal && (
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      disabled={enviandoEste}
+                                      onClick={() => handleEnviarEmailRedefinicao(op, loja.nome)}
+                                      className="h-6 px-1.5 text-[11px] text-sky-600 hover:text-sky-700 hover:bg-sky-500/10 gap-1 font-sans"
+                                      title="Enviar e-mail para o parceiro redefinir sua senha"
+                                    >
+                                      {enviandoEste ? (
+                                        <Loader2 className="h-3 w-3 animate-spin" />
+                                      ) : (
+                                        <Send className="h-3 w-3" />
+                                      )}
+                                      <span>Resetar</span>
+                                    </Button>
+                                  )}
+
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => abrirModalEditarOperador(loja, op)}
+                                    className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                                    title="Editar operador / e-mail / senha"
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                    <span className="sr-only">Editar Operador</span>
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })
                         )}
                       </div>
                     </div>
@@ -522,15 +651,30 @@ export default function CcipayAdminLojas() {
                   </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-foreground">
-                    Nome do Responsável / Operador (opcional)
-                  </label>
-                  <Input
-                    placeholder="Ex: Caixa 01, Maria Santos"
-                    value={nomeOp}
-                    onChange={(e) => setNomeOp(e.target.value)}
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-foreground">
+                      Nome do Responsável / Operador (opcional)
+                    </label>
+                    <Input
+                      placeholder="Ex: Caixa 01, Maria Santos"
+                      value={nomeOp}
+                      onChange={(e) => setNomeOp(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-foreground flex items-center justify-between">
+                      <span>E-mail de Recuperação</span>
+                      <span className="text-[10px] text-primary font-normal">Recomendado</span>
+                    </label>
+                    <Input
+                      type="email"
+                      placeholder="contato@minhaloja.com"
+                      value={emailOp}
+                      onChange={(e) => setEmailOp(e.target.value)}
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -573,53 +717,83 @@ export default function CcipayAdminLojas() {
       >
         <DialogContent className="sm:max-w-md">
           <form onSubmit={handleAdicionarOperadorExtra}>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5 text-primary" />
-                Acesso de Operador — {lojaSelecionadaOp?.nome}
-              </DialogTitle>
-              <DialogDescription>
-                Crie um novo login ou redefina a senha de um operador para esta loja.
-              </DialogDescription>
-            </DialogHeader>
+            {(() => {
+              const opExistente = (operadoresPorLoja[lojaSelecionadaOp?.id || ""] || []).find(
+                (o) => (o.login || "").toLowerCase() === extraLoginOp.trim().toLowerCase(),
+              );
+              return (
+                <>
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <UserPlus className="h-5 w-5 text-primary" />
+                      {opExistente ? "Editar Operador" : "Adicionar Operador"} — {lojaSelecionadaOp?.nome}
+                    </DialogTitle>
+                    <DialogDescription>
+                      {opExistente
+                        ? "Atualize o e-mail de recuperação, nome ou defina uma nova senha para este operador."
+                        : "Cadastre um novo login e vincule o e-mail de recuperação para acesso autônomo."}
+                    </DialogDescription>
+                  </DialogHeader>
 
-            <div className="space-y-4 py-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground">
-                  Usuário (Login) *
-                </label>
-                <Input
-                  placeholder="Ex: lanchonete_caixa2"
-                  value={extraLoginOp}
-                  onChange={(e) => setExtraLoginOp(e.target.value)}
-                  required
-                />
-              </div>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-foreground">
+                        Usuário (Login) *
+                      </label>
+                      <Input
+                        placeholder="Ex: lanchonete_caixa2"
+                        value={extraLoginOp}
+                        onChange={(e) => setExtraLoginOp(e.target.value)}
+                        required
+                        disabled={Boolean(opExistente && extraLoginOp)}
+                      />
+                    </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground">
-                  Senha (mínimo 6 caracteres) *
-                </label>
-                <Input
-                  type="password"
-                  placeholder="Informe a nova senha"
-                  value={extraSenhaOp}
-                  onChange={(e) => setExtraSenhaOp(e.target.value)}
-                  required
-                />
-              </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-foreground">
+                        Nome do Operador (opcional)
+                      </label>
+                      <Input
+                        placeholder="Ex: Turno Noite, João"
+                        value={extraNomeOp}
+                        onChange={(e) => setExtraNomeOp(e.target.value)}
+                      />
+                    </div>
 
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-foreground">
-                  Nome do Operador (opcional)
-                </label>
-                <Input
-                  placeholder="Ex: Turno Noite, João"
-                  value={extraNomeOp}
-                  onChange={(e) => setExtraNomeOp(e.target.value)}
-                />
-              </div>
-            </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-foreground flex items-center justify-between">
+                        <span>E-mail de Recuperação</span>
+                        <span className="text-[10px] text-primary font-normal">Recomendado</span>
+                      </label>
+                      <Input
+                        type="email"
+                        placeholder="contato@minhaloja.com"
+                        value={extraEmailOp}
+                        onChange={(e) => setExtraEmailOp(e.target.value)}
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Usado pelo parceiro para redefinir a própria senha de forma autônoma caso perca o acesso.
+                      </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-foreground">
+                        {opExistente
+                          ? "Nova Senha (opcional — deixe em branco para manter a atual)"
+                          : "Senha Provisória (mínimo 6 caracteres) *"}
+                      </label>
+                      <Input
+                        type="password"
+                        placeholder={opExistente ? "Deixe em branco para manter a senha atual" : "Mínimo 6 caracteres"}
+                        value={extraSenhaOp}
+                        onChange={(e) => setExtraSenhaOp(e.target.value)}
+                        required={!opExistente}
+                      />
+                    </div>
+                  </div>
+                </>
+              );
+            })()}
 
             <DialogFooter className="gap-2 sm:gap-0">
               <Button

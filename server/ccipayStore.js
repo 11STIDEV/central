@@ -539,6 +539,7 @@ export async function obterOperadorPorLogin(supabase, login) {
   return {
     lojaId: data.loja_id,
     login: data.login,
+    email: data.email,
     nome: data.nome,
     senhaHash: data.senha_hash ?? null,
     loja: loja
@@ -547,18 +548,72 @@ export async function obterOperadorPorLogin(supabase, login) {
   };
 }
 
-export async function vincularOperadorLoja(supabase, lojaId, { login, senhaHash, nome }) {
-  const loginNorm = String(login).toLowerCase();
-  const { error } = await supabase.from("ccipay_loja_usuarios").upsert(
-    {
-      loja_id: lojaId,
-      login: loginNorm,
-      email: emailSinteticoParceiro(loginNorm),
-      nome: nome || loginNorm,
-      senha_hash: senhaHash,
-    },
-    { onConflict: "loja_id,email" },
-  );
+export async function obterOperadorPorLoginOuEmail(supabase, loginOuEmail) {
+  const norm = String(loginOuEmail || "").trim().toLowerCase();
+  if (!norm) return null;
+
+  // Busca inicial por login
+  let { data, error } = await supabase
+    .from("ccipay_loja_usuarios")
+    .select("*, ccipay_lojas(id, nome, descricao, ativa)")
+    .ilike("login", norm)
+    .maybeSingle();
+  if (error) throw new Error(`[ccipay] obter operador por login: ${error.message}`);
+
+  // Se não encontrar, tenta buscar pela coluna email
+  if (!data) {
+    const res = await supabase
+      .from("ccipay_loja_usuarios")
+      .select("*, ccipay_lojas(id, nome, descricao, ativa)")
+      .ilike("email", norm)
+      .maybeSingle();
+    if (res.error) throw new Error(`[ccipay] obter operador por email: ${res.error.message}`);
+    data = res.data;
+  }
+
+  if (!data) return null;
+  const loja = data.ccipay_lojas;
+  return {
+    lojaId: data.loja_id,
+    login: data.login,
+    email: data.email,
+    nome: data.nome,
+    senhaHash: data.senha_hash ?? null,
+    loja: loja
+      ? { id: loja.id, nome: loja.nome, descricao: loja.descricao ?? "", ativa: loja.ativa ?? true }
+      : null,
+  };
+}
+
+export async function vincularOperadorLoja(supabase, lojaId, { login, senhaHash, nome, email }) {
+  const loginNorm = String(login).toLowerCase().trim();
+  const emailNorm = email && String(email).trim().includes("@")
+    ? String(email).trim().toLowerCase()
+    : emailSinteticoParceiro(loginNorm);
+
+  // Se não forneceu novo hash, preserva o existente se o operador já existia
+  let hashEfetivo = senhaHash;
+  if (!hashEfetivo) {
+    const atual = await obterOperadorPorLogin(supabase, loginNorm);
+    if (atual?.senhaHash) {
+      hashEfetivo = atual.senhaHash;
+    }
+  }
+
+  // Remove vínculo anterior desse login nesta loja para evitar conflito na PK composta (loja_id, email)
+  await supabase
+    .from("ccipay_loja_usuarios")
+    .delete()
+    .eq("loja_id", lojaId)
+    .ilike("login", loginNorm);
+
+  const { error } = await supabase.from("ccipay_loja_usuarios").insert({
+    loja_id: lojaId,
+    login: loginNorm,
+    email: emailNorm,
+    nome: nome || loginNorm,
+    senha_hash: hashEfetivo,
+  });
   if (error) throw new Error(`[ccipay] vincular operador: ${error.message}`);
 }
 

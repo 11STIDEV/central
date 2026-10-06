@@ -555,13 +555,23 @@ export function registerCcipayRoutes(app, helpers) {
         if (acao === "remover") {
           await desvincularOperadorLoja(supabase, lojaId, loginNorm);
         } else {
-          if (!senha || String(senha).length < 6) {
-            return res.status(400).json({ error: "Senha deve ter ao menos 6 caracteres." });
+          let senhaHash = undefined;
+          if (senha) {
+            if (String(senha).length < 6) {
+              return res.status(400).json({ error: "Senha deve ter ao menos 6 caracteres." });
+            }
+            senhaHash = await hashSenha(String(senha));
+          } else {
+            const opAtual = await (await import("./ccipayStore.js")).obterOperadorPorLogin(supabase, loginNorm);
+            if (!opAtual?.senhaHash) {
+              return res.status(400).json({ error: "Senha deve ter ao menos 6 caracteres." });
+            }
           }
           await vincularOperadorLoja(supabase, lojaId, {
             login: loginNorm,
-            senhaHash: await hashSenha(String(senha)),
+            senhaHash,
             nome: nome || loginNorm,
+            email: email ? String(email).trim() : undefined,
           });
         }
       } else if (acao === "remover") {

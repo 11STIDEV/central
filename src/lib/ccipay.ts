@@ -358,6 +358,18 @@ export async function ccipayLojaUsuarios(
   );
 }
 
+export async function ccipayEnviarEmailRedefinicaoOperador(
+  idToken: string | null | undefined,
+  login: string,
+) {
+  return post<{ ok: boolean; email: string; emailMascarado?: string; mensagem: string }>(
+    "/api/ccipay/parceiro/operadores/enviar-email-redefinicao",
+    idToken,
+    { login },
+  );
+}
+
+
 export async function ccipayListarLancadores(idToken: string) {
   return post<{ lancadores: { email: string; nome: string; ativo: boolean }[] }>(
     "/api/ccipay/lancadores/listar",
