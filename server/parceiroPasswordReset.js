@@ -1,11 +1,11 @@
 import crypto from "crypto";
 import { enviarEmailGmail } from "./emailService.js";
 
-const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
+const CODIGO_TTL_MS = 15 * 60 * 1000; // 15 minutos
 
 /**
  * @typedef {{
- *   token: string,
+ *   codigo: string,
  *   login: string,
  *   email: string,
  *   nome: string,
@@ -13,17 +13,18 @@ const TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hora
  *   lojaNome: string,
  *   criadoEm: number,
  *   expiraEm: number,
- * }} ResetTokenItem
+ *   tentativas: number,
+ * }} ResetCodigoItem
  */
 
-/** @type {Map<string, ResetTokenItem>} */
-const tokensAtivos = new Map();
+/** @type {Map<string, ResetCodigoItem>} */
+const codigosAtivosPorLogin = new Map();
 
-function limparTokensExpirados() {
+function limparCodigosExpirados() {
   const agora = Date.now();
-  for (const [token, item] of tokensAtivos.entries()) {
+  for (const [chave, item] of codigosAtivosPorLogin.entries()) {
     if (item.expiraEm <= agora) {
-      tokensAtivos.delete(token);
+      codigosAtivosPorLogin.delete(chave);
     }
   }
 }
@@ -49,66 +50,119 @@ export function mascararEmail(email) {
   return `${visivelInicio}***${visivelFim}@${domain}`;
 }
 
-export function criarTokenRedefinicao(operador) {
-  limparTokensExpirados();
-  const token = crypto.randomBytes(32).toString("hex");
+/**
+ * Gera um código numérico aleatório de 6 dígitos para o operador.
+ */
+export function criarCodigoRedefinicao(operador) {
+  limparCodigosExpirados();
+  const codigo = String(crypto.randomInt(100000, 999999));
   const agora = Date.now();
+  const loginNorm = String(operador.login).trim().toLowerCase();
+
   const item = {
-    token,
+    codigo,
     login: operador.login,
     email: operador.email,
     nome: operador.nome || operador.login,
     lojaId: operador.lojaId,
     lojaNome: operador.loja?.nome || operador.lojaNome || "Loja Parceira",
     criadoEm: agora,
-    expiraEm: agora + TOKEN_TTL_MS,
+    expiraEm: agora + CODIGO_TTL_MS,
+    tentativas: 0,
   };
-  tokensAtivos.set(token, item);
+
+  // Salva indexado pelo login normalizado
+  codigosAtivosPorLogin.set(loginNorm, item);
   return item;
 }
 
-export function validarTokenRedefinicao(token) {
-  if (!token || typeof token !== "string") return null;
-  limparTokensExpirados();
-  const item = tokensAtivos.get(token.trim());
-  if (!item) return null;
-  if (item.expiraEm <= Date.now()) {
-    tokensAtivos.delete(token.trim());
-    return null;
+/**
+ * Valida o código digitado pelo usuário e consome se estiver correto.
+ */
+export function verificarEConsumirCodigoRedefinicao(loginOuEmail, codigoDigitado) {
+  limparCodigosExpirados();
+  const termo = String(loginOuEmail || "").trim().toLowerCase();
+  const codLimpo = String(codigoDigitado || "").trim();
+
+  if (!termo || !codLimpo) {
+    return { ok: false, error: "Informe o usuário/e-mail e o código de 6 dígitos." };
   }
-  return item;
+
+  // Localiza o código ativo correspondente ao login ou email
+  let encontradoChave = null;
+  let item = null;
+
+  for (const [chave, val] of codigosAtivosPorLogin.entries()) {
+    if (
+      chave === termo ||
+      val.login.toLowerCase() === termo ||
+      val.email.toLowerCase() === termo
+    ) {
+      encontradoChave = chave;
+      item = val;
+      break;
+    }
+  }
+
+  if (!item) {
+    return {
+      ok: false,
+      error: "Nenhum código ativo encontrado para este usuário. Solicite um novo código.",
+    };
+  }
+
+  if (item.expiraEm <= Date.now()) {
+    codigosAtivosPorLogin.delete(encontradoChave);
+    return {
+      ok: false,
+      error: "O código informado expirou (validade de 15 minutos). Solicite um novo código.",
+    };
+  }
+
+  item.tentativas += 1;
+  if (item.tentativas > 5) {
+    codigosAtivosPorLogin.delete(encontradoChave);
+    return {
+      ok: false,
+      error: "Número máximo de tentativas incorretas excedido. Solicite um novo código por segurança.",
+    };
+  }
+
+  if (item.codigo !== codLimpo) {
+    return {
+      ok: false,
+      error: `Código incorreto. Verifique os 6 dígitos recebidos por e-mail (${5 - item.tentativas} tentativas restantes).`,
+    };
+  }
+
+  // Código correto! Consome e remove para uso único
+  codigosAtivosPorLogin.delete(encontradoChave);
+  return { ok: true, item };
 }
 
-export function consumirTokenRedefinicao(token) {
-  const item = validarTokenRedefinicao(token);
-  if (!item) return null;
-  tokensAtivos.delete(token.trim());
-  return item;
-}
+export function montarHtmlEmailCodigo({ nomeOperador, login, nomeLoja, codigo }) {
+  const digitos = codigo.split("").join(" ");
 
-export function montarHtmlEmailRecuperacao({ nomeOperador, login, nomeLoja, linkRedefinicao }) {
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Redefinição de Senha — Advance-CCI</title>
+  <title>Código de Recuperação — Advance-CCI Parceiro</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b; }
-    .container { max-width: 560px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
-    .header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 32px 28px; text-align: center; }
-    .header h1 { color: #f8fafc; margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .container { max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 14px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+    .header { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 32px 24px; text-align: center; }
+    .header h1 { color: #f8fafc; margin: 0; font-size: 20px; font-weight: 700; }
     .header p { color: #94a3b8; margin: 6px 0 0 0; font-size: 13px; }
     .body { padding: 32px 28px; }
     .greeting { font-size: 16px; font-weight: 600; color: #0f172a; margin-bottom: 12px; }
-    .text { font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 20px 0; }
-    .card-info { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px 20px; margin: 20px 0; }
-    .card-info-row { display: flex; justify-content: space-between; font-size: 13px; margin: 6px 0; }
-    .card-info-label { color: #64748b; font-weight: 500; }
-    .card-info-value { color: #0f172a; font-weight: 600; }
-    .btn-container { text-align: center; margin: 32px 0 24px 0; }
-    .btn { display: inline-block; background: #2563eb; color: #ffffff !important; text-decoration: none; font-size: 15px; font-weight: 600; padding: 14px 32px; border-radius: 8px; box-shadow: 0 2px 6px rgba(37,99,235,0.3); transition: background 0.2s; }
-    .url-box { background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 12px; font-size: 11px; word-break: break-all; color: #64748b; line-height: 1.4; margin-top: 16px; }
+    .text { font-size: 14px; line-height: 1.6; color: #475569; margin: 0 0 16px 0; }
+    .card-info { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin: 18px 0; font-size: 13px; }
+    .card-info p { margin: 4px 0; }
+    .code-container { text-align: center; margin: 28px 0; }
+    .code-badge { display: inline-block; background: #0f172a; color: #38bdf8; font-size: 34px; font-weight: 700; letter-spacing: 10px; padding: 18px 36px; border-radius: 12px; font-family: Consolas, monospace; border: 2px solid #1e293b; box-shadow: 0 4px 12px rgba(15,23,42,0.15); }
+    .code-instruction { font-size: 13px; text-align: center; color: #64748b; margin-top: 10px; }
     .notice { font-size: 12px; color: #94a3b8; line-height: 1.5; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 20px; }
     .footer { background: #f8fafc; padding: 16px 28px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
   </style>
@@ -117,39 +171,27 @@ export function montarHtmlEmailRecuperacao({ nomeOperador, login, nomeLoja, link
   <div class="container">
     <div class="header">
       <h1>Portal Parceiro Advance-CCI</h1>
-      <p>Recuperação de Credenciais de Acesso</p>
+      <p>Código de Verificação de Segurança</p>
     </div>
     <div class="body">
       <div class="greeting">Olá, ${nomeOperador}!</div>
       <p class="text">
-        Recebemos uma solicitação para redefinir a sua senha de acesso ao Portal do Parceiro Advance-CCI.
+        Recebemos uma solicitação para redefinir a senha do seu acesso ao Portal do Parceiro Advance-CCI.
       </p>
 
       <div class="card-info">
-        <div class="card-info-row">
-          <span class="card-info-label">Estabelecimento / Loja:</span>
-          <span class="card-info-value">${nomeLoja}</span>
-        </div>
-        <div class="card-info-row">
-          <span class="card-info-label">Usuário de Login:</span>
-          <span class="card-info-value" style="font-family: monospace; background: #e2e8f0; padding: 2px 6px; border-radius: 4px;">${login}</span>
-        </div>
+        <p><strong>Estabelecimento:</strong> ${nomeLoja}</p>
+        <p><strong>Usuário de Login:</strong> <code style="background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-family: monospace;">${login}</code></p>
       </div>
 
-      <div class="btn-container">
-        <a href="${linkRedefinicao}" class="btn" target="_blank" rel="noopener noreferrer">
-          Redefinir Minha Senha
-        </a>
+      <div class="code-container">
+        <div class="code-badge">${digitos}</div>
+        <p class="code-instruction">Digite este código de 6 dígitos diretamente na tela do portal parceiro.</p>
       </div>
-
-      <p class="text" style="font-size: 13px; text-align: center; color: #64748b;">
-        Ou copie e cole o link abaixo em seu navegador:
-      </p>
-      <div class="url-box">${linkRedefinicao}</div>
 
       <div class="notice">
-        <strong>Importante:</strong> Este link é válido por <strong>1 hora</strong> a partir do recebimento deste e-mail.<br/>
-        Se você não solicitou a alteração de senha, ignore esta mensagem com segurança — seus dados permanecem protegidos.
+        ⏰ <strong>Validade:</strong> Este código expira em <strong>15 minutos</strong>.<br/>
+        Se você não solicitou este código, desconsidere esta mensagem. Sua senha atual continuará válida e segura.
       </div>
     </div>
     <div class="footer">
@@ -160,25 +202,23 @@ export function montarHtmlEmailRecuperacao({ nomeOperador, login, nomeLoja, link
 </html>`;
 }
 
-export async function enviarEmailRecuperacaoParceiro({ operador, baseUrl }) {
+export async function enviarEmailCodigoRecuperacaoParceiro({ operador }) {
   if (!operador?.email || !ehEmailRecuperacaoReal(operador.email)) {
     throw new Error("Operador não possui um e-mail de recuperação válido configurado.");
   }
 
-  const itemToken = criarTokenRedefinicao(operador);
-  const baseLimpa = baseUrl.replace(/\/+$/, "");
-  const linkRedefinicao = `${baseLimpa}/redefinir-senha?token=${encodeURIComponent(itemToken.token)}`;
+  const item = criarCodigoRedefinicao(operador);
 
-  const htmlBody = montarHtmlEmailRecuperacao({
+  const htmlBody = montarHtmlEmailCodigo({
     nomeOperador: operador.nome || operador.login,
     login: operador.login,
     nomeLoja: operador.loja?.nome || operador.lojaNome || "Loja Parceira",
-    linkRedefinicao,
+    codigo: item.codigo,
   });
 
   await enviarEmailGmail({
     destinatario: operador.email,
-    assunto: `🔑 Redefinição de Senha — Portal Parceiro Advance-CCI (${operador.login})`,
+    assunto: `🔐 Código de Verificação: ${item.codigo} — Advance-CCI Parceiro`,
     htmlBody,
     remetenteNome: "Advance-CCI",
   });
@@ -186,6 +226,6 @@ export async function enviarEmailRecuperacaoParceiro({ operador, baseUrl }) {
   return {
     ok: true,
     emailMascarado: mascararEmail(operador.email),
-    expiraEm: itemToken.expiraEm,
+    expiraEm: item.expiraEm,
   };
 }

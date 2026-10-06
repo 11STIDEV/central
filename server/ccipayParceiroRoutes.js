@@ -20,10 +20,9 @@ import {
   PARCEIRO_SESSION_HEADER,
 } from "./parceiroSessionAuth.js";
 import {
-  consumirTokenRedefinicao,
   ehEmailRecuperacaoReal,
-  enviarEmailRecuperacaoParceiro,
-  validarTokenRedefinicao,
+  enviarEmailCodigoRecuperacaoParceiro,
+  verificarEConsumirCodigoRedefinicao,
 } from "./parceiroPasswordReset.js";
 
 function obterBaseUrlParceiro(req) {
@@ -124,7 +123,7 @@ export function registerCcipayParceiroRoutes(app, helpers) {
     return res.json({ ok: true });
   });
 
-  /** Solicitação de redefinição de senha iniciada pelo parceiro */
+  /** Solicitação de código de 6 dígitos para redefinição de senha */
   app.post("/api/ccipay/parceiro/auth/esqueci-senha", async (req, res) => {
     try {
       const { loginOuEmail } = req.body || {};
@@ -150,13 +149,13 @@ export function registerCcipayParceiroRoutes(app, helpers) {
         });
       }
 
-      const baseUrl = obterBaseUrlParceiro(req);
-      const resultado = await enviarEmailRecuperacaoParceiro({ operador: op, baseUrl });
+      const resultado = await enviarEmailCodigoRecuperacaoParceiro({ operador: op });
 
       return res.json({
         ok: true,
+        login: op.login,
         emailMascarado: resultado.emailMascarado,
-        mensagem: `E-mail de redefinição enviado com sucesso para ${resultado.emailMascarado}.`,
+        mensagem: `Código de verificação enviado para ${resultado.emailMascarado}.`,
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -164,48 +163,29 @@ export function registerCcipayParceiroRoutes(app, helpers) {
     }
   });
 
-  /** Validação do token de recuperação de senha pelo frontend */
-  app.post("/api/ccipay/parceiro/auth/validar-token", (req, res) => {
-    const { token } = req.body || {};
-    const item = validarTokenRedefinicao(token);
-    if (!item) {
-      return res.status(400).json({
-        ok: false,
-        error: "O link de redefinição é inválido ou já expirou. Solicite um novo link.",
-      });
-    }
-    return res.json({
-      ok: true,
-      login: item.login,
-      nome: item.nome,
-      lojaNome: item.lojaNome,
-    });
-  });
-
-  /** Definição da nova senha com token de recuperação */
-  app.post("/api/ccipay/parceiro/auth/redefinir-senha", async (req, res) => {
+  /** Confirmação do código de 6 dígitos e definição da nova senha */
+  app.post("/api/ccipay/parceiro/auth/confirmar-codigo-redefinicao", async (req, res) => {
     try {
-      const { token, novaSenha } = req.body || {};
+      const { loginOuEmail, codigo, novaSenha } = req.body || {};
       if (!novaSenha || String(novaSenha).length < 6) {
         return res.status(400).json({ error: "A nova senha deve ter no mínimo 6 caracteres." });
       }
 
-      const item = consumirTokenRedefinicao(token);
-      if (!item) {
-        return res.status(400).json({
-          error: "O link de redefinição é inválido ou já expirou. Solicite um novo link.",
-        });
+      const validacao = verificarEConsumirCodigoRedefinicao(loginOuEmail, codigo);
+      if (!validacao.ok) {
+        return res.status(400).json({ error: validacao.error });
       }
 
       const supabase = supabaseOr503(res);
       if (!supabase) return;
 
       const novoHash = await hashSenha(String(novaSenha));
-      await redefinirSenhaOperador(supabase, item.login, novoHash);
+      await redefinirSenhaOperador(supabase, validacao.item.login, novoHash);
 
       return res.json({
         ok: true,
-        mensagem: "Senha alterada com sucesso! Você já pode fazer login com sua nova senha.",
+        login: validacao.item.login,
+        mensagem: "Senha alterada com sucesso! Você já pode entrar com sua nova senha.",
       });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -213,7 +193,7 @@ export function registerCcipayParceiroRoutes(app, helpers) {
     }
   });
 
-  /** Admin TI: Enviar e-mail de redefinição de senha para um operador diretamente pelo painel */
+  /** Admin TI: Enviar código de recuperação de senha para um operador diretamente pelo painel */
   app.post("/api/ccipay/parceiro/operadores/enviar-email-redefinicao", async (req, res) => {
     try {
       const { login } = req.body || {};
@@ -236,14 +216,13 @@ export function registerCcipayParceiroRoutes(app, helpers) {
         });
       }
 
-      const baseUrl = obterBaseUrlParceiro(req);
-      const resultado = await enviarEmailRecuperacaoParceiro({ operador: op, baseUrl });
+      const resultado = await enviarEmailCodigoRecuperacaoParceiro({ operador: op });
 
       return res.json({
         ok: true,
         email: op.email,
         emailMascarado: resultado.emailMascarado,
-        mensagem: `E-mail de redefinição enviado com sucesso para ${op.email}!`,
+        mensagem: `Código de verificação enviado com sucesso para ${op.email}!`,
       });
     } catch (e) {
       if (e.status) return res.status(e.status).json({ error: e.message });

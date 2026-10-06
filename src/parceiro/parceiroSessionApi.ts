@@ -144,10 +144,10 @@ export async function parceiroRedefinirSenha(token: string, novaSenha: string): 
   ok: boolean;
   mensagem: string;
 }> {
-  const res = await parceiroFetch(apiUrl("/api/ccipay/parceiro/auth/redefinir-senha"), {
+  const res = await parceiroFetch(apiUrl("/api/ccipay/parceiro/auth/confirmar-codigo-redefinicao"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ token, novaSenha }),
+    body: JSON.stringify({ codigo: token, novaSenha }),
   });
   const data = await parseJson(res);
   if (!res.ok) {
@@ -155,6 +155,27 @@ export async function parceiroRedefinirSenha(token: string, novaSenha: string): 
   }
   return {
     ok: true,
+    mensagem: String(data.mensagem || "Senha redefinida com sucesso!"),
+  };
+}
+
+export async function parceiroConfirmarCodigoRedefinicao(params: {
+  loginOuEmail: string;
+  codigo: string;
+  novaSenha: string;
+}): Promise<{ ok: boolean; login?: string; mensagem: string }> {
+  const res = await parceiroFetch(apiUrl("/api/ccipay/parceiro/auth/confirmar-codigo-redefinicao"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await parseJson(res);
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Erro ao redefinir senha.");
+  }
+  return {
+    ok: true,
+    login: typeof data.login === "string" ? data.login : undefined,
     mensagem: String(data.mensagem || "Senha redefinida com sucesso!"),
   };
 }

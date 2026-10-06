@@ -10,7 +10,12 @@ function destinoAposLogin(path: string | undefined): string {
 }
 
 type Props = { children: React.ReactNode };
-const PUBLIC_PATHS = new Set(["/login", "/achados-e-perdidos/publico"]);
+const PUBLIC_PATHS = new Set([
+  "/login",
+  "/achados-e-perdidos/publico",
+  "/redefinir-senha",
+  "/parceiro/redefinir-senha",
+]);
 
 /**
  * Exige login Google para qualquer rota, exceto `/login`.
