@@ -492,6 +492,26 @@ export async function atualizarLoja(supabase, id, patch) {
   return rowToLoja(data);
 }
 
+export async function excluirLoja(supabase, id) {
+  // 1. Remove operadores vinculados à loja
+  await supabase.from("ccipay_loja_usuarios").delete().eq("loja_id", id);
+
+  // 2. Remove vendas QR vinculadas à loja
+  await supabase.from("ccipay_vendas_qr").delete().eq("loja_id", id);
+
+  // 3. Desvincula movimentos para preservar histórico sem bloquear exclusão
+  try {
+    await supabase.from("ccipay_movimentos").update({ loja_id: null }).eq("loja_id", id);
+  } catch {
+    /* ignora se coluna não existir */
+  }
+
+  // 4. Remove a loja
+  const { data, error } = await supabase.from("ccipay_lojas").delete().eq("id", id).select("*").maybeSingle();
+  if (error) throw new Error(`[ccipay] excluir loja: ${error.message}`);
+  return data ? rowToLoja(data) : null;
+}
+
 export async function listarUsuariosLoja(supabase, lojaId) {
   const { data, error } = await supabase
     .from("ccipay_loja_usuarios")

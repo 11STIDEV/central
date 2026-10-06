@@ -334,6 +334,10 @@ export async function ccipaySalvarLoja(idToken?: string | null, loja: Partial<Cc
   return post<{ loja: CcipayLoja }>("/api/ccipay/lojas/salvar", idToken, { loja });
 }
 
+export async function ccipayExcluirLoja(idToken?: string | null, lojaId: string) {
+  return post<{ ok: boolean; lojaId: string }>("/api/ccipay/lojas/excluir", idToken, { lojaId });
+}
+
 export async function ccipayLojaUsuarios(
   idToken?: string | null,
   lojaId: string,

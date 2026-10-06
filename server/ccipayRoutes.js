@@ -27,6 +27,7 @@ import {
   listarLojas,
   criarLoja,
   atualizarLoja,
+  excluirLoja,
   listarUsuariosLoja,
   vincularUsuarioLoja,
   desvincularUsuarioLoja,
@@ -503,6 +504,26 @@ export function registerCcipayRoutes(app, helpers) {
         ? await atualizarLoja(supabase, loja.id, loja)
         : await criarLoja(supabase, loja);
       return res.json({ ok: true, loja: saved });
+    } catch (e) {
+      if (e.status) return respostaErroIdToken(res, e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/ccipay/lojas/excluir", async (req, res) => {
+    try {
+      const { idToken, lojaId } = req.body || {};
+      const ctx = await ctxFromRequest(req);
+      if (!isCcipayAdmin(ctx.papeis)) {
+        return res.status(403).json({ error: "Somente admin Advance-CCI." });
+      }
+      if (!lojaId) {
+        return res.status(400).json({ error: "ID da loja não informado." });
+      }
+      const supabase = supabaseOr503(res);
+      if (!supabase) return;
+      await excluirLoja(supabase, lojaId);
+      return res.json({ ok: true, lojaId });
     } catch (e) {
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });

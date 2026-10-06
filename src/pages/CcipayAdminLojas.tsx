@@ -11,12 +11,22 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   ccipayListarLojas,
   ccipayLojaUsuarios,
   ccipaySalvarLoja,
+  ccipayExcluirLoja,
   type CcipayLoja,
 } from "@/lib/ccipay";
 import { parceiroSiteUrl } from "@/parceiro/publicHost";
@@ -35,6 +45,7 @@ import {
   Search,
   Plus,
   Info,
+  Trash2,
 } from "lucide-react";
 
 type OperadorLoja = {
@@ -65,6 +76,10 @@ export default function CcipayAdminLojas() {
   const [extraSenhaOp, setExtraSenhaOp] = useState("");
   const [extraNomeOp, setExtraNomeOp] = useState("");
   const [salvandoExtraOp, setSalvandoExtraOp] = useState(false);
+
+  // Confirmação de Exclusão de Loja
+  const [lojaParaExcluir, setLojaParaExcluir] = useState<CcipayLoja | null>(null);
+  const [excluindoLoja, setExcluindoLoja] = useState(false);
 
   // Estado para copiar dados
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
@@ -197,6 +212,21 @@ export default function CcipayAdminLojas() {
       toast.error(e instanceof Error ? e.message : "Erro ao vincular operador.");
     } finally {
       setSalvandoExtraOp(false);
+    }
+  }
+
+  async function handleExcluirLoja() {
+    if (!googleIdToken || !lojaParaExcluir) return;
+    setExcluindoLoja(true);
+    try {
+      await ccipayExcluirLoja(googleIdToken, lojaParaExcluir.id);
+      toast.success(`Loja "${lojaParaExcluir.nome}" excluída com sucesso!`);
+      setLojaParaExcluir(null);
+      await carregar();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erro ao excluir loja parceira.");
+    } finally {
+      setExcluindoLoja(false);
     }
   }
 
@@ -385,6 +415,17 @@ export default function CcipayAdminLojas() {
                       >
                         <UserPlus className="h-3.5 w-3.5" />
                         {ops.length === 0 ? "Criar Login" : "+ Operador"}
+                      </Button>
+
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setLojaParaExcluir(loja)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        title={`Excluir loja ${loja.nome}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        <span className="sr-only">Excluir loja</span>
                       </Button>
                     </div>
                   </div>
@@ -602,6 +643,53 @@ export default function CcipayAdminLojas() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Modal de Confirmação: Excluir Loja Parceira */}
+      <AlertDialog
+        open={Boolean(lojaParaExcluir)}
+        onOpenChange={(aberto) => {
+          if (!aberto && !excluindoLoja) setLojaParaExcluir(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" />
+              Excluir Loja Parceira
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o convênio da loja{" "}
+              <strong>&quot;{lojaParaExcluir?.nome}&quot;</strong>?
+              <br />
+              <br />
+              Esta ação removerá o estabelecimento e todos os logins e operadores vinculados ao portal parceiro.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={excluindoLoja}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void handleExcluirLoja();
+              }}
+              disabled={excluindoLoja}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 gap-1.5"
+            >
+              {excluindoLoja ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4" />
+                  Sim, Excluir Loja
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
