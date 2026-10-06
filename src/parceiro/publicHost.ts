@@ -48,16 +48,37 @@ export function isParceiroPublicHost(): boolean {
   return parsePublicHosts().includes(host);
 }
 
+export function isParceiroSubpath(): boolean {
+  if (typeof window === "undefined") return false;
+  const path = window.location.pathname.toLowerCase();
+  return path === "/parceiro" || path.startsWith("/parceiro/");
+}
+
 export function parceiroSiteUrl(): string {
+  // 1. URL explícita configurada no .env (ex: VITE_PARCEIRO_SITE_URL=https://parceiro.portalcci.com.br)
+  const envUrl = (import.meta.env.VITE_PARCEIRO_SITE_URL as string | undefined)?.trim();
+  if (envUrl) {
+    return envUrl.endsWith("/") ? envUrl : `${envUrl}/`;
+  }
+
   if (typeof window !== "undefined") {
-    // Em desenvolvimento local, aponta diretamente para o host local com o parâmetro de parceiro
-    if (import.meta.env.DEV) {
-      return `${window.location.origin}/?parceiroHost=1`;
-    }
+    // 2. Se já estiver acessando pelo próprio subdomínio público configurado
     if (parsePublicHosts().includes(currentHostname())) {
       return `${window.location.protocol}//${window.location.host}/`;
     }
+
+    // 3. Se estiver acessando pela rota /parceiro no mesmo domínio (ex: central.portalcci.com.br/parceiro)
+    if (isParceiroSubpath()) {
+      return `${window.location.origin}/parceiro/`;
+    }
+
+    // 4. Em desenvolvimento local
+    if (import.meta.env.DEV) {
+      return `${window.location.origin}/parceiro/`;
+    }
   }
+
+  // 5. Fallback padrão para produção: subdomínio primário
   const hosts = parsePublicHosts();
   const primary = hosts[0] ?? DEFAULT_PUBLIC_HOSTS[0];
   return `https://${primary}/`;

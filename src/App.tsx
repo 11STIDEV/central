@@ -69,7 +69,7 @@ import AchadosPerdidosHubPage from "./pages/achadosperdidos/AchadosPerdidosHubPa
 import AchadosPerdidosAdminPage from "./pages/achadosperdidos/AchadosPerdidosAdminPage";
 import { isLostFoundPublicHost } from "@/achadosperdidos/publicHost";
 import { LostFoundPublicHostApp } from "@/achadosperdidos/public/LostFoundPublicHostApp";
-import { isParceiroPublicHost } from "@/parceiro/publicHost";
+import { isParceiroPublicHost, isParceiroSubpath } from "@/parceiro/publicHost";
 import { ParceiroHostApp } from "@/parceiro/ParceiroHostApp";
 import ParceiroRedefinirSenhaPage from "@/parceiro/ParceiroRedefinirSenhaPage";
 
@@ -367,6 +367,22 @@ const App = () => {
             <Sonner />
             <BrowserRouter>
               <ParceiroHostApp />
+            </BrowserRouter>
+          </TooltipProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    );
+  }
+
+  if (isParceiroSubpath()) {
+    return (
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter basename="/parceiro">
+              <ParceiroHostApp isSubpath />
             </BrowserRouter>
           </TooltipProvider>
         </ThemeProvider>
