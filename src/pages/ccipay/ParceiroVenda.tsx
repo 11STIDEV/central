@@ -345,7 +345,6 @@ export default function ParceiroVenda() {
                 )}
               </Button>
             </form>
-          ) : (
           ) : vendaQr.status === "pago" ? (
             <div className="mx-auto max-w-sm space-y-4 rounded-xl border border-emerald-500/30 bg-card p-6 text-center shadow-md animate-fade-in">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 dark:bg-emerald-950/60 dark:text-emerald-400">
