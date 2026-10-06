@@ -16,7 +16,6 @@ import { CcipayQrScannerDialog } from "@/components/ccipay/CcipayQrScannerDialog
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
