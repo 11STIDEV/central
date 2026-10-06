@@ -317,9 +317,8 @@ export default function ParceiroLoginPage() {
               <Input
                 className="mt-1 font-mono tracking-widest text-center text-lg font-bold"
                 placeholder="123456"
-                maxLength={6}
                 value={codigo}
-                onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ""))}
+                onChange={(e) => setCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))}
                 autoFocus
                 required
               />

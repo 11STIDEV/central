@@ -13,20 +13,15 @@ const CODIGO_TTL_MS = 15 * 60 * 1000; // 15 minutos
  *   lojaNome: string,
  *   criadoEm: number,
  *   expiraEm: number,
- *   tentativas: number,
  * }} ResetCodigoItem
  */
 
-/** @type {Map<string, ResetCodigoItem>} */
-const codigosAtivosPorLogin = new Map();
+/** @type {ResetCodigoItem[]} */
+let codigosAtivos = [];
 
 function limparCodigosExpirados() {
   const agora = Date.now();
-  for (const [chave, item] of codigosAtivosPorLogin.entries()) {
-    if (item.expiraEm <= agora) {
-      codigosAtivosPorLogin.delete(chave);
-    }
-  }
+  codigosAtivos = codigosAtivos.filter((item) => item.expiraEm > agora);
 }
 
 export function ehEmailRecuperacaoReal(email) {
@@ -51,98 +46,76 @@ export function mascararEmail(email) {
 }
 
 /**
- * Gera um código numérico aleatório de 6 dígitos para o operador.
+ * Gera um código numérico de 6 dígitos para o operador.
+ * Permite que códigos recentes continuem válidos dentro da janela de 15 minutos
+ * para evitar problemas caso o usuário clique mais de uma vez ou o e-mail anterior chegue primeiro.
  */
 export function criarCodigoRedefinicao(operador) {
   limparCodigosExpirados();
   const codigo = String(crypto.randomInt(100000, 999999));
   const agora = Date.now();
   const loginNorm = String(operador.login).trim().toLowerCase();
+  const emailNorm = String(operador.email || "").trim().toLowerCase();
 
   const item = {
     codigo,
-    login: operador.login,
-    email: operador.email,
+    login: loginNorm,
+    email: emailNorm,
     nome: operador.nome || operador.login,
     lojaId: operador.lojaId,
     lojaNome: operador.loja?.nome || operador.lojaNome || "Loja Parceira",
     criadoEm: agora,
     expiraEm: agora + CODIGO_TTL_MS,
-    tentativas: 0,
   };
 
-  // Salva indexado pelo login normalizado
-  codigosAtivosPorLogin.set(loginNorm, item);
+  codigosAtivos.push(item);
   return item;
 }
 
 /**
- * Valida o código digitado pelo usuário e consome se estiver correto.
+ * Valida o código digitado pelo usuário.
+ * Aceita qualquer código válido gerado para o operador nos últimos 15 minutos.
  */
 export function verificarEConsumirCodigoRedefinicao(loginOuEmail, codigoDigitado) {
   limparCodigosExpirados();
   const termo = String(loginOuEmail || "").trim().toLowerCase();
-  const codLimpo = String(codigoDigitado || "").trim();
+  const codLimpo = String(codigoDigitado || "").replace(/\D/g, "").trim();
 
   if (!termo || !codLimpo) {
     return { ok: false, error: "Informe o usuário/e-mail e o código de 6 dígitos." };
   }
 
-  // Localiza o código ativo correspondente ao login ou email
-  let encontradoChave = null;
-  let item = null;
+  // Localiza códigos recentes deste usuário (por login ou e-mail)
+  const codigosDoUsuario = codigosAtivos.filter(
+    (c) => c.login === termo || c.email === termo,
+  );
 
-  for (const [chave, val] of codigosAtivosPorLogin.entries()) {
-    if (
-      chave === termo ||
-      val.login.toLowerCase() === termo ||
-      val.email.toLowerCase() === termo
-    ) {
-      encontradoChave = chave;
-      item = val;
-      break;
-    }
-  }
-
-  if (!item) {
+  if (codigosDoUsuario.length === 0) {
     return {
       ok: false,
       error: "Nenhum código ativo encontrado para este usuário. Solicite um novo código.",
     };
   }
 
-  if (item.expiraEm <= Date.now()) {
-    codigosAtivosPorLogin.delete(encontradoChave);
+  // Verifica se algum dos códigos ativos bate com o digitado
+  const itemValido = codigosDoUsuario.find((c) => c.codigo === codLimpo);
+
+  if (!itemValido) {
     return {
       ok: false,
-      error: "O código informado expirou (validade de 15 minutos). Solicite um novo código.",
+      error: "Código incorreto. Digite o código de 6 dígitos recebido no e-mail mais recente.",
     };
   }
 
-  item.tentativas += 1;
-  if (item.tentativas > 5) {
-    codigosAtivosPorLogin.delete(encontradoChave);
-    return {
-      ok: false,
-      error: "Número máximo de tentativas incorretas excedido. Solicite um novo código por segurança.",
-    };
-  }
+  // Código correto! Remove todos os códigos deste usuário para evitar reuso
+  codigosAtivos = codigosAtivos.filter(
+    (c) => c.login !== itemValido.login && c.email !== itemValido.email,
+  );
 
-  if (item.codigo !== codLimpo) {
-    return {
-      ok: false,
-      error: `Código incorreto. Verifique os 6 dígitos recebidos por e-mail (${5 - item.tentativas} tentativas restantes).`,
-    };
-  }
-
-  // Código correto! Consome e remove para uso único
-  codigosAtivosPorLogin.delete(encontradoChave);
-  return { ok: true, item };
+  return { ok: true, item: itemValido };
 }
 
 export function montarHtmlEmailCodigo({ nomeOperador, login, nomeLoja, codigo }) {
-  const digitos = codigo.split("").join(" ");
-
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -161,7 +134,7 @@ export function montarHtmlEmailCodigo({ nomeOperador, login, nomeLoja, codigo })
     .card-info { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin: 18px 0; font-size: 13px; }
     .card-info p { margin: 4px 0; }
     .code-container { text-align: center; margin: 28px 0; }
-    .code-badge { display: inline-block; background: #0f172a; color: #38bdf8; font-size: 34px; font-weight: 700; letter-spacing: 10px; padding: 18px 36px; border-radius: 12px; font-family: Consolas, monospace; border: 2px solid #1e293b; box-shadow: 0 4px 12px rgba(15,23,42,0.15); }
+    .code-badge { display: inline-block; background: #0f172a; color: #38bdf8; font-size: 34px; font-weight: 700; letter-spacing: 4px; padding: 16px 36px; border-radius: 12px; font-family: Consolas, Monaco, monospace; border: 2px solid #1e293b; box-shadow: 0 4px 12px rgba(15,23,42,0.15); user-select: all; }
     .code-instruction { font-size: 13px; text-align: center; color: #64748b; margin-top: 10px; }
     .notice { font-size: 12px; color: #94a3b8; line-height: 1.5; margin-top: 24px; border-top: 1px solid #f1f5f9; padding-top: 20px; }
     .footer { background: #f8fafc; padding: 16px 28px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0; }
@@ -185,8 +158,8 @@ export function montarHtmlEmailCodigo({ nomeOperador, login, nomeLoja, codigo })
       </div>
 
       <div class="code-container">
-        <div class="code-badge">${digitos}</div>
-        <p class="code-instruction">Digite este código de 6 dígitos diretamente na tela do portal parceiro.</p>
+        <div class="code-badge">${codigo}</div>
+        <p class="code-instruction">Copie ou digite este código de 6 dígitos diretamente na tela do portal parceiro.</p>
       </div>
 
       <div class="notice">
