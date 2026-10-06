@@ -550,7 +550,7 @@ export function registerCcipayRoutes(app, helpers) {
         const { vincularOperadorLoja, desvincularOperadorLoja } = await import("./ccipayStore.js");
         const loginNorm = normalizarLogin(login);
         if (!loginValido(loginNorm)) {
-          return res.status(400).json({ error: "Login inválido." });
+          return res.status(400).json({ error: "Login inválido. Use um nome de usuário (ex.: lanchonete) ou um e-mail válido." });
         }
         if (acao === "remover") {
           await desvincularOperadorLoja(supabase, lojaId, loginNorm);

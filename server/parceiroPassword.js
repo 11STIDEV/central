@@ -3,7 +3,9 @@ import { promisify } from "node:util";
 
 const scryptAsync = promisify(scrypt);
 
-const LOGIN_RE = /^[a-z0-9_-]{3,32}$/;
+const LOGIN_SIMPLES_RE = /^[a-z0-9_.-]{3,64}$/;
+const EMAIL_LOGIN_RE =
+  /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
 
 export function normalizarLogin(login) {
   return String(login || "")
@@ -11,8 +13,15 @@ export function normalizarLogin(login) {
     .toLowerCase();
 }
 
+/**
+ * Valida o formato de login do parceiro.
+ * Aceita tanto identificadores simples (ex.: 'lanchonete', 'caixa_1', 'joao.silva')
+ * quanto e-mails corporativos/pessoais (ex.: 'suporte@portalcci.com.br', 'cantina@gmail.com').
+ */
 export function loginValido(login) {
-  return LOGIN_RE.test(normalizarLogin(login));
+  const norm = normalizarLogin(login);
+  if (!norm || norm.length < 3 || norm.length > 100) return false;
+  return LOGIN_SIMPLES_RE.test(norm) || EMAIL_LOGIN_RE.test(norm);
 }
 
 export async function hashSenha(senha) {
@@ -36,7 +45,15 @@ export async function verificarSenha(senha, hashArmazenado) {
   }
 }
 
-/** E-mail sintético para compatibilidade com PK (loja_id, email) existente. */
+/**
+ * Retorna o e-mail de correspondência.
+ * Se o login já for um e-mail válido, usa o próprio login.
+ * Caso contrário, gera um e-mail sintético @parceiro.cci para compatibilidade.
+ */
 export function emailSinteticoParceiro(login) {
-  return `${normalizarLogin(login)}@parceiro.cci`;
+  const norm = normalizarLogin(login);
+  if (norm.includes("@") && norm.includes(".")) {
+    return norm;
+  }
+  return `${norm}@parceiro.cci`;
 }

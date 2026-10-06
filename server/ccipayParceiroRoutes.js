@@ -264,7 +264,7 @@ export function registerCcipayParceiroRoutes(app, helpers) {
 
       const loginNorm = normalizarLogin(login);
       if (!loginValido(loginNorm)) {
-        return res.status(400).json({ error: "Login inválido (3–32 caracteres: a-z, 0-9, _, -)." });
+        return res.status(400).json({ error: "Login inválido. Use um nome de usuário (ex.: lanchonete) ou um e-mail válido." });
       }
 
       if (acao === "remover") {

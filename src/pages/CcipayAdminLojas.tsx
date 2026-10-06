@@ -630,9 +630,15 @@ export default function CcipayAdminLojas() {
                       Usuário de Acesso (Login) *
                     </label>
                     <Input
-                      placeholder="Ex: lanchonete"
+                      placeholder="Ex: lanchonete ou contato@portalcci.com.br"
                       value={loginOp}
-                      onChange={(e) => setLoginOp(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setLoginOp(val);
+                        if (val.includes("@") && (!emailOp || emailOp === loginOp)) {
+                          setEmailOp(val);
+                        }
+                      }}
                       required
                     />
                   </div>
@@ -741,9 +747,15 @@ export default function CcipayAdminLojas() {
                         Usuário (Login) *
                       </label>
                       <Input
-                        placeholder="Ex: lanchonete_caixa2"
+                        placeholder="Ex: lanchonete ou contato@portalcci.com.br"
                         value={extraLoginOp}
-                        onChange={(e) => setExtraLoginOp(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setExtraLoginOp(val);
+                          if (val.includes("@") && (!extraEmailOp || extraEmailOp === extraLoginOp)) {
+                            setExtraEmailOp(val);
+                          }
+                        }}
                         required
                         disabled={Boolean(opExistente && extraLoginOp)}
                       />
