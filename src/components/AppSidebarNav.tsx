@@ -109,23 +109,6 @@ function supportsHoverMenu(): boolean {
   return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 }
 
-function useIsDesktop(): boolean {
-  const [isDesktop, setIsDesktop] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return window.innerWidth >= 1024;
-  });
-
-  useEffect(() => {
-    const handleResize = () => {
-      setIsDesktop(window.innerWidth >= 1024);
-    };
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  return isDesktop;
-}
-
 type AppSidebarNavProps = {
   sections: NavSection[];
   collapsed: boolean;
@@ -137,7 +120,7 @@ function getSectorSlugFromId(id: string): string {
 
 function sectionTriggerClass(active: boolean) {
   return cn(
-    "flex w-full min-h-[44px] items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.14em] sm:tracking-[0.22em] transition-colors hover:bg-sidebar-accent/80 lg:min-h-0",
+    "flex w-full min-h-[44px] items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left font-mono text-[10px] font-semibold uppercase tracking-[0.22em] transition-colors hover:bg-sidebar-accent/80 lg:min-h-0",
     active
       ? "bg-sidebar-accent text-sidebar-accent-foreground"
       : "text-sidebar-muted hover:text-sidebar-foreground",
@@ -180,9 +163,8 @@ function NavSectionFlyout({
 
 export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
   const { pathname } = useLocation();
-  const [hoverMenu] = useState(supportsHoverMenu);
-  const isDesktop = useIsDesktop();
-  const useFlyoutNav = isDesktop && hoverMenu && !collapsed;
+  // Mantém a navegação vertical por acordeão na própria barra lateral (evita popups flutuantes intrusivos por hover)
+  const useFlyoutNav = false;
 
   const nestedList = useMemo(
     () => sections.filter((s): s is NavSectionNested => s.type === "nested"),
@@ -582,7 +564,7 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
 
     return (
       <div key={section.id} className="mb-6 last:mb-2">
-        <p className="mb-2 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-muted sm:tracking-[0.22em]">
+        <p className="mb-2 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.22em] text-sidebar-muted">
           {section.label}
         </p>
         <ul className="space-y-0.5">{section.items.map((item) => renderLeaf(item, { collapsed: false }))}</ul>

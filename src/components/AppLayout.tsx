@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, LogOut, Menu, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, LogOut, Menu, Search } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { AppSidebarNav } from "@/components/AppSidebarNav";
 import { IntranetCommandPalette } from "@/components/IntranetCommandPalette";
@@ -53,7 +53,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const sidebarWClass = collapsed ? "lg:ml-[68px]" : "lg:ml-[280px]";
 
   return (
-    <div className="flex min-h-screen w-full bg-background overflow-x-hidden">
+    <div className="flex min-h-screen w-full bg-background">
       <IntranetCommandPalette sections={navSections} open={commandOpen} onOpenChange={setCommandOpen} />
 
       {/* Mobile top bar */}
@@ -84,7 +84,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {mobileOpen ? (
         <button
           type="button"
-          className="fixed inset-0 z-40 bg-foreground/30 backdrop-blur-sm dark:bg-background/70 lg:hidden"
+          className="fixed inset-0 z-40 bg-foreground/20 backdrop-blur-sm dark:bg-background/60 lg:hidden"
           aria-label="Fechar menu"
           onClick={() => setMobileOpen(false)}
         />
@@ -93,17 +93,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Sidebar */}
       <aside
         className={`
-          fixed left-0 top-0 z-50 flex h-[100dvh] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground
+          fixed left-0 top-0 z-50 flex h-screen flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground
           transition-transform duration-300 ease-out
-          ${mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}
+          ${mobileOpen ? "translate-x-0" : "-translate-x-full max-lg:shadow-2xl"}
           lg:translate-x-0
-          w-[min(88vw,320px)] lg:${sidebarW}
+          ${sidebarW}
         `}
       >
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border px-3">
+        <div className="flex h-16 shrink-0 items-center border-b border-sidebar-border px-3">
           <Link
             to="/"
-            onClick={() => setMobileOpen(false)}
             className={cn(
               "min-w-0 rounded-lg outline-none ring-sidebar-ring focus-visible:ring-2",
               collapsed ? "w-full" : "flex-1",
@@ -116,23 +115,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               className={collapsed ? "w-full justify-center" : "min-w-0 flex-1 animate-fade-in"}
             />
           </Link>
-          <button
-            type="button"
-            onClick={() => setMobileOpen(false)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground lg:hidden"
-            aria-label="Fechar menu"
-          >
-            <X className="h-5 w-5" />
-          </button>
         </div>
 
         <div className="shrink-0 px-2 pt-3">
           <button
             type="button"
-            onClick={() => {
-              setCommandOpen(true);
-              setMobileOpen(false);
-            }}
+            onClick={() => setCommandOpen(true)}
             className={`flex w-full items-center gap-2 rounded-xl border border-sidebar-border/80 bg-sidebar-accent/40 px-2.5 py-2 text-left text-sm text-sidebar-muted transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground ${collapsed ? "justify-center px-0" : ""}`}
             aria-label="Buscar na intranet"
             title="Buscar (Ctrl+K)"
@@ -153,31 +141,28 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <AppSidebarNav sections={navSections} collapsed={collapsed} />
         </nav>
 
-        <div className="shrink-0 border-t border-sidebar-border p-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="shrink-0 border-t border-sidebar-border p-2">
           {usuario ? (
             <div
-              className={`mb-2 rounded-xl bg-sidebar-accent/60 p-2.5 dark:bg-white/[0.03] ${collapsed ? "px-1" : ""}`}
+              className={`mb-2 rounded-xl bg-sidebar-accent/60 p-2 dark:bg-white/[0.03] ${collapsed ? "px-1" : ""}`}
             >
               {!collapsed ? (
-                <div className="space-y-2">
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-semibold text-sidebar-foreground">{usuario.nome}</p>
-                    <p className="truncate text-[11px] text-sidebar-muted">{usuario.email}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-sidebar-foreground">{usuario.nome}</p>
+                    <p className="truncate text-[10px] text-sidebar-muted">{usuario.email}</p>
                   </div>
-                  <div className="flex items-center justify-between border-t border-sidebar-border/50 pt-2">
-                    <div className="flex items-center gap-1 text-xs text-sidebar-muted">
-                      <ThemeToggle className="h-7 w-7 text-sidebar-foreground hover:bg-sidebar-accent" />
-                      <span className="text-[11px]">Tema</span>
-                    </div>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <ThemeToggle className="h-8 w-8 text-sidebar-foreground hover:bg-sidebar-accent" />
                     <button
                       type="button"
                       onClick={() => {
                         logout();
                         navigate("/login");
                       }}
-                      className="flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium text-amber-600 hover:bg-sidebar-accent dark:text-amber-300/90 dark:hover:bg-white/10"
+                      className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-medium text-amber-600 hover:bg-sidebar-accent dark:text-amber-300/90 dark:hover:bg-white/10"
                     >
-                      <LogOut className="h-3.5 w-3.5" />
+                      <LogOut className="h-3 w-3" />
                       Sair
                     </button>
                   </div>
@@ -223,9 +208,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main
-        className={`min-h-screen min-w-0 flex-1 app-shell-bg transition-[margin] duration-300 ${sidebarWClass} pt-14 lg:pt-0 overflow-x-hidden`}
+        className={`min-h-screen flex-1 app-shell-bg transition-[margin] duration-300 ${sidebarWClass} pt-14 lg:pt-0`}
       >
-        <div className="min-h-screen min-w-0">{children}</div>
+        <div className="min-h-screen">{children}</div>
       </main>
     </div>
   );

@@ -5,9 +5,9 @@ import { IntranetHero } from "@/components/IntranetHero";
 /** Linha de marca para heróis com conteúdo customizado (`children`). */
 export function PageHeroEyebrow({ text = "Central de Informações · Grupo CCI" }: { text?: string }) {
   return (
-    <p className="mb-3 flex max-w-full flex-wrap items-center gap-1.5 font-mono text-[10px] font-medium uppercase tracking-[0.12em] text-hero-eyebrow sm:text-[11px] sm:tracking-[0.22em]">
-      <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-amber-300" aria-hidden />
-      <span className="break-words">{text}</span>
+    <p className="mb-3 inline-flex items-center gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.25em] text-hero-eyebrow">
+      <Sparkles className="h-3.5 w-3.5 text-amber-500 dark:text-amber-300" aria-hidden />
+      {text}
     </p>
   );
 }
