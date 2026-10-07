@@ -13,12 +13,12 @@ type IntranetHeroProps = {
  */
 export function IntranetHero({ children, className, padding = "default" }: IntranetHeroProps) {
   const pad =
-    padding === "comfortable" ? "px-6 py-10 md:px-12 md:py-14" : "px-6 py-8 md:px-10 md:py-10";
+    padding === "comfortable" ? "px-4 py-8 sm:px-6 sm:py-10 md:px-12 md:py-14" : "px-4 py-6 sm:px-6 sm:py-8 md:px-10 md:py-10";
 
   return (
     <section
       className={cn(
-        "intranet-hero relative mx-4 mt-4 overflow-hidden rounded-2xl border md:mx-8 md:mt-6",
+        "intranet-hero relative mx-3 mt-3 overflow-hidden rounded-2xl border sm:mx-4 sm:mt-4 md:mx-8 md:mt-6",
         className,
       )}
     >
@@ -32,8 +32,8 @@ export function IntranetHero({ children, className, padding = "default" }: Intra
         aria-hidden
       />
 
-      <div className={cn("relative", pad)}>
-        <div className="mx-auto max-w-6xl">{children}</div>
+      <div className={cn("relative min-w-0", pad)}>
+        <div className="mx-auto max-w-6xl min-w-0">{children}</div>
       </div>
     </section>
   );

@@ -79,7 +79,7 @@ export default function Index() {
         </div>
       </IntranetHero>
 
-      <div className="mx-auto max-w-6xl space-y-10 px-4 py-10 md:px-8">
+      <div className="mx-auto max-w-6xl space-y-8 px-3 py-6 sm:space-y-10 sm:px-4 sm:py-10 md:px-8">
         <IntranetQuickLinksGrid
           title="Ferramentas internas"
           subtitle="Acesso rápido às áreas da Central de Informações."
@@ -91,7 +91,7 @@ export default function Index() {
 
         {exibeAvisos ? <AvisosTimeline avisos={ultimosAvisos} titulo="Últimos avisos" /> : null}
 
-        <p className="text-center font-mono text-[10px] uppercase tracking-[0.35em] text-muted-foreground/70">
+        <p className="text-center font-mono text-[10px] uppercase tracking-[0.2em] text-muted-foreground/70 sm:tracking-[0.35em]">
           Uso interno · Grupo CCI
         </p>
       </div>
