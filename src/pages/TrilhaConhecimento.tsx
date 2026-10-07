@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Flame, Zap, Trophy, Star, Target, BookOpen, ChevronRight, Loader2, Settings2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
@@ -12,6 +13,7 @@ import { BadgeShowcase } from "@/components/trilha/BadgeShowcase";
 import { RankingPanel } from "@/components/trilha/RankingPanel";
 import { useTrilhaProgress } from "@/hooks/useTrilhaProgress";
 import { useTrilhas } from "@/hooks/useTrilhas";
+import { podeAcessarTrilha } from "@/lib/trilhasAccess";
 
 export default function TrilhaConhecimento() {
   const { usuario } = useAuth();
@@ -22,11 +24,16 @@ export default function TrilhaConhecimento() {
   const carregando = carregandoProgress || carregandoTrilhas;
   const isAdmin = usuario?.papeis?.includes("admin");
 
+  // Filtra as trilhas acessíveis ao usuário (admin tem acesso a todas)
+  const trilhasVisiveis = useMemo(() => {
+    return trilhas.filter((t) => podeAcessarTrilha(t, usuario?.papeis));
+  }, [trilhas, usuario?.papeis]);
+
   const { atual } = getNivelInfo(progress.xpTotal);
 
   // Find next recommended mission
   const proximaMissao = (() => {
-    for (const trilha of trilhas) {
+    for (const trilha of trilhasVisiveis) {
       const concluidas = progress.progressoPorTrilha[trilha.id] ?? [];
       const proxima = trilha.missoes.find((m) => !concluidas.includes(m.id));
       if (proxima) return { trilha, missao: proxima };
@@ -34,21 +41,21 @@ export default function TrilhaConhecimento() {
     return null;
   })();
 
-  const totalMissoesDisponiveis = trilhas.reduce(
+  const totalMissoesDisponiveis = trilhasVisiveis.reduce(
     (acc, t) => acc + t.missoes.length,
     0
   );
-  const totalXPDisponivel = trilhas.reduce((acc, t) => acc + t.xpTotal, 0);
+  const totalXPDisponivel = trilhasVisiveis.reduce((acc, t) => acc + t.xpTotal, 0);
 
   const primeiroNome = usuario?.nome.split(" ")[0] ?? "Colaborador";
 
   return (
     <div className="min-h-screen">
       {/* ── Hero Header ─────────────────────────────────────── */}
-      <div className="relative overflow-hidden border-b border-white/8">
+      <div className="relative overflow-hidden border-b border-border bg-gradient-to-b from-blue-50/40 to-transparent dark:from-transparent">
         {/* Background gradient */}
-        <div className="absolute inset-0 bg-gradient-to-br from-amber-950/40 via-transparent to-indigo-950/30 pointer-events-none" />
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(245,158,11,0.08),transparent_60%)] pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-100/30 via-transparent to-indigo-100/20 dark:from-amber-950/40 dark:via-transparent dark:to-indigo-950/30 pointer-events-none" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_left,rgba(59,130,246,0.06),transparent_60%)] dark:bg-[radial-gradient(ellipse_at_top_left,rgba(245,158,11,0.08),transparent_60%)] pointer-events-none" />
 
         <div className="relative mx-auto max-w-6xl px-4 py-10 md:px-8">
           <div className="flex flex-col gap-8 md:flex-row md:items-start md:justify-between">
@@ -56,7 +63,7 @@ export default function TrilhaConhecimento() {
             <div className="flex-1">
               <div className="flex items-center gap-3 mb-3">
                 {/* Avatar */}
-                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-xl font-bold text-white shadow-lg shadow-amber-900/30">
+                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 dark:from-amber-400 dark:to-orange-500 text-xl font-bold text-white shadow-md">
                   {usuario?.picture ? (
                     <img
                       src={usuario.picture}
@@ -68,7 +75,7 @@ export default function TrilhaConhecimento() {
                     primeiroNome[0]?.toUpperCase() ?? "U"
                   )}
                   {/* Level badge */}
-                  <div className="absolute -bottom-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-amber-400 to-orange-600 text-[10px] font-black text-white ring-2 ring-[var(--background)]">
+                  <div className="absolute -bottom-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-indigo-700 dark:from-amber-400 dark:to-orange-600 text-[10px] font-black text-white ring-2 ring-[var(--background)]">
                     {atual.nivel}
                   </div>
                 </div>
@@ -90,25 +97,25 @@ export default function TrilhaConhecimento() {
             <div className="flex flex-col items-end gap-3">
               <div className="flex flex-wrap gap-3 md:gap-4">
                 <StatChip
-                  icon={<Flame className="h-4 w-4 text-orange-400" />}
+                  icon={<Flame className="h-4 w-4 text-orange-500 dark:text-orange-400" />}
                   label="Ofensiva"
                   value={`${progress.ofensivaDias}d`}
                   glow="orange"
                 />
                 <StatChip
-                  icon={<Zap className="h-4 w-4 text-amber-400" />}
+                  icon={<Zap className="h-4 w-4 text-primary dark:text-amber-400" />}
                   label="XP Total"
                   value={progress.xpTotal.toLocaleString("pt-BR")}
                   glow="amber"
                 />
                 <StatChip
-                  icon={<Star className="h-4 w-4 text-violet-400" />}
+                  icon={<Star className="h-4 w-4 text-violet-500 dark:text-violet-400" />}
                   label="Missões"
                   value={String(progress.missoesCompletas)}
                   glow="violet"
                 />
                 <StatChip
-                  icon={<Trophy className="h-4 w-4 text-emerald-400" />}
+                  icon={<Trophy className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />}
                   label="Trilhas"
                   value={String(progress.trilhasCompletas)}
                   glow="emerald"
@@ -119,7 +126,7 @@ export default function TrilhaConhecimento() {
                 <div className="flex items-center gap-2 mt-1">
                   <button
                     onClick={() => navigate("/trilha-conhecimento/admin")}
-                    className="flex items-center gap-1.5 rounded-lg border border-indigo-400/20 bg-indigo-500/10 px-3 py-1.5 text-xs font-semibold text-indigo-300 transition hover:bg-indigo-500/20"
+                    className="flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary dark:border-indigo-400/20 dark:bg-indigo-500/10 dark:text-indigo-300 transition hover:bg-primary/20"
                     title="Acessar painel de gerenciamento das trilhas"
                   >
                     <Settings2 className="h-3.5 w-3.5" />
@@ -141,18 +148,18 @@ export default function TrilhaConhecimento() {
             {/* Next mission CTA */}
             {proximaMissao && (
               <div
-                className="group relative cursor-pointer overflow-hidden rounded-2xl border border-amber-400/20 bg-gradient-to-br from-amber-950/40 to-orange-950/20 p-6 transition-all duration-200 hover:border-amber-400/40 hover:shadow-xl hover:shadow-amber-900/20"
+                className="group relative cursor-pointer overflow-hidden rounded-2xl border border-blue-500/30 bg-gradient-to-br from-blue-50/60 via-card to-indigo-50/30 dark:border-amber-400/20 dark:from-amber-950/40 dark:to-orange-950/20 p-6 transition-all duration-200 hover:border-primary/50 dark:hover:border-amber-400/40 hover:shadow-lg dark:hover:shadow-amber-900/20 shadow-sm"
                 onClick={() =>
                   navigate(
                     `/trilha-conhecimento/${proximaMissao.trilha.id}/missao/${proximaMissao.missao.id}`
                   )
                 }
               >
-                <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-amber-400/5 blur-2xl" />
+                <div className="absolute right-0 top-0 h-32 w-32 rounded-full bg-blue-500/5 dark:bg-amber-400/5 blur-2xl" />
                 <div className="relative z-10">
                   <div className="flex items-center gap-2 mb-3">
-                    <Target className="h-4 w-4 text-amber-400" />
-                    <span className="text-xs font-mono font-semibold uppercase tracking-widest text-amber-400">
+                    <Target className="h-4 w-4 text-primary dark:text-amber-400" />
+                    <span className="text-xs font-mono font-semibold uppercase tracking-widest text-primary dark:text-amber-400">
                       Próxima Missão Recomendada
                     </span>
                   </div>
@@ -161,14 +168,14 @@ export default function TrilhaConhecimento() {
                       <p className="text-xs text-muted-foreground mb-1">
                         {proximaMissao.trilha.icone} {proximaMissao.trilha.titulo}
                       </p>
-                      <h2 className="text-xl font-bold text-foreground group-hover:text-amber-400 transition-colors">
+                      <h2 className="text-xl font-bold text-foreground group-hover:text-primary dark:group-hover:text-amber-400 transition-colors">
                         {proximaMissao.missao.titulo}
                       </h2>
                       <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2">
                         {proximaMissao.missao.descricao}
                       </p>
                       <div className="mt-4 flex items-center gap-4 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1 font-bold text-amber-400">
+                        <span className="flex items-center gap-1 font-bold text-primary dark:text-amber-400">
                           <Zap className="h-3 w-3" />
                           {proximaMissao.trilha.xpTotal} XP na trilha
                         </span>
@@ -176,8 +183,8 @@ export default function TrilhaConhecimento() {
                         <span>{proximaMissao.missao.quiz.length} perguntas</span>
                       </div>
                     </div>
-                    <div className="shrink-0 flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-400/10 ring-1 ring-amber-400/20 transition-all group-hover:bg-amber-400/20">
-                      <ChevronRight className="h-5 w-5 text-amber-400" />
+                    <div className="shrink-0 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 ring-1 ring-primary/20 dark:bg-amber-400/10 dark:ring-amber-400/20 transition-all group-hover:bg-primary/20">
+                      <ChevronRight className="h-5 w-5 text-primary dark:text-amber-400" />
                     </div>
                   </div>
                 </div>
@@ -186,7 +193,7 @@ export default function TrilhaConhecimento() {
 
             {/* Overview stats */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <OverviewStat label="Trilhas" value={trilhas.length} icon="🗺️" />
+              <OverviewStat label="Trilhas" value={trilhasVisiveis.length} icon="🗺️" />
               <OverviewStat label="Missões" value={totalMissoesDisponiveis} icon="🎯" />
               <OverviewStat label="XP disponível" value={totalXPDisponivel} icon="⚡" />
               <OverviewStat
@@ -205,11 +212,11 @@ export default function TrilhaConhecimento() {
                 </h2>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-muted-foreground">
-                    {trilhas.filter(
+                    {trilhasVisiveis.filter(
                       (t) =>
                         (progress.progressoPorTrilha[t.id]?.length ?? 0) === t.missoes.length
                     ).length}{" "}
-                    de {trilhas.length} concluídas
+                    de {trilhasVisiveis.length} concluídas
                   </span>
                   {usuario?.papeis?.includes("admin") && (
                     <button
@@ -223,7 +230,7 @@ export default function TrilhaConhecimento() {
                 </div>
               </div>
 
-              {trilhas.length === 0 ? (
+              {trilhasVisiveis.length === 0 ? (
                 <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-8 text-center sm:p-12">
                   <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-400">
                     <BookOpen className="h-7 w-7" />
@@ -232,7 +239,7 @@ export default function TrilhaConhecimento() {
                     Nenhuma trilha disponível no momento
                   </h3>
                   <p className="mt-1.5 max-w-md text-xs text-muted-foreground leading-relaxed">
-                    Ainda não existem trilhas de conhecimento cadastradas no sistema. Novas trilhas serão publicadas em breve pelos administradores.
+                    Ainda não existem trilhas de conhecimento cadastradas para o seu setor no sistema. Novas trilhas serão publicadas em breve pelos administradores.
                   </p>
                   {usuario?.papeis?.includes("admin") && (
                     <button
@@ -246,7 +253,7 @@ export default function TrilhaConhecimento() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                  {trilhas.map((trilha) => (
+                  {trilhasVisiveis.map((trilha) => (
                     <TrilhaCard
                       key={trilha.id}
                       trilha={trilha}
@@ -262,12 +269,12 @@ export default function TrilhaConhecimento() {
           {/* Right sidebar */}
           <div className="space-y-6">
             {/* Badges */}
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-border bg-card dark:border-white/8 dark:bg-white/[0.03] p-5 shadow-xs">
               <BadgeShowcase badges={BADGES_MOCK} maxVisible={8} />
             </div>
 
             {/* Ranking */}
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-border bg-card dark:border-white/8 dark:bg-white/[0.03] p-5 shadow-xs">
               {carregando ? (
                 <div className="flex items-center justify-center gap-2 py-6 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -279,11 +286,11 @@ export default function TrilhaConhecimento() {
             </div>
 
             {/* Tip of the day */}
-            <div className="rounded-2xl border border-indigo-400/20 bg-indigo-400/5 p-5">
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 dark:border-indigo-400/20 dark:bg-indigo-400/5 p-5 shadow-xs">
               <div className="flex items-start gap-3">
                 <span className="text-2xl shrink-0">💡</span>
                 <div>
-                  <p className="text-xs font-semibold text-indigo-400 mb-1">Dica do dia</p>
+                  <p className="text-xs font-semibold text-primary dark:text-indigo-400 mb-1">Dica do dia</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">
                     Faça pelo menos <strong className="text-foreground">uma missão por dia</strong> para
                     manter sua ofensiva ativa e multiplicar seu XP semanal!
@@ -293,7 +300,7 @@ export default function TrilhaConhecimento() {
             </div>
 
             {/* Progress to next level */}
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5 space-y-3">
+            <div className="rounded-2xl border border-border bg-card dark:border-white/8 dark:bg-white/[0.03] p-5 space-y-3 shadow-xs">
               <h3 className="text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground">
                 Seu Progresso Global
               </h3>
@@ -329,13 +336,13 @@ function StatChip({
   glow: "amber" | "orange" | "violet" | "emerald";
 }) {
   const glowMap = {
-    amber: "bg-amber-400/8 border-amber-400/15",
-    orange: "bg-orange-400/8 border-orange-400/15",
-    violet: "bg-violet-400/8 border-violet-400/15",
-    emerald: "bg-emerald-400/8 border-emerald-400/15",
+    amber: "bg-blue-500/10 border-blue-500/20 dark:bg-amber-400/8 dark:border-amber-400/15",
+    orange: "bg-orange-500/10 border-orange-500/20 dark:bg-orange-400/8 dark:border-orange-400/15",
+    violet: "bg-violet-500/10 border-violet-500/20 dark:bg-violet-400/8 dark:border-violet-400/15",
+    emerald: "bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-400/8 dark:border-emerald-400/15",
   };
   return (
-    <div className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 ${glowMap[glow]}`}>
+    <div className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 shadow-xs ${glowMap[glow]}`}>
       {icon}
       <div>
         <p className="text-xs text-muted-foreground leading-none">{label}</p>
@@ -358,16 +365,16 @@ function OverviewStat({
 }) {
   return (
     <div
-      className={`rounded-xl border p-4 text-center ${
+      className={`rounded-xl border p-4 text-center shadow-xs ${
         highlight
-          ? "border-emerald-400/20 bg-emerald-400/5"
-          : "border-white/8 bg-white/[0.03]"
+          ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:border-emerald-400/20 dark:bg-emerald-400/5 dark:text-emerald-400"
+          : "border-border bg-card dark:border-white/8 dark:bg-white/[0.03]"
       }`}
     >
       <p className="text-2xl mb-1">{icon}</p>
       <p
         className={`text-xl font-bold tabular-nums ${
-          highlight ? "text-emerald-400" : "text-foreground"
+          highlight ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"
         }`}
       >
         {value.toLocaleString("pt-BR")}
@@ -379,7 +386,7 @@ function OverviewStat({
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-white/5 px-3 py-2">
+    <div className="rounded-lg bg-muted/40 border border-border/60 dark:border-transparent dark:bg-white/5 px-3 py-2">
       <p className="text-[9px] font-mono uppercase tracking-wide text-muted-foreground">{label}</p>
       <p className="text-xs font-semibold text-foreground mt-0.5">{value}</p>
     </div>

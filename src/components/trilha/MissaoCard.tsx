@@ -24,16 +24,16 @@ export function MissaoCard({ missao, status, isFirst, isLast, onClick }: MissaoC
         <div
           className={`relative z-10 flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-all duration-300 ${
             isDone
-              ? "bg-gradient-to-br from-emerald-400 to-teal-500 shadow-lg shadow-emerald-500/20"
+              ? "bg-gradient-to-br from-emerald-500 to-teal-600 shadow-md shadow-emerald-500/20 text-white"
               : isAvailable
-              ? "bg-gradient-to-br from-amber-400 to-orange-500 shadow-lg shadow-amber-500/20 ring-2 ring-amber-400/30"
-              : "bg-white/8 ring-1 ring-white/10"
+              ? "bg-gradient-to-br from-blue-600 to-indigo-600 dark:from-amber-400 dark:to-orange-500 shadow-md shadow-blue-500/20 dark:shadow-amber-500/20 ring-2 ring-primary/30 dark:ring-amber-400/30 text-white"
+              : "bg-muted ring-1 ring-border dark:bg-white/8 dark:ring-white/10 text-muted-foreground"
           }`}
         >
           {isDone ? (
             <CheckCircle2 className="h-5 w-5 text-white" />
           ) : isLocked ? (
-            <Lock className="h-4 w-4 text-white/40" />
+            <Lock className="h-4 w-4 opacity-40" />
           ) : (
             <PlayCircle className="h-5 w-5 text-white" />
           )}
@@ -42,7 +42,7 @@ export function MissaoCard({ missao, status, isFirst, isLast, onClick }: MissaoC
         {!isLast && (
           <div
             className={`mt-1 w-0.5 flex-1 rounded-full transition-colors duration-300 ${
-              isDone ? "bg-emerald-400/30" : "bg-white/8"
+              isDone ? "bg-emerald-500/30" : "bg-border dark:bg-white/8"
             }`}
             style={{ minHeight: "2rem" }}
           />
@@ -53,13 +53,13 @@ export function MissaoCard({ missao, status, isFirst, isLast, onClick }: MissaoC
       <button
         onClick={onClick}
         disabled={isLocked}
-        className={`group mb-4 flex w-full flex-col rounded-xl border p-4 text-left transition-all duration-200 ${
+        className={`group mb-4 flex w-full flex-col rounded-xl border p-4 text-left transition-all duration-200 shadow-xs ${
           isLocked
-            ? "cursor-not-allowed border-white/5 bg-white/[0.02] opacity-50"
+            ? "cursor-not-allowed border-border/60 bg-muted/20 dark:border-white/5 dark:bg-white/[0.02] opacity-50"
             : isDone
-            ? "border-emerald-400/20 bg-emerald-400/[0.04] hover:bg-emerald-400/[0.07]"
-            : "border-amber-400/20 bg-amber-400/[0.04] hover:border-amber-400/30 hover:bg-amber-400/[0.07] hover:shadow-lg hover:shadow-amber-900/20"
-        } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50`}
+            ? "border-emerald-500/30 bg-emerald-500/[0.04] hover:bg-emerald-500/[0.08]"
+            : "border-primary/30 bg-primary/[0.04] hover:border-primary/50 hover:bg-primary/[0.07] hover:shadow-md dark:border-amber-400/20 dark:bg-amber-400/[0.04] dark:hover:border-amber-400/30 dark:hover:bg-amber-400/[0.07] dark:hover:shadow-amber-900/20"
+        } focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50`}
       >
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
@@ -68,12 +68,12 @@ export function MissaoCard({ missao, status, isFirst, isLast, onClick }: MissaoC
                 Missão {missao.ordem}
               </span>
               {isDone && (
-                <span className="rounded-full bg-emerald-400/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">
+                <span className="rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
                   ✓ Concluída
                 </span>
               )}
               {isAvailable && (
-                <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400 animate-pulse">
+                <span className="rounded-full bg-blue-500/15 text-blue-700 dark:bg-amber-400/15 dark:text-amber-400 px-1.5 py-0.5 text-[10px] font-semibold animate-pulse">
                   Disponível
                 </span>
               )}

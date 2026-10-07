@@ -21,6 +21,8 @@ import {
 } from "@/lib/trilhasStore";
 import { zerarProgressoTodosUsuariosServidor } from "@/lib/trilhaApi";
 import { DownloadCloud, RotateCcw } from "lucide-react";
+import { RichWordEditor } from "@/components/trilha/RichWordEditor";
+import { SetorRestritoSelect } from "@/components/trilha/SetorRestritoSelect";
 
 // ── Gradientes disponíveis ────────────────────────────────────
 const GRADIENTES = [
@@ -76,7 +78,7 @@ function gerarSlug(texto: string): string {
 const TRILHA_VAZIA: TrilhaAdminPayload = {
   id: "", titulo: "", descricao: "", categoria: "",
   icone: "📚", cor: "from-indigo-500 to-blue-600",
-  dificuldade: "iniciante", setorRestrito: "", xpTotal: 50, ativo: true, ordem: 0,
+  dificuldade: "iniciante", setorRestrito: "", xpTotal: 1, ativo: true, ordem: 0,
 };
 
 const MISSAO_VAZIA: MissaoPayload = {
@@ -180,7 +182,7 @@ export default function TrilhaAdmin() {
       id: t.id, titulo: t.titulo, descricao: t.descricao, categoria: t.categoria,
       icone: t.icone, cor: t.cor, dificuldade: t.dificuldade,
       setorRestrito: (t as any).setorRestrito ?? "",
-      xpTotal: t.xpTotal ?? 50,
+      xpTotal: t.xpTotal ?? 1,
       ativo: (t as any)._ativo !== false,
       ordem: (t as any)._ordem ?? 0,
     });
@@ -195,17 +197,20 @@ export default function TrilhaAdmin() {
       const payload = {
         ...formTrilha,
         id: formTrilha.id || gerarSlug(formTrilha.titulo),
-        xpTotal: Number(formTrilha.xpTotal ?? 50),
+        xpTotal: Number(formTrilha.xpTotal ?? 1),
         setorRestrito: formTrilha.setorRestrito?.trim() || undefined,
       };
       if (modalTrilha === "criar") {
         await criarTrilhaApi(payload as TrilhaAdminPayload);
-        toast.success("Trilha criada com sucesso!");
+        toast.success("Trilha criada com sucesso! Agora adicione as missões.");
+        setModalTrilha(null);
+        setExpandidas((prev) => new Set(prev).add(payload.id));
+        abrirCriarMissao(payload.id, 0);
       } else {
         await atualizarTrilhaApi(trilhaEditando!.id, payload);
         toast.success("Trilha atualizada!");
+        setModalTrilha(null);
       }
-      setModalTrilha(null);
       void carregar();
     } catch (e: any) {
       toast.error(e.message ?? "Erro ao salvar.");
@@ -330,13 +335,13 @@ export default function TrilhaAdmin() {
   return (
     <div className="min-h-screen">
       {/* Header */}
-      <div className="border-b border-white/8 bg-gradient-to-r from-indigo-950/40 to-purple-950/20">
+      <div className="border-b border-border bg-gradient-to-r from-blue-50/80 via-slate-50/50 to-indigo-50/40 dark:from-indigo-950/40 dark:to-purple-950/20">
         <div className="mx-auto max-w-5xl px-4 py-6 md:px-8">
           <div className="flex items-center justify-between">
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <Settings2 className="h-5 w-5 text-indigo-400" />
-                <span className="text-xs font-mono font-semibold uppercase tracking-widest text-indigo-400">
+                <Settings2 className="h-5 w-5 text-primary dark:text-indigo-400" />
+                <span className="text-xs font-mono font-semibold uppercase tracking-widest text-primary dark:text-indigo-400">
                   Painel Admin
                 </span>
               </div>
@@ -350,7 +355,7 @@ export default function TrilhaAdmin() {
                 onClick={handleImportarPadrao}
                 disabled={importando}
                 title="Importa as 7 trilhas de conhecimento padrão com todas as missões"
-                className="flex items-center gap-2 rounded-xl border border-indigo-400/20 bg-indigo-500/10 px-3.5 py-2 text-sm font-medium text-indigo-300 transition hover:bg-indigo-500/20 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/10 px-3.5 py-2 text-sm font-medium text-primary dark:border-indigo-400/20 dark:bg-indigo-500/10 dark:text-indigo-300 transition hover:bg-primary/20 disabled:opacity-50"
               >
                 {importando ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
                 {importando ? "Importando..." : "Importar Padrão"}
@@ -359,21 +364,21 @@ export default function TrilhaAdmin() {
                 onClick={handleZerarTodos}
                 disabled={zerandoTodos}
                 title="Zerar o histórico de trilhas concluídas e o XP de todos os usuários do sistema"
-                className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3.5 py-2 text-sm font-medium text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
+                className="flex items-center gap-2 rounded-xl border border-red-500/20 bg-red-500/10 px-3.5 py-2 text-sm font-medium text-red-600 dark:text-red-300 transition hover:bg-red-500/20 disabled:opacity-50"
               >
                 <RotateCcw className={`h-4 w-4 ${zerandoTodos ? "animate-spin" : ""}`} />
                 {zerandoTodos ? "Zerando..." : "Zerar Histórico e XP"}
               </button>
               <button
                 onClick={() => void carregar()}
-                className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-muted-foreground transition hover:bg-white/8 hover:text-foreground"
+                className="flex items-center gap-2 rounded-xl border border-border bg-card dark:border-white/10 dark:bg-white/5 px-4 py-2 text-sm text-muted-foreground transition hover:bg-muted dark:hover:bg-white/8 hover:text-foreground shadow-xs"
               >
                 <RefreshCw className="h-4 w-4" />
                 Atualizar
               </button>
               <button
                 onClick={abrirCriarTrilha}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-indigo-900/20 transition hover:brightness-110"
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-indigo-500 dark:to-purple-600 px-4 py-2 text-sm font-bold text-white shadow-md transition hover:brightness-110"
               >
                 <Plus className="h-4 w-4" />
                 Nova Trilha
@@ -503,17 +508,32 @@ function TrilhaItem({
   const ativo = (trilha as any)._ativo !== false;
 
   return (
-    <div className={`rounded-2xl border transition-all ${ativo ? "border-white/10 bg-white/[0.02]" : "border-white/5 bg-white/[0.01] opacity-60"}`}>
+    <div
+      className={`rounded-2xl border transition-all shadow-sm ${
+        ativo
+          ? "border-border bg-card dark:border-white/10 dark:bg-white/[0.02]"
+          : "border-border/60 bg-muted/40 dark:border-white/5 dark:bg-white/[0.01] opacity-60"
+      }`}
+    >
       {/* Trilha header row */}
       <div className="flex items-center gap-4 p-4">
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${trilha.cor} text-xl shadow-md`}>
           {trilha.icone}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-foreground truncate">{trilha.titulo}</p>
             {!ativo && (
-              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-muted-foreground">Inativa</span>
+              <span className="rounded-full bg-muted border border-border dark:bg-white/10 px-2 py-0.5 text-[10px] text-muted-foreground">Inativa</span>
+            )}
+            {trilha.setorRestrito ? (
+              <span className="rounded-full bg-primary/10 border border-primary/20 text-primary dark:text-blue-300 px-2 py-0.5 text-[10px] font-semibold flex items-center gap-1">
+                🔒 Restrito: {trilha.setorRestrito}
+              </span>
+            ) : (
+              <span className="rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 px-2 py-0.5 text-[10px] font-semibold flex items-center gap-1">
+                🌐 Todos os setores
+              </span>
             )}
           </div>
           <p className="text-xs text-muted-foreground mt-0.5">
@@ -524,25 +544,25 @@ function TrilhaItem({
           <button
             onClick={onToggleAtivo}
             title={ativo ? "Desativar" : "Ativar"}
-            className="rounded-lg p-2 text-muted-foreground transition hover:bg-white/8 hover:text-foreground"
+            className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted dark:hover:bg-white/8 hover:text-foreground"
           >
             {ativo ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
           </button>
           <button
             onClick={onEditar}
-            className="rounded-lg p-2 text-muted-foreground transition hover:bg-white/8 hover:text-foreground"
+            className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted dark:hover:bg-white/8 hover:text-foreground"
           >
             <Pencil className="h-4 w-4" />
           </button>
           <button
             onClick={onDeletar}
-            className="rounded-lg p-2 text-red-400/60 transition hover:bg-red-400/10 hover:text-red-400"
+            className="rounded-lg p-2 text-red-500/80 dark:text-red-400/60 transition hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
           >
             <Trash2 className="h-4 w-4" />
           </button>
           <button
             onClick={onToggle}
-            className="rounded-lg p-2 text-muted-foreground transition hover:bg-white/8 hover:text-foreground"
+            className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted dark:hover:bg-white/8 hover:text-foreground"
           >
             {expandida ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
           </button>
@@ -551,20 +571,20 @@ function TrilhaItem({
 
       {/* Missões expandidas */}
       {expandida && (
-        <div className="border-t border-white/6 px-4 pb-4 pt-3">
+        <div className="border-t border-border dark:border-white/6 px-4 pb-4 pt-3 bg-muted/20 dark:bg-transparent">
           <div className="space-y-2">
             {trilha.missoes.length === 0 ? (
               <p className="text-xs text-muted-foreground py-2 text-center">
-                Nenhuma missão. Adicione a primeira!
+                Nenhuma missão cadastrada. Adicione a primeira!
               </p>
             ) : (
               trilha.missoes.map((m, idx) => (
                 <div
                   key={m.id}
-                  className="flex items-center gap-3 rounded-xl border border-white/6 bg-white/[0.02] px-4 py-2.5"
+                  className="flex items-center gap-3 rounded-xl border border-border bg-card dark:border-white/6 dark:bg-white/[0.02] px-4 py-2.5 shadow-xs"
                 >
-                  <GripVertical className="h-4 w-4 text-white/20 shrink-0" />
-                  <span className="text-xs font-mono text-muted-foreground w-5 shrink-0">{idx + 1}</span>
+                  <GripVertical className="h-4 w-4 text-muted-foreground/30 shrink-0" />
+                  <span className="text-xs font-mono font-semibold text-primary dark:text-muted-foreground w-5 shrink-0">{idx + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-foreground truncate">{m.titulo}</p>
                     <p className="text-xs text-muted-foreground">
@@ -574,13 +594,13 @@ function TrilhaItem({
                   <div className="flex items-center gap-1.5 shrink-0">
                     <button
                       onClick={() => onEditarMissao(m)}
-                      className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/8 hover:text-foreground"
+                      className="rounded-lg p-1.5 text-muted-foreground transition hover:bg-muted dark:hover:bg-white/8 hover:text-foreground"
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
                       onClick={() => onDeletarMissao(m)}
-                      className="rounded-lg p-1.5 text-red-400/60 transition hover:bg-red-400/10 hover:text-red-400"
+                      className="rounded-lg p-1.5 text-red-500/80 dark:text-red-400/60 transition hover:bg-red-500/10 hover:text-red-600 dark:hover:text-red-400"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -591,7 +611,7 @@ function TrilhaItem({
           </div>
           <button
             onClick={onCriarMissao}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 py-2.5 text-sm text-muted-foreground transition hover:border-indigo-400/40 hover:text-indigo-400"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border dark:border-white/15 py-2.5 text-sm text-muted-foreground transition hover:border-primary/50 hover:text-primary hover:bg-primary/5"
           >
             <Plus className="h-4 w-4" />
             Nova Missão
@@ -616,13 +636,13 @@ function ModalTrilha({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onFechar} />
-      <div className="relative w-full max-w-xl rounded-2xl border border-white/10 bg-[var(--background)] shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-xl rounded-2xl border border-border bg-card dark:border-white/10 dark:bg-slate-900 shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border dark:border-white/8 px-6 py-4">
           <h2 className="font-bold text-foreground">
             {modo === "criar" ? "Nova Trilha" : "Editar Trilha"}
           </h2>
-          <button onClick={onFechar} className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground">
+          <button onClick={onFechar} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted dark:hover:bg-white/8 hover:text-foreground transition">
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -630,11 +650,11 @@ function ModalTrilha({
         {/* Body */}
         <div className="max-h-[70vh] overflow-y-auto px-6 py-5 space-y-4">
           {/* Preview */}
-          <div className={`flex items-center gap-3 rounded-xl bg-gradient-to-br ${form.cor || "from-indigo-500 to-blue-600"} p-4`}>
+          <div className={`flex items-center gap-3 rounded-xl bg-gradient-to-br ${form.cor || "from-blue-600 to-indigo-600"} p-4 shadow-sm`}>
             <span className="text-3xl">{form.icone || "📚"}</span>
             <div>
               <p className="font-bold text-white">{form.titulo || "Título da trilha"}</p>
-              <p className="text-xs text-white/70">{form.categoria || "Categoria"}</p>
+              <p className="text-xs text-white/80">{form.categoria || "Categoria"}</p>
             </div>
           </div>
 
@@ -642,7 +662,7 @@ function ModalTrilha({
             <div className="col-span-2">
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Título *</label>
               <input
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="w-full rounded-xl border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                 value={form.titulo}
                 onChange={(e) => onChange({ ...form, titulo: e.target.value, id: form.id || gerarSlug(e.target.value) })}
                 placeholder="Ex: Missão, Princípios e Visão do CCI"
@@ -650,16 +670,16 @@ function ModalTrilha({
             </div>
             <div className="col-span-2">
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Ícone da trilha</label>
-              <div className="grid grid-cols-10 gap-1.5 rounded-xl border border-white/10 bg-white/5 p-3">
+              <div className="grid grid-cols-10 gap-1.5 rounded-xl border border-input bg-muted/20 dark:border-white/10 dark:bg-white/5 p-3">
                 {EMOJIS_TRILHA.map((emoji) => (
                   <button
                     key={emoji}
                     type="button"
                     title={emoji}
                     onClick={() => onChange({ ...form, icone: emoji })}
-                    className={`flex items-center justify-center rounded-lg p-1.5 text-xl leading-none transition hover:bg-white/10 ${
+                    className={`flex items-center justify-center rounded-lg p-1.5 text-xl leading-none transition hover:bg-muted dark:hover:bg-white/10 ${
                       form.icone === emoji
-                        ? "bg-indigo-500/30 ring-1 ring-indigo-400 scale-110"
+                        ? "bg-primary/20 ring-2 ring-primary scale-110"
                         : ""
                     }`}
                   >
@@ -672,7 +692,7 @@ function ModalTrilha({
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Descrição</label>
               <textarea
                 rows={2}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none"
+                className="w-full rounded-xl border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none"
                 value={form.descricao}
                 onChange={(e) => onChange({ ...form, descricao: e.target.value })}
                 placeholder="Breve descrição da trilha"
@@ -681,7 +701,7 @@ function ModalTrilha({
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Categoria</label>
               <input
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="w-full rounded-xl border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                 value={form.categoria}
                 onChange={(e) => onChange({ ...form, categoria: e.target.value })}
                 placeholder="Ex: Institucional"
@@ -690,7 +710,7 @@ function ModalTrilha({
             <div>
               <label className="mb-1 block text-xs font-medium text-muted-foreground">Dificuldade</label>
               <select
-                className="w-full rounded-xl border border-white/10 bg-[var(--background)] px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="w-full rounded-xl border border-input bg-background text-foreground dark:border-white/10 dark:bg-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
                 value={form.dificuldade}
                 onChange={(e) => onChange({ ...form, dificuldade: e.target.value as Dificuldade })}
               >
@@ -707,18 +727,18 @@ function ModalTrilha({
                     key={g.value}
                     title={g.label}
                     onClick={() => onChange({ ...form, cor: g.value })}
-                    className={`h-8 rounded-lg bg-gradient-to-br ${g.value} transition ${form.cor === g.value ? "ring-2 ring-white scale-110" : "opacity-70 hover:opacity-100"}`}
+                    className={`h-8 rounded-lg bg-gradient-to-br ${g.value} transition ${form.cor === g.value ? "ring-2 ring-primary dark:ring-white scale-110" : "opacity-70 hover:opacity-100"}`}
                   />
                 ))}
               </div>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Setor restrito</label>
-              <input
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+            <div className="col-span-2">
+              <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
+                Setores com acesso à trilha
+              </label>
+              <SetorRestritoSelect
                 value={form.setorRestrito ?? ""}
-                onChange={(e) => onChange({ ...form, setorRestrito: e.target.value })}
-                placeholder="Deixe vazio para todos"
+                onChange={(novo) => onChange({ ...form, setorRestrito: novo })}
               />
             </div>
             <div>
@@ -726,10 +746,10 @@ function ModalTrilha({
               <input
                 type="number"
                 min={0}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                value={form.xpTotal ?? 50}
+                className="w-full rounded-xl border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
+                value={form.xpTotal ?? 1}
                 onChange={(e) => onChange({ ...form, xpTotal: Number(e.target.value) })}
-                placeholder="Ex: 50"
+                placeholder="Ex: 1"
               />
             </div>
             <div>
@@ -737,7 +757,7 @@ function ModalTrilha({
               <input
                 type="number"
                 min={0}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                className="w-full rounded-xl border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                 value={form.ordem ?? 0}
                 onChange={(e) => onChange({ ...form, ordem: Number(e.target.value) })}
               />
@@ -748,9 +768,9 @@ function ModalTrilha({
                 id="trilha-ativo"
                 checked={form.ativo !== false}
                 onChange={(e) => onChange({ ...form, ativo: e.target.checked })}
-                className="h-4 w-4 rounded accent-indigo-500"
+                className="h-4 w-4 rounded accent-primary"
               />
-              <label htmlFor="trilha-ativo" className="text-sm text-foreground cursor-pointer">
+              <label htmlFor="trilha-ativo" className="text-sm text-foreground cursor-pointer select-none">
                 Trilha ativa (visível para os usuários)
               </label>
             </div>
@@ -758,14 +778,14 @@ function ModalTrilha({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 border-t border-white/8 px-6 py-4">
-          <button onClick={onFechar} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition">
+        <div className="flex items-center justify-end gap-3 border-t border-border dark:border-white/8 px-6 py-4 bg-muted/20 dark:bg-transparent">
+          <button onClick={onFechar} className="rounded-xl border border-border bg-background dark:border-white/10 px-4 py-2 text-sm text-muted-foreground hover:bg-muted dark:hover:bg-white/8 hover:text-foreground transition">
             Cancelar
           </button>
           <button
             onClick={onSalvar}
             disabled={salvando}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
+            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-indigo-500 dark:to-purple-600 px-5 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50 shadow-md"
           >
             {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
             {salvando ? "Salvando..." : "Salvar"}
@@ -797,26 +817,26 @@ function ModalMissao({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onFechar} />
-      <div className="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-[var(--background)] shadow-2xl overflow-hidden">
+      <div className={`relative w-full ${abaAtiva === "conteudo" ? "max-w-4xl" : "max-w-2xl"} rounded-2xl border border-border bg-card dark:border-white/10 dark:bg-slate-900 shadow-2xl overflow-hidden transition-all duration-200`}>
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border dark:border-white/8 px-6 py-4">
           <h2 className="font-bold text-foreground">
             {modo === "criar" ? "Nova Missão" : "Editar Missão"}
           </h2>
-          <button onClick={onFechar} className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground">
+          <button onClick={onFechar} className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted dark:hover:bg-white/8 hover:text-foreground transition">
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-white/8">
+        <div className="flex border-b border-border dark:border-white/8 bg-muted/20 dark:bg-transparent">
           {(["info", "conteudo", "quiz"] as const).map((aba) => (
             <button
               key={aba}
               onClick={() => setAbaAtiva(aba)}
               className={`flex-1 py-2.5 text-sm font-medium transition ${
                 abaAtiva === aba
-                  ? "text-indigo-400 border-b-2 border-indigo-400"
+                  ? "text-primary border-b-2 border-primary font-semibold"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -834,7 +854,7 @@ function ModalMissao({
                 <div className="col-span-2">
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Título *</label>
                   <input
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    className="w-full rounded-xl border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                     value={form.titulo}
                     onChange={(e) => onChange({ ...form, titulo: e.target.value })}
                     placeholder="Ex: Introdução ao Google Drive"
@@ -844,7 +864,7 @@ function ModalMissao({
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Ordem</label>
                   <input
                     type="number" min={1}
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    className="w-full rounded-xl border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                     value={form.ordem ?? 1}
                     onChange={(e) => onChange({ ...form, ordem: Number(e.target.value) })}
                   />
@@ -852,7 +872,7 @@ function ModalMissao({
                 <div className="col-span-2">
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Descrição curta</label>
                   <input
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    className="w-full rounded-xl border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                     value={form.descricao}
                     onChange={(e) => onChange({ ...form, descricao: e.target.value })}
                     placeholder="Breve resumo exibido no card da missão"
@@ -862,7 +882,7 @@ function ModalMissao({
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Tempo Estimado (min)</label>
                   <input
                     type="number" min={1}
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    className="w-full rounded-xl border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                     value={form.tempoEstimadoMin ?? 10}
                     onChange={(e) => onChange({ ...form, tempoEstimadoMin: Number(e.target.value) })}
                   />
@@ -870,7 +890,7 @@ function ModalMissao({
                 <div className="col-span-2">
                   <label className="mb-1 block text-xs font-medium text-muted-foreground">Link Externo (opcional)</label>
                   <input
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    className="w-full rounded-xl border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                     value={form.linkExterno ?? ""}
                     onChange={(e) => onChange({ ...form, linkExterno: e.target.value })}
                     placeholder="https://docs.google.com/..."
@@ -882,19 +902,20 @@ function ModalMissao({
 
           {/* Aba Conteúdo */}
           {abaAtiva === "conteudo" && (
-            <div>
-              <label className="mb-2 block text-xs font-medium text-muted-foreground">
-                Conteúdo em Markdown
-                <span className="ml-2 text-xs text-muted-foreground/60">
-                  (use ## para títulos, **negrito**, - para listas)
+            <div className="space-y-2">
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <span>Conteúdo da Missão (Editor Estilo Word)</span>
+                </label>
+                <span className="text-[11px] text-muted-foreground">
+                  Formatação rica com títulos, cores, tabelas, links e listas
                 </span>
-              </label>
-              <textarea
-                rows={18}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400 resize-none"
+              </div>
+              <RichWordEditor
                 value={form.conteudo}
-                onChange={(e) => onChange({ ...form, conteudo: e.target.value })}
-                placeholder={"## Título Principal\n\nDescrição da missão...\n\n### Subtítulo\n\n- Item 1\n- Item 2"}
+                onChange={(novoHtml) => onChange({ ...form, conteudo: novoHtml })}
+                placeholder="Escreva aqui o conteúdo da missão formatado como um documento Word..."
+                minHeight="380px"
               />
             </div>
           )}
@@ -903,20 +924,20 @@ function ModalMissao({
           {abaAtiva === "quiz" && (
             <div className="space-y-6">
               {(form.quiz ?? []).map((p, pIdx) => (
-                <div key={pIdx} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+                <div key={pIdx} className="rounded-xl border border-border bg-muted/20 dark:border-white/10 dark:bg-white/[0.02] p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-xs font-mono font-semibold text-indigo-400 uppercase tracking-wide">
+                    <span className="text-xs font-mono font-semibold text-primary dark:text-indigo-400 uppercase tracking-wide">
                       Pergunta {pIdx + 1}
                     </span>
                     <button
                       onClick={() => onRemoverPergunta(pIdx)}
-                      className="rounded p-1 text-red-400/60 hover:text-red-400"
+                      className="rounded p-1 text-red-500/70 hover:bg-red-500/10 hover:text-red-600 dark:text-red-400/60 dark:hover:text-red-400 transition"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                   <input
-                    className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-foreground mb-3 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    className="w-full rounded-xl border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-2 text-sm text-foreground mb-3 focus:outline-none focus:ring-2 focus:ring-primary/30"
                     value={p.texto}
                     onChange={(e) => onAtualizarPergunta(pIdx, "texto", e.target.value)}
                     placeholder="Texto da pergunta"
@@ -929,11 +950,11 @@ function ModalMissao({
                           name={`correta-${pIdx}`}
                           checked={p.respostaCorreta === oIdx}
                           onChange={() => onAtualizarPergunta(pIdx, "respostaCorreta", oIdx)}
-                          className="h-4 w-4 accent-emerald-500 shrink-0"
+                          className="h-4 w-4 accent-emerald-500 shrink-0 cursor-pointer"
                           title="Marcar como correta"
                         />
                         <input
-                          className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                          className="flex-1 rounded-lg border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                           value={op}
                           onChange={(e) => onAtualizarOpcao(pIdx, oIdx, e.target.value)}
                           placeholder={`Opção ${oIdx + 1}${p.respostaCorreta === oIdx ? " ✓" : ""}`}
@@ -943,7 +964,7 @@ function ModalMissao({
                   </div>
                   <p className="text-xs text-muted-foreground mb-1">Explicação da resposta correta</p>
                   <input
-                    className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    className="w-full rounded-lg border border-input bg-background dark:border-white/10 dark:bg-white/5 px-3 py-1.5 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/30"
                     value={p.explicacao}
                     onChange={(e) => onAtualizarPergunta(pIdx, "explicacao", e.target.value)}
                     placeholder="Por que esta é a resposta correta?"
@@ -952,7 +973,7 @@ function ModalMissao({
               ))}
               <button
                 onClick={onAddPergunta}
-                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 py-3 text-sm text-muted-foreground transition hover:border-indigo-400/40 hover:text-indigo-400"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border dark:border-white/15 py-3 text-sm text-muted-foreground transition hover:border-primary/50 hover:text-primary hover:bg-primary/5"
               >
                 <Plus className="h-4 w-4" />
                 Adicionar Pergunta
@@ -962,18 +983,18 @@ function ModalMissao({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-white/8 px-6 py-4">
+        <div className="flex items-center justify-between border-t border-border dark:border-white/8 px-6 py-4 bg-muted/20 dark:bg-transparent">
           <p className="text-xs text-muted-foreground">
             {form.quiz?.length ?? 0} perguntas no quiz
           </p>
           <div className="flex items-center gap-3">
-            <button onClick={onFechar} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition">
+            <button onClick={onFechar} className="rounded-xl border border-border bg-background dark:border-white/10 px-4 py-2 text-sm text-muted-foreground hover:bg-muted dark:hover:bg-white/8 hover:text-foreground transition">
               Cancelar
             </button>
             <button
               onClick={onSalvar}
               disabled={salvando}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 px-5 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-indigo-500 dark:to-purple-600 px-5 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50 shadow-md"
             >
               {salvando ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
               {salvando ? "Salvando..." : "Salvar Missão"}

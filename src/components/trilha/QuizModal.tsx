@@ -59,11 +59,11 @@ export function QuizModal({
   if (etapa === "resultado") {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-        <div className="w-full max-w-md overflow-hidden rounded-2xl border border-white/10 bg-[#0f1117] shadow-2xl">
+        <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card dark:border-white/10 dark:bg-slate-900 shadow-2xl">
           {/* Celebration header */}
           <div className={`relative flex flex-col items-center py-10 ${
             isConclusaoTrilha
-              ? "bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-transparent"
+              ? "bg-gradient-to-br from-blue-500/20 via-indigo-500/10 to-transparent dark:from-amber-500/20 dark:via-orange-500/10"
               : percentual >= 60
               ? "bg-gradient-to-br from-emerald-500/20 via-teal-500/10 to-transparent"
               : "bg-gradient-to-br from-red-500/10 to-transparent"
@@ -89,26 +89,26 @@ export function QuizModal({
 
           <div className="p-6 space-y-5">
             {/* Score */}
-            <div className="flex items-center justify-center gap-8 rounded-xl bg-white/5 py-5">
+            <div className="flex items-center justify-center gap-8 rounded-xl bg-muted/40 border border-border/60 dark:border-transparent dark:bg-white/5 py-5">
               <div className="text-center">
                 <p className="text-3xl font-bold tabular-nums text-foreground">{acertos}/{totalPerguntas}</p>
                 <p className="text-xs text-muted-foreground mt-1">Acertos</p>
               </div>
-              <div className="h-10 w-px bg-white/10" />
+              <div className="h-10 w-px bg-border dark:bg-white/10" />
               <div className="text-center">
                 {xpGanho > 0 ? (
                   <>
-                    <p className="text-3xl font-bold tabular-nums text-amber-400">+{xpGanho}</p>
+                    <p className="text-3xl font-bold tabular-nums text-primary dark:text-amber-400">+{xpGanho}</p>
                     <p className="text-xs text-muted-foreground mt-1">XP da Trilha</p>
                   </>
                 ) : (
                   <>
-                    <p className="text-2xl font-bold text-emerald-400">✓</p>
+                    <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">✓</p>
                     <p className="text-xs text-muted-foreground mt-1">Missão Feita</p>
                   </>
                 )}
               </div>
-              <div className="h-10 w-px bg-white/10" />
+              <div className="h-10 w-px bg-border dark:bg-white/10" />
               <div className="text-center">
                 <p className="text-3xl font-bold tabular-nums text-foreground">{percentual}%</p>
                 <p className="text-xs text-muted-foreground mt-1">Aproveitamento</p>
@@ -116,14 +116,14 @@ export function QuizModal({
             </div>
 
             {xpGanho === 0 && xpTrilha && (
-              <p className="text-center text-xs text-amber-400/90 bg-amber-400/10 rounded-lg py-2 px-3">
+              <p className="text-center text-xs text-primary dark:text-amber-400/90 bg-primary/10 dark:bg-amber-400/10 rounded-lg py-2 px-3 font-medium">
                 💡 Conclua todas as missões para ganhar os <strong>{xpTrilha} XP</strong> da trilha!
               </p>
             )}
 
             <button
               onClick={() => onConcluir(acertos, totalPerguntas)}
-              className="w-full rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 py-3 text-sm font-bold text-white shadow-lg shadow-amber-900/20 transition-all duration-150 hover:brightness-110 active:scale-95"
+              className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-amber-400 dark:to-orange-500 py-3 text-sm font-bold text-white shadow-md transition-all duration-150 hover:brightness-110 active:scale-95"
             >
               {isConclusaoTrilha
                 ? "Finalizar Trilha 🏆"
@@ -140,25 +140,25 @@ export function QuizModal({
   // ── Quiz ───────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-white/10 bg-[#0f1117] shadow-2xl">
+      <div className="w-full max-w-xl overflow-hidden rounded-2xl border border-border bg-card dark:border-white/10 dark:bg-slate-900 shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
+        <div className="flex items-center justify-between border-b border-border dark:border-white/8 px-5 py-4">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-muted-foreground">Quiz</span>
+            <span className="text-xs font-mono text-muted-foreground uppercase tracking-wide">Quiz</span>
             <span className="text-xs font-bold text-foreground">
               {perguntaIdx + 1}/{totalPerguntas}
             </span>
           </div>
           <div className="flex items-center gap-3">
             {xpTrilha && (
-              <span className="flex items-center gap-1 text-xs font-semibold text-amber-400">
+              <span className="flex items-center gap-1 text-xs font-semibold text-primary dark:text-amber-400">
                 <Zap className="h-3 w-3" />
                 {xpTrilha} XP na trilha
               </span>
             )}
             <button
               onClick={onFechar}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/8 hover:text-foreground transition-colors"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted dark:hover:bg-white/8 hover:text-foreground transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -166,9 +166,9 @@ export function QuizModal({
         </div>
 
         {/* Progress bar */}
-        <div className="h-1 w-full bg-white/8">
+        <div className="h-1 w-full bg-muted dark:bg-white/8">
           <div
-            className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-500"
+            className="h-full bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-amber-400 dark:to-orange-500 transition-all duration-500"
             style={{ width: `${progresso}%` }}
           />
         </div>
@@ -187,18 +187,18 @@ export function QuizModal({
               const showResult = estado !== "aguardando";
 
               let cls =
-                "w-full rounded-xl border px-4 py-3 text-left text-sm font-medium transition-all duration-200 ";
+                "w-full rounded-xl border px-4 py-3 text-left text-sm font-medium transition-all duration-200 shadow-xs ";
 
               if (!showResult) {
                 cls += isSelected
-                  ? "border-amber-400/50 bg-amber-400/10 text-foreground"
-                  : "border-white/8 bg-white/[0.03] text-foreground hover:border-white/16 hover:bg-white/[0.06]";
+                  ? "border-primary/60 bg-primary/10 text-foreground"
+                  : "border-border bg-background hover:bg-muted/50 hover:border-border/80 text-foreground dark:border-white/8 dark:bg-white/[0.03] dark:hover:bg-white/[0.06]";
               } else if (isCorrect) {
-                cls += "border-emerald-400/40 bg-emerald-400/10 text-emerald-300";
+                cls += "border-emerald-500/50 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300";
               } else if (isSelected && !isCorrect) {
-                cls += "border-red-400/40 bg-red-400/10 text-red-300";
+                cls += "border-red-500/50 bg-red-500/10 text-red-800 dark:text-red-300";
               } else {
-                cls += "border-white/5 bg-white/[0.02] text-muted-foreground opacity-60";
+                cls += "border-border/50 bg-muted/20 text-muted-foreground opacity-60 dark:border-white/5 dark:bg-white/[0.02]";
               }
 
               return (
@@ -212,17 +212,17 @@ export function QuizModal({
                     <span className="flex items-center gap-3">
                       <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                         showResult && isCorrect
-                          ? "bg-emerald-400/20 text-emerald-400"
+                          ? "bg-emerald-500/20 text-emerald-600 dark:text-emerald-400"
                           : showResult && isSelected && !isCorrect
-                          ? "bg-red-400/20 text-red-400"
-                          : "bg-white/8 text-muted-foreground"
+                          ? "bg-red-500/20 text-red-600 dark:text-red-400"
+                          : "bg-muted text-muted-foreground border border-border/50 dark:border-transparent dark:bg-white/8"
                       }`}>
                         {String.fromCharCode(65 + idx)}
                       </span>
                       {opcao}
                     </span>
-                    {showResult && isCorrect && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />}
-                    {showResult && isSelected && !isCorrect && <XCircle className="h-4 w-4 shrink-0 text-red-400" />}
+                    {showResult && isCorrect && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+                    {showResult && isSelected && !isCorrect && <XCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />}
                   </span>
                 </button>
               );
@@ -231,10 +231,10 @@ export function QuizModal({
 
           {/* Feedback */}
           {estado !== "aguardando" && (
-            <div className={`rounded-xl border px-4 py-3 text-sm ${
+            <div className={`rounded-xl border px-4 py-3 text-sm shadow-xs ${
               estado === "correto"
-                ? "border-emerald-400/20 bg-emerald-400/8 text-emerald-300"
-                : "border-red-400/20 bg-red-400/8 text-red-300"
+                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300"
+                : "border-red-500/30 bg-red-500/10 text-red-800 dark:text-red-300"
             }`}>
               <p className="font-semibold mb-0.5">
                 {estado === "correto" ? "✅ Correto!" : "❌ Não exatamente..."}
@@ -247,7 +247,7 @@ export function QuizModal({
           {estado !== "aguardando" && (
             <button
               onClick={handleProximo}
-              className="w-full rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 py-3 text-sm font-bold text-white shadow-lg shadow-amber-900/20 transition-all duration-150 hover:brightness-110 active:scale-95 flex items-center justify-center gap-2"
+              className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-amber-400 dark:to-orange-500 py-3 text-sm font-bold text-white shadow-md transition-all duration-150 hover:brightness-110 active:scale-95 flex items-center justify-center gap-2"
             >
               {perguntaIdx + 1 < totalPerguntas ? "Próxima pergunta" : "Ver resultado"}
               <ChevronRight className="h-4 w-4" />

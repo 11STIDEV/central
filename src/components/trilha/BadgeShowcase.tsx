@@ -18,7 +18,7 @@ export function BadgeShowcase({ badges, maxVisible = 8 }: BadgeShowcaseProps) {
           Conquistas
         </h3>
         <span className="text-xs text-muted-foreground">
-          <span className="font-bold text-amber-400">{conquistados.length}</span>/{badges.length}
+          <span className="font-bold text-primary dark:text-amber-400">{conquistados.length}</span>/{badges.length}
         </span>
       </div>
 
@@ -31,8 +31,8 @@ export function BadgeShowcase({ badges, maxVisible = 8 }: BadgeShowcaseProps) {
               title={desbloqueado ? `${badge.nome}: ${badge.descricao}` : `🔒 ${badge.nome} (ainda não conquistado)`}
               className={`group relative flex flex-col items-center gap-1.5 rounded-xl p-2.5 transition-all duration-200 ${
                 desbloqueado
-                  ? "bg-white/[0.05] hover:bg-white/[0.08]"
-                  : "bg-white/[0.02] opacity-40 grayscale"
+                  ? "bg-muted/40 hover:bg-muted dark:bg-white/[0.05] dark:hover:bg-white/[0.08]"
+                  : "bg-muted/20 dark:bg-white/[0.02] opacity-40 grayscale"
               }`}
             >
               {/* Badge icon */}
@@ -40,7 +40,7 @@ export function BadgeShowcase({ badges, maxVisible = 8 }: BadgeShowcaseProps) {
                 className={`flex h-10 w-10 items-center justify-center rounded-full text-xl transition-transform duration-200 ${
                   desbloqueado
                     ? `bg-gradient-to-br ${badge.cor} shadow-sm group-hover:scale-110`
-                    : "bg-white/8"
+                    : "bg-muted dark:bg-white/8"
                 }`}
               >
                 {desbloqueado ? (
@@ -63,7 +63,7 @@ export function BadgeShowcase({ badges, maxVisible = 8 }: BadgeShowcaseProps) {
 
               {/* Glow effect on hover for unlocked */}
               {desbloqueado && (
-                <div className={`absolute inset-0 rounded-xl opacity-0 ring-1 ring-inset ring-amber-400/30 transition-opacity group-hover:opacity-100`} />
+                <div className="absolute inset-0 rounded-xl opacity-0 ring-1 ring-inset ring-primary/30 dark:ring-amber-400/30 transition-opacity group-hover:opacity-100" />
               )}
             </div>
           );

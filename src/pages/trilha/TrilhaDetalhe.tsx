@@ -6,11 +6,14 @@ import { MissaoCard } from "@/components/trilha/MissaoCard";
 import { XPBar } from "@/components/trilha/XPBar";
 import { useTrilhas } from "@/hooks/useTrilhas";
 import { useTrilhaProgress } from "@/hooks/useTrilhaProgress";
+import { useAuth } from "@/auth/AuthProvider";
+import { podeAcessarTrilha } from "@/lib/trilhasAccess";
 
 export default function TrilhaDetalhe() {
   const { trilhaId } = useParams<{ trilhaId: string }>();
   const navigate = useNavigate();
 
+  const { usuario } = useAuth();
   const { trilhas, carregando } = useTrilhas();
   const { progress } = useTrilhaProgress();
   const trilha = trilhas.find((t) => t.id === trilhaId);
@@ -18,7 +21,7 @@ export default function TrilhaDetalhe() {
   if (carregando) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary dark:text-amber-400" />
         <span className="text-xs">Carregando trilha...</span>
       </div>
     );
@@ -31,9 +34,28 @@ export default function TrilhaDetalhe() {
         <h2 className="text-xl font-bold text-foreground">Trilha não encontrada</h2>
         <button
           onClick={() => navigate("/trilha-conhecimento")}
-          className="text-sm text-amber-400 hover:underline"
+          className="text-sm text-primary dark:text-amber-400 hover:underline"
         >
           ← Voltar às trilhas
+        </button>
+      </div>
+    );
+  }
+
+  if (!podeAcessarTrilha(trilha, usuario?.papeis)) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center p-6">
+        <span className="text-5xl">🔒</span>
+        <h2 className="text-xl font-bold text-foreground">Acesso Restrito ao Setor</h2>
+        <p className="max-w-md text-sm text-muted-foreground">
+          Esta trilha de conhecimento é restrita para colaboradores do(s) setor(es):{" "}
+          <strong>{trilha.setorRestrito}</strong>.
+        </p>
+        <button
+          onClick={() => navigate("/trilha-conhecimento")}
+          className="text-sm font-semibold text-primary dark:text-amber-400 hover:underline"
+        >
+          ← Voltar às trilhas disponíveis
         </button>
       </div>
     );
@@ -58,7 +80,7 @@ export default function TrilhaDetalhe() {
   return (
     <div className="animate-in fade-in duration-300">
       {/* Back button */}
-      <div className="border-b border-white/8 bg-[var(--background)]">
+      <div className="border-b border-border bg-card/60 backdrop-blur-xs">
         <div className="mx-auto max-w-4xl px-4 py-4 md:px-8">
           <button
             onClick={() => navigate("/trilha-conhecimento")}
@@ -141,19 +163,19 @@ export default function TrilhaDetalhe() {
           {/* Right: Sidebar */}
           <div className="space-y-6">
             {/* Your progress */}
-            <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+            <div className="rounded-2xl border border-border bg-card dark:border-white/8 dark:bg-white/[0.03] p-5 shadow-xs">
               <h3 className="mb-4 text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground">
                 Seu Progresso
               </h3>
               <XPBar xpTotal={progress.xpTotal} />
 
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-white/5 p-3 text-center">
-                  <p className="text-xl font-bold tabular-nums text-emerald-400">{totalCompletas}</p>
+                <div className="rounded-xl bg-muted/40 dark:bg-white/5 p-3 text-center">
+                  <p className="text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{totalCompletas}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">Concluídas</p>
                 </div>
-                <div className="rounded-xl bg-white/5 p-3 text-center">
-                  <p className="text-xl font-bold tabular-nums text-amber-400">{xpGanho}</p>
+                <div className="rounded-xl bg-muted/40 dark:bg-white/5 p-3 text-center">
+                  <p className="text-xl font-bold tabular-nums text-primary dark:text-amber-400">{xpGanho}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5">XP desta trilha</p>
                 </div>
               </div>
@@ -161,7 +183,7 @@ export default function TrilhaDetalhe() {
 
             {/* Completed missions list */}
             {totalCompletas > 0 && (
-              <div className="rounded-2xl border border-white/8 bg-white/[0.03] p-5">
+              <div className="rounded-2xl border border-border bg-card dark:border-white/8 dark:bg-white/[0.03] p-5 shadow-xs">
                 <h3 className="mb-3 text-xs font-mono font-semibold uppercase tracking-widest text-muted-foreground">
                   Concluídas
                 </h3>
@@ -170,9 +192,9 @@ export default function TrilhaDetalhe() {
                     .filter((m) => missoesCompletas.includes(m.id))
                     .map((m) => (
                       <div key={m.id} className="flex items-center gap-2 text-xs">
-                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
                         <span className="truncate text-foreground">{m.titulo}</span>
-                        <span className="ml-auto shrink-0 text-[10px] text-emerald-400 font-medium">
+                        <span className="ml-auto shrink-0 text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
                           Concluída
                         </span>
                       </div>
@@ -183,9 +205,9 @@ export default function TrilhaDetalhe() {
 
             {/* Completion badge */}
             {totalCompletas === total && (
-              <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-5 text-center">
+              <div className="rounded-2xl border border-primary/20 bg-primary/5 dark:border-amber-400/20 dark:bg-amber-400/5 p-5 text-center shadow-xs">
                 <div className="text-4xl mb-2">🏆</div>
-                <h3 className="font-bold text-amber-400">Trilha Concluída!</h3>
+                <h3 className="font-bold text-primary dark:text-amber-400">Trilha Concluída!</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Você completou todos os {total} missões e ganhou {trilha.xpTotal} XP!
                 </p>

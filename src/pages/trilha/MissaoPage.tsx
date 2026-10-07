@@ -14,11 +14,14 @@ import type { UserProgress } from "@/data/trilhasMock";
 import { QuizModal } from "@/components/trilha/QuizModal";
 import { useTrilhaProgress } from "@/hooks/useTrilhaProgress";
 import { useTrilhas } from "@/hooks/useTrilhas";
+import { useAuth } from "@/auth/AuthProvider";
+import { podeAcessarTrilha } from "@/lib/trilhasAccess";
 
 export default function MissaoPage() {
   const { trilhaId, missaoId } = useParams<{ trilhaId: string; missaoId: string }>();
   const navigate = useNavigate();
 
+  const { usuario } = useAuth();
   const { trilhas, carregando } = useTrilhas();
   const trilha = trilhas.find((t) => t.id === trilhaId);
   const missao = trilha?.missoes.find((m) => m.id === missaoId);
@@ -34,7 +37,7 @@ export default function MissaoPage() {
   if (carregando) {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin text-amber-400" />
+        <Loader2 className="h-6 w-6 animate-spin text-primary dark:text-amber-400" />
         <span className="text-xs">Carregando missão...</span>
       </div>
     );
@@ -47,9 +50,28 @@ export default function MissaoPage() {
         <h2 className="text-xl font-bold text-foreground">Missão não encontrada</h2>
         <button
           onClick={() => navigate(`/trilha-conhecimento/${trilhaId}`)}
-          className="text-sm text-amber-400 hover:underline"
+          className="text-sm text-primary dark:text-amber-400 hover:underline"
         >
           ← Voltar à trilha
+        </button>
+      </div>
+    );
+  }
+
+  if (!podeAcessarTrilha(trilha, usuario?.papeis)) {
+    return (
+      <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center p-6">
+        <span className="text-5xl">🔒</span>
+        <h2 className="text-xl font-bold text-foreground">Acesso Restrito ao Setor</h2>
+        <p className="max-w-md text-sm text-muted-foreground">
+          Esta trilha de conhecimento é restrita para colaboradores do(s) setor(es):{" "}
+          <strong>{trilha.setorRestrito}</strong>.
+        </p>
+        <button
+          onClick={() => navigate("/trilha-conhecimento")}
+          className="text-sm font-semibold text-primary dark:text-amber-400 hover:underline"
+        >
+          ← Voltar às trilhas disponíveis
         </button>
       </div>
     );
@@ -99,7 +121,7 @@ export default function MissaoPage() {
   return (
     <div className="animate-in fade-in duration-300">
       {/* Back */}
-      <div className="border-b border-white/8">
+      <div className="border-b border-border bg-card/60 backdrop-blur-xs">
         <div className="mx-auto max-w-3xl px-4 py-4 md:px-8">
           <button
             onClick={() => navigate(`/trilha-conhecimento/${trilhaId}`)}
@@ -115,7 +137,7 @@ export default function MissaoPage() {
         {/* Mission header */}
         <div className="mb-8">
           <div className="flex items-center gap-3">
-            <span className={`inline-flex items-center gap-1 rounded-full bg-gradient-to-r ${trilha.cor} px-3 py-1 text-xs font-bold text-white`}>
+            <span className={`inline-flex items-center gap-1 rounded-full bg-gradient-to-r ${trilha.cor} px-3 py-1 text-xs font-bold text-white shadow-xs`}>
               {trilha.icone} {trilha.categoria}
             </span>
             <span className="text-xs text-muted-foreground font-mono">
@@ -136,12 +158,12 @@ export default function MissaoPage() {
               <BookOpen className="h-4 w-4" />
               {missao.quiz.length} perguntas
             </span>
-            <span className="flex items-center gap-1.5 font-semibold text-amber-400">
+            <span className="flex items-center gap-1.5 font-semibold text-primary dark:text-amber-400">
               <Zap className="h-4 w-4" />
               {trilha.xpTotal} XP na trilha
             </span>
             {missaoConcluida && (
-              <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+              <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-semibold">
                 <CheckCircle2 className="h-4 w-4" />
                 Concluída
               </span>
@@ -151,10 +173,10 @@ export default function MissaoPage() {
 
         {/* XP gained animation */}
         {xpGanhoAnim !== null && (
-          <div className="mb-6 animate-in slide-in-from-top-2 duration-500 rounded-2xl border border-amber-400/20 bg-amber-400/8 px-5 py-4 flex items-center gap-4">
+          <div className="mb-6 animate-in slide-in-from-top-2 duration-500 rounded-2xl border border-primary/20 bg-primary/10 dark:border-amber-400/20 dark:bg-amber-400/8 px-5 py-4 flex items-center gap-4 shadow-sm">
             <span className="text-3xl">{xpGanhoAnim > 0 ? "🎉" : "✅"}</span>
             <div>
-              <p className="font-bold text-amber-400 text-lg">
+              <p className="font-bold text-primary dark:text-amber-400 text-lg">
                 {xpGanhoAnim > 0
                   ? `+${xpGanhoAnim} XP conquistados!`
                   : "Missão concluída com sucesso!"}
@@ -169,31 +191,31 @@ export default function MissaoPage() {
         )}
 
         {/* Content card */}
-        <div className="rounded-2xl border border-white/8 bg-white/[0.03]">
+        <div className="rounded-2xl border border-border bg-card dark:border-white/8 dark:bg-white/[0.03] shadow-sm">
           {/* Content header */}
-          <div className="flex items-center gap-2 border-b border-white/8 px-6 py-4">
-            <BookOpen className="h-4 w-4 text-amber-400" />
+          <div className="flex items-center gap-2 border-b border-border dark:border-white/8 px-6 py-4">
+            <BookOpen className="h-4 w-4 text-primary dark:text-amber-400" />
             <span className="text-sm font-semibold text-foreground">Conteúdo da Missão</span>
           </div>
 
-          {/* Markdown-like content */}
+          {/* Content body */}
           <div className="prose prose-sm prose-invert max-w-none px-6 py-6">
             <div
-              className="space-y-4 text-sm leading-relaxed text-foreground/90"
+              className="rich-word-content space-y-4 text-sm leading-relaxed text-foreground/90"
               dangerouslySetInnerHTML={{
-                __html: renderMarkdown(missao.conteudo),
+                __html: renderConteudo(missao.conteudo),
               }}
             />
           </div>
 
           {/* External link */}
           {missao.linkExterno && (
-            <div className="border-t border-white/8 px-6 py-4">
+            <div className="border-t border-border dark:border-white/8 px-6 py-4">
               <a
                 href={missao.linkExterno}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-2 text-sm text-amber-400 hover:underline"
+                className="flex items-center gap-2 text-sm text-primary dark:text-amber-400 hover:underline font-medium"
               >
                 <ExternalLink className="h-4 w-4" />
                 Acessar material complementar
@@ -205,18 +227,18 @@ export default function MissaoPage() {
         {/* CTA Section */}
         <div className="mt-8 space-y-4">
           {!missaoConcluida ? (
-            <div className="rounded-2xl border border-amber-400/20 bg-amber-400/5 p-6 text-center">
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 dark:border-amber-400/20 dark:bg-amber-400/5 p-6 text-center shadow-xs">
               <p className="text-sm text-muted-foreground mb-4">
                 Leu o conteúdo? Responda o quiz para concluir esta missão
                 {!proximaMissao ? (
-                  <> e conquistar os <span className="font-bold text-amber-400">{trilha.xpTotal} XP</span> da trilha!</>
+                  <> e conquistar os <span className="font-bold text-primary dark:text-amber-400">{trilha.xpTotal} XP</span> da trilha!</>
                 ) : (
                   <>!</>
                 )}
               </p>
               <button
                 onClick={() => setQuizAberto(true)}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-amber-900/20 transition-all duration-150 hover:brightness-110 active:scale-95"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-amber-400 dark:to-orange-500 px-8 py-3 text-sm font-bold text-white shadow-md transition-all duration-150 hover:brightness-110 active:scale-95"
               >
                 <Zap className="h-4 w-4" />
                 Fazer Quiz
@@ -224,11 +246,11 @@ export default function MissaoPage() {
               </button>
             </div>
           ) : (
-            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/5 p-6">
+            <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-6 shadow-xs">
               <div className="flex items-center gap-3 mb-4">
-                <CheckCircle2 className="h-6 w-6 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <div>
-                  <p className="font-semibold text-emerald-400">Missão concluída!</p>
+                  <p className="font-semibold text-emerald-600 dark:text-emerald-400">Missão concluída!</p>
                   <p className="text-xs text-muted-foreground">
                     Você pode refazer o quiz quando quiser
                   </p>
@@ -238,7 +260,7 @@ export default function MissaoPage() {
               <div className="flex gap-3">
                 <button
                   onClick={() => setQuizAberto(true)}
-                  className="flex-1 rounded-xl border border-white/10 bg-white/5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-white/8 hover:text-foreground"
+                  className="flex-1 rounded-xl border border-border bg-card dark:border-white/10 dark:bg-white/5 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted dark:hover:bg-white/8 hover:text-foreground shadow-xs"
                 >
                   Refazer Quiz
                 </button>
@@ -249,7 +271,7 @@ export default function MissaoPage() {
                         `/trilha-conhecimento/${trilhaId}/missao/${proximaMissao.id}`
                       )
                     }
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 py-2.5 text-sm font-bold text-white transition-all hover:brightness-110"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-amber-400 dark:to-orange-500 py-2.5 text-sm font-bold text-white transition-all hover:brightness-110 shadow-md"
                   >
                     Próxima Missão
                     <ChevronRight className="h-4 w-4" />
@@ -258,7 +280,7 @@ export default function MissaoPage() {
                 {!proximaMissao && (
                   <button
                     onClick={() => navigate(`/trilha-conhecimento/${trilhaId}`)}
-                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-500 py-2.5 text-sm font-bold text-white transition-all hover:brightness-110"
+                    className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 py-2.5 text-sm font-bold text-white transition-all hover:brightness-110 shadow-md"
                   >
                     🏆 Ver Trilha Completa
                   </button>
@@ -294,7 +316,17 @@ export default function MissaoPage() {
   );
 }
 
-// ── Simple markdown renderer ───────────────────────────────────
+// ── Content renderer (HTML do Editor Word ou Markdown legado) ────
+function renderConteudo(text: string): string {
+  if (!text) return "";
+  // Se já for HTML gerado pelo Editor Word, renderiza diretamente
+  if (/<\/?[a-z][\s\S]*>/i.test(text)) {
+    return text;
+  }
+  return renderMarkdown(text);
+}
+
+// ── Simple markdown renderer legado ───────────────────────────
 function renderMarkdown(text: string): string {
   return text
     // H2
@@ -302,26 +334,26 @@ function renderMarkdown(text: string): string {
     // H3
     .replace(/^### (.+)$/gm, '<h3 class="text-sm font-bold text-foreground/90 mt-5 mb-2 uppercase tracking-wide">$1</h3>')
     // H4
-    .replace(/^#### (.+)$/gm, '<h4 class="text-sm font-semibold text-amber-400 mt-4 mb-1.5">$1</h4>')
+    .replace(/^#### (.+)$/gm, '<h4 class="text-sm font-semibold text-primary dark:text-amber-400 mt-4 mb-1.5">$1</h4>')
     // Bold
     .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>')
     // Tables (basic)
     .replace(/^\|(.+)\|$/gm, (line) => {
       const cells = line.split("|").filter(Boolean);
       const isHeader = false; // simplification
-      return `<div class="flex gap-2 text-xs border-b border-white/5 py-1.5">${cells.map(c => `<span class="flex-1">${c.trim()}</span>`).join("")}</div>`;
+      return `<div class="flex gap-2 text-xs border-b border-border py-1.5">${cells.map(c => `<span class="flex-1">${c.trim()}</span>`).join("")}</div>`;
     })
     // Bullet list items
-    .replace(/^- (.+)$/gm, '<li class="flex items-start gap-2 text-sm text-foreground/80"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400/60"></span><span>$1</span></li>')
+    .replace(/^- (.+)$/gm, '<li class="flex items-start gap-2 text-sm text-foreground/80"><span class="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary/80 dark:bg-amber-400/60"></span><span>$1</span></li>')
     // Numbered list items
-    .replace(/^(\d+)\. (.+)$/gm, '<li class="flex items-start gap-2 text-sm text-foreground/80"><span class="shrink-0 font-mono font-bold text-amber-400/80">$1.</span><span>$2</span></li>')
+    .replace(/^(\d+)\. (.+)$/gm, '<li class="flex items-start gap-2 text-sm text-foreground/80"><span class="shrink-0 font-mono font-bold text-primary dark:text-amber-400/80">$1.</span><span>$2</span></li>')
     // Wrap consecutive li in ul
     .replace(/((<li.+<\/li>\n?)+)/g, '<ul class="space-y-1.5 my-3 pl-1">$1</ul>')
     // Checkmark ✅ and ❌ emphasis
-    .replace(/^✅ (.+)$/gm, '<p class="text-emerald-400 font-medium text-sm">✅ $1</p>')
-    .replace(/^❌ (.+)$/gm, '<p class="text-red-400 font-medium text-sm">❌ $1</p>')
+    .replace(/^✅ (.+)$/gm, '<p class="text-emerald-600 dark:text-emerald-400 font-medium text-sm">✅ $1</p>')
+    .replace(/^❌ (.+)$/gm, '<p class="text-red-600 dark:text-red-400 font-medium text-sm">❌ $1</p>')
     // 💡 tip
-    .replace(/^### Dica de Ouro (.+)$/gm, '<div class="rounded-xl bg-amber-400/8 border border-amber-400/20 px-4 py-3 text-sm text-amber-300 mt-4"><strong>💡 Dica de Ouro</strong> $1</div>')
+    .replace(/^### Dica de Ouro (.+)$/gm, '<div class="rounded-xl bg-blue-500/10 border border-blue-500/20 text-blue-900 dark:bg-amber-400/8 dark:border-amber-400/20 dark:text-amber-300 px-4 py-3 text-sm mt-4"><strong>💡 Dica de Ouro</strong> $1</div>')
     // Regular paragraphs (non-empty lines not already converted)
     .replace(/^(?!<|✅|❌|\|)(.{2,})$/gm, '<p class="text-sm text-foreground/80 leading-relaxed">$1</p>')
     // Clean up double newlines
