@@ -19,7 +19,7 @@ export function AvisosTimeline({
       <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-1 items-center gap-3">
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
-          <h2 className="shrink-0 text-sm font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          <h2 className="shrink-0 text-sm font-semibold uppercase tracking-[0.14em] text-muted-foreground sm:tracking-[0.2em]">
             {titulo}
           </h2>
           <div className="h-px flex-1 bg-gradient-to-r from-transparent via-border to-transparent" />
