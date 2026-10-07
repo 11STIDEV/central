@@ -1,4 +1,7 @@
-const DEFAULT_PUBLIC_HOSTS = ["parceiro.portalcci.com.br"];
+const DEFAULT_PUBLIC_HOSTS = [
+  "parceiros.portalcci.com.br",
+  "parceiro.portalcci.com.br",
+];
 
 function parsePublicHosts(): string[] {
   const raw = import.meta.env.VITE_PARCEIRO_PUBLIC_HOSTS as string | undefined;

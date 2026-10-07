@@ -61,6 +61,7 @@ export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/cci-pay/admin/funcionarios": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
   "/cci-pay/admin/lojas": ["ccipay_admin"],
   "/cci-pay/admin/lancadores": ["ccipay_admin"],
+  "/parceiro": ["ccipay_admin", "ccipay_loja", "dp", "financeiro", "admin"],
   "/cci-pay/relatorios/dp": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
   "/cci-pay/relatorios/loja": ["ccipay_loja", "ccipay_admin", "ccipay_dp"],
   "/agenda-cci/admin": ["setape"],
@@ -109,6 +110,7 @@ function podeAcessoRotasSenhas(papeis: Papel[], pathname: string, email?: string
  * Permissão por papel (ignora bloqueio temporário). Usado para decidir se o item aparece no menu.
  */
 export function hasRoleAccessToRoute(papeis: Papel[], pathname: string, email?: string | null): boolean {
+  if (pathname.startsWith("http://") || pathname.startsWith("https://")) return true;
   const path = normalizarPath(pathname);
   if (papeis.includes("admin")) return true;
 

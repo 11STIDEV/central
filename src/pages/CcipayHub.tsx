@@ -8,10 +8,13 @@ import {
   descricaoMovimento,
   formatarDataMovimento,
   isCcipayDpPapel,
+  isCcipayAdminPapel,
+  isCcipayLojaPapel,
   labelStatusMovimento,
   type CcipayMovimento,
   type CcipayResumo,
 } from "@/lib/ccipay";
+import { parceiroSiteUrl } from "@/parceiro/publicHost";
 import { CcipayQrScannerDialog } from "@/components/ccipay/CcipayQrScannerDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +50,8 @@ import {
   Loader2,
   Check,
   Info,
+  Store,
+  ExternalLink,
 } from "lucide-react";
 
 export default function CcipayHub() {
@@ -64,6 +69,13 @@ export default function CcipayHub() {
   const [enviandoLimite, setEnviandoLimite] = useState(false);
 
   const isDp = usuario ? isCcipayDpPapel(usuario.papeis) : false;
+  const isGestorOuLoja = usuario
+    ? isCcipayAdminPapel(usuario.papeis) ||
+      isCcipayLojaPapel(usuario.papeis) ||
+      usuario.papeis.includes("admin") ||
+      usuario.papeis.includes("dp") ||
+      usuario.papeis.includes("financeiro")
+    : false;
 
   const carregar = useCallback(async () => {
     if (!googleIdToken) {
@@ -250,6 +262,31 @@ export default function CcipayHub() {
                 </Button>
               )}
             </div>
+
+            {/* Acesso ao Portal do Parceiro para gestores / lojistas */}
+            {isGestorOuLoja && (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 text-xs text-muted-foreground shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <Store className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-foreground text-sm">
+                      Portal do Parceiro (Lojas e Convênios)
+                    </span>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
+                      Acesso das lojas conveniadas para validação de compras e vendas via QR Code.
+                    </p>
+                  </div>
+                </div>
+                <Button asChild size="sm" variant="outline" className="gap-1.5 shrink-0">
+                  <a href={parceiroSiteUrl()} target="_blank" rel="noreferrer">
+                    Abrir Portal
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </Button>
+              </div>
+            )}
 
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">Seus movimentos</h2>

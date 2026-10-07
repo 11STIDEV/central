@@ -17,6 +17,7 @@ import {
   Sparkles,
   Ticket,
   Trophy,
+  Store,
   UserCog,
   UserRoundCheck,
   Users,
@@ -35,6 +36,7 @@ export type NavLeaf = {
   url: string;
   icon: LucideIcon;
   locked?: boolean;
+  external?: boolean;
   /** Prefixos de rota que mantêm o item destacado (ex.: catálogo de setores). */
   activePrefixes?: string[];
 };
@@ -170,6 +172,7 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
           { title: "Funcionários", url: "/cci-pay/admin/funcionarios", icon: UserCog },
           { title: "Lojas", url: "/cci-pay/admin/lojas", icon: Warehouse },
           { title: "Lançadores", url: "/cci-pay/admin/lancadores", icon: Shield },
+          { title: "Portal do Parceiro", url: "/parceiro", icon: Store, external: true },
         ],
       },
     ],
