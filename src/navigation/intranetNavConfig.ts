@@ -17,6 +17,7 @@ import {
   Sparkles,
   Ticket,
   Trophy,
+  Store,
   UserCog,
   UserRoundCheck,
   Users,
@@ -35,6 +36,7 @@ export type NavLeaf = {
   url: string;
   icon: LucideIcon;
   locked?: boolean;
+  external?: boolean;
   /** Prefixos de rota que mantêm o item destacado (ex.: catálogo de setores). */
   activePrefixes?: string[];
 };
@@ -150,9 +152,7 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
         label: "Meu Advance-CCI",
         items: [
           { title: "Início / Extrato", url: "/cci-pay", icon: Wallet },
-          { title: "Solicitar vale", url: "/vale-adiantamento", icon: CircleDollarSign },
-          { title: "Loja", url: "/cci-pay/loja", icon: MapPin },
-          { title: "Meus pedidos", url: "/cci-pay/meus-pedidos", icon: ClipboardList },
+          { title: "Solicitar vale/pix/adiantamento", url: "/vale-adiantamento", icon: CircleDollarSign },
         ],
       },
       {
@@ -172,6 +172,7 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
           { title: "Funcionários", url: "/cci-pay/admin/funcionarios", icon: UserCog },
           { title: "Lojas", url: "/cci-pay/admin/lojas", icon: Warehouse },
           { title: "Lançadores", url: "/cci-pay/admin/lancadores", icon: Shield },
+          { title: "Portal do Parceiro", url: "/parceiro", icon: Store, external: true },
         ],
       },
     ],
@@ -305,19 +306,29 @@ export type NavSearchEntry = {
 /** Lista plana para busca global (Cmd+K). */
 export function flattenNavForSearch(sections: NavSection[]): NavSearchEntry[] {
   const out: NavSearchEntry[] = [];
+  if (!Array.isArray(sections)) return out;
   for (const sec of sections) {
-    if (sec.type === "flat") {
+    if (!sec) continue;
+    if (sec.type === "flat" && Array.isArray(sec.items)) {
       for (const item of sec.items) {
-        out.push({ title: item.title, url: item.url, group: sec.label, locked: item.locked });
+        if (!item) continue;
+        out.push({
+          title: item.title || "",
+          url: item.url || "",
+          group: sec.label || "Geral",
+          locked: Boolean(item.locked),
+        });
       }
-    } else {
+    } else if (sec.type === "nested" && Array.isArray(sec.sectors)) {
       for (const sector of sec.sectors) {
+        if (!sector || !Array.isArray(sector.items)) continue;
         for (const item of sector.items) {
+          if (!item) continue;
           out.push({
-            title: item.title,
-            url: item.url,
-            group: `${sec.label} · ${sector.label}`,
-            locked: item.locked,
+            title: item.title || "",
+            url: item.url || "",
+            group: `${sec.label || ""} · ${sector.label || ""}`.trim(),
+            locked: Boolean(item.locked),
           });
         }
       }

@@ -25,7 +25,11 @@ import {
 import { registerSetorLinksRoutes } from "./setorLinks.js";
 import { registerCcipayRoutes } from "./ccipayRoutes.js";
 import { registerCcipayParceiroRoutes } from "./ccipayParceiroRoutes.js";
+import { registerAlterdataMovimentosRoutes } from "./alterdataMovimentos.js";
 import { registerAtestadosRoutes } from "./atestadosRoutes.js";
+import { registerAlterdataRoutes } from "./alterdataRoutes.js";
+import { obterFuncionarioPorEmail, extrairResumoColaborador } from "./alterdataStore.js";
+import { iniciarAgendadorAlterdata } from "./alterdataMonitor.js";
 import { createRequestAuth } from "./requestAuth.js";
 import {
   encerrarSessaoRequest,
@@ -113,6 +117,10 @@ app.use(express.json({ limit: "15mb" }));
 app.use(express.urlencoded({ extended: true, limit: "15mb" }));
 
 registerAtestadosRoutes(app);
+registerAlterdataRoutes(app, getSupabaseAdmin, {
+  resolverContextoFromRequest: (req) => resolverContextoFromRequest(req),
+});
+iniciarAgendadorAlterdata(getSupabaseAdmin);
 
 /** Um ou mais sufixos permitidos, separados por v├¡rgula. Alinhar ao front (`AuthProvider`) e ao `server/.env.example`. */
 function parseDominiosPermitidos() {
@@ -1138,6 +1146,15 @@ app.post("/api/auth/session", async (req, res) => {
       papeis: ctx.papeis,
       orgUnitPath: ctx.orgUnitPath ?? null,
     });
+
+    let alterdataResumo = null;
+    try {
+      const func = await obterFuncionarioPorEmail(getSupabaseAdmin(), ctx.email);
+      if (func) alterdataResumo = extrairResumoColaborador(func);
+    } catch (errFunc) {
+      console.warn("[auth/session] Falha ao consultar Alterdata:", errFunc.message);
+    }
+
     return res.json({
       ok: true,
       sessionId: session.id,
@@ -1146,6 +1163,7 @@ app.post("/api/auth/session", async (req, res) => {
         email: ctx.email,
         picture: ctx.picture,
         papeis: ctx.papeis,
+        alterdata: alterdataResumo,
       },
     });
   } catch (e) {
@@ -1154,19 +1172,77 @@ app.post("/api/auth/session", async (req, res) => {
 });
 
 /**
- * GET /api/auth/me ÔÇö restaura usu├írio da sess├úo (cookie ou header x-central-session).
+ * POST /api/auth/google/callback
+ * Endpoint para Google Identity Services com ux_mode: "redirect" (usado especialmente em dispositivos móveis/iOS).
+ * O Google envia formulário x-www-form-urlencoded com { credential, g_csrf_token }.
  */
-app.get("/api/auth/me", (req, res) => {
+app.post("/api/auth/google/callback", async (req, res) => {
+  try {
+    const idToken = req.body?.credential;
+    if (!idToken || typeof idToken !== "string") {
+      console.warn("[auth/google/callback] credential ausente no body");
+      return res.redirect("/login?erro=" + encodeURIComponent("Token de autenticação do Google não recebido."));
+    }
+
+    const { email, name, picture } = await verificarIdTokenUsuario(idToken);
+    const payload = decodeJwtPayloadUnsafe(idToken);
+    const nome =
+      (typeof payload?.name === "string" && payload.name) ||
+      (typeof name === "string" && name) ||
+      (typeof payload?.given_name === "string" && payload.given_name) ||
+      String(email).split("@")[0];
+    const orgUnitPath = await obterOrgUnitPathUsuario(email);
+    const manual = lerPapeisManuaisArquivo()[email.toLowerCase()] || [];
+    const papeis = resolverPapeisCompletos(orgUnitPath, email, manual, {
+      ouPainelAtendente: ouPainelAtendentePeloCaminho,
+      ouPainelAdmin: ouPainelAdminPeloCaminho,
+    });
+
+    const session = iniciarSessaoUsuario(res, {
+      email,
+      nome,
+      picture: picture || payload?.picture,
+      papeis,
+      orgUnitPath: orgUnitPath ?? null,
+    });
+
+    // Redireciona com fragmento de hash para o frontend capturar o token e a sessão sem expor em logs
+    const authData = new URLSearchParams({
+      id_token: idToken,
+      sid: session.id,
+    });
+    return res.redirect(`/#auth=${encodeURIComponent(authData.toString())}`);
+  } catch (e) {
+    console.error("[auth/google/callback] Erro no callback do Google:", e?.message || e);
+    const msg = encodeURIComponent(e?.message || "Erro na autenticação do Google");
+    return res.redirect(`/login?erro=${msg}`);
+  }
+});
+
+/**
+ * GET /api/auth/me — restaura usuário da sessão (cookie ou header x-central-session).
+ */
+app.get("/api/auth/me", async (req, res) => {
   const ctx = getContextoFromSessionRequest(req);
   if (!ctx) {
-    return res.status(401).json({ error: "Sess├úo expirada ou n├úo autenticado." });
+    return res.status(401).json({ error: "Sessão expirada ou não autenticado." });
   }
+
+  let alterdataResumo = null;
+  try {
+    const func = await obterFuncionarioPorEmail(getSupabaseAdmin(), ctx.email);
+    if (func) alterdataResumo = extrairResumoColaborador(func);
+  } catch (errFunc) {
+    console.warn("[auth/me] Falha ao consultar Alterdata:", errFunc.message);
+  }
+
   return res.json({
     user: {
       nome: ctx.nome,
       email: ctx.email,
       picture: ctx.picture,
       papeis: ctx.papeis,
+      alterdata: alterdataResumo,
     },
     sessionId: getSessionIdFromRequest(req),
   });
@@ -2513,6 +2589,13 @@ registerCcipayParceiroRoutes(app, {
   getSupabaseAdmin,
   mensagemSupabaseNaoConfigurado,
   resolverContextoFromRequest,
+});
+
+registerAlterdataMovimentosRoutes(app, {
+  getSupabaseAdmin,
+  mensagemSupabaseNaoConfigurado,
+  resolverContextoFromRequest,
+  respostaErroIdToken,
 });
 
 /**

@@ -43,6 +43,8 @@ Definir **no build** da imagem (Build Arguments no Coolify):
 | `VITE_LF_SUPABASE_ANON_KEY` | Chave anon/public do Supabase de Achados e Perdidos |
 | `VITE_LF_SCHOOL_ID` | Identificador textual da escola para filtrar itens no admin de Achados e Perdidos |
 | `VITE_LF_PUBLIC_HOSTS` | Hostname(s) da vitrine pública, separados por vírgula (ex.: `achadoseperdidos.portalcci.com.br`). O mesmo build atende Central e subdomínio. |
+| `VITE_PARCEIRO_PUBLIC_HOSTS` | Hostname(s) do Portal do Parceiro, separados por vírgula (padrão: `parceiros.portalcci.com.br,parceiro.portalcci.com.br`). |
+| `VITE_PARCEIRO_SITE_URL` | Opcional — URL explícita para o Portal do Parceiro (padrão: `https://parceiros.portalcci.com.br/`). |
 | `VITE_PAINEL_YOUTUBE_PLAYLIST_ID` | Opcional — painel TV |
 | `VITE_PAINEL_OVERLAY_SECONDS` | Opcional — overlay |
 | `VITE_CENTRAL_ADMIN_EMAILS` | Opcional — CSV de e-mails com papel `admin` na intranet (ver tudo). Complementa `papeis-manuais.json`. |
@@ -76,10 +78,13 @@ HTTP `GET /api/health` → `{ "ok": true }` na porta da aplicação (ex.: 3001).
 5. **Domínios + SSL** no **mesmo** serviço Coolify (mesmo container):
    - `central.portalcci.com.br` — intranet (login Google).
    - `achadoseperdidos.portalcci.com.br` — vitrine pública na **raiz** (`/`), sem login.
-   - **DNS:** registro `A` ou `CNAME` de `achadoseperdidos` para o mesmo destino do `central`.
-   - **Build:** incluir `VITE_LF_PUBLIC_HOSTS=achadoseperdidos.portalcci.com.br` (ou deixar vazio — o código já usa esse host como padrão).
+   - `parceiros.portalcci.com.br` — portal de parceiros e lojas conveniadas (login de operador próprio).
+   - **DNS:** registros `A` ou `CNAME` de `achadoseperdidos` e `parceiros` apontando para o mesmo destino do `central`.
+   - **Build:** opcionalmente definir `VITE_PARCEIRO_PUBLIC_HOSTS=parceiros.portalcci.com.br,parceiro.portalcci.com.br` (o código já usa esses hosts como padrão).
 6. **Porta:** publicar a porta exposta (3001 ou a que o Coolify definir); health check em `/api/health`.
-7. **Google OAuth:** no Google Cloud Console, adicionar URIs de redirecionamento com a **URL pública** exata (HTTPS).
+7. **Google OAuth:** no Google Cloud Console (APIs e Serviços → Credenciais → Client ID Web):
+   - Adicione `https://central.portalcci.com.br` em **Origens JavaScript autorizadas**.
+   - Adicione `https://central.portalcci.com.br/api/auth/google/callback` em **URIs de redirecionamento autorizados** (essencial para o login em celulares/iOS).
 8. **Supabase:** em Authentication / URL configuration, incluir a URL de produção se o painel usar redirect.
 
 ### Proxy reverso (outro servidor na frente)

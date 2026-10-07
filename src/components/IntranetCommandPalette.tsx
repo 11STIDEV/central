@@ -22,18 +22,22 @@ export function IntranetCommandPalette({ sections, open, onOpenChange }: Intrane
   const navigate = useNavigate();
 
   const grouped = useMemo(() => {
+    if (!sections || !Array.isArray(sections)) return [];
     const entries = flattenNavForSearch(sections);
     const map = new Map<string, typeof entries>();
     for (const entry of entries) {
-      const list = map.get(entry.group) ?? [];
+      if (!entry) continue;
+      const groupName = entry.group || "Geral";
+      const list = map.get(groupName) ?? [];
       list.push(entry);
-      map.set(entry.group, list);
+      map.set(groupName, list);
     }
     return [...map.entries()];
   }, [sections]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      if (!event?.key || typeof event.key !== "string") return;
       if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey)) return;
       const target = event.target as HTMLElement | null;
       if (
@@ -59,8 +63,8 @@ export function IntranetCommandPalette({ sections, open, onOpenChange }: Intrane
           <CommandGroup key={group} heading={group}>
             {items.map((item) => (
               <CommandItem
-                key={`${group}-${item.url}`}
-                value={`${item.title} ${item.url} ${group}`}
+                key={`${group}-${item.url || item.title}`}
+                value={`${item.title || ""} ${item.url || ""} ${group || ""}`.trim()}
                 disabled={item.locked}
                 onSelect={() => {
                   if (item.locked) return;

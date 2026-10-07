@@ -96,19 +96,100 @@ export async function parceiroLogout(): Promise<void> {
   setStoredParceiroSessionId(null);
 }
 
-/** URL da Central para pagamento QR (colaborador). */
+export async function parceiroEsqueciSenha(loginOuEmail: string): Promise<{
+  ok: boolean;
+  emailMascarado: string;
+  mensagem: string;
+}> {
+  const res = await parceiroFetch(apiUrl("/api/ccipay/parceiro/auth/esqueci-senha"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ loginOuEmail }),
+  });
+  const data = await parseJson(res);
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : `HTTP ${res.status}`);
+  }
+  return {
+    ok: true,
+    emailMascarado: String(data.emailMascarado || ""),
+    mensagem: String(data.mensagem || "Instruções enviadas para seu e-mail."),
+  };
+}
+
+export async function parceiroValidarTokenRedefinicao(token: string): Promise<{
+  ok: boolean;
+  login: string;
+  nome: string;
+  lojaNome: string;
+}> {
+  const res = await parceiroFetch(apiUrl("/api/ccipay/parceiro/auth/validar-token"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token }),
+  });
+  const data = await parseJson(res);
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Token inválido ou expirado.");
+  }
+  return {
+    ok: true,
+    login: String(data.login || ""),
+    nome: String(data.nome || ""),
+    lojaNome: String(data.lojaNome || ""),
+  };
+}
+
+export async function parceiroRedefinirSenha(token: string, novaSenha: string): Promise<{
+  ok: boolean;
+  mensagem: string;
+}> {
+  const res = await parceiroFetch(apiUrl("/api/ccipay/parceiro/auth/confirmar-codigo-redefinicao"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ codigo: token, novaSenha }),
+  });
+  const data = await parseJson(res);
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Erro ao redefinir senha.");
+  }
+  return {
+    ok: true,
+    mensagem: String(data.mensagem || "Senha redefinida com sucesso!"),
+  };
+}
+
+export async function parceiroConfirmarCodigoRedefinicao(params: {
+  loginOuEmail: string;
+  codigo: string;
+  novaSenha: string;
+}): Promise<{ ok: boolean; login?: string; mensagem: string }> {
+  const res = await parceiroFetch(apiUrl("/api/ccipay/parceiro/auth/confirmar-codigo-redefinicao"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(params),
+  });
+  const data = await parseJson(res);
+  if (!res.ok) {
+    throw new Error(typeof data.error === "string" ? data.error : "Erro ao redefinir senha.");
+  }
+  return {
+    ok: true,
+    login: typeof data.login === "string" ? data.login : undefined,
+    mensagem: String(data.mensagem || "Senha redefinida com sucesso!"),
+  };
+}
+
 export function centralPagamentoQrUrl(token: string): string {
   const configured = import.meta.env.VITE_CENTRAL_PUBLIC_URL as string | undefined;
   if (configured?.trim()) {
     return `${configured.trim().replace(/\/+$/, "")}/cci-pay/pagar/${token}`;
   }
-  if (import.meta.env.DEV && typeof window !== "undefined") {
-    const h = window.location.hostname;
-    const host =
-      h === "localhost" || h === "127.0.0.1" || h === "[::1]" || h === "::1" ? "127.0.0.1" : h;
-    return `http://${host}:8080/cci-pay/pagar/${token}`;
+  if (typeof window !== "undefined" && window.location.origin) {
+    return `${window.location.origin}/cci-pay/pagar/${token}`;
   }
   return `https://central.portalcci.com.br/cci-pay/pagar/${token}`;
 }
 
 export { getApiBaseUrl };
+

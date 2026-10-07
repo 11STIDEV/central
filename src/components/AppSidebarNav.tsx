@@ -245,6 +245,21 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
       );
     }
 
+    if (item.external || item.url.startsWith("http")) {
+      return (
+        <a
+          key={item.url}
+          href={item.url}
+          target="_blank"
+          rel="noreferrer"
+          className={flyoutLinkClass(active)}
+        >
+          <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
+          <span className="truncate">{item.title}</span>
+        </a>
+      );
+    }
+
     return (
       <Link key={item.url} to={item.url} className={flyoutLinkClass(active)}>
         <item.icon className="h-4 w-4 shrink-0" strokeWidth={1.75} />
@@ -357,6 +372,22 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
               </>
             )}
           </button>
+        </li>
+      );
+    }
+    if (item.external || item.url.startsWith("http")) {
+      return (
+        <li key={item.url}>
+          <a
+            href={item.url}
+            target="_blank"
+            rel="noreferrer"
+            title={opts.collapsed ? item.title : undefined}
+            className={linkClass(false)}
+          >
+            <item.icon className={iconClass(false)} strokeWidth={1.75} />
+            {!opts.collapsed && <span className="min-w-0 flex-1 leading-snug">{item.title}</span>}
+          </a>
         </li>
       );
     }

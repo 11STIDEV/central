@@ -253,17 +253,32 @@ function mapearPapeis(tokenPayload: any): Papel[] {
 function decodeJwt(token: string): any | null {
   try {
     const payload = token.split(".")[1];
+    if (!payload) return null;
     // JWT usa base64url; em alguns browsers pode faltar padding.
     const base64url = payload.replace(/-/g, "+").replace(/_/g, "/");
     const padLen = (4 - (base64url.length % 4)) % 4;
     const base64 = base64url + "=".repeat(padLen);
-    const decoded = atob(base64);
-    return JSON.parse(decoded);
+    try {
+      const decoded = decodeURIComponent(
+        atob(base64)
+          .split("")
+          .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+          .join(""),
+      );
+      return JSON.parse(decoded);
+    } catch {
+      return JSON.parse(atob(base64));
+    }
   } catch (e) {
     // eslint-disable-next-line no-console
     console.error("Falha ao decodificar JWT:", e);
     return null;
   }
+}
+
+function isMobileDevice(): boolean {
+  if (typeof navigator === "undefined") return false;
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
 
 declare global {
@@ -498,6 +513,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let cancelado = false;
     (async () => {
       try {
+        // 0. Verifica se retornou do redirect do Google (/api/auth/google/callback)
+        if (typeof window !== "undefined" && window.location.hash.includes("auth=")) {
+          try {
+            const hashRaw = window.location.hash.startsWith("#")
+              ? window.location.hash.slice(1)
+              : window.location.hash;
+            const params = new URLSearchParams(hashRaw);
+            const authEncoded = params.get("auth");
+            if (authEncoded) {
+              const authParams = new URLSearchParams(decodeURIComponent(authEncoded));
+              const token = authParams.get("id_token");
+              const sid = authParams.get("sid");
+              if (sid) {
+                setStoredSessionId(sid);
+              }
+              if (token) {
+                // Limpa o fragmento da URL na barra de navegação
+                window.history.replaceState(null, "", window.location.pathname);
+                await aplicarCredencial(token, { persistir: true });
+                return;
+              }
+            }
+          } catch (e) {
+            console.error("Erro ao processar callback de auth via redirect:", e);
+          }
+        }
+
         initCentralSessionFromStorage();
 
         let sessao: Awaited<ReturnType<typeof obterSessaoServidor>> = null;
@@ -572,12 +614,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
     if (!clientId || !window.google?.accounts?.id || inicializadoRef.current) return false;
     inicializadoRef.current = true;
+
+    const isMobile = isMobileDevice();
+    const loginUri =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/api/auth/google/callback`
+        : undefined;
+
     window.google.accounts.id.initialize({
       client_id: clientId,
       callback: handleCredentialResponse,
       auto_select: false,
       cancel_on_tap_outside: true,
-      ux_mode: "popup",
+      ux_mode: isMobile ? "redirect" : "popup",
+      login_uri: isMobile ? loginUri : undefined,
       context: "signin",
     });
     return true;

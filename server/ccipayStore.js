@@ -2,6 +2,7 @@
 
 import { competenciaAtual } from "./ccipayAccess.js";
 import { emailSinteticoParceiro } from "./parceiroPassword.js";
+import { obterFuncionarioPorEmail, extrairResumoColaborador } from "./alterdataStore.js";
 
 const STATUS_ADIANTAMENTO_ATIVOS = ["pendente", "aprovado", "pago", "descontado_folha"];
 
@@ -84,19 +85,180 @@ export async function obterFuncionario(supabase, email) {
   return data ? rowToFuncionario(data) : null;
 }
 
-export async function registrarOuAtualizarFuncionario(supabase, { email, nome, pixPadrao }) {
+export async function buscarColaboradorAlterdataPorEmail(supabase, email) {
+  if (!supabase || !email) return null;
+  const cleanEmail = String(email).trim().toLowerCase();
+  const { data, error } = await supabase
+    .from("intranet_alterdata_funcionarios")
+    .select("cpf, nome_completo, email, codigo_contrato_vigente, tem_contrato_ativo, status_atual")
+    .ilike("email", cleanEmail)
+    .maybeSingle();
+  if (error) {
+    console.error("[ccipay] Erro ao buscar intranet_alterdata_funcionarios:", error.message);
+    return null;
+  }
+  return data;
+}
+
+export async function registrarOuAtualizarFuncionario(supabase, { email, nome, pixPadrao, alterdataCodigo, ativo }) {
   const now = new Date().toISOString();
-  const existente = await obterFuncionario(supabase, email);
+  const emailLower = String(email).toLowerCase();
+  const existente = await obterFuncionario(supabase, emailLower);
+
+  let alterdataCode = alterdataCodigo || existente?.alterdataCodigo || null;
+  let nomeFinal = nome || existente?.nome || emailLower;
+  let pixFinal = pixPadrao !== undefined ? (pixPadrao || null) : (existente?.pixPadrao || null);
+
+  // Se não tem código Alterdata ou PIX, tenta resolver do banco Alterdata consolidado
+  if (!alterdataCode || !pixFinal || !existente) {
+    try {
+      const alterdataFunc = await obterFuncionarioPorEmail(supabase, emailLower);
+      if (alterdataFunc) {
+        const resumo = extrairResumoColaborador(alterdataFunc);
+        if (!alterdataCode && resumo?.codigo) alterdataCode = resumo.codigo;
+        if ((!existente || !existente.nome) && resumo?.nome) nomeFinal = resumo.nome;
+        if (!pixFinal && resumo?.pixPadrao) pixFinal = resumo.pixPadrao;
+      }
+    } catch {
+      /* fallback silencioso */
+    }
+  }
+
   const row = {
-    email: String(email).toLowerCase(),
-    nome: nome || email,
+    email: emailLower,
+    nome: nomeFinal,
     updated_at: now,
-    ...(pixPadrao !== undefined ? { pix_padrao: pixPadrao || null } : {}),
+    ...(alterdataCode ? { alterdata_codigo: alterdataCode } : {}),
+    ...(pixPadrao !== undefined ? { pix_padrao: pixPadrao || null } : (pixFinal !== undefined ? { pix_padrao: pixFinal } : {})),
+    ...(alterdataCodigo !== undefined ? { alterdata_codigo: alterdataCodigo || null } : {}),
+    ...(ativo !== undefined ? { ativo: Boolean(ativo) } : {}),
     ...(!existente ? { created_at: now } : {}),
   };
   const { error } = await supabase.from("ccipay_funcionarios").upsert(row, { onConflict: "email" });
   if (error) throw new Error(`[ccipay] upsert funcionario: ${error.message}`);
-  return obterFuncionario(supabase, email);
+  return obterFuncionario(supabase, emailLower);
+}
+
+export async function sincronizarFuncionariosAdvanceComAlterdata(supabase) {
+  if (!supabase) throw new Error("Supabase não configurado.");
+
+  // 1. Busca todos os colaboradores consolidados do Alterdata
+  const { data: colaboradores, error: errAlt } = await supabase
+    .from("intranet_alterdata_funcionarios")
+    .select("*")
+    .order("nome_completo", { ascending: true });
+
+  if (errAlt) throw new Error(`Erro ao consultar Alterdata no Supabase: ${errAlt.message}`);
+
+  // 2. Busca os funcionários já existentes no Advance-CCI
+  const existentes = await listarFuncionarios(supabase);
+  const mapaExistentes = new Map(existentes.map((f) => [f.email.toLowerCase(), f]));
+
+  const now = new Date().toISOString();
+  let novos = 0;
+  let atualizados = 0;
+  let ignoradosSemEmail = 0;
+
+  const rowsToUpsert = [];
+
+  for (const c of colaboradores || []) {
+    if (!c.email || !c.email.trim()) {
+      ignoradosSemEmail += 1;
+      continue;
+    }
+    const emailLower = c.email.trim().toLowerCase();
+    const ex = mapaExistentes.get(emailLower);
+    const resumo = extrairResumoColaborador(c);
+
+    const codigo = resumo?.codigo || c.codigo_contrato_vigente || null;
+    const nome = c.nome_completo || ex?.nome || emailLower;
+    const pix = ex?.pixPadrao || resumo?.pixPadrao || null;
+    const ativo = c.tem_contrato_ativo !== false;
+
+    if (!ex) {
+      novos += 1;
+      rowsToUpsert.push({
+        email: emailLower,
+        nome,
+        alterdata_codigo: codigo,
+        limite_adiantamento: 500.0,
+        limite_bonificacao: null,
+        pix_padrao: pix,
+        ativo,
+        created_at: now,
+        updated_at: now,
+      });
+    } else if (!ex.alterdataCodigo && codigo) {
+      atualizados += 1;
+      rowsToUpsert.push({
+        email: emailLower,
+        nome: ex.nome || nome,
+        alterdata_codigo: codigo,
+        limite_adiantamento: ex.limiteAdiantamento,
+        limite_bonificacao: ex.limiteBonificacao,
+        pix_padrao: ex.pixPadrao || pix,
+        ativo: ex.ativo,
+        created_at: ex.createdAt || now,
+        updated_at: now,
+      });
+    }
+  }
+
+  if (rowsToUpsert.length > 0) {
+    const CHUNK_SIZE = 100;
+    for (let i = 0; i < rowsToUpsert.length; i += CHUNK_SIZE) {
+      const chunk = rowsToUpsert.slice(i, i + CHUNK_SIZE);
+      const { error: errUp } = await supabase
+        .from("ccipay_funcionarios")
+        .upsert(chunk, { onConflict: "email" });
+      if (errUp) throw new Error(`Erro ao sincronizar ccipay_funcionarios: ${errUp.message}`);
+    }
+  }
+
+  return {
+    ok: true,
+    totalAlterdata: (colaboradores || []).length,
+    sincronizados: rowsToUpsert.length,
+    novosCadastros: novos,
+    atualizadosComCodigo: atualizados,
+    ignoradosSemEmail,
+  };
+}
+
+export async function sincronizarFuncionarioComAlterdata(supabase, email) {
+  if (!supabase || !email) return null;
+  const cleanEmail = String(email).trim().toLowerCase();
+  const alt = await buscarColaboradorAlterdataPorEmail(supabase, cleanEmail);
+  let func = await obterFuncionario(supabase, cleanEmail);
+
+  if (!alt) return func;
+
+  const patch = {};
+  if (alt.codigo_contrato_vigente && (!func || !func.alterdataCodigo)) {
+    patch.alterdataCodigo = alt.codigo_contrato_vigente;
+  }
+  if (alt.nome_completo && (!func || !func.nome || func.nome === func.email)) {
+    patch.nome = alt.nome_completo;
+  }
+  // Se no Alterdata está ativo com contrato vigente e no ccipay estava inativo (ou não existia)
+  if (alt.tem_contrato_ativo && (!func || !func.ativo)) {
+    patch.ativo = true;
+  }
+
+  if (!func) {
+    return registrarOuAtualizarFuncionario(supabase, {
+      email: cleanEmail,
+      nome: alt.nome_completo || cleanEmail,
+      alterdataCodigo: alt.codigo_contrato_vigente || null,
+      ativo: Boolean(alt.tem_contrato_ativo),
+    });
+  }
+
+  if (Object.keys(patch).length > 0) {
+    func = await atualizarFuncionarioAdmin(supabase, cleanEmail, patch);
+  }
+
+  return func;
 }
 
 export async function listarFuncionarios(supabase) {
@@ -130,7 +292,7 @@ export async function somarAdiantamentosCompetencia(supabase, email, competencia
     .select("valor, status")
     .eq("funcionario_email", String(email).toLowerCase())
     .eq("competencia", competencia)
-    .in("tipo", ["adiantamento", "vale"])
+    .in("tipo", ["adiantamento", "vale", "compra_loja"])
     .in("status", STATUS_ADIANTAMENTO_ATIVOS);
   if (error) throw new Error(`[ccipay] somar adiantamentos: ${error.message}`);
   return (data || []).reduce((acc, r) => acc + Number(r.valor), 0);
@@ -158,13 +320,62 @@ export async function obterXpTrilha(supabase, email) {
   }
 }
 
+export async function saldoConvenioDisponivel(supabase, email, competencia) {
+  const comp = competencia || competenciaAtual();
+  const func =
+    (await obterFuncionario(supabase, email)) ||
+    (await sincronizarFuncionarioComAlterdata(supabase, email));
+  const limiteTotal = func?.limiteAdiantamento ?? 500;
+
+  const { data: movs, error } = await supabase
+    .from("ccipay_movimentos")
+    .select("tipo, direcao, valor, status")
+    .eq("funcionario_email", String(email).toLowerCase())
+    .eq("competencia", comp)
+    .neq("status", "cancelado")
+    .neq("status", "negado");
+
+  if (error) throw new Error(`[ccipay] saldo convenio: ${error.message}`);
+
+  let usadoFolha = 0;
+  let saldoExtraCreditos = 0;
+
+  for (const m of movs || []) {
+    const v = Number(m.valor) || 0;
+    if (["adiantamento", "vale", "compra_loja"].includes(m.tipo) && m.direcao === "debito") {
+      if (STATUS_ADIANTAMENTO_ATIVOS.includes(m.status)) {
+        usadoFolha += v;
+      }
+    } else if (m.tipo === "bonificacao") {
+      if (m.direcao === "credito") saldoExtraCreditos += v;
+      else saldoExtraCreditos -= v;
+    }
+  }
+
+  // Bonificação extra de XP da Trilha de Conhecimento
+  const xpTotal = await obterXpTrilha(supabase, email);
+  saldoExtraCreditos += calcularValorMonetarioXp(xpTotal);
+
+  const disponivelFolha = Math.max(0, limiteTotal - usadoFolha);
+  const totalDisponivel = disponivelFolha + Math.max(0, saldoExtraCreditos);
+
+  return {
+    limiteTotal,
+    usadoFolha,
+    disponivelFolha,
+    saldoExtraCreditos,
+    totalDisponivel,
+  };
+}
+
 export async function saldoBonificacao(supabase, email, competencia, { incluirXp = true } = {}) {
+  const comp = competencia || competenciaAtual();
   const { data, error } = await supabase
     .from("ccipay_movimentos")
     .select("direcao, valor, status")
     .eq("funcionario_email", String(email).toLowerCase())
-    .eq("competencia", competencia)
-    .in("tipo", ["bonificacao", "deducao", "compra_loja"])
+    .eq("competencia", comp)
+    .in("tipo", ["bonificacao", "deducao"])
     .neq("status", "cancelado")
     .neq("status", "negado");
   if (error) throw new Error(`[ccipay] saldo bonificacao: ${error.message}`);
@@ -208,17 +419,17 @@ export async function validarCreditoBonificacao(supabase, func, email, competenc
   return { saldo: saldoSemXp, novoSaldo };
 }
 
-/** Valida débito (dedução, compra loja, QR) contra o saldo da competência (incluindo bônus por XP). */
+/** Valida débito (dedução, compra loja, QR) contra o saldo disponível no convênio. */
 export async function validarDebitoBonificacao(supabase, email, competencia, valorDebito) {
   const valor = Number(valorDebito);
   if (Number.isNaN(valor) || valor <= 0) {
     throw new CcipayBonificacaoError("Informe um valor maior que zero.");
   }
-  const saldo = await saldoBonificacao(supabase, email, competencia, { incluirXp: true });
-  if (valor > saldo) {
-    throw new CcipayBonificacaoError(`Saldo insuficiente. Disponível: R$ ${saldo.toFixed(2)}.`);
+  const info = await saldoConvenioDisponivel(supabase, email, competencia);
+  if (valor > info.totalDisponivel) {
+    throw new CcipayBonificacaoError(`Saldo insuficiente no convênio. Disponível: R$ ${info.totalDisponivel.toFixed(2)}.`);
   }
-  return { saldo, novoSaldo: saldo - valor };
+  return { saldo: info.totalDisponivel, novoSaldo: info.totalDisponivel - valor };
 }
 
 export async function criarMovimento(supabase, mov) {
@@ -313,6 +524,26 @@ export async function atualizarLoja(supabase, id, patch) {
   return rowToLoja(data);
 }
 
+export async function excluirLoja(supabase, id) {
+  // 1. Remove operadores vinculados à loja
+  await supabase.from("ccipay_loja_usuarios").delete().eq("loja_id", id);
+
+  // 2. Remove vendas QR vinculadas à loja
+  await supabase.from("ccipay_vendas_qr").delete().eq("loja_id", id);
+
+  // 3. Desvincula movimentos para preservar histórico sem bloquear exclusão
+  try {
+    await supabase.from("ccipay_movimentos").update({ loja_id: null }).eq("loja_id", id);
+  } catch {
+    /* ignora se coluna não existir */
+  }
+
+  // 4. Remove a loja
+  const { data, error } = await supabase.from("ccipay_lojas").delete().eq("id", id).select("*").maybeSingle();
+  if (error) throw new Error(`[ccipay] excluir loja: ${error.message}`);
+  return data ? rowToLoja(data) : null;
+}
+
 export async function listarUsuariosLoja(supabase, lojaId) {
   const { data, error } = await supabase
     .from("ccipay_loja_usuarios")
@@ -340,6 +571,7 @@ export async function obterOperadorPorLogin(supabase, login) {
   return {
     lojaId: data.loja_id,
     login: data.login,
+    email: data.email,
     nome: data.nome,
     senhaHash: data.senha_hash ?? null,
     loja: loja
@@ -348,18 +580,82 @@ export async function obterOperadorPorLogin(supabase, login) {
   };
 }
 
-export async function vincularOperadorLoja(supabase, lojaId, { login, senhaHash, nome }) {
-  const loginNorm = String(login).toLowerCase();
-  const { error } = await supabase.from("ccipay_loja_usuarios").upsert(
-    {
-      loja_id: lojaId,
-      login: loginNorm,
-      email: emailSinteticoParceiro(loginNorm),
-      nome: nome || loginNorm,
-      senha_hash: senhaHash,
-    },
-    { onConflict: "loja_id,email" },
-  );
+export async function obterOperadorPorLoginOuEmail(supabase, loginOuEmail) {
+  const norm = String(loginOuEmail || "").trim().toLowerCase();
+  if (!norm) return null;
+
+  // Busca inicial por login
+  let { data, error } = await supabase
+    .from("ccipay_loja_usuarios")
+    .select("*, ccipay_lojas(id, nome, descricao, ativa)")
+    .ilike("login", norm)
+    .maybeSingle();
+  if (error) throw new Error(`[ccipay] obter operador por login: ${error.message}`);
+
+  // Se não encontrar, tenta buscar pela coluna email
+  if (!data) {
+    const res = await supabase
+      .from("ccipay_loja_usuarios")
+      .select("*, ccipay_lojas(id, nome, descricao, ativa)")
+      .ilike("email", norm)
+      .maybeSingle();
+    if (res.error) throw new Error(`[ccipay] obter operador por email: ${res.error.message}`);
+    data = res.data;
+  }
+
+  if (!data) return null;
+  const loja = data.ccipay_lojas;
+  return {
+    lojaId: data.loja_id,
+    login: data.login,
+    email: data.email,
+    nome: data.nome,
+    senhaHash: data.senha_hash ?? null,
+    loja: loja
+      ? { id: loja.id, nome: loja.nome, descricao: loja.descricao ?? "", ativa: loja.ativa ?? true }
+      : null,
+  };
+}
+
+export async function vincularOperadorLoja(supabase, lojaId, { login, senhaHash, nome, email }) {
+  const loginNorm = String(login).toLowerCase().trim();
+  const emailNorm = email && String(email).trim().includes("@")
+    ? String(email).trim().toLowerCase()
+    : emailSinteticoParceiro(loginNorm);
+
+  // Se não forneceu novo hash, preserva o existente se o operador já existia ou se a loja já tinha operador
+  let hashEfetivo = senhaHash;
+  if (!hashEfetivo) {
+    const atual = await obterOperadorPorLogin(supabase, loginNorm);
+    if (atual?.senhaHash) {
+      hashEfetivo = atual.senhaHash;
+    } else {
+      const { data: opLoja } = await supabase
+        .from("ccipay_loja_usuarios")
+        .select("senha_hash")
+        .eq("loja_id", lojaId)
+        .not("senha_hash", "is", null)
+        .limit(1)
+        .maybeSingle();
+      if (opLoja?.senha_hash) {
+        hashEfetivo = opLoja.senha_hash;
+      }
+    }
+  }
+
+  // Como agora o parceiro possui apenas 1 login por loja, remove qualquer vínculo anterior desta loja
+  await supabase
+    .from("ccipay_loja_usuarios")
+    .delete()
+    .eq("loja_id", lojaId);
+
+  const { error } = await supabase.from("ccipay_loja_usuarios").insert({
+    loja_id: lojaId,
+    login: loginNorm,
+    email: emailNorm,
+    nome: nome || loginNorm,
+    senha_hash: hashEfetivo,
+  });
   if (error) throw new Error(`[ccipay] vincular operador: ${error.message}`);
 }
 
@@ -598,8 +894,9 @@ export async function relatorioLojaPedidos(supabase, { lojaId, de, ate }) {
 
 export async function montarResumoFuncionario(supabase, email) {
   const comp = competenciaAtual();
-  const func = await obterFuncionario(supabase, email);
+  const func = (await sincronizarFuncionarioComAlterdata(supabase, email)) || (await obterFuncionario(supabase, email));
   if (!func) return null;
+  const alt = await buscarColaboradorAlterdataPorEmail(supabase, email);
   const usado = await somarAdiantamentosCompetencia(supabase, email, comp);
   const xpTotalTrilha = await obterXpTrilha(supabase, email);
   const xpValorMonetario = calcularValorMonetarioXp(xpTotalTrilha);
@@ -616,6 +913,15 @@ export async function montarResumoFuncionario(supabase, email) {
 
   return {
     funcionario: func,
+    alterdata: alt
+      ? {
+          cpf: alt.cpf,
+          nomeCompleto: alt.nome_completo,
+          codigoContratoVigente: alt.codigo_contrato_vigente,
+          temContratoAtivo: alt.tem_contrato_ativo,
+          statusAtual: alt.status_atual,
+        }
+      : null,
     competencia: comp,
     adiantamentoUsado: usado,
     adiantamentoDisponivel: Math.max(0, func.limiteAdiantamento - usado),

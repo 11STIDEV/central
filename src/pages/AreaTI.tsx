@@ -2234,6 +2234,12 @@ export default function AreaTI() {
             )}
           </div>
         )}
+
+        {tab === "alterdata" && (
+          <div className="space-y-6">
+            <AlterdataTester />
+          </div>
+        )}
       </div>
 
       {/* MODAL DE CRIAÇÃO DE DISCIPLINA MANUAL */}
