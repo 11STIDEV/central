@@ -1170,6 +1170,54 @@ app.post("/api/auth/session", async (req, res) => {
 });
 
 /**
+ * POST /api/auth/google/callback
+ * Endpoint para Google Identity Services com ux_mode: "redirect" (usado especialmente em dispositivos móveis/iOS).
+ * O Google envia formulário x-www-form-urlencoded com { credential, g_csrf_token }.
+ */
+app.post("/api/auth/google/callback", async (req, res) => {
+  try {
+    const idToken = req.body?.credential;
+    if (!idToken || typeof idToken !== "string") {
+      console.warn("[auth/google/callback] credential ausente no body");
+      return res.redirect("/login?erro=" + encodeURIComponent("Token de autenticação do Google não recebido."));
+    }
+
+    const { email, name, picture } = await verificarIdTokenUsuario(idToken);
+    const payload = decodeJwtPayloadUnsafe(idToken);
+    const nome =
+      (typeof payload?.name === "string" && payload.name) ||
+      (typeof name === "string" && name) ||
+      (typeof payload?.given_name === "string" && payload.given_name) ||
+      String(email).split("@")[0];
+    const orgUnitPath = await obterOrgUnitPathUsuario(email);
+    const manual = lerPapeisManuaisArquivo()[email.toLowerCase()] || [];
+    const papeis = resolverPapeisCompletos(orgUnitPath, email, manual, {
+      ouPainelAtendente: ouPainelAtendentePeloCaminho,
+      ouPainelAdmin: ouPainelAdminPeloCaminho,
+    });
+
+    const session = iniciarSessaoUsuario(res, {
+      email,
+      nome,
+      picture: picture || payload?.picture,
+      papeis,
+      orgUnitPath: orgUnitPath ?? null,
+    });
+
+    // Redireciona com fragmento de hash para o frontend capturar o token e a sessão sem expor em logs
+    const authData = new URLSearchParams({
+      id_token: idToken,
+      sid: session.id,
+    });
+    return res.redirect(`/#auth=${encodeURIComponent(authData.toString())}`);
+  } catch (e) {
+    console.error("[auth/google/callback] Erro no callback do Google:", e?.message || e);
+    const msg = encodeURIComponent(e?.message || "Erro na autenticação do Google");
+    return res.redirect(`/login?erro=${msg}`);
+  }
+});
+
+/**
  * GET /api/auth/me — restaura usuário da sessão (cookie ou header x-central-session).
  */
 app.get("/api/auth/me", async (req, res) => {

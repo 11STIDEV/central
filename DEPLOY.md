@@ -82,7 +82,9 @@ HTTP `GET /api/health` → `{ "ok": true }` na porta da aplicação (ex.: 3001).
    - **DNS:** registros `A` ou `CNAME` de `achadoseperdidos` e `parceiros` apontando para o mesmo destino do `central`.
    - **Build:** opcionalmente definir `VITE_PARCEIRO_PUBLIC_HOSTS=parceiros.portalcci.com.br,parceiro.portalcci.com.br` (o código já usa esses hosts como padrão).
 6. **Porta:** publicar a porta exposta (3001 ou a que o Coolify definir); health check em `/api/health`.
-7. **Google OAuth:** no Google Cloud Console, adicionar URIs de redirecionamento com a **URL pública** exata (HTTPS).
+7. **Google OAuth:** no Google Cloud Console (APIs e Serviços → Credenciais → Client ID Web):
+   - Adicione `https://central.portalcci.com.br` em **Origens JavaScript autorizadas**.
+   - Adicione `https://central.portalcci.com.br/api/auth/google/callback` em **URIs de redirecionamento autorizados** (essencial para o login em celulares/iOS).
 8. **Supabase:** em Authentication / URL configuration, incluir a URL de produção se o painel usar redirect.
 
 ### Proxy reverso (outro servidor na frente)

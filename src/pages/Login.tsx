@@ -19,10 +19,19 @@ export default function Login() {
   );
   const googleButtonRef = useRef<HTMLDivElement>(null);
   const [sessaoExpirada, setSessaoExpirada] = useState(false);
+  const [erroUrl, setErroUrl] = useState<string | null>(null);
   const origemAtual =
     typeof window !== "undefined" ? window.location.origin : "";
   const urlAtual = typeof window !== "undefined" ? window.location.href : "";
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const e = params.get("erro");
+    if (e) {
+      setErroUrl(decodeURIComponent(e));
+    }
+  }, [location.search]);
 
   useEffect(() => {
     if (consumirSessaoExpirada()) {
@@ -118,11 +127,11 @@ export default function Login() {
               </Alert>
             )}
 
-            {erro && (
+            {(erro || erroUrl) && (
               <Alert variant="destructive" className="mb-4">
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>Não foi possível entrar</AlertTitle>
-                <AlertDescription>{erro}</AlertDescription>
+                <AlertDescription>{erro || erroUrl}</AlertDescription>
               </Alert>
             )}
 
