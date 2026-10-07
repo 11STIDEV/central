@@ -18,15 +18,6 @@
     "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
-    "id": "ramal-1788980919830-wgg4m",
-    "nome": "Teste",
-    "ramal": "15555",
-    "setor": "Direção",
-    "ordem": 2,
-    "criadoEm": "2026-09-09T19:08:39.83+00:00",
-    "atualizadoEm": "2026-09-09T19:08:39.83+00:00"
-  },
-  {
     "id": "ramal-3",
     "nome": "Valquíria/Renata",
     "ramal": "211",
@@ -153,15 +144,6 @@
     "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },
   {
-    "id": "ramal-17",
-    "nome": "Michel",
-    "ramal": "215",
-    "setor": "Coordenação",
-    "ordem": 17,
-    "criadoEm": "2026-09-09T18:25:08.877+00:00",
-    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
-  },
-  {
     "id": "ramal-18",
     "nome": "Stephanie",
     "ramal": "216",
@@ -199,12 +181,12 @@
   },
   {
     "id": "ramal-22",
-    "nome": "Thaisa",
+    "nome": "Andresa",
     "ramal": "221",
     "setor": "Coordenação",
     "ordem": 22,
     "criadoEm": "2026-09-09T18:25:08.877+00:00",
-    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
+    "atualizadoEm": "2026-09-09T19:38:49.699+00:00"
   },
   {
     "id": "ramal-23",
@@ -298,30 +280,21 @@
   },
   {
     "id": "ramal-33",
-    "nome": "Leane/Nathalia",
+    "nome": "Nathalia",
     "ramal": "264",
     "setor": "Departamento pessoal e financeiro",
     "ordem": 33,
     "criadoEm": "2026-09-09T18:25:08.877+00:00",
-    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
+    "atualizadoEm": "2026-09-09T19:39:05.92+00:00"
   },
   {
     "id": "ramal-34",
-    "nome": "Jediael/Thiago",
+    "nome": "Setape",
     "ramal": "232",
     "setor": "Setape",
     "ordem": 34,
     "criadoEm": "2026-09-09T18:25:08.877+00:00",
-    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
-  },
-  {
-    "id": "ramal-35",
-    "nome": "Hugo/Pedro/Yuri",
-    "ramal": "235",
-    "setor": "Setape",
-    "ordem": 35,
-    "criadoEm": "2026-09-09T18:25:08.877+00:00",
-    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
+    "atualizadoEm": "2026-09-09T19:52:30.534+00:00"
   },
   {
     "id": "ramal-36",
@@ -343,12 +316,12 @@
   },
   {
     "id": "ramal-38",
-    "nome": "Ivete",
+    "nome": "Ivete/Nina",
     "ramal": "230",
     "setor": "Coordenação infantil ao 1º EF",
     "ordem": 38,
     "criadoEm": "2026-09-09T18:25:08.877+00:00",
-    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
+    "atualizadoEm": "2026-09-09T19:39:18.975+00:00"
   },
   {
     "id": "ramal-39",
@@ -383,15 +356,6 @@
     "ramal": "246",
     "setor": "Xerox",
     "ordem": 42,
-    "criadoEm": "2026-09-09T18:25:08.878+00:00",
-    "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
-  },
-  {
-    "id": "ramal-43",
-    "nome": "Alessandra",
-    "ramal": "260",
-    "setor": "Clat",
-    "ordem": 43,
     "criadoEm": "2026-09-09T18:25:08.878+00:00",
     "atualizadoEm": "2026-09-09T18:36:51.290143+00:00"
   },

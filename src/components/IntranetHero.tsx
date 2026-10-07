@@ -22,15 +22,11 @@ export function IntranetHero({ children, className, padding = "default" }: Intra
         className,
       )}
     >
-      <div className="intranet-hero-mesh pointer-events-none absolute inset-0" aria-hidden />
-      <div
-        className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/15 blur-3xl dark:bg-primary/20"
-        aria-hidden
-      />
-      <div
-        className="pointer-events-none absolute -bottom-16 left-1/4 h-48 w-48 rounded-full bg-cyan-400/10 blur-3xl dark:bg-cyan-400/10"
-        aria-hidden
-      />
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden>
+        <div className="intranet-hero-mesh absolute inset-0" />
+        <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/15 blur-3xl dark:bg-primary/20" />
+        <div className="absolute -bottom-16 left-1/4 h-48 w-48 rounded-full bg-cyan-400/10 blur-3xl dark:bg-cyan-400/10" />
+      </div>
 
       <div className={cn("relative min-w-0", pad)}>
         <div className="mx-auto max-w-6xl min-w-0">{children}</div>

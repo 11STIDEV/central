@@ -22,7 +22,7 @@ function linkSortId(groupTitle: string, link: SectorLink): string {
 }
 
 const cardClassName =
-  "group flex min-h-[132px] flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-card transition-all";
+  "group flex min-h-[132px] min-w-0 max-w-full flex-col justify-between rounded-xl border border-border bg-card p-4 sm:p-5 shadow-card transition-all overflow-hidden";
 
 function LinkCardContent({ link }: { link: SectorLink }) {
   return (
@@ -33,9 +33,9 @@ function LinkCardContent({ link }: { link: SectorLink }) {
         </div>
         <ExternalLink className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
       </div>
-      <div className="mt-5">
-        <h3 className="text-base font-semibold leading-snug text-card-foreground">{link.title}</h3>
-        <p className="mt-2 line-clamp-1 text-xs text-muted-foreground">{link.url}</p>
+      <div className="mt-4 sm:mt-5 min-w-0">
+        <h3 className="text-base font-semibold leading-snug text-card-foreground break-words line-clamp-2">{link.title}</h3>
+        <p className="mt-2 truncate text-xs text-muted-foreground">{link.url}</p>
       </div>
     </>
   );
@@ -134,7 +134,7 @@ export function SetorLinksSortableGrid({ groupTitle, links, arrangeMode, onReord
 
   if (!arrangeMode) {
     return (
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 min-w-0">
         {links.map((link) => (
           <ViewLinkCard key={`${groupTitle}-${link.url}-${link.title}`} link={link} />
         ))}
@@ -145,7 +145,7 @@ export function SetorLinksSortableGrid({ groupTitle, links, arrangeMode, onReord
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
       <SortableContext items={sortIds} strategy={rectSortingStrategy}>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 min-w-0">
           {links.map((link) => (
             <SortableLinkCard
               key={linkSortId(groupTitle, link)}

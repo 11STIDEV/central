@@ -189,11 +189,24 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
     [sections],
   );
 
+  const flatList = useMemo(
+    () => sections.filter((s): s is NavSectionFlat => s.type === "flat" && !s.pinned && s.items.length > 1),
+    [sections],
+  );
+
   const allSectors = useMemo(() => nestedList.flatMap((s) => s.sectors), [nestedList]);
 
   const [outerOpen, setOuterOpen] = useState<Record<string, boolean>>(() =>
     buildInitialOuterOpen(pathname, nestedList),
   );
+
+  const [flatOpen, setFlatOpen] = useState<Record<string, boolean>>(() => {
+    const init: Record<string, boolean> = {};
+    for (const s of flatList) {
+      init[s.id] = flatSectionHasActiveRoute(pathname, s) || readBool(`${s.id}-open`, false);
+    }
+    return init;
+  });
 
   const [sectorOpen, setSectorOpen] = useState<Record<string, boolean>>(() =>
     buildInitialSectorOpen(pathname, allSectors, nestedList),
@@ -210,6 +223,18 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
       return next;
     });
   }, [pathname, nestedList, useFlyoutNav]);
+
+  useEffect(() => {
+    if (useFlyoutNav) return;
+    setFlatOpen((prev) => {
+      const next = { ...prev };
+      for (const s of flatList) {
+        if (flatSectionHasActiveRoute(pathname, s)) next[s.id] = true;
+        if (next[s.id] === undefined) next[s.id] = readBool(`${s.id}-open`, false);
+      }
+      return next;
+    });
+  }, [pathname, flatList, useFlyoutNav]);
 
   useEffect(() => {
     if (useFlyoutNav) return;
@@ -580,12 +605,31 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
       );
     }
 
+    const open = flatOpen[section.id] ?? false;
+
     return (
-      <div key={section.id} className="mb-6 last:mb-2">
-        <p className="mb-2 px-2.5 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-sidebar-muted sm:tracking-[0.22em]">
-          {section.label}
-        </p>
-        <ul className="space-y-0.5">{section.items.map((item) => renderLeaf(item, { collapsed: false }))}</ul>
+      <div key={section.id} className="mb-2 last:mb-0">
+        <Collapsible
+          open={open}
+          onOpenChange={(isOpen) => {
+            setFlatOpen((p) => ({ ...p, [section.id]: isOpen }));
+            writeBool(`${section.id}-open`, isOpen);
+          }}
+        >
+          <CollapsibleTrigger className={sectionTriggerClass(sectionActive)} type="button">
+            <span>{section.label}</span>
+            {open ? (
+              <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+            ) : (
+              <ChevronRight className="h-3.5 w-3.5 shrink-0 opacity-70" aria-hidden />
+            )}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-1 space-y-0.5 pl-0">
+            <ul className="space-y-0.5">
+              {section.items.map((item) => renderLeaf(item, { collapsed: false }))}
+            </ul>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
     );
   }

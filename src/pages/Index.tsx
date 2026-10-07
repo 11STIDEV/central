@@ -60,12 +60,12 @@ export default function Index() {
     <div className="animate-fade-in min-h-full">
       <IntranetHero padding="comfortable">
         <div className="lg:flex lg:items-end lg:justify-between lg:gap-12">
-          <div className="max-w-2xl">
+          <div className="max-w-2xl min-w-0">
             <PageHeroEyebrow text="Central de Informações · Grupo CCI" />
-            <h1 className="text-3xl font-bold tracking-tight text-hero-foreground md:text-4xl lg:text-[2.75rem] lg:leading-[1.1]">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-hero-foreground md:text-4xl lg:text-[2.75rem] lg:leading-[1.1] break-words">
               {saudacao()}, {nome}.
             </h1>
-            <p className="mt-4 max-w-lg text-base leading-relaxed text-hero-muted md:text-lg">
+            <p className="mt-3 sm:mt-4 max-w-lg text-sm sm:text-base leading-relaxed text-hero-muted md:text-lg">
               Acesso unificado para colaboradores — chamados, agenda, formulários e ferramentas do dia a dia.
             </p>
           </div>

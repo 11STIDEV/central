@@ -32,11 +32,11 @@ export function IntranetQuickLinksGrid({
 
   const gridClass =
     columns === "portal"
-      ? "grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-      : "grid gap-4 sm:grid-cols-2 lg:grid-cols-4";
+      ? "grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 min-w-0"
+      : "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 min-w-0";
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-4 min-w-0">
       <div>
         <h2 className="text-xl font-semibold tracking-tight text-foreground">{title}</h2>
         <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
@@ -51,7 +51,7 @@ export function IntranetQuickLinksGrid({
               <div
                 key={action.url}
                 title="Em breve — funcionalidade em revisão"
-                className="relative overflow-hidden rounded-xl border border-dashed border-border bg-muted/30 p-4 opacity-80"
+                className="relative min-w-0 max-w-full overflow-hidden rounded-xl border border-dashed border-border bg-muted/30 p-4 opacity-80"
               >
                 <div className="flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground ring-1 ring-border/60">
@@ -76,7 +76,7 @@ export function IntranetQuickLinksGrid({
             <Link
               key={action.url}
               to={action.url}
-              className="group relative overflow-hidden rounded-xl border border-border/90 bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
+              className="group relative min-w-0 max-w-full overflow-hidden rounded-xl border border-border/90 bg-card p-4 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md"
             >
               <div className="flex items-start gap-3">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted/80 text-primary ring-1 ring-border/60 transition-colors group-hover:bg-primary/10 group-hover:ring-primary/20">

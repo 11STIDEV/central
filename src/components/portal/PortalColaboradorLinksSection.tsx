@@ -204,19 +204,19 @@ export function PortalColaboradorLinksSection() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 min-w-0">
         {podeAbrirVale ? (
           <Link
             to={PORTAL_VALE_ADIANTAMENTO.url}
-            className="group flex min-h-[132px] flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated"
+            className="group flex min-h-[132px] min-w-0 flex-col justify-between rounded-xl border border-border bg-card p-4 sm:p-5 shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/15">
                 <CircleDollarSign className="h-5 w-5 text-primary" aria-hidden />
               </div>
             </div>
-            <div className="mt-5">
-              <h3 className="text-base font-semibold leading-snug text-card-foreground">
+            <div className="mt-4 sm:mt-5 min-w-0">
+              <h3 className="text-base font-semibold leading-snug text-card-foreground break-words">
                 {PORTAL_VALE_ADIANTAMENTO.title}
               </h3>
               <p className="mt-2 text-xs text-muted-foreground">{PORTAL_VALE_ADIANTAMENTO.description}</p>
@@ -228,7 +228,7 @@ export function PortalColaboradorLinksSection() {
             disabled={valeBloqueado}
             aria-disabled={valeBloqueado}
             title={valeBloqueado ? "Em breve — funcionalidade em revisão" : undefined}
-            className={`group flex min-h-[132px] flex-col justify-between rounded-xl border p-5 text-left ${
+            className={`group flex min-h-[132px] min-w-0 flex-col justify-between rounded-xl border p-4 sm:p-5 text-left ${
               valeBloqueado
                 ? "cursor-not-allowed border-dashed border-border bg-muted/30 opacity-80"
                 : "border-border bg-card shadow-card"
@@ -242,8 +242,8 @@ export function PortalColaboradorLinksSection() {
                 <Lock className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
               ) : null}
             </div>
-            <div className="mt-5">
-              <h3 className="text-base font-semibold leading-snug text-card-foreground">
+            <div className="mt-4 sm:mt-5 min-w-0">
+              <h3 className="text-base font-semibold leading-snug text-card-foreground break-words">
                 {PORTAL_VALE_ADIANTAMENTO.title}
               </h3>
               <p className="mt-2 text-xs text-muted-foreground">{PORTAL_VALE_ADIANTAMENTO.description}</p>
@@ -257,7 +257,7 @@ export function PortalColaboradorLinksSection() {
         )}
 
         {arrangeMode ? (
-          <div className="col-span-full">
+          <div className="col-span-full min-w-0">
             <SetorLinksSortableGrid
               groupTitle="portal-colaborador"
               links={editableLinks}
@@ -272,7 +272,7 @@ export function PortalColaboradorLinksSection() {
               href={link.url}
               target="_blank"
               rel="noreferrer"
-              className="group flex min-h-[132px] flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated"
+              className="group flex min-h-[132px] min-w-0 flex-col justify-between rounded-xl border border-border bg-card p-4 sm:p-5 shadow-card transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-elevated"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 transition-colors group-hover:bg-primary/15">
@@ -280,9 +280,11 @@ export function PortalColaboradorLinksSection() {
                 </div>
                 <Link2 className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-primary" />
               </div>
-              <div className="mt-5">
-                <h3 className="text-base font-semibold leading-snug text-card-foreground">{link.title}</h3>
-                <p className="mt-2 line-clamp-1 text-xs text-muted-foreground">{link.url}</p>
+              <div className="mt-4 sm:mt-5 min-w-0">
+                <h3 className="text-base font-semibold leading-snug text-card-foreground break-words line-clamp-2">
+                  {link.title}
+                </h3>
+                <p className="mt-2 truncate text-xs text-muted-foreground">{link.url}</p>
               </div>
             </a>
           ))

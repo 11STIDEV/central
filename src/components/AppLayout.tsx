@@ -92,13 +92,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       {/* Sidebar */}
       <aside
-        className={`
-          fixed left-0 top-0 z-50 flex h-[100dvh] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground
-          transition-transform duration-300 ease-out
-          ${mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full"}
-          lg:translate-x-0
-          w-[min(88vw,320px)] lg:${sidebarW}
-        `}
+        className={cn(
+          "fixed left-0 top-0 z-50 flex h-[100dvh] flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-all duration-300 ease-out",
+          mobileOpen ? "translate-x-0 shadow-2xl" : "-translate-x-full",
+          "lg:translate-x-0",
+          collapsed
+            ? "w-[min(88vw,320px)] lg:w-[68px]"
+            : "w-[min(88vw,320px)] lg:w-[280px]",
+        )}
       >
         <div className="flex h-16 shrink-0 items-center justify-between border-b border-sidebar-border px-3">
           <Link
