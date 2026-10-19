@@ -615,7 +615,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!clientId || !window.google?.accounts?.id || inicializadoRef.current) return false;
     inicializadoRef.current = true;
 
-    const isMobile = isMobileDevice();
+    // Por padrão usa "popup" para evitar erro 400: redirect_uri_mismatch no Google OAuth
+    // (a menos que explicitamente configurado como redirect via VITE_GOOGLE_UX_MODE=redirect)
+    const useRedirectMode = import.meta.env.VITE_GOOGLE_UX_MODE === "redirect";
     const loginUri =
       typeof window !== "undefined"
         ? `${window.location.origin}/api/auth/google/callback`
@@ -626,8 +628,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       callback: handleCredentialResponse,
       auto_select: false,
       cancel_on_tap_outside: true,
-      ux_mode: isMobile ? "redirect" : "popup",
-      login_uri: isMobile ? loginUri : undefined,
+      ux_mode: useRedirectMode ? "redirect" : "popup",
+      login_uri: useRedirectMode ? loginUri : undefined,
       context: "signin",
     });
     return true;
