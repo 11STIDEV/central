@@ -23,6 +23,8 @@
   <body>
     <script>
       window.addEventListener('error', function(e) {
+        var msg = (e.message || e.error || e || '').toString();
+        if (msg.includes('ResizeObserver') || msg.includes('aborted') || msg.includes('AbortError')) return;
         var d = document.getElementById('debug-error-box');
         if (!d) {
           d = document.createElement('div');
@@ -30,9 +32,20 @@
           d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#dc2626;color:white;padding:16px;z-index:999999;font-family:monospace;font-size:13px;white-space:pre-wrap;box-shadow:0 4px 6px rgba(0,0,0,0.2);';
           document.body.appendChild(d);
         }
-        d.textContent = '⚠️ [Erro no Navegador]: ' + (e.message || e.error || e) + '\nEm: ' + (e.filename || '') + ':' + (e.lineno || '');
+        d.textContent = '⚠️ [Erro no Navegador]: ' + msg + '\nEm: ' + (e.filename || '') + ':' + (e.lineno || '');
       });
       window.addEventListener('unhandledrejection', function(e) {
+        var reason = (e.reason && (e.reason.stack || e.reason.message)) || e.reason || '';
+        var msg = String(reason);
+        if (
+          msg.includes('aborted') ||
+          msg.includes('AbortError') ||
+          msg.includes('ResizeObserver') ||
+          msg.includes('canceled') ||
+          msg.includes('cancelled')
+        ) {
+          return;
+        }
         var d = document.getElementById('debug-error-box');
         if (!d) {
           d = document.createElement('div');
@@ -40,7 +53,7 @@
           d.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#b45309;color:white;padding:16px;z-index:999999;font-family:monospace;font-size:13px;white-space:pre-wrap;box-shadow:0 4px 6px rgba(0,0,0,0.2);';
           document.body.appendChild(d);
         }
-        d.textContent = '⚠️ [Promise Rejeitada]: ' + ((e.reason && (e.reason.stack || e.reason.message)) || e.reason);
+        d.textContent = '⚠️ [Promise Rejeitada]: ' + msg;
       });
     </script>
     <div id="root"></div>

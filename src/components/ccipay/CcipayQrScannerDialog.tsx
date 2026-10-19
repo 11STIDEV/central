@@ -83,40 +83,43 @@ export function CcipayQrScannerDialog({
   const [torchAvailable, setTorchAvailable] = useState(false);
   const [mostrarManual, setMostrarManual] = useState(false);
 
-  const finalizarComToken = useCallback(
-    (token: string) => {
-      if (handledRef.current) return;
-      handledRef.current = true;
-      setStatus("success");
+  const onTokenDetectedRef = useRef(onTokenDetected);
+  onTokenDetectedRef.current = onTokenDetected;
 
-      // Feedback háptico em celulares
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-        try {
-          navigator.vibrate?.([60, 40, 80]);
-        } catch (_) {}
-      }
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
 
-      // Parar câmera imediatamente
-      const scanner = scannerRef.current;
-      if (scanner) {
-        if (scanner.isScanning) {
-          scanner.stop().catch(() => {}).finally(() => {
-            scanner.clear();
-          });
-        } else {
+  const finalizarComToken = useCallback((token: string) => {
+    if (handledRef.current) return;
+    handledRef.current = true;
+    setStatus("success");
+
+    // Feedback háptico em celulares
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try {
+        navigator.vibrate?.([60, 40, 80]);
+      } catch (_) {}
+    }
+
+    // Parar câmera imediatamente
+    const scanner = scannerRef.current;
+    if (scanner) {
+      if (scanner.isScanning) {
+        scanner.stop().catch(() => {}).finally(() => {
           scanner.clear();
-        }
-        scannerRef.current = null;
+        });
+      } else {
+        scanner.clear();
       }
+      scannerRef.current = null;
+    }
 
-      // Transição suave para a página de confirmação
-      window.setTimeout(() => {
-        onOpenChange(false);
-        onTokenDetected(token);
-      }, 500);
-    },
-    [onOpenChange, onTokenDetected],
-  );
+    // Transição suave para a página de confirmação
+    window.setTimeout(() => {
+      onOpenChangeRef.current(false);
+      onTokenDetectedRef.current(token);
+    }, 450);
+  }, []);
 
   const pararScanner = useCallback(async () => {
     isCancelledRef.current = true;
@@ -147,7 +150,7 @@ export function CcipayQrScannerDialog({
       setStatus("starting");
 
       // Garante que o elemento DOM foi montado pelo Dialog
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise((r) => setTimeout(r, 150));
       if (isCancelledRef.current) return;
 
       const element = document.getElementById(SCANNER_ELEMENT_ID);
@@ -187,7 +190,6 @@ export function CcipayQrScannerDialog({
           const size = Math.max(edge, 180);
           return { width: size, height: size };
         },
-        aspectRatio: 1.0,
       };
 
       const onScanSuccess = (decodedText: string) => {
@@ -204,92 +206,51 @@ export function CcipayQrScannerDialog({
         // Quadros normais sem QR code
       };
 
-      // Tenta iniciar câmera priorizando SEMPRE a traseira no celular:
-      // 1) Se um ID específico foi forçado pelo usuário: usa esse ID.
-      // 2) Se já temos uma câmera com rótulo explicitamente traseiro: usa ela.
-      // 3) Força a câmera traseira via { facingMode: { exact: "environment" } } (padrão mobile).
-      // 4) Se falhar (ex: webcam de notebook), tenta { facingMode: "environment" } (soft constraint).
-      // 5) Fallback para a melhor câmera identificada na lista (evitando frontais).
-      // 6) Último recurso para notebooks com uma única webcam: modo padrão.
       try {
+        let cameraIniciada = false;
+
+        // 1. Câmera forçada manualmente pelo usuário
         if (forceCameraId) {
-          await html5Qr.start(forceCameraId, scanConfig, onScanSuccess, onScanFailure);
-        } else {
-          let cameraIniciada = false;
-
-          const traseiraDetectada = encontrarCameraTraseira(disponiveis);
-          const temLabelTraseira = Boolean(
-            traseiraDetectada?.camera.label &&
-              REGEX_CAMERA_TRASEIRA.test(traseiraDetectada.camera.label),
-          );
-
-          if (temLabelTraseira && traseiraDetectada?.camera.id) {
-            try {
-              setCameraIndex(traseiraDetectada.index);
-              await html5Qr.start(
-                traseiraDetectada.camera.id,
-                scanConfig,
-                onScanSuccess,
-                onScanFailure,
-              );
-              cameraIniciada = true;
-            } catch (_) {
-              cameraIniciada = false;
-            }
+          try {
+            await html5Qr.start(forceCameraId, scanConfig, onScanSuccess, onScanFailure);
+            cameraIniciada = true;
+          } catch (e) {
+            console.warn("Falha ao abrir câmera por ID:", e);
           }
+        }
 
-          // Força a câmera traseira via exact no nível do navegador/SO
-          if (!cameraIniciada) {
-            try {
-              await html5Qr.start(
-                { facingMode: { exact: "environment" } },
-                scanConfig,
-                onScanSuccess,
-                onScanFailure,
-              );
-              cameraIniciada = true;
-            } catch (_) {
-              // Dispositivos que não suportam exact: "environment" (ex: notebook)
-            }
-          }
-
-          // Fallback para facingMode soft
-          if (!cameraIniciada) {
-            try {
-              await html5Qr.start(
-                { facingMode: "environment" },
-                scanConfig,
-                onScanSuccess,
-                onScanFailure,
-              );
-              cameraIniciada = true;
-            } catch (_) {}
-          }
-
-          // Fallback para melhor dispositivo da lista (prioriza traseira)
-          if (!cameraIniciada && disponiveis.length > 0) {
-            const melhor = traseiraDetectada || { camera: disponiveis[0], index: 0 };
-            try {
-              setCameraIndex(melhor.index);
-              await html5Qr.start(
-                melhor.camera.id,
-                scanConfig,
-                onScanSuccess,
-                onScanFailure,
-              );
-              cameraIniciada = true;
-            } catch (_) {}
-          }
-
-          // Último recurso para computadores sem câmera traseira
-          if (!cameraIniciada) {
+        // 2. Câmera traseira nativa (compatível universalmente com iOS e Android)
+        if (!cameraIniciada) {
+          try {
             await html5Qr.start(
-              { facingMode: "user" },
+              { facingMode: "environment" },
               scanConfig,
               onScanSuccess,
               onScanFailure,
             );
+            cameraIniciada = true;
+          } catch (e) {
+            console.warn("Falha ao iniciar facingMode environment, tentando fallback:", e);
+            try {
+              if (html5Qr.isScanning) {
+                await html5Qr.stop();
+              }
+              html5Qr.clear();
+            } catch (_) {}
+            html5Qr = new Html5Qrcode(SCANNER_ELEMENT_ID);
+            scannerRef.current = html5Qr;
           }
+        }
+
+        // 3. Fallback para câmera frontal ou webcam padrão (ex: notebooks)
+        if (!cameraIniciada) {
+          await html5Qr.start(
+            { facingMode: "user" },
+            scanConfig,
+            onScanSuccess,
+            onScanFailure,
+          );
+          cameraIniciada = true;
         }
 
         if (isCancelledRef.current) {
@@ -342,7 +303,7 @@ export function CcipayQrScannerDialog({
     [finalizarComToken, pararScanner],
   );
 
-  // Inicialização automática ao abrir o diálogo
+  // Inicialização automática ao abrir o diálogo — reage APENAS à mudança de "open"
   useEffect(() => {
     if (!open) {
       void pararScanner();
@@ -358,7 +319,7 @@ export function CcipayQrScannerDialog({
     return () => {
       void pararScanner();
     };
-  }, [open, iniciarCamera, pararScanner]);
+  }, [open]);
 
   // Alternar entre câmeras frontal e traseira
   const alternarCamera = async () => {
