@@ -18,34 +18,13 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   AlertCircle,
-  Loader2,
   ClipboardPaste,
   ArrowRight,
   ScanLine,
-  Terminal,
-  Info,
   Play,
 } from "lucide-react";
 
 const SCANNER_ELEMENT_ID = "ccipay-qr-reader-container";
-
-/** Abre o console DevTools móvel (Eruda) diretamente na tela do celular */
-export function abrirEruda() {
-  if (typeof window === "undefined") return;
-  if ((window as any).eruda) {
-    (window as any).eruda.show();
-    return;
-  }
-  const script = document.createElement("script");
-  script.src = "https://cdn.jsdelivr.net/npm/eruda";
-  script.onload = () => {
-    if ((window as any).eruda) {
-      (window as any).eruda.init();
-      (window as any).eruda.show();
-    }
-  };
-  document.head.appendChild(script);
-}
 
 type CcipayQrScannerDialogProps = {
   open: boolean;
@@ -79,7 +58,6 @@ export function CcipayQrScannerDialog({
     paused?: boolean;
     readyState?: number;
   } | null>(null);
-  const [mostrarDiag, setMostrarDiag] = useState(false);
   const [mostrarManual, setMostrarManual] = useState(false);
 
   const onTokenDetectedRef = useRef(onTokenDetected);
@@ -472,17 +450,6 @@ export function CcipayQrScannerDialog({
                   Ativa
                 </span>
               )}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={abrirEruda}
-                className="h-7 px-2 text-[11px] gap-1 border-border/80 text-muted-foreground hover:text-foreground"
-                title="Abrir Console de Logs (DevTools móvel)"
-              >
-                <Terminal className="h-3 w-3" />
-                Logs
-              </Button>
             </div>
           </div>
           <DialogDescription className="text-xs text-muted-foreground">
@@ -715,65 +682,12 @@ export function CcipayQrScannerDialog({
             variant="ghost"
             size="sm"
             className="h-8 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
-            onClick={() => setMostrarDiag(!mostrarDiag)}
-          >
-            <Info className="h-3.5 w-3.5" />
-            {mostrarDiag ? "Ocultar diagnóstico" : "Diagnóstico"}
-          </Button>
-
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-8 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
             onClick={() => setMostrarManual(!mostrarManual)}
           >
             <ClipboardPaste className="h-3.5 w-3.5" />
             {mostrarManual ? "Ocultar manual" : "Digitar link"}
           </Button>
         </div>
-
-        {/* Seção Diagnóstico da Câmera em Tempo Real */}
-        {mostrarDiag && (
-          <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-1.5 text-[11px] font-mono text-muted-foreground animate-fade-in">
-            <div className="flex items-center justify-between">
-              <span><strong>Status:</strong> {status}</span>
-              <span className={diagInfo?.paused ? "text-amber-500 font-bold" : "text-emerald-500 font-bold"}>
-                {diagInfo?.paused ? "PAUSADO" : "RODANDO"}
-              </span>
-            </div>
-            <p><strong>Resolução:</strong> {diagInfo?.videoWidth ?? 0} x {diagInfo?.videoHeight ?? 0}</p>
-            <p><strong>ReadyState:</strong> {diagInfo?.readyState ?? "N/A"}</p>
-            <p><strong>Câmeras ({cameras.length}):</strong> {cameras.map((c, i) => `${i}: ${c.label || (c?.id ? c.id.slice(0, 8) : `cam-${i}`)}`).join("; ") || "nenhuma"}</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                const container = document.getElementById(SCANNER_ELEMENT_ID);
-                const video = container?.querySelector("video") as HTMLVideoElement | null;
-                if (video) {
-                  video.setAttribute("playsinline", "true");
-                  video.setAttribute("webkit-playsinline", "true");
-                  video.muted = true;
-                  video.play().catch((e) => alert("Erro ao dar play: " + e));
-                  setDiagInfo({
-                    videoWidth: video.videoWidth,
-                    videoHeight: video.videoHeight,
-                    paused: video.paused,
-                    readyState: video.readyState,
-                  });
-                } else {
-                  alert("Elemento de vídeo não encontrado no DOM");
-                }
-              }}
-              className="mt-1 w-full h-7 text-[11px] gap-1"
-            >
-              <Play className="h-3 w-3" />
-              Forçar Play no Vídeo
-            </Button>
-          </div>
-        )}
 
         {/* Seção Manual: Digitar ou Colar Código/Link */}
         {mostrarManual && (
