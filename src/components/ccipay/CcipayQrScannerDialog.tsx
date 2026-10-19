@@ -22,9 +22,30 @@ import {
   ClipboardPaste,
   ArrowRight,
   ScanLine,
+  Terminal,
+  Info,
+  Play,
 } from "lucide-react";
 
 const SCANNER_ELEMENT_ID = "ccipay-qr-reader-container";
+
+/** Abre o console DevTools móvel (Eruda) diretamente na tela do celular */
+export function abrirEruda() {
+  if (typeof window === "undefined") return;
+  if ((window as any).eruda) {
+    (window as any).eruda.show();
+    return;
+  }
+  const script = document.createElement("script");
+  script.src = "https://cdn.jsdelivr.net/npm/eruda";
+  script.onload = () => {
+    if ((window as any).eruda) {
+      (window as any).eruda.init();
+      (window as any).eruda.show();
+    }
+  };
+  document.head.appendChild(script);
+}
 
 const REGEX_CAMERA_TRASEIRA = /back|rear|environment|traseir[ao]|tr[aá]s|externa|wide|principal|main|world/i;
 const REGEX_CAMERA_FRONTAL = /front|user|frontal|selfie|face|anterior/i;
@@ -81,7 +102,14 @@ export function CcipayQrScannerDialog({
   const [cameraIndex, setCameraIndex] = useState(0);
   const [torchOn, setTorchOn] = useState(false);
   const [torchAvailable, setTorchAvailable] = useState(false);
-  const [mostrarManual, setMostrarManual] = useState(false);
+  const [diagInfo, setDiagInfo] = useState<{
+    cameraName?: string;
+    videoWidth?: number;
+    videoHeight?: number;
+    paused?: boolean;
+    readyState?: number;
+  } | null>(null);
+  const [mostrarDiag, setMostrarDiag] = useState(false);
 
   const onTokenDetectedRef = useRef(onTokenDetected);
   onTokenDetectedRef.current = onTokenDetected;
@@ -166,7 +194,7 @@ export function CcipayQrScannerDialog({
 
       let html5Qr: Html5Qrcode;
       try {
-        html5Qr = new Html5Qrcode(SCANNER_ELEMENT_ID);
+        html5Qr = new Html5Qrcode(SCANNER_ELEMENT_ID, { verbose: true });
         scannerRef.current = html5Qr;
       } catch (e: any) {
         setStatus("error");
@@ -185,11 +213,38 @@ export function CcipayQrScannerDialog({
 
       const scanConfig = {
         fps: 15,
-        qrbox: (viewfinderWidth: number, viewfinderHeight: number) => {
-          const edge = Math.floor(Math.min(viewfinderWidth, viewfinderHeight) * 0.75);
-          const size = Math.max(edge, 180);
-          return { width: size, height: size };
-        },
+      };
+
+      const fixVideoElement = () => {
+        const container = document.getElementById(SCANNER_ELEMENT_ID);
+        const video = container?.querySelector("video") as HTMLVideoElement | null;
+        if (!video) return null;
+
+        video.setAttribute("playsinline", "true");
+        video.setAttribute("webkit-playsinline", "true");
+        video.setAttribute("autoplay", "true");
+        video.setAttribute("muted", "true");
+        video.muted = true;
+        video.playsInline = true;
+        video.style.setProperty("width", "100%", "important");
+        video.style.setProperty("height", "100%", "important");
+        video.style.setProperty("object-fit", "cover", "important");
+        video.style.setProperty("display", "block", "important");
+        video.style.setProperty("opacity", "1", "important");
+        video.style.setProperty("visibility", "visible", "important");
+
+        if (video.paused) {
+          video.play().catch((e) => console.warn("[scanner] auto play catch:", e));
+        }
+
+        setDiagInfo({
+          videoWidth: video.videoWidth,
+          videoHeight: video.videoHeight,
+          paused: video.paused,
+          readyState: video.readyState,
+        });
+
+        return video;
       };
 
       const onScanSuccess = (decodedText: string) => {
@@ -237,7 +292,7 @@ export function CcipayQrScannerDialog({
               }
               html5Qr.clear();
             } catch (_) {}
-            html5Qr = new Html5Qrcode(SCANNER_ELEMENT_ID);
+            html5Qr = new Html5Qrcode(SCANNER_ELEMENT_ID, { verbose: true });
             scannerRef.current = html5Qr;
           }
         }
@@ -257,6 +312,13 @@ export function CcipayQrScannerDialog({
           void pararScanner();
           return;
         }
+
+        fixVideoElement();
+        [150, 400, 800, 1500].forEach((t) => {
+          window.setTimeout(() => {
+            if (!isCancelledRef.current) fixVideoElement();
+          }, t);
+        });
 
         setStatus("scanning");
 
@@ -412,12 +474,25 @@ export function CcipayQrScannerDialog({
               <ScanLine className="h-5 w-5 text-primary" />
               Pagar com QR Code
             </DialogTitle>
-            {status === "scanning" && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                Câmera ativa
-              </span>
-            )}
+            <div className="flex items-center gap-1.5">
+              {status === "scanning" && (
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Ativa
+                </span>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={abrirEruda}
+                className="h-7 px-2 text-[11px] gap-1 border-border/80 text-muted-foreground hover:text-foreground"
+                title="Abrir Console de Logs (DevTools móvel)"
+              >
+                <Terminal className="h-3 w-3" />
+                Logs
+              </Button>
+            </div>
           </div>
           <DialogDescription className="text-xs text-muted-foreground">
             Aponte a câmera para o QR code exibido pelo parceiro no momento da compra.
@@ -432,11 +507,26 @@ export function CcipayQrScannerDialog({
         )}
 
         {/* Viewfinder da Câmera */}
-        <div className="relative w-full aspect-square max-h-[340px] sm:max-h-[380px] rounded-2xl overflow-hidden bg-neutral-950 border border-border/80 shadow-inner flex items-center justify-center">
+        <div
+          onClick={() => {
+            const container = document.getElementById(SCANNER_ELEMENT_ID);
+            const video = container?.querySelector("video") as HTMLVideoElement | null;
+            if (video && video.paused) {
+              video.play().catch(console.warn);
+              setDiagInfo({
+                videoWidth: video.videoWidth,
+                videoHeight: video.videoHeight,
+                paused: video.paused,
+                readyState: video.readyState,
+              });
+            }
+          }}
+          className="relative w-full aspect-square max-h-[340px] sm:max-h-[380px] rounded-2xl overflow-hidden bg-neutral-950 border border-border/80 shadow-inner cursor-pointer"
+        >
           {/* Elemento onde o Html5Qrcode renderiza o stream */}
           <div
             id={SCANNER_ELEMENT_ID}
-            className="w-full h-full [&_video]:w-full [&_video]:h-full [&_video]:object-cover [&_video]:rounded-2xl"
+            className="absolute inset-0 w-full h-full overflow-hidden [&_video]:!w-full [&_video]:!h-full [&_video]:!object-cover [&_video]:!rounded-2xl [&_video]:!block [&_video]:!opacity-100 [&_canvas]:hidden"
           />
 
           {/* Estado: Iniciando Câmera Automaticamente */}
@@ -541,6 +631,36 @@ export function CcipayQrScannerDialog({
           )}
         </div>
 
+        {/* Alerta de Vídeo Pausado no iOS Safari com botão direto para destravar */}
+        {diagInfo?.paused && status === "scanning" && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 flex items-center justify-between gap-2 animate-fade-in">
+            <div className="text-xs text-amber-700 dark:text-amber-300">
+              O Safari pausou o vídeo. Toque para iniciar a exibição:
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                const container = document.getElementById(SCANNER_ELEMENT_ID);
+                const video = container?.querySelector("video") as HTMLVideoElement | null;
+                if (video) {
+                  video.play().catch(console.warn);
+                  setDiagInfo({
+                    videoWidth: video.videoWidth,
+                    videoHeight: video.videoHeight,
+                    paused: video.paused,
+                    readyState: video.readyState,
+                  });
+                }
+              }}
+              className="h-8 gap-1 text-xs shrink-0 bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+            >
+              <Play className="h-3.5 w-3.5" />
+              Destravar Câmera
+            </Button>
+          </div>
+        )}
+
         {/* Barra de Ações Rápidas Alternativas */}
         <div className="flex items-center justify-between gap-2 pt-1">
           <input
@@ -559,7 +679,18 @@ export function CcipayQrScannerDialog({
             onClick={() => fileInputRef.current?.click()}
           >
             <ImageIcon className="h-3.5 w-3.5" />
-            Ler foto / print
+            Ler foto
+          </Button>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-muted-foreground hover:text-foreground gap-1 px-2"
+            onClick={() => setMostrarDiag(!mostrarDiag)}
+          >
+            <Info className="h-3.5 w-3.5" />
+            {mostrarDiag ? "Ocultar diagnóstico" : "Diagnóstico"}
           </Button>
 
           <Button
@@ -570,9 +701,51 @@ export function CcipayQrScannerDialog({
             onClick={() => setMostrarManual(!mostrarManual)}
           >
             <ClipboardPaste className="h-3.5 w-3.5" />
-            {mostrarManual ? "Ocultar link manual" : "Digitar / colar link"}
+            {mostrarManual ? "Ocultar manual" : "Digitar link"}
           </Button>
         </div>
+
+        {/* Seção Diagnóstico da Câmera em Tempo Real */}
+        {mostrarDiag && (
+          <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-1.5 text-[11px] font-mono text-muted-foreground animate-fade-in">
+            <div className="flex items-center justify-between">
+              <span><strong>Status:</strong> {status}</span>
+              <span className={diagInfo?.paused ? "text-amber-500 font-bold" : "text-emerald-500 font-bold"}>
+                {diagInfo?.paused ? "PAUSADO" : "RODANDO"}
+              </span>
+            </div>
+            <p><strong>Resolução:</strong> {diagInfo?.videoWidth ?? 0} x {diagInfo?.videoHeight ?? 0}</p>
+            <p><strong>ReadyState:</strong> {diagInfo?.readyState ?? "N/A"}</p>
+            <p><strong>Câmeras ({cameras.length}):</strong> {cameras.map((c, i) => `${i}: ${c.label || c.id.slice(0, 8)}`).join("; ") || "nenhuma"}</p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const container = document.getElementById(SCANNER_ELEMENT_ID);
+                const video = container?.querySelector("video") as HTMLVideoElement | null;
+                if (video) {
+                  video.setAttribute("playsinline", "true");
+                  video.setAttribute("webkit-playsinline", "true");
+                  video.muted = true;
+                  video.play().catch((e) => alert("Erro ao dar play: " + e));
+                  setDiagInfo({
+                    videoWidth: video.videoWidth,
+                    videoHeight: video.videoHeight,
+                    paused: video.paused,
+                    readyState: video.readyState,
+                  });
+                } else {
+                  alert("Elemento de vídeo não encontrado no DOM");
+                }
+              }}
+              className="mt-1 w-full h-7 text-[11px] gap-1"
+            >
+              <Play className="h-3 w-3" />
+              Forçar Play no Vídeo
+            </Button>
+          </div>
+        )}
 
         {/* Seção Manual: Digitar ou Colar Código/Link */}
         {mostrarManual && (

@@ -55,6 +55,21 @@
         }
         d.textContent = '⚠️ [Promise Rejeitada]: ' + msg;
       });
+
+      // Ativa console DevTools (Eruda) no celular quando a URL contiver ?debug=1 ou ?logs=1
+      if (
+        window.location.search.includes('debug=1') ||
+        window.location.search.includes('logs=1') ||
+        window.location.search.includes('eruda=1') ||
+        localStorage.getItem('debug_logs') === 'true'
+      ) {
+        var s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/eruda';
+        s.onload = function() {
+          if (window.eruda) window.eruda.init();
+        };
+        document.head.appendChild(s);
+      }
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
