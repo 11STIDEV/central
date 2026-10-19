@@ -109,6 +109,23 @@ function supportsHoverMenu(): boolean {
   return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 }
 
+function useIsDesktop(): boolean {
+  const [isDesktop, setIsDesktop] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.innerWidth >= 1024;
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  return isDesktop;
+}
+
 type AppSidebarNavProps = {
   sections: NavSection[];
   collapsed: boolean;
@@ -163,8 +180,9 @@ function NavSectionFlyout({
 
 export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
   const { pathname } = useLocation();
-  // Mantém a navegação vertical por acordeão na própria barra lateral (evita popups flutuantes intrusivos por hover)
-  const useFlyoutNav = false;
+  const [hoverMenu] = useState(supportsHoverMenu);
+  const isDesktop = useIsDesktop();
+  const useFlyoutNav = isDesktop && hoverMenu && !collapsed;
 
   const nestedList = useMemo(
     () => sections.filter((s): s is NavSectionNested => s.type === "nested"),
@@ -507,6 +525,38 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
     const SectionIcon = SECTION_ICONS[section.id] ?? Layers;
     const anyActive = flatSectionHasActiveRoute(pathname, section);
 
+    if (isDesktop && hoverMenu) {
+      return (
+        <div key={section.id} className="mb-2 last:mb-0">
+          <HoverCard openDelay={60} closeDelay={150}>
+            <HoverCardTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={`h-11 w-full rounded-xl lg:h-10 ${anyActive ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"}`}
+                aria-label={section.label}
+                title={section.label}
+              >
+                <SectionIcon className="h-[1.125rem] w-[1.125rem] shrink-0" strokeWidth={1.75} />
+              </Button>
+            </HoverCardTrigger>
+            <HoverCardContent
+              side="right"
+              align="start"
+              sideOffset={10}
+              className="max-h-[min(70vh,28rem)] w-64 overflow-y-auto p-2"
+            >
+              <p className="mb-2 px-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                {section.label}
+              </p>
+              {renderFlatFlyoutPanel(section)}
+            </HoverCardContent>
+          </HoverCard>
+        </div>
+      );
+    }
+
     return (
       <div key={section.id} className="mb-2 last:mb-0">
         <DropdownMenu>
@@ -639,6 +689,38 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
     const SectionIcon = SECTION_ICONS[section.id] ?? Layers;
     const anyActive = nestedSectionHasActiveRoute(pathname, section);
     const isSetoresHub = section.id === "setores" || section.id === "setores-todos";
+
+    if (isDesktop && hoverMenu) {
+      return (
+        <div key={section.id} className="mb-2 last:mb-0">
+          <HoverCard openDelay={60} closeDelay={150}>
+            <HoverCardTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={`h-11 w-full rounded-xl lg:h-10 ${anyActive ? "bg-sidebar-accent text-sidebar-foreground" : "text-sidebar-muted hover:bg-sidebar-accent hover:text-sidebar-foreground"}`}
+                aria-label={section.label}
+                title={section.label}
+              >
+                <SectionIcon className="h-[1.125rem] w-[1.125rem] shrink-0" strokeWidth={1.75} />
+              </Button>
+            </HoverCardTrigger>
+            <HoverCardContent
+              side="right"
+              align="start"
+              sideOffset={10}
+              className={cn("max-h-[min(70vh,28rem)] overflow-y-auto p-2", isSetoresHub ? "w-56" : "w-64")}
+            >
+              <p className="mb-2 px-2 font-mono text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                {section.label}
+              </p>
+              {isSetoresHub ? renderSetoresFlyoutPanel(section) : renderNestedFlyoutPanel(section)}
+            </HoverCardContent>
+          </HoverCard>
+        </div>
+      );
+    }
 
     return (
       <div key={section.id} className="mb-2 last:mb-0">
