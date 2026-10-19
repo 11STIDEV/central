@@ -109,6 +109,10 @@ export default {
           "0%, 100%": { boxShadow: "0 0 24px rgba(59, 130, 246, 0.25)" },
           "50%": { boxShadow: "0 0 48px rgba(59, 130, 246, 0.45)" },
         },
+        "scan-laser": {
+          "0%, 100%": { top: "8px", opacity: "0.3" },
+          "50%": { top: "calc(100% - 10px)", opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -118,6 +122,7 @@ export default {
         "ticket-pop": "ticket-pop 0.35s ease-out",
         "number-call": "number-call 0.6s ease-in-out",
         "pulse-glow": "pulse-glow 2s ease-in-out infinite",
+        "scan-laser": "scan-laser 2.2s ease-in-out infinite",
       },
     },
   },

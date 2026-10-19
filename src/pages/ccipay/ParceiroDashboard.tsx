@@ -110,33 +110,33 @@ export default function ParceiroDashboard() {
 
           <div className="grid gap-4 sm:grid-cols-3">
             <KpiCard
-              label="A receber (pagas)"
+              label="Vendas Confirmadas"
               value={`R$ ${resumo.aReceber.toFixed(2)}`}
-              hint="Vendas confirmadas pelo colaborador"
+              hint="Compras feitas pelos colaboradores"
+              icon={TrendingUp}
+              tone="primary"
+            />
+            <KpiCard
+              label="Já Repassado pelo CCI"
+              value={`R$ ${(resumo.totalRepassado ?? 0).toFixed(2)}`}
+              hint="Transferido para sua conta"
               icon={DollarSign}
               tone="emerald"
             />
             <KpiCard
-              label="Aguardando pagamento"
-              value={`R$ ${resumo.pendente.toFixed(2)}`}
-              hint={`${resumo.qtdPendentes} QR code(s) pendente(s)`}
+              label="Saldo a Receber"
+              value={`R$ ${(resumo.saldoDevendo !== undefined ? resumo.saldoDevendo : resumo.aReceber).toFixed(2)}`}
+              hint="Pendente de repasse pela instituição"
               icon={Clock}
               tone="amber"
-            />
-            <KpiCard
-              label="Total do mês"
-              value={`R$ ${resumo.totalMes.toFixed(2)}`}
-              hint={`${resumo.vendasMes} venda(s) registrada(s)`}
-              icon={TrendingUp}
-              tone="primary"
             />
           </div>
 
           <div className="flex items-start gap-3 rounded-xl border border-border bg-muted/30 p-4 text-xs sm:text-sm text-muted-foreground">
             <Info className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
             <p>
-              O valor <strong>a receber</strong> corresponde às vendas em que o colaborador já
-              confirmou o pagamento (desconto em folha / saldo convênios CCI). O repasse financeiro é processado pela administração.
+              Os colaboradores compram na sua loja e o valor é retido em folha de pagamento pelo <strong>Colégio CCI</strong>.
+              O <strong>Saldo a Receber</strong> é o valor líquido que a instituição deve repassar para você após o fechamento.
             </p>
           </div>
         </div>

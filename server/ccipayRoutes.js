@@ -53,6 +53,11 @@ import {
   resumoVendasParceiro,
   atualizarVendaQr,
 } from "./ccipayStore.js";
+import {
+  listarRepassesLoja,
+  registrarRepasseLoja,
+  excluirRepasseLoja,
+} from "./ccipayRepassesStore.js";
 import { randomBytes } from "node:crypto";
 import { notificarEmailCcipay } from "./ccipayEmail.js";
 import { getParceiroFromRequest } from "./parceiroSessionAuth.js";
@@ -843,7 +848,7 @@ export function registerCcipayRoutes(app, helpers) {
 
   app.post("/api/ccipay/relatorios/loja", async (req, res) => {
     try {
-      const { idToken, lojaId, de, ate } = req.body || {};
+      const { idToken, lojaId, de, ate, competencia, status } = req.body || {};
       const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
@@ -853,13 +858,171 @@ export function registerCcipayRoutes(app, helpers) {
         return res.status(403).json({ error: "Sem permissão." });
       }
 
-      const pedidos = await relatorioLojaPedidos(supabase, { lojaId, de, ate });
+      let dataInicio = de;
+      let dataFim = ate;
+
+      if (competencia && !de && !ate) {
+        const partes = competencia.split("-").map(Number);
+        if (partes.length === 2 && !Number.isNaN(partes[0]) && !Number.isNaN(partes[1])) {
+          dataInicio = `${competencia}-01T00:00:00.000Z`;
+          const ultimoDia = new Date(partes[0], partes[1], 0).getDate();
+          dataFim = `${competencia}-${String(ultimoDia).padStart(2, "0")}T23:59:59.999Z`;
+        }
+      }
+
+      const [pedidos, vendasQr, repasses, todosRepassesLoja] = await Promise.all([
+        relatorioLojaPedidos(supabase, { lojaId, de: dataInicio, ate: dataFim }),
+        listarVendasQr(supabase, { lojaId, status, de: dataInicio, ate: dataFim }),
+        listarRepassesLoja(supabase, lojaId, { competencia, de: dataInicio, ate: dataFim }),
+        listarRepassesLoja(supabase, lojaId),
+      ]);
+
+      const vendasPagas = vendasQr.filter((v) => v.status === "pago");
+      const valorVendasQr = vendasPagas.reduce((acc, v) => acc + (Number(v.valor) || 0), 0);
+      const valorPedidos = pedidos.reduce((acc, p) => acc + (Number(p.valorTotal) || 0), 0);
+      const valorVendasTotal = valorPedidos + valorVendasQr;
+
+      const totalRepassadoPeriodo = repasses.reduce((acc, r) => acc + (Number(r.valor) || 0), 0);
+      const totalRepassadoHistorico = todosRepassesLoja.reduce((acc, r) => acc + (Number(r.valor) || 0), 0);
+
+      // Mapeia todas as vendas e pedidos já vinculados a algum repasse
+      const repassePorVendaId = new Map();
+      const repassePorPedidoId = new Map();
+
+      for (const rep of todosRepassesLoja) {
+        if (Array.isArray(rep.vendaIds)) {
+          for (const vId of rep.vendaIds) {
+            repassePorVendaId.set(vId, rep);
+          }
+        }
+        if (Array.isArray(rep.pedidoIds)) {
+          for (const pId of rep.pedidoIds) {
+            repassePorPedidoId.set(pId, rep);
+          }
+        }
+      }
+
+      const vendasQrEnriquecidas = vendasQr.map((v) => {
+        const rep = repassePorVendaId.get(v.id);
+        return {
+          ...v,
+          repasseId: rep ? rep.id : null,
+          repassadoEm: rep ? rep.dataPagamento : null,
+          repasseForma: rep ? rep.formaPagamento : null,
+        };
+      });
+
+      const pedidosEnriquecidos = pedidos.map((p) => {
+        const rep = repassePorPedidoId.get(p.id);
+        return {
+          ...p,
+          repasseId: rep ? rep.id : null,
+          repassadoEm: rep ? rep.dataPagamento : null,
+          repasseForma: rep ? rep.formaPagamento : null,
+        };
+      });
+
+      const vendasPagasNaoRepassadas = vendasQrEnriquecidas.filter((v) => v.status === "pago" && !v.repasseId);
+      const pedidosNaoRepassados = pedidosEnriquecidos.filter((p) => !p.repasseId && p.status !== "cancelado");
+      const valorVendasPendentes =
+        vendasPagasNaoRepassadas.reduce((acc, v) => acc + (Number(v.valor) || 0), 0) +
+        pedidosNaoRepassados.reduce((acc, p) => acc + (Number(p.valorTotal) || 0), 0);
+
+      let totalVendasHistorico = valorVendasTotal;
+      if (dataInicio || dataFim || competencia) {
+        const [todasVendas, todosPeds] = await Promise.all([
+          listarVendasQr(supabase, { lojaId, status: "pago" }),
+          relatorioLojaPedidos(supabase, { lojaId }),
+        ]);
+        const somaVendas = todasVendas.reduce((acc, v) => acc + (Number(v.valor) || 0), 0);
+        const somaPeds = todosPeds.reduce((acc, p) => acc + (Number(p.valorTotal) || 0), 0);
+        totalVendasHistorico = somaVendas + somaPeds;
+      }
+
+      const saldoDevendoGeral = Math.max(0, totalVendasHistorico - totalRepassadoHistorico);
+      const saldoDevendoPeriodo = Math.max(0, valorVendasTotal - totalRepassadoPeriodo);
+
       const totais = {
         pedidos: pedidos.length,
-        valorTotal: pedidos.reduce((a, p) => a + p.valorTotal, 0),
         entregues: pedidos.filter((p) => p.status === "entregue").length,
+        vendasQrTotal: vendasQr.length,
+        vendasQrPagas: vendasPagas.length,
+        vendasQrRepassadas: vendasQrEnriquecidas.filter((v) => v.status === "pago" && v.repasseId).length,
+        vendasQrPendentesRepasse: vendasPagasNaoRepassadas.length,
+        valorPedidos,
+        valorVendasQr,
+        valorTotal: valorVendasTotal,
+        totalRepassado: totalRepassadoPeriodo,
+        totalRepassadoHistorico,
+        totalVendasHistorico,
+        saldoDevendo: saldoDevendoGeral,
+        saldoDevendoPeriodo,
+        valorVendasPendentes,
       };
-      return res.json({ ok: true, pedidos, totais });
+
+      return res.json({ ok: true, pedidos: pedidosEnriquecidos, vendasQr: vendasQrEnriquecidas, repasses, totais });
+    } catch (e) {
+      if (e.status) return respostaErroIdToken(res, e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/ccipay/repasses/registrar", async (req, res) => {
+    try {
+      const {
+        idToken,
+        lojaId,
+        valor,
+        competencia,
+        dataPagamento,
+        formaPagamento,
+        comprovante,
+        observacao,
+        vendaIds,
+        pedidoIds,
+      } = req.body || {};
+
+      const ctx = await ctxFromRequest(req);
+      if (!isCcipayAdmin(ctx.papeis) && !isCcipayDp(ctx.papeis)) {
+        return res.status(403).json({ error: "Apenas administradores e DP podem registrar repasses para lojas." });
+      }
+
+      const supabase = supabaseOr503(res);
+      if (!supabase) return;
+
+      const repasse = await registrarRepasseLoja(supabase, {
+        lojaId,
+        valor,
+        competencia,
+        dataPagamento,
+        formaPagamento,
+        comprovante,
+        observacao,
+        vendaIds: Array.isArray(vendaIds) ? vendaIds : [],
+        pedidoIds: Array.isArray(pedidoIds) ? pedidoIds : [],
+        criadoPor: ctx.email,
+      });
+
+      return res.json({ ok: true, repasse });
+    } catch (e) {
+      if (e.status) return respostaErroIdToken(res, e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/ccipay/repasses/excluir", async (req, res) => {
+    try {
+      const { idToken, id } = req.body || {};
+      const ctx = await ctxFromRequest(req);
+      if (!isCcipayAdmin(ctx.papeis) && !isCcipayDp(ctx.papeis)) {
+        return res.status(403).json({ error: "Sem permissão." });
+      }
+
+      const supabase = supabaseOr503(res);
+      if (!supabase) return;
+
+      await excluirRepasseLoja(supabase, id);
+      return res.json({ ok: true });
     } catch (e) {
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });
@@ -1190,8 +1353,13 @@ export function registerCcipayRoutes(app, helpers) {
         return res.status(403).json({ error: "Sem permissão." });
       }
 
-      const resumo = await resumoVendasParceiro(supabase, lojaId);
-      return res.json({ ok: true, ...resumo });
+      const [resumo, repasses] = await Promise.all([
+        resumoVendasParceiro(supabase, lojaId),
+        listarRepassesLoja(supabase, lojaId),
+      ]);
+      const totalRepassado = repasses.reduce((acc, r) => acc + (Number(r.valor) || 0), 0);
+      const saldoDevendo = Math.max(0, (resumo.aReceber || 0) - totalRepassado);
+      return res.json({ ok: true, ...resumo, totalRepassado, saldoDevendo, repasses });
     } catch (e) {
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });
@@ -1218,7 +1386,7 @@ export function registerCcipayRoutes(app, helpers) {
 
   app.post("/api/ccipay/vendas/pagar", async (req, res) => {
     try {
-      const { idToken, token } = req.body || {};
+      const { idToken, token, metodoPagamento = "adiantamento" } = req.body || {};
       const ctx = await ctxFromRequest(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
@@ -1236,20 +1404,35 @@ export function registerCcipayRoutes(app, helpers) {
       }
 
       const comp = competenciaAtual();
-      await validarDebitoBonificacao(supabase, ctx.email, comp, venda.valor);
+      const isBonificacao = metodoPagamento === "bonificacao";
+
+      if (isBonificacao) {
+        const saldoBon = await saldoBonificacao(supabase, ctx.email, comp);
+        if (venda.valor > saldoBon) {
+          return res.status(400).json({
+            error: `Saldo de bonificação insuficiente. Disponível: R$ ${saldoBon.toFixed(2)}.`,
+          });
+        }
+      } else {
+        await validarDebitoBonificacao(supabase, ctx.email, comp, venda.valor);
+      }
 
       const mov = await criarMovimento(supabase, {
         tipo: "compra_loja",
         direcao: "debito",
         valor: venda.valor,
-        status: "descontado_folha",
+        status: isBonificacao ? "pago" : "descontado_folha",
         competencia: comp,
         funcionarioEmail: ctx.email,
         funcionarioNome: ctx.nome,
         lojaId: venda.lojaId,
         criadoPor: ctx.email,
         aprovadoPor: venda.criadoPor,
-        metadata: { descricao: venda.descricao || "Venda QR", vendaQrToken: venda.token },
+        metadata: {
+          descricao: venda.descricao || (isBonificacao ? "Compra QR (Bonificação)" : "Venda QR"),
+          vendaQrToken: venda.token,
+          metodoPagamento: isBonificacao ? "bonificacao" : "adiantamento",
+        },
       });
 
       const atualizada = await atualizarVendaQr(supabase, venda.id, {

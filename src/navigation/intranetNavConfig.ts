@@ -18,6 +18,7 @@ import {
   Ticket,
   Trophy,
   Store,
+  QrCode,
   UserCog,
   UserRoundCheck,
   Users,
@@ -152,6 +153,7 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
         label: "Meu Advance-CCI",
         items: [
           { title: "Início / Extrato", url: "/cci-pay", icon: Wallet },
+          { title: "Pagar com QR Code", url: "/cci-pay?scan=1", icon: QrCode },
           { title: "Solicitar vale/pix/adiantamento", url: "/vale-adiantamento", icon: CircleDollarSign },
         ],
       },

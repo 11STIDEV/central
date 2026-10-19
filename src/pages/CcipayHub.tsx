@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { PageHero } from "@/components/PageHero";
 import { useAuth } from "@/auth/AuthProvider";
 import {
@@ -7,14 +7,10 @@ import {
   ccipaySolicitarAumentoLimite,
   descricaoMovimento,
   formatarDataMovimento,
-  isCcipayDpPapel,
-  isCcipayAdminPapel,
-  isCcipayLojaPapel,
   labelStatusMovimento,
   type CcipayMovimento,
   type CcipayResumo,
 } from "@/lib/ccipay";
-import { parceiroSiteUrl } from "@/parceiro/publicHost";
 import { CcipayQrScannerDialog } from "@/components/ccipay/CcipayQrScannerDialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,37 +41,27 @@ import {
   ShieldCheck,
   Hash,
   TrendingUp,
-  FileSpreadsheet,
-  ArrowRight,
   Loader2,
   Check,
   Info,
-  Store,
-  ExternalLink,
+  Sparkles,
 } from "lucide-react";
 
 export default function CcipayHub() {
   const navigate = useNavigate();
-  const { googleIdToken, usuario } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { googleIdToken } = useAuth();
   const [resumo, setResumo] = useState<CcipayResumo | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [scannerAberto, setScannerAberto] = useState(false);
+  const [metodoScanner, setMetodoScanner] = useState<"adiantamento" | "bonificacao">("adiantamento");
 
   // Modal para Solicitar Aumento de Limite nos Convênios
   const [modalLimiteAberto, setModalLimiteAberto] = useState(false);
   const [novoLimiteInput, setNovoLimiteInput] = useState("");
   const [motivoInput, setMotivoInput] = useState("");
   const [enviandoLimite, setEnviandoLimite] = useState(false);
-
-  const isDp = usuario ? isCcipayDpPapel(usuario.papeis) : false;
-  const isGestorOuLoja = usuario
-    ? isCcipayAdminPapel(usuario.papeis) ||
-      isCcipayLojaPapel(usuario.papeis) ||
-      usuario.papeis.includes("admin") ||
-      usuario.papeis.includes("dp") ||
-      usuario.papeis.includes("financeiro")
-    : false;
 
   const carregar = useCallback(async () => {
     if (!googleIdToken) {
@@ -98,8 +84,29 @@ export default function CcipayHub() {
     void carregar();
   }, [carregar]);
 
+  // Se a rota contiver ?scan=1 ou ?qr=1, abre a câmera imediatamente
+  useEffect(() => {
+    const scanParam = searchParams.get("scan") || searchParams.get("qr");
+    if (scanParam === "1" || scanParam === "true") {
+      setMetodoScanner("adiantamento");
+      setScannerAberto(true);
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("scan");
+      nextParams.delete("qr");
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  function abrirScanner(metodo: "adiantamento" | "bonificacao" = "adiantamento") {
+    setMetodoScanner(metodo);
+    if (metodo === "bonificacao" && (resumo?.saldoBonificacao ?? 0) <= 0) {
+      toast.info("Seu saldo de bonificação atual é R$ 0,00. As bonificações são creditadas pelo DP.");
+    }
+    setScannerAberto(true);
+  }
+
   function aoDetectarToken(token: string) {
-    navigate(`/cci-pay/pagar/${encodeURIComponent(token)}`);
+    navigate(`/cci-pay/pagar/${encodeURIComponent(token)}?metodo=${metodoScanner}`);
   }
 
   const handleSolicitarAumentoLimite = async (e: React.FormEvent) => {
@@ -218,75 +225,54 @@ export default function CcipayHub() {
                   Solicitar vale/pix/adiantamento
                 </Link>
               </Button>
+
               <Button
                 type="button"
                 size="lg"
                 variant="secondary"
-                className="h-auto py-4 text-center justify-center"
-                onClick={() => setScannerAberto(true)}
+                className="relative h-auto py-4 text-center justify-center border border-primary/20 bg-primary/10 hover:bg-primary/20 text-foreground group transition-all"
+                onClick={() => abrirScanner("adiantamento")}
               >
-                <QrCode className="mr-2 h-5 w-5" />
-                Pagar com QR em Convênios CCI
+                <div className="flex items-center">
+                  <div className="mr-2 flex h-7 w-7 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-xs group-hover:scale-105 transition-transform">
+                    <QrCode className="h-4 w-4" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-semibold text-sm leading-tight">Pagar com QR Code</div>
+                    <div className="text-[11px] text-muted-foreground font-normal">Abre a câmera automaticamente</div>
+                  </div>
+                </div>
               </Button>
+
+              <Button
+                type="button"
+                size="lg"
+                variant="secondary"
+                className="relative h-auto py-4 text-center justify-center border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-foreground group transition-all"
+                onClick={() => abrirScanner("bonificacao")}
+              >
+                <div className="flex items-center">
+                  <div className="mr-2 flex h-7 w-7 items-center justify-center rounded-lg bg-amber-500 text-white shadow-xs group-hover:scale-105 transition-transform">
+                    <Sparkles className="h-4 w-4" />
+                  </div>
+                  <div className="text-left">
+                    <div className="font-semibold text-sm leading-tight">Pagar com Bonificação</div>
+                    <div className="text-[11px] text-muted-foreground font-normal">Pagar com saldo de premiações (QR)</div>
+                  </div>
+                </div>
+              </Button>
+
               <Button
                 type="button"
                 size="lg"
                 variant="outline"
-                className="h-auto py-3.5 sm:col-span-2 border-primary/30 hover:bg-primary/5 hover:border-primary text-foreground font-medium text-center justify-center"
+                className="h-auto py-4 border-primary/30 hover:bg-primary/5 hover:border-primary text-foreground font-medium text-center justify-center"
                 onClick={() => setModalLimiteAberto(true)}
               >
                 <TrendingUp className="mr-2 h-5 w-5 text-primary" />
-                Solicitar aumento de limite para compras nos convênios
+                Solicitar aumento de limite
               </Button>
             </div>
-
-            {/* Destaque Informativo: Lançamento Automático em Contracheque com o Alterdata */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-emerald-500/30 bg-emerald-50/60 dark:bg-emerald-950/20 p-4 text-xs text-muted-foreground shadow-xs">
-              <div className="flex items-start gap-3">
-                <FileSpreadsheet className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-semibold text-foreground text-sm">
-                    Lançamento Automático em Contracheque (Alterdata)
-                  </span>
-                  <p className="mt-0.5 text-xs text-muted-foreground">
-                    O relatório de vales a lançar nos contracheques é automático com a Folha Alterdata. Os vales aprovados e depositados são integrados sem necessidade de digitação manual.
-                  </p>
-                </div>
-              </div>
-              {isDp && (
-                <Button asChild size="sm" variant="outline" className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 shrink-0">
-                  <Link to="/cci-pay/financeiro">
-                    Painel Financeiro / DP
-                    <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-                  </Link>
-                </Button>
-              )}
-            </div>
-
-            {/* Acesso ao Portal do Parceiro para gestores / lojistas */}
-            {isGestorOuLoja && (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-xl border border-border bg-card p-4 text-xs text-muted-foreground shadow-xs">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <Store className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <span className="font-semibold text-foreground text-sm">
-                      Portal do Parceiro (Lojas e Convênios)
-                    </span>
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Acesso das lojas conveniadas para validação de compras e vendas via QR Code.
-                    </p>
-                  </div>
-                </div>
-                <Button asChild size="sm" variant="outline" className="gap-1.5 shrink-0">
-                  <a href={parceiroSiteUrl()} target="_blank" rel="noreferrer">
-                    Abrir Portal
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                </Button>
-              </div>
-            )}
 
             <section className="space-y-3">
               <h2 className="text-lg font-semibold text-foreground">Seus movimentos</h2>
@@ -414,61 +400,155 @@ function ExtratoTable({ movimentos }: { movimentos: CcipayMovimento[] }) {
     );
   }
 
-  return (
-    <div className="rounded-xl border border-border bg-card overflow-hidden">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Data</TableHead>
-            <TableHead>Descrição</TableHead>
-            <TableHead className="text-right">Valor</TableHead>
-            <TableHead>Status</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {movimentos.map((m) => {
-            const statusLabel = labelStatusMovimento(m.status);
-            let badgeClass = "border-border text-foreground";
-            if (m.status === "pendente") {
-              badgeClass = "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400";
-            } else if (m.status === "aprovado") {
-              badgeClass = "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300";
-            } else if (m.status === "pago") {
-              badgeClass = "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
-            } else if (m.status === "descontado_folha") {
-              badgeClass = "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300";
-            } else if (m.status === "negado") {
-              badgeClass = "border-destructive/40 bg-destructive/10 text-destructive";
-            }
+  function getBadgeClass(status: string, isBonificacao: boolean) {
+    if (status === "pendente") {
+      return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400";
+    } else if (status === "aprovado") {
+      return "border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300";
+    } else if (status === "pago") {
+      return isBonificacao
+        ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+        : "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+    } else if (status === "descontado_folha") {
+      return "border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300";
+    } else if (status === "negado") {
+      return "border-destructive/40 bg-destructive/10 text-destructive";
+    }
+    return "border-border text-foreground";
+  }
 
-            return (
-              <TableRow key={m.id}>
-                <TableCell className="whitespace-nowrap text-xs">{formatarDataMovimento(m)}</TableCell>
-                <TableCell className="max-w-[220px] text-sm">
-                  <div>
-                    <p className="font-medium text-foreground truncate">{descricaoMovimento(m)}</p>
-                    {Boolean((m.metadata as any)?.alterdataLancado || m.status === "descontado_folha") && (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
-                        <Check className="h-3 w-3" /> Lançado no contracheque (Alterdata)
+  return (
+    <>
+      {/* Visualização Mobile: Cards limpos 100% na tela sem cortes */}
+      <div className="divide-y divide-border/60 rounded-xl border border-border bg-card shadow-xs md:hidden">
+        {movimentos.map((m) => {
+          const isBonificacao = (m.metadata as any)?.metodoPagamento === "bonificacao";
+          const statusLabel =
+            isBonificacao && (m.status === "pago" || m.status === "aprovado")
+              ? "Pago (Bonificação)"
+              : labelStatusMovimento(m.status);
+          const badgeClass = getBadgeClass(m.status, isBonificacao);
+
+          return (
+            <div key={m.id} className="p-3.5 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-sm text-foreground leading-snug break-words">
+                    {descricaoMovimento(m)}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                    {formatarDataMovimento(m)}
+                  </p>
+                </div>
+                <span
+                  className={`shrink-0 font-bold text-sm ${
+                    m.direcao === "debito"
+                      ? "text-destructive"
+                      : "text-emerald-600 dark:text-emerald-400"
+                  }`}
+                >
+                  {m.direcao === "debito" ? "−" : "+"} R$ {m.valor.toFixed(2)}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between gap-2 pt-0.5">
+                <div className="min-w-0 flex-1">
+                  {Boolean(
+                    (m.metadata as any)?.alterdataLancado ||
+                      m.status === "descontado_folha",
+                  ) &&
+                    !isBonificacao && (
+                      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                        <Check className="h-3 w-3 shrink-0" /> Contracheque
                       </span>
                     )}
-                  </div>
-                </TableCell>
-                <TableCell className="whitespace-nowrap text-right font-medium">
-                  <span className={m.direcao === "debito" ? "text-destructive" : "text-emerald-600 dark:text-emerald-400"}>
-                    {m.direcao === "debito" ? "−" : "+"} R$ {m.valor.toFixed(2)}
-                  </span>
-                </TableCell>
-                <TableCell className="text-xs">
-                  <span className={`inline-block rounded-md border px-2 py-0.5 text-[11px] font-medium ${badgeClass}`}>
-                    {statusLabel}
-                  </span>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+                  {isBonificacao && (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                      <Sparkles className="h-3 w-3 shrink-0 text-amber-500" /> Bonificação
+                    </span>
+                  )}
+                </div>
+                <span
+                  className={`inline-block shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium ${badgeClass}`}
+                >
+                  {statusLabel}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Visualização Desktop: Tabela completa */}
+      <div className="hidden md:block rounded-xl border border-border bg-card overflow-hidden">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Data</TableHead>
+              <TableHead>Descrição</TableHead>
+              <TableHead className="text-right">Valor</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {movimentos.map((m) => {
+              const isBonificacao = (m.metadata as any)?.metodoPagamento === "bonificacao";
+              const statusLabel =
+                isBonificacao && (m.status === "pago" || m.status === "aprovado")
+                  ? "Pago (Bonificação)"
+                  : labelStatusMovimento(m.status);
+              const badgeClass = getBadgeClass(m.status, isBonificacao);
+
+              return (
+                <TableRow key={m.id}>
+                  <TableCell className="whitespace-nowrap text-xs">
+                    {formatarDataMovimento(m)}
+                  </TableCell>
+                  <TableCell className="max-w-[220px] text-sm">
+                    <div>
+                      <p className="font-medium text-foreground truncate">
+                        {descricaoMovimento(m)}
+                      </p>
+                      {Boolean(
+                        (m.metadata as any)?.alterdataLancado ||
+                          m.status === "descontado_folha",
+                      ) &&
+                        !isBonificacao && (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
+                            <Check className="h-3 w-3" /> Lançado no contracheque (Alterdata)
+                          </span>
+                        )}
+                      {isBonificacao && (
+                        <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                          <Sparkles className="h-3 w-3 text-amber-500" /> Saldo de Bonificação
+                        </span>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-right font-medium">
+                    <span
+                      className={
+                        m.direcao === "debito"
+                          ? "text-destructive"
+                          : "text-emerald-600 dark:text-emerald-400"
+                      }
+                    >
+                      {m.direcao === "debito" ? "−" : "+"} R$ {m.valor.toFixed(2)}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-xs">
+                    <span
+                      className={`inline-block rounded-md border px-2 py-0.5 text-[11px] font-medium ${badgeClass}`}
+                    >
+                      {statusLabel}
+                    </span>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+    </>
   );
 }

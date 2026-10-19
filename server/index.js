@@ -2600,7 +2600,17 @@ registerAlterdataMovimentosRoutes(app, {
  * Consulta orgUnitPath no Admin SDK (mesma ideia de /api/organizacao).
  * @returns {Promise<string|null>}
  */
+const orgUnitPathCache = new Map();
+const OU_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutos
+
 async function obterOrgUnitPathUsuario(email) {
+  if (!email) return null;
+  const key = String(email).toLowerCase();
+  const cached = orgUnitPathCache.get(key);
+  if (cached && Date.now() < cached.expiresAt) {
+    return cached.ou;
+  }
+
   const auth = getJwtOrganizacao();
   if (!auth) return null;
   try {
@@ -2611,10 +2621,9 @@ async function obterOrgUnitPathUsuario(email) {
       projection: "full",
     });
     const rawOu = user.data?.orgUnitPath ?? user.data?.org_unit_path;
-    if (rawOu != null && String(rawOu).trim() !== "") {
-      return String(rawOu).trim();
-    }
-    return null;
+    const ou = (rawOu != null && String(rawOu).trim() !== "") ? String(rawOu).trim() : null;
+    orgUnitPathCache.set(key, { ou, expiresAt: Date.now() + OU_CACHE_TTL_MS });
+    return ou;
   } catch (e) {
     console.warn("[painel/sync-profile] Admin SDK:", e.message);
     return null;

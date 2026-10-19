@@ -39,11 +39,31 @@ function rowToMovimento(row) {
 }
 
 function rowToLoja(row) {
+  let formaRepasse = row.forma_repasse || "pix";
+  let dadosRepasse = row.dados_repasse || "";
+  let descricao = row.descricao ?? "";
+
+  // Suporte a metadados de repasse no campo descricao
+  if (typeof descricao === "string" && descricao.includes("__META_REPASSE__:")) {
+    try {
+      const idx = descricao.indexOf("__META_REPASSE__:");
+      const jsonStr = descricao.slice(idx + "__META_REPASSE__:".length).trim();
+      const meta = JSON.parse(jsonStr);
+      if (meta.formaRepasse) formaRepasse = meta.formaRepasse;
+      if (meta.dadosRepasse) dadosRepasse = meta.dadosRepasse;
+      descricao = descricao.slice(0, idx).trim();
+    } catch {
+      // ignora caso nao seja json valido
+    }
+  }
+
   return {
     id: row.id,
     nome: row.nome,
-    descricao: row.descricao ?? "",
+    descricao,
     ativa: row.ativa ?? true,
+    formaRepasse,
+    dadosRepasse,
   };
 }
 
@@ -289,13 +309,19 @@ export async function atualizarFuncionarioAdmin(supabase, email, patch) {
 export async function somarAdiantamentosCompetencia(supabase, email, competencia) {
   const { data, error } = await supabase
     .from("ccipay_movimentos")
-    .select("valor, status")
+    .select("valor, status, metadata, tipo")
     .eq("funcionario_email", String(email).toLowerCase())
     .eq("competencia", competencia)
     .in("tipo", ["adiantamento", "vale", "compra_loja"])
     .in("status", STATUS_ADIANTAMENTO_ATIVOS);
   if (error) throw new Error(`[ccipay] somar adiantamentos: ${error.message}`);
-  return (data || []).reduce((acc, r) => acc + Number(r.valor), 0);
+  return (data || [])
+    .filter(
+      (r) =>
+        r.metadata?.metodoPagamento !== "bonificacao" &&
+        r.metadata?.metodo_pagamento !== "bonificacao",
+    )
+    .reduce((acc, r) => acc + Number(r.valor), 0);
 }
 
 export async function saldoConvenioDisponivel(supabase, email, competencia) {
@@ -307,7 +333,7 @@ export async function saldoConvenioDisponivel(supabase, email, competencia) {
 
   const { data: movs, error } = await supabase
     .from("ccipay_movimentos")
-    .select("tipo, direcao, valor, status")
+    .select("tipo, direcao, valor, status, metadata")
     .eq("funcionario_email", String(email).toLowerCase())
     .eq("competencia", comp)
     .neq("status", "cancelado")
@@ -320,11 +346,16 @@ export async function saldoConvenioDisponivel(supabase, email, competencia) {
 
   for (const m of movs || []) {
     const v = Number(m.valor) || 0;
-    if (["adiantamento", "vale", "compra_loja"].includes(m.tipo) && m.direcao === "debito") {
+    const isCompraBon =
+      m.tipo === "compra_loja" &&
+      (m.metadata?.metodoPagamento === "bonificacao" ||
+        m.metadata?.metodo_pagamento === "bonificacao");
+
+    if (["adiantamento", "vale", "compra_loja"].includes(m.tipo) && m.direcao === "debito" && !isCompraBon) {
       if (STATUS_ADIANTAMENTO_ATIVOS.includes(m.status)) {
         usadoFolha += v;
       }
-    } else if (m.tipo === "bonificacao") {
+    } else if (m.tipo === "bonificacao" || isCompraBon || m.tipo === "deducao") {
       if (m.direcao === "credito") saldoExtraCreditos += v;
       else saldoExtraCreditos -= v;
     }
@@ -346,18 +377,26 @@ export async function saldoBonificacao(supabase, email, competencia) {
   const comp = competencia || competenciaAtual();
   const { data, error } = await supabase
     .from("ccipay_movimentos")
-    .select("direcao, valor, status")
+    .select("direcao, valor, status, metadata, tipo")
     .eq("funcionario_email", String(email).toLowerCase())
     .eq("competencia", comp)
-    .in("tipo", ["bonificacao", "deducao"])
     .neq("status", "cancelado")
     .neq("status", "negado");
   if (error) throw new Error(`[ccipay] saldo bonificacao: ${error.message}`);
   let saldo = 0;
   for (const r of data || []) {
-    const v = Number(r.valor);
-    if (r.direcao === "credito") saldo += v;
-    else saldo -= v;
+    const isBon = r.tipo === "bonificacao";
+    const isDed = r.tipo === "deducao";
+    const isCompraBon =
+      r.tipo === "compra_loja" &&
+      (r.metadata?.metodoPagamento === "bonificacao" ||
+        r.metadata?.metodo_pagamento === "bonificacao");
+
+    if (isBon || isDed || isCompraBon) {
+      const v = Number(r.valor);
+      if (r.direcao === "credito") saldo += v;
+      else saldo -= v;
+    }
   }
   return saldo;
 }
@@ -471,11 +510,23 @@ export async function listarLojas(supabase, { apenasAtivas = false } = {}) {
   return (data || []).map(rowToLoja);
 }
 
-export async function criarLoja(supabase, { nome, descricao }) {
+export async function criarLoja(supabase, { nome, descricao, ativa, formaRepasse = "pix", dadosRepasse = "" }) {
   const now = new Date().toISOString();
+  let descFinal = (descricao || "").trim();
+  descFinal += `\n__META_REPASSE__:${JSON.stringify({
+    formaRepasse: formaRepasse || "pix",
+    dadosRepasse: dadosRepasse || "",
+  })}`;
+
   const { data, error } = await supabase
     .from("ccipay_lojas")
-    .insert({ nome, descricao: descricao || "", created_at: now, updated_at: now })
+    .insert({
+      nome,
+      descricao: descFinal,
+      ativa: ativa ?? true,
+      created_at: now,
+      updated_at: now,
+    })
     .select("*")
     .single();
   if (error) throw new Error(`[ccipay] criar loja: ${error.message}`);
@@ -485,8 +536,31 @@ export async function criarLoja(supabase, { nome, descricao }) {
 export async function atualizarLoja(supabase, id, patch) {
   const row = { updated_at: new Date().toISOString() };
   if (patch.nome !== undefined) row.nome = patch.nome;
-  if (patch.descricao !== undefined) row.descricao = patch.descricao;
   if (patch.ativa !== undefined) row.ativa = patch.ativa;
+
+  if (patch.descricao !== undefined || patch.formaRepasse !== undefined || patch.dadosRepasse !== undefined) {
+    let descBase = patch.descricao;
+    let formaFinal = patch.formaRepasse;
+    let dadosFinal = patch.dadosRepasse;
+
+    if (descBase === undefined || formaFinal === undefined || dadosFinal === undefined) {
+      const { data: ex } = await supabase.from("ccipay_lojas").select("*").eq("id", id).maybeSingle();
+      if (ex) {
+        const parsed = rowToLoja(ex);
+        if (descBase === undefined) descBase = parsed.descricao;
+        if (formaFinal === undefined) formaFinal = parsed.formaRepasse;
+        if (dadosFinal === undefined) dadosFinal = parsed.dadosRepasse;
+      }
+    }
+
+    let descFinal = (descBase || "").trim();
+    descFinal += `\n__META_REPASSE__:${JSON.stringify({
+      formaRepasse: formaFinal || "pix",
+      dadosRepasse: dadosFinal || "",
+    })}`;
+    row.descricao = descFinal;
+  }
+
   const { data, error } = await supabase.from("ccipay_lojas").update(row).eq("id", id).select("*").single();
   if (error) throw new Error(`[ccipay] atualizar loja: ${error.message}`);
   return rowToLoja(data);
@@ -791,13 +865,31 @@ export async function listarPedidos(supabase, filtros = {}) {
   if (filtros.lojaId) q = q.eq("loja_id", filtros.lojaId);
   if (filtros.funcionarioEmail) q = q.eq("funcionario_email", String(filtros.funcionarioEmail).toLowerCase());
   if (filtros.status) q = q.eq("status", filtros.status);
-  const { data, error } = await q;
+  const { data: pedidos, error } = await q;
   if (error) throw new Error(`[ccipay] listar pedidos: ${error.message}`);
-  const out = [];
-  for (const ped of data || []) {
-    out.push(await obterPedidoCompleto(supabase, ped.id));
+  if (!pedidos || pedidos.length === 0) return [];
+
+  const pedIds = pedidos.map((p) => p.id);
+  const { data: itens } = await supabase
+    .from("ccipay_pedidos_itens")
+    .select("*")
+    .in("pedido_id", pedIds);
+
+  const itensPorPedido = new Map();
+  for (const i of itens || []) {
+    const list = itensPorPedido.get(i.pedido_id) || [];
+    list.push({
+      id: i.id,
+      itemId: i.item_id,
+      nome: i.nome,
+      quantidade: i.quantidade,
+      precoUnitario: Number(i.preco_unitario),
+      subtotal: Number(i.subtotal),
+    });
+    itensPorPedido.set(i.pedido_id, list);
   }
-  return out;
+
+  return pedidos.map((ped) => rowToPedido(ped, itensPorPedido.get(ped.id) || []));
 }
 
 export async function atualizarPedidoStatus(supabase, id, status, confirmadoPor) {
@@ -847,13 +939,31 @@ export async function relatorioLojaPedidos(supabase, { lojaId, de, ate }) {
   let q = supabase.from("ccipay_pedidos_loja").select("*").eq("loja_id", lojaId);
   if (de) q = q.gte("created_at", de);
   if (ate) q = q.lte("created_at", ate);
-  const { data, error } = await q.order("created_at", { ascending: false });
+  const { data: pedidos, error } = await q.order("created_at", { ascending: false });
   if (error) throw new Error(`[ccipay] relatorio loja: ${error.message}`);
-  const out = [];
-  for (const ped of data || []) {
-    out.push(await obterPedidoCompleto(supabase, ped.id));
+  if (!pedidos || pedidos.length === 0) return [];
+
+  const pedIds = pedidos.map((p) => p.id);
+  const { data: itens } = await supabase
+    .from("ccipay_pedidos_itens")
+    .select("*")
+    .in("pedido_id", pedIds);
+
+  const itensPorPedido = new Map();
+  for (const i of itens || []) {
+    const list = itensPorPedido.get(i.pedido_id) || [];
+    list.push({
+      id: i.id,
+      itemId: i.item_id,
+      nome: i.nome,
+      quantidade: i.quantidade,
+      precoUnitario: Number(i.preco_unitario),
+      subtotal: Number(i.subtotal),
+    });
+    itensPorPedido.set(i.pedido_id, list);
   }
-  return out;
+
+  return pedidos.map((ped) => rowToPedido(ped, itensPorPedido.get(ped.id) || []));
 }
 
 export async function montarResumoFuncionario(supabase, email) {
@@ -967,17 +1077,32 @@ export async function obterVendaPorId(supabase, id) {
 }
 
 export async function listarVendasQr(supabase, { lojaId, status, de, ate }) {
-  let q = supabase.from("ccipay_vendas_qr").select("*").eq("loja_id", lojaId);
+  let q = supabase.from("ccipay_vendas_qr").select("*");
+  if (lojaId) q = q.eq("loja_id", lojaId);
   if (status) q = q.eq("status", status);
   if (de) q = q.gte("created_at", de);
   if (ate) q = q.lte("created_at", ate);
   const { data, error } = await q.order("created_at", { ascending: false });
   if (error) throw new Error(`[ccipay] listar vendas qr: ${error.message}`);
-  const out = [];
-  for (const row of data || []) {
-    out.push(await enriquecerVenda(supabase, row));
+  if (!data || data.length === 0) return [];
+
+  if (lojaId) {
+    const { data: loja } = await supabase
+      .from("ccipay_lojas")
+      .select("nome")
+      .eq("id", lojaId)
+      .maybeSingle();
+    const lojaNome = loja?.nome ?? "";
+    return data.map((row) => rowToVendaQr(row, lojaNome));
   }
-  return out;
+
+  const lojaIds = [...new Set(data.map((r) => r.loja_id).filter(Boolean))];
+  const { data: lojas } = await supabase
+    .from("ccipay_lojas")
+    .select("id, nome")
+    .in("id", lojaIds);
+  const mapaLojas = new Map((lojas || []).map((l) => [l.id, l.nome]));
+  return data.map((row) => rowToVendaQr(row, mapaLojas.get(row.loja_id) ?? ""));
 }
 
 export async function resumoVendasParceiro(supabase, lojaId) {

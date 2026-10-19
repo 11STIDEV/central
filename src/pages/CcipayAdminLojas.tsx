@@ -4,6 +4,7 @@ import { PageHero } from "@/components/PageHero";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -29,7 +30,9 @@ import {
   ccipaySalvarLoja,
   ccipayExcluirLoja,
   ccipayEnviarEmailRedefinicaoOperador,
+  labelFormaRepasse,
   type CcipayLoja,
+  type FormaRepasseLoja,
 } from "@/lib/ccipay";
 import { parceiroSiteUrl } from "@/parceiro/publicHost";
 import { toast } from "sonner";
@@ -50,6 +53,10 @@ import {
   Mail,
   Send,
   Pencil,
+  Banknote,
+  Receipt,
+  Building2,
+  Zap,
 } from "lucide-react";
 
 type OperadorLoja = {
@@ -70,11 +77,22 @@ export default function CcipayAdminLojas() {
   const [mostrarNovoModal, setMostrarNovoModal] = useState(false);
   const [nomeLoja, setNomeLoja] = useState("");
   const [descLoja, setDescLoja] = useState("");
+  const [formaRepasseNova, setFormaRepasseNova] = useState<FormaRepasseLoja>("pix");
+  const [dadosRepasseNova, setDadosRepasseNova] = useState("");
   const [loginOp, setLoginOp] = useState("");
   const [senhaOp, setSenhaOp] = useState("");
   const [nomeOp, setNomeOp] = useState("");
   const [emailOp, setEmailOp] = useState("");
   const [salvandoNovaLoja, setSalvandoNovaLoja] = useState(false);
+
+  // Modal para Editar Loja Parceira
+  const [lojaParaEditar, setLojaParaEditar] = useState<CcipayLoja | null>(null);
+  const [editNomeLoja, setEditNomeLoja] = useState("");
+  const [editDescLoja, setEditDescLoja] = useState("");
+  const [editAtivaLoja, setEditAtivaLoja] = useState(true);
+  const [editFormaRepasse, setEditFormaRepasse] = useState<FormaRepasseLoja>("pix");
+  const [editDadosRepasse, setEditDadosRepasse] = useState("");
+  const [salvandoEdicaoLoja, setSalvandoEdicaoLoja] = useState(false);
 
   // Modal para Adicionar / Redefinir / Editar Operador em Loja Existente
   const [lojaSelecionadaOp, setLojaSelecionadaOp] = useState<CcipayLoja | null>(null);
@@ -148,7 +166,9 @@ export default function CcipayAdminLojas() {
       // 1. Cria a loja parceira
       const { loja: novaLoja } = await ccipaySalvarLoja(googleIdToken, {
         nome: nomeTrim,
-        descricao: descLoja.trim() || "Loja Conveniada Advance-CCI",
+        descricao: descLoja.trim(),
+        formaRepasse: formaRepasseNova,
+        dadosRepasse: dadosRepasseNova.trim() || undefined,
       });
 
       // 2. Vincula o operador com login e senha e email de recuperação
@@ -164,6 +184,8 @@ export default function CcipayAdminLojas() {
       // Copia automaticamente o template de acesso para conveniência
       const msgAcesso = `*Portal Parceiro Advance-CCI*\nLoja: ${nomeTrim}\nLink: ${parceiroSiteUrl()}\nUsuário: ${loginTrim}\nSenha: ${senhaOp}${
         emailOp.trim() ? `\nE-mail de Recuperação: ${emailOp.trim()}` : ""
+      }\nForma de Repasse: ${labelFormaRepasse(formaRepasseNova)}${
+        dadosRepasseNova.trim() ? ` (${dadosRepasseNova.trim()})` : ""
       }`;
       navigator.clipboard.writeText(msgAcesso);
       toast.info("Dados de acesso copiados para a área de transferência!");
@@ -171,6 +193,8 @@ export default function CcipayAdminLojas() {
       // Limpa campos e fecha modal
       setNomeLoja("");
       setDescLoja("");
+      setFormaRepasseNova("pix");
+      setDadosRepasseNova("");
       setLoginOp("");
       setSenhaOp("");
       setNomeOp("");
@@ -182,6 +206,43 @@ export default function CcipayAdminLojas() {
       toast.error(e instanceof Error ? e.message : "Erro ao criar loja parceira.");
     } finally {
       setSalvandoNovaLoja(false);
+    }
+  }
+
+  function abrirModalEditarLoja(loja: CcipayLoja) {
+    setLojaParaEditar(loja);
+    setEditNomeLoja(loja.nome);
+    setEditDescLoja(loja.descricao || "");
+    setEditAtivaLoja(loja.ativa !== false);
+    setEditFormaRepasse(loja.formaRepasse || "pix");
+    setEditDadosRepasse(loja.dadosRepasse || "");
+  }
+
+  async function handleSalvarEdicaoLoja(e: React.FormEvent) {
+    e.preventDefault();
+    if (!googleIdToken || !lojaParaEditar) return;
+    const nomeTrim = editNomeLoja.trim();
+    if (!nomeTrim) {
+      toast.error("O nome da loja não pode ser vazio.");
+      return;
+    }
+    setSalvandoEdicaoLoja(true);
+    try {
+      await ccipaySalvarLoja(googleIdToken, {
+        id: lojaParaEditar.id,
+        nome: nomeTrim,
+        descricao: editDescLoja.trim(),
+        ativa: editAtivaLoja,
+        formaRepasse: editFormaRepasse,
+        dadosRepasse: editDadosRepasse.trim() || undefined,
+      });
+      toast.success(`Loja "${nomeTrim}" atualizada com sucesso!`);
+      setLojaParaEditar(null);
+      await carregar();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Erro ao atualizar dados da loja.");
+    } finally {
+      setSalvandoEdicaoLoja(false);
     }
   }
 
@@ -392,7 +453,7 @@ export default function CcipayAdminLojas() {
                   className="rounded-xl border border-border bg-card p-5 shadow-xs transition hover:border-primary/30"
                 >
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="space-y-1.5">
+                    <div className="space-y-1.5 flex-1 min-w-0">
                       <div className="flex items-center gap-2.5">
                         <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
                           <Store className="h-5 w-5" />
@@ -410,6 +471,33 @@ export default function CcipayAdminLojas() {
                           {loja.descricao && (
                             <p className="text-xs text-muted-foreground">{loja.descricao}</p>
                           )}
+
+                          {/* Forma de Repasse Configurada */}
+                          <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+                            <span className="text-muted-foreground font-medium text-[11px]">Repasse:</span>
+                            {loja.formaRepasse === "dinheiro" ? (
+                              <Badge variant="outline" className="gap-1 border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 text-[11px] font-normal">
+                                <Banknote className="h-3 w-3 text-emerald-500" /> Dinheiro
+                              </Badge>
+                            ) : loja.formaRepasse === "cheque" ? (
+                              <Badge variant="outline" className="gap-1 border-amber-500/30 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 text-[11px] font-normal">
+                                <Receipt className="h-3 w-3 text-amber-500" /> Cheque
+                              </Badge>
+                            ) : loja.formaRepasse === "ted" ? (
+                              <Badge variant="outline" className="gap-1 border-blue-500/30 bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 text-[11px] font-normal">
+                                <Building2 className="h-3 w-3 text-blue-500" /> TED / Transf.
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="gap-1 border-teal-500/30 bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300 text-[11px] font-normal">
+                                <Zap className="h-3 w-3 text-teal-500" /> PIX
+                              </Badge>
+                            )}
+                            {loja.dadosRepasse && (
+                              <span className="text-[11px] text-muted-foreground font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/50 truncate max-w-[220px]" title={loja.dadosRepasse}>
+                                {loja.dadosRepasse}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -520,12 +608,23 @@ export default function CcipayAdminLojas() {
                     </div>
 
                     {/* Botões de Ação por Loja */}
-                    <div className="flex flex-wrap items-center gap-2 border-t border-border/60 pt-3 sm:border-0 sm:pt-0">
+                    <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0 border-t border-border/60 pt-3 sm:border-0 sm:pt-0 sm:self-center">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => abrirModalEditarLoja(loja)}
+                        className="gap-1.5 text-xs h-8 justify-center sm:justify-start"
+                        title={`Editar dados cadastrais e forma de repasse de ${loja.nome}`}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        Editar Loja
+                      </Button>
+
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => copiarDadosLoja(loja, opPrincipal)}
-                        className="gap-1.5 text-xs"
+                        className="gap-1.5 text-xs h-8 justify-center sm:justify-start"
                         title="Copiar link e usuário para enviar ao parceiro"
                       >
                         {copiadoId === loja.id ? (
@@ -541,27 +640,29 @@ export default function CcipayAdminLojas() {
                         )}
                       </Button>
 
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => abrirModalEditarOperador(loja, opPrincipal)}
-                        className="gap-1.5 text-xs"
-                        title={opPrincipal ? "Editar dados de acesso do parceiro" : "Cadastrar dados de acesso do parceiro"}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        {opPrincipal ? "Editar Acesso" : "Criar Acesso"}
-                      </Button>
+                      <div className="flex items-center gap-2 justify-end">
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => abrirModalEditarOperador(loja, opPrincipal)}
+                          className="gap-1.5 text-xs h-8"
+                          title={opPrincipal ? "Editar dados de acesso do parceiro" : "Cadastrar dados de acesso do parceiro"}
+                        >
+                          <KeyRound className="h-3.5 w-3.5" />
+                          {opPrincipal ? "Acesso" : "Criar Acesso"}
+                        </Button>
 
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setLojaParaExcluir(loja)}
-                        className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                        title={`Excluir loja ${loja.nome}`}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Excluir loja</span>
-                      </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => setLojaParaExcluir(loja)}
+                          className="h-8 w-8 p-0 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                          title={`Excluir loja ${loja.nome}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span className="sr-only">Excluir loja</span>
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -569,13 +670,6 @@ export default function CcipayAdminLojas() {
             })}
           </div>
         )}
-
-        {/* Links Adicionais */}
-        <div className="pt-2 flex justify-end">
-          <Button asChild variant="outline" size="sm">
-            <Link to="/cci-pay/admin/lancadores">Gerenciar lançadores autorizados</Link>
-          </Button>
-        </div>
       </div>
 
       {/* Modal: Cadastrar Nova Loja Parceira com Login */}
@@ -598,10 +692,11 @@ export default function CcipayAdminLojas() {
                   1. Dados do Estabelecimento
                 </p>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-foreground">
+                  <Label htmlFor="novo-nome-loja" className="text-xs font-medium text-foreground">
                     Nome da Loja / Convênio *
-                  </label>
+                  </Label>
                   <Input
+                    id="novo-nome-loja"
                     placeholder="Ex: Lanchonete Bom Sabor, Farmácia CCI..."
                     value={nomeLoja}
                     onChange={(e) => setNomeLoja(e.target.value)}
@@ -609,10 +704,11 @@ export default function CcipayAdminLojas() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-foreground">
+                  <Label htmlFor="novo-desc-loja" className="text-xs font-medium text-foreground">
                     Segmento / Descrição (opcional)
-                  </label>
+                  </Label>
                   <Input
+                    id="novo-desc-loja"
                     placeholder="Ex: Alimentação, Saúde, Material Escolar..."
                     value={descLoja}
                     onChange={(e) => setDescLoja(e.target.value)}
@@ -620,11 +716,67 @@ export default function CcipayAdminLojas() {
                 </div>
               </div>
 
+              {/* Bloco de Repasse Financeiro */}
+              <div className="rounded-lg border border-border/80 bg-muted/30 p-3.5 space-y-3">
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Banknote className="h-4 w-4 text-primary" />
+                    2. Repasse Financeiro à Loja
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">Forma de pagamento padrão</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="novo-forma-repasse" className="text-xs font-medium text-foreground">
+                      Forma de Repasse *
+                    </Label>
+                    <select
+                      id="novo-forma-repasse"
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+                      value={formaRepasseNova}
+                      onChange={(e) => setFormaRepasseNova(e.target.value as FormaRepasseLoja)}
+                    >
+                      <option value="pix">PIX</option>
+                      <option value="dinheiro">Dinheiro</option>
+                      <option value="cheque">Cheque</option>
+                      <option value="ted">TED / Transferência</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="novo-dados-repasse" className="text-xs font-medium text-foreground">
+                      {formaRepasseNova === "pix"
+                        ? "Chave PIX da Loja (opcional)"
+                        : formaRepasseNova === "cheque"
+                        ? "Nominal do Cheque (opcional)"
+                        : formaRepasseNova === "dinheiro"
+                        ? "Instruções Dinheiro (opcional)"
+                        : "Banco / Agência / Conta"}
+                    </Label>
+                    <Input
+                      id="novo-dados-repasse"
+                      placeholder={
+                        formaRepasseNova === "pix"
+                          ? "Ex: CNPJ, telefone, e-mail..."
+                          : formaRepasseNova === "cheque"
+                          ? "Ex: Nominal à Razão Social..."
+                          : formaRepasseNova === "dinheiro"
+                          ? "Ex: Pagar em espécie no balcão"
+                          : "Ex: BB, Ag 1234, CC 5678"
+                      }
+                      value={dadosRepasseNova}
+                      onChange={(e) => setDadosRepasseNova(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="space-y-3 rounded-lg border border-primary/20 bg-primary/5 p-3.5">
                 <div className="flex items-center justify-between">
                   <p className="text-xs font-semibold uppercase tracking-wider text-primary flex items-center gap-1.5">
                     <KeyRound className="h-4 w-4" />
-                    2. Login de Acesso do Parceiro
+                    3. Login de Acesso do Parceiro
                   </p>
                   <span className="text-[11px] text-muted-foreground">Para entrar no portal</span>
                 </div>
@@ -714,6 +866,146 @@ export default function CcipayAdminLojas() {
                   </>
                 ) : (
                   "Cadastrar Loja e Criar Acesso"
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal: Editar Loja Parceira */}
+      <Dialog
+        open={Boolean(lojaParaEditar)}
+        onOpenChange={(open) => !open && setLojaParaEditar(null)}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <form onSubmit={handleSalvarEdicaoLoja}>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Store className="h-5 w-5 text-primary" />
+                Editar Loja Parceira
+              </DialogTitle>
+              <DialogDescription>
+                Atualize o cadastro, status e os dados financeiros de repasse da loja parceira.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-nome-loja" className="text-xs font-medium text-foreground">
+                  Nome da Loja / Convênio *
+                </Label>
+                <Input
+                  id="edit-nome-loja"
+                  value={editNomeLoja}
+                  onChange={(e) => setEditNomeLoja(e.target.value)}
+                  placeholder="Ex: Lanchonete Bom Sabor"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-desc-loja" className="text-xs font-medium text-foreground">
+                    Segmento / Descrição (opcional)
+                  </Label>
+                  <Input
+                    id="edit-desc-loja"
+                    value={editDescLoja}
+                    onChange={(e) => setEditDescLoja(e.target.value)}
+                    placeholder="Ex: Alimentação, Farmácia..."
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-status-loja" className="text-xs font-medium text-foreground">
+                    Status da Loja
+                  </Label>
+                  <select
+                    id="edit-status-loja"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+                    value={editAtivaLoja ? "ativa" : "inativa"}
+                    onChange={(e) => setEditAtivaLoja(e.target.value === "ativa")}
+                  >
+                    <option value="ativa">Ativa (Habilitada)</option>
+                    <option value="inativa">Inativa (Bloqueada)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="rounded-lg border border-border/80 bg-muted/30 p-3.5 space-y-3">
+                <div className="flex items-center justify-between border-b border-border/60 pb-2">
+                  <span className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Banknote className="h-4 w-4 text-primary" />
+                    Repasse Financeiro à Loja
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">Forma de pagamento padrão</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-forma-repasse" className="text-xs font-medium text-foreground">
+                      Forma de Repasse *
+                    </Label>
+                    <select
+                      id="edit-forma-repasse"
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1"
+                      value={editFormaRepasse}
+                      onChange={(e) => setEditFormaRepasse(e.target.value as FormaRepasseLoja)}
+                    >
+                      <option value="pix">PIX</option>
+                      <option value="dinheiro">Dinheiro</option>
+                      <option value="cheque">Cheque</option>
+                      <option value="ted">TED / Transferência</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label htmlFor="edit-dados-repasse" className="text-xs font-medium text-foreground">
+                      {editFormaRepasse === "pix"
+                        ? "Chave PIX da Loja (opcional)"
+                        : editFormaRepasse === "cheque"
+                        ? "Nominal do Cheque (opcional)"
+                        : editFormaRepasse === "dinheiro"
+                        ? "Instruções (opcional)"
+                        : "Dados Bancários (opcional)"}
+                    </Label>
+                    <Input
+                      id="edit-dados-repasse"
+                      placeholder={
+                        editFormaRepasse === "pix"
+                          ? "Ex: CNPJ, celular, e-mail..."
+                          : editFormaRepasse === "cheque"
+                          ? "Ex: Nominal à Razão Social..."
+                          : editFormaRepasse === "dinheiro"
+                          ? "Ex: Pagar em espécie no balcão"
+                          : "Ex: BB Ag 1234 CC 5678"
+                      }
+                      value={editDadosRepasse}
+                      onChange={(e) => setEditDadosRepasse(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setLojaParaEditar(null)}
+                disabled={salvandoEdicaoLoja}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={salvandoEdicaoLoja}>
+                {salvandoEdicaoLoja ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Salvando...
+                  </>
+                ) : (
+                  "Salvar Alterações"
                 )}
               </Button>
             </DialogFooter>

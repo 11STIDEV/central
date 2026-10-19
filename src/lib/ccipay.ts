@@ -36,12 +36,27 @@ export type CcipayFuncionario = {
   ativo: boolean;
 };
 
+export type FormaRepasseLoja = "pix" | "dinheiro" | "cheque" | "ted" | "outro";
+
 export type CcipayLoja = {
   id: string;
   nome: string;
   descricao: string;
   ativa: boolean;
+  formaRepasse?: FormaRepasseLoja;
+  dadosRepasse?: string;
 };
+
+export function labelFormaRepasse(forma?: FormaRepasseLoja | string): string {
+  const map: Record<string, string> = {
+    pix: "PIX",
+    dinheiro: "Dinheiro",
+    cheque: "Cheque",
+    ted: "TED / Transferência",
+    outro: "Outro",
+  };
+  return map[forma || "pix"] ?? forma ?? "PIX";
+}
 
 export type CcipayCatalogoItem = {
   id: string;
@@ -73,6 +88,9 @@ export type CcipayPedido = {
   confirmadoPor?: string | null;
   itens: CcipayPedidoItem[];
   createdAt?: string;
+  repasseId?: string | null;
+  repassadoEm?: string | null;
+  repasseForma?: string | null;
 };
 
 export type CcipayResumo = {
@@ -123,6 +141,9 @@ export type CcipayVendaQr = {
   expiresAt: string;
   pagoEm?: string | null;
   createdAt?: string;
+  repasseId?: string | null;
+  repassadoEm?: string | null;
+  repasseForma?: string | null;
 };
 
 export type CcipayResumoParceiro = {
@@ -131,6 +152,9 @@ export type CcipayResumoParceiro = {
   totalMes: number;
   qtdPendentes: number;
   vendasMes: number;
+  totalRepassado?: number;
+  saldoDevendo?: number;
+  repasses?: CcipayRepasseLoja[];
 };
 
 async function parseJson(res: Response): Promise<Record<string, unknown>> {
@@ -436,12 +460,92 @@ export async function ccipayRelatorioDp(
   });
 }
 
-export async function ccipayRelatorioLoja(idToken?: string | null, lojaId: string, de?: string, ate?: string) {
-  return post<{ pedidos: CcipayPedido[]; totais: { pedidos: number; valorTotal: number; entregues: number } }>(
-    "/api/ccipay/relatorios/loja",
+export type CcipayRepasseLoja = {
+  id: string;
+  lojaId: string;
+  valor: number;
+  competencia?: string;
+  dataPagamento: string;
+  formaPagamento: string;
+  comprovante?: string;
+  observacao?: string;
+  vendaIds?: string[];
+  pedidoIds?: string[];
+  criadoPor: string;
+  createdAt: string;
+};
+
+export type CcipayRelatorioLojaTotais = {
+  pedidos: number;
+  entregues: number;
+  vendasQrTotal?: number;
+  vendasQrPagas?: number;
+  vendasQrRepassadas?: number;
+  vendasQrPendentesRepasse?: number;
+  valorPedidos?: number;
+  valorVendasQr?: number;
+  valorTotal: number;
+  totalRepassado: number;
+  totalRepassadoHistorico: number;
+  totalVendasHistorico: number;
+  saldoDevendo: number;
+  saldoDevendoPeriodo: number;
+  valorVendasPendentes?: number;
+};
+
+export type CcipayRelatorioLojaFiltros = {
+  lojaId: string;
+  de?: string;
+  ate?: string;
+  competencia?: string;
+  status?: string;
+};
+
+export async function ccipayRelatorioLoja(
+  idToken?: string | null,
+  filtrosOuLojaId?: string | CcipayRelatorioLojaFiltros,
+  de?: string,
+  ate?: string,
+) {
+  const body =
+    typeof filtrosOuLojaId === "object"
+      ? filtrosOuLojaId
+      : { lojaId: filtrosOuLojaId, de, ate };
+
+  return post<{
+    pedidos: CcipayPedido[];
+    vendasQr?: CcipayVendaQr[];
+    repasses?: CcipayRepasseLoja[];
+    totais: CcipayRelatorioLojaTotais;
+  }>("/api/ccipay/relatorios/loja", idToken, body);
+}
+
+export async function ccipayRegistrarRepasseLoja(
+  idToken: string | null | undefined,
+  payload: {
+    lojaId: string;
+    valor: number;
+    competencia?: string;
+    dataPagamento?: string;
+    formaPagamento?: string;
+    comprovante?: string;
+    observacao?: string;
+    vendaIds?: string[];
+    pedidoIds?: string[];
+  },
+) {
+  return post<{ ok: boolean; repasse: CcipayRepasseLoja }>(
+    "/api/ccipay/repasses/registrar",
     idToken,
-    { lojaId, de, ate },
+    payload,
   );
+}
+
+export async function ccipayExcluirRepasseLoja(
+  idToken: string | null | undefined,
+  id: string,
+) {
+  return post<{ ok: boolean }>("/api/ccipay/repasses/excluir", idToken, { id });
 }
 
 export async function ccipayCriarVendaQr(
@@ -476,11 +580,15 @@ export async function ccipayObterVendaQr(idToken: string, token: string) {
   return post<{ venda: CcipayVendaQr }>("/api/ccipay/vendas/obter", idToken, { token });
 }
 
-export async function ccipayPagarVendaQr(idToken: string, token: string) {
+export async function ccipayPagarVendaQr(
+  idToken: string,
+  token: string,
+  metodoPagamento: "adiantamento" | "bonificacao" = "adiantamento",
+) {
   return post<{ venda: CcipayVendaQr; movimento: CcipayMovimento }>(
     "/api/ccipay/vendas/pagar",
     idToken,
-    { token },
+    { token, metodoPagamento },
   );
 }
 
@@ -556,11 +664,12 @@ export function labelTipoMovimento(tipo: string): string {
 
 export function descricaoMovimento(mov: CcipayMovimento): string {
   const meta = mov.metadata ?? {};
+  const isBon = (meta as any).metodoPagamento === "bonificacao";
   const extra =
     (typeof meta.descricao === "string" && meta.descricao.trim()) ||
     (typeof meta.pix === "string" && meta.pix.trim()) ||
     "";
-  const base = labelTipoMovimento(mov.tipo);
+  const base = isBon ? "Compra na loja (Bonificação)" : labelTipoMovimento(mov.tipo);
   return extra ? `${base} — ${extra}` : base;
 }
 
