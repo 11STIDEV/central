@@ -14,6 +14,9 @@ import {
   Pencil,
   X,
   RotateCcw,
+  Video,
+  Calendar,
+  Clock,
 } from "lucide-react";
 import { Navigate, useLocation, useParams } from "react-router-dom";
 import { useAuth, type Papel } from "@/auth/AuthProvider";
@@ -59,6 +62,16 @@ function agoraLegivel(): string {
     hour: "2-digit",
     minute: "2-digit",
   });
+}
+
+function formatarDataFilmagem(dataStr?: string): string {
+  if (!dataStr) return "Não informada";
+  // Converte YYYY-MM-DD para DD/MM/YYYY com segurança sem desvio de fuso horário
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) {
+    const [ano, mes, dia] = dataStr.split("-");
+    return `${dia}/${mes}/${ano}`;
+  }
+  return dataStr;
 }
 
 export default function GestaoChamados() {
@@ -183,10 +196,15 @@ export default function GestaoChamados() {
 
   const filtered = useMemo(() => {
     return listaAtiva.filter((c) => {
+      const q = search.toLowerCase();
       const matchSearch =
-        c.titulo.toLowerCase().includes(search.toLowerCase()) ||
-        c.solicitante.toLowerCase().includes(search.toLowerCase()) ||
-        c.id.toLowerCase().includes(search.toLowerCase());
+        c.titulo.toLowerCase().includes(q) ||
+        c.solicitante.toLowerCase().includes(q) ||
+        c.id.toLowerCase().includes(q) ||
+        (c.categoria && c.categoria.toLowerCase().includes(q)) ||
+        (c.filmagemData && c.filmagemData.toLowerCase().includes(q)) ||
+        (c.filmagemData && formatarDataFilmagem(c.filmagemData).toLowerCase().includes(q)) ||
+        (c.solicitaFilmagem && "filmagem câmera camera".includes(q));
       const matchFilter = filter === "todos" || c.status === filter;
       return matchSearch && matchFilter;
     });
@@ -478,6 +496,11 @@ export default function GestaoChamados() {
 
                 const podeGerenciarEsse = podeGerenciar(chamado);
                 const tab = getTab(chamado.id, podeGerenciarEsse);
+                const temFilmagem = Boolean(
+                  chamado.solicitaFilmagem ||
+                  chamado.filmagemData ||
+                  chamado.categoria === "Filmagem de Câmera"
+                );
 
                 const tabsVisiveis: { key: TabKey; label: string; icon: typeof MessageSquare }[] = [
                   { key: "acompanhamentos", label: "Acompanhamentos", icon: MessageSquare },
@@ -497,6 +520,12 @@ export default function GestaoChamados() {
                           <span className="text-xs font-mono text-muted-foreground">{chamado.id}</span>
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${sc.className}`}>{sc.label}</span>
                           <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${pc.className}`}>{pc.label}</span>
+                          {temFilmagem && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-2 py-0.5 text-xs font-medium text-blue-600 dark:text-blue-400">
+                              <Video className="h-3 w-3" />
+                              Filmagem
+                            </span>
+                          )}
                           {salvando && (
                             <span className="text-xs text-muted-foreground animate-pulse">Salvando...</span>
                           )}
@@ -505,6 +534,24 @@ export default function GestaoChamados() {
                         <p className="text-xs text-muted-foreground">
                           {chamado.solicitante} · {chamado.data} · {chamado.categoria}
                         </p>
+                        {temFilmagem && (chamado.filmagemData || chamado.filmagemHoraInicio || chamado.filmagemHoraFim) && (
+                          <div className="mt-2 inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-blue-200/80 bg-blue-50/70 px-2.5 py-1 text-xs text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/40 dark:text-blue-300">
+                            <span className="inline-flex items-center gap-1 font-semibold text-blue-900 dark:text-blue-200">
+                              <Video className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                              Filmagem:
+                            </span>
+                            <span className="inline-flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                              <span>Data: <strong>{formatarDataFilmagem(chamado.filmagemData)}</strong></span>
+                            </span>
+                            {(chamado.filmagemHoraInicio || chamado.filmagemHoraFim) && (
+                              <span className="inline-flex items-center gap-1">
+                                <Clock className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                                <span>Horário: <strong>{chamado.filmagemHoraInicio || "--:--"} às {chamado.filmagemHoraFim || "--:--"}</strong></span>
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                       {isExpanded ? (
                         <ChevronUp className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -515,6 +562,57 @@ export default function GestaoChamados() {
 
                     {isExpanded && (
                       <div className="animate-fade-in border-t border-border px-6 py-4">
+                        {temFilmagem && (
+                          <div className="mb-5 rounded-xl border border-blue-200 bg-blue-50/60 p-4 shadow-xs dark:border-blue-900/60 dark:bg-blue-950/30">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-200/60 pb-3 dark:border-blue-900/40">
+                              <div className="flex items-center gap-2 font-semibold text-sm text-blue-900 dark:text-blue-200">
+                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                                  <Video className="h-4 w-4" />
+                                </div>
+                                <span>Dados da Filmagem de Câmera Solicitada</span>
+                              </div>
+                              {chamado.filmagemTermosAceitos && (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                                  <CheckCircle2 className="h-3.5 w-3.5" />
+                                  Termos aceitos
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                              <div className="rounded-lg border border-blue-200/50 bg-background/90 p-3 shadow-xs dark:border-blue-900/40 dark:bg-card">
+                                <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                                  Data da Filmagem
+                                </span>
+                                <div className="mt-1 flex items-center gap-1.5 text-sm font-bold text-foreground">
+                                  <Calendar className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                  <span>{formatarDataFilmagem(chamado.filmagemData)}</span>
+                                </div>
+                              </div>
+
+                              <div className="rounded-lg border border-blue-200/50 bg-background/90 p-3 shadow-xs dark:border-blue-900/40 dark:bg-card">
+                                <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                                  Hora de Início
+                                </span>
+                                <div className="mt-1 flex items-center gap-1.5 text-sm font-bold text-foreground">
+                                  <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                  <span>{chamado.filmagemHoraInicio || "Não informada"}</span>
+                                </div>
+                              </div>
+
+                              <div className="rounded-lg border border-blue-200/50 bg-background/90 p-3 shadow-xs dark:border-blue-900/40 dark:bg-card">
+                                <span className="block text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                                  Hora Final
+                                </span>
+                                <div className="mt-1 flex items-center gap-1.5 text-sm font-bold text-foreground">
+                                  <Clock className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                  <span>{chamado.filmagemHoraFim || "Não informada"}</span>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         <p className="mb-4 text-sm text-card-foreground">{chamado.descricao}</p>
 
                         {/* Setores Destinatários */}

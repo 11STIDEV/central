@@ -1903,6 +1903,13 @@ async function enviarEmailNovoChamado(chamado) {
         <p><strong>⚠️ Prioridade:</strong> ${chamado.prioridade ? chamado.prioridade.toUpperCase() : "MÉDIA"}</p>
         <p><strong>📅 Data:</strong> ${chamado.data}</p>
       </div>
+      ${(chamado.solicitaFilmagem || chamado.filmagemData) ? `
+      <div style="background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px; padding: 14px 18px; margin: 16px 0;">
+        <p style="margin: 0 0 8px 0; font-weight: bold; color: #1d4ed8; font-size: 15px;">🎥 Solicitação de Acesso à Filmagem de Câmera</p>
+        <p style="margin: 4px 0; font-size: 14px; color: #1e3a8a;"><strong>📅 Data da Filmagem:</strong> ${chamado.filmagemData || "Não informada"}</p>
+        <p style="margin: 4px 0; font-size: 14px; color: #1e3a8a;"><strong>⏰ Horário de Início:</strong> ${chamado.filmagemHoraInicio || "Não informada"}</p>
+        <p style="margin: 4px 0; font-size: 14px; color: #1e3a8a;"><strong>⏰ Horário Final:</strong> ${chamado.filmagemHoraFim || "Não informada"}</p>
+      </div>` : ""}
 
       <p><strong>📝 Descrição:</strong></p>
       <div class="desc-box">${chamado.descricao || "Sem descrição."}</div>

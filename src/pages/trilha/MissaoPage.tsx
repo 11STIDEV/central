@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
@@ -28,11 +28,19 @@ export default function MissaoPage() {
 
   const { progress, salvarProgresso } = useTrilhaProgress();
   const [quizAberto, setQuizAberto] = useState(false);
-  const [missaoConcluida, setMissaoConcluida] = useState(
-    () =>
-      progress.progressoPorTrilha[trilhaId ?? ""]?.includes(missaoId ?? "") ?? false
-  );
   const [xpGanhoAnim, setXpGanhoAnim] = useState<number | null>(null);
+
+  // Status de conclusão sincronizado reativamente com o progresso atual do usuário
+  const missaoConcluida = Boolean(
+    progress.progressoPorTrilha[trilhaId ?? ""]?.includes(missaoId ?? "")
+  );
+
+  // Reseta estado do modal e rola para o topo quando o usuário mudar de missão
+  useEffect(() => {
+    setQuizAberto(false);
+    setXpGanhoAnim(null);
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [trilhaId, missaoId]);
 
   if (carregando) {
     return (
@@ -77,8 +85,12 @@ export default function MissaoPage() {
     );
   }
 
-  // Próxima missão
-  const proximaMissao = trilha.missoes.find((m) => m.ordem === missao.ordem + 1);
+  // Próxima missão na sequência
+  const currentIndex = trilha.missoes.findIndex((m) => m.id === missao.id);
+  const proximaMissao =
+    currentIndex >= 0 && currentIndex < trilha.missoes.length - 1
+      ? trilha.missoes[currentIndex + 1]
+      : trilha.missoes.find((m) => m.ordem > missao.ordem);
 
   function handleConcluirQuiz(_acertos: number, _total: number) {
     const trilhaProgress = progress.progressoPorTrilha[trilhaId!] ?? [];
@@ -111,7 +123,6 @@ export default function MissaoPage() {
       missaoId: missaoId!,
     });
 
-    setMissaoConcluida(true);
     setXpGanhoAnim(xpGanho);
     setQuizAberto(false);
 

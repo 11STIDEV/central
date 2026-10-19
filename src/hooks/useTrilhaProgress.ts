@@ -78,15 +78,28 @@ export function useTrilhaProgress(): UseTrilhaProgressReturn {
         if (cancelado) return;
 
         if (progressoServidor) {
-          const stats = calcularProgresso(progressoServidor.progressoPorTrilha, getTrilhasCache());
+          const cacheTrilhas = getTrilhasCache();
+          const stats = cacheTrilhas && cacheTrilhas.length > 0
+            ? calcularProgresso(progressoServidor.progressoPorTrilha, cacheTrilhas)
+            : null;
+
           const merged: UserProgress = {
             ...PROGRES_LIMPO,
             ...progressoServidor,
-            ...stats,
+            // Prioriza sempre o xpTotal gravado no Supabase para evitar oscilações ou valores fictícios
+            xpTotal: typeof progressoServidor.xpTotal === "number"
+              ? progressoServidor.xpTotal
+              : (stats?.xpTotal ?? 0),
+            missoesCompletas: typeof progressoServidor.missoesCompletas === "number"
+              ? progressoServidor.missoesCompletas
+              : (stats?.missoesCompletas ?? 0),
+            trilhasCompletas: typeof progressoServidor.trilhasCompletas === "number"
+              ? progressoServidor.trilhasCompletas
+              : (stats?.trilhasCompletas ?? 0),
             ofensivaDias: progressoServidor.ofensivaDias ?? 0,
             ultimaAtividade: progressoServidor.ultimaAtividade ?? undefined,
           };
-          atualizarBadgesConquistadas(merged, getTrilhasCache());
+          atualizarBadgesConquistadas(merged, cacheTrilhas);
           setProgress(merged);
         } else {
           // Se não há registro no Supabase, o usuário está zerado
@@ -113,12 +126,20 @@ export function useTrilhaProgress(): UseTrilhaProgressReturn {
       novoProgresso: UserProgress,
       opts?: { xpGanho?: number; trilhaId?: string; missaoId?: string }
     ) => {
-      const stats = calcularProgresso(novoProgresso.progressoPorTrilha, getTrilhasCache());
+      const cacheTrilhas = getTrilhasCache();
+      const stats = cacheTrilhas && cacheTrilhas.length > 0
+        ? calcularProgresso(novoProgresso.progressoPorTrilha, cacheTrilhas)
+        : null;
+
       const atualizado: UserProgress = {
         ...novoProgresso,
-        ...stats,
+        xpTotal: typeof novoProgresso.xpTotal === "number"
+          ? novoProgresso.xpTotal
+          : (stats?.xpTotal ?? 0),
+        missoesCompletas: stats?.missoesCompletas ?? novoProgresso.missoesCompletas,
+        trilhasCompletas: stats?.trilhasCompletas ?? novoProgresso.trilhasCompletas,
       };
-      atualizarBadgesConquistadas(atualizado, getTrilhasCache());
+      atualizarBadgesConquistadas(atualizado, cacheTrilhas);
       setProgress(atualizado);
 
       // Persiste exclusivamente no Supabase via servidor

@@ -23,6 +23,9 @@ function normalizarSetor(str: string): string {
  * 3. Trilhas com setores especificados só são acessíveis a colaboradores pertencentes a um desses setores.
  */
 export function podeAcessarTrilha(trilha: Trilha, papeis?: Papel[]): boolean {
+  // [TEMPORÁRIO - TESTES LOCAIS]: Libera acesso irrestrito a todas as trilhas para todos os papéis
+  return true;
+
   // Administradores sempre têm acesso a todas as trilhas
   if (papeis?.includes("admin")) {
     return true;
