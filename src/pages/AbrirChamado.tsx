@@ -205,7 +205,15 @@ export default function AbrirChamado() {
                 <select
                   required
                   value={form.categoria}
-                  onChange={(e) => setForm({ ...form, categoria: e.target.value })}
+                  onChange={(e) => {
+                    const cat = e.target.value;
+                    const isCameraCat = cat === "Filmagem de Câmera";
+                    setForm((prev) => ({
+                      ...prev,
+                      categoria: cat,
+                      ...(isCameraCat && !prev.solicitaFilmagem ? { solicitaFilmagem: true } : {}),
+                    }));
+                  }}
                   className={inputClass}
                 >
                   <option value="">Selecione...</option>
@@ -264,6 +272,9 @@ export default function AbrirChamado() {
                           setForm({
                             ...form,
                             solicitaFilmagem: e.target.checked,
+                            ...(e.target.checked && (!form.categoria || form.categoria === "Outro")
+                              ? { categoria: "Filmagem de Câmera" }
+                              : {}),
                             // Limpa os campos ao desmarcar
                             ...(e.target.checked === false && {
                               filmagemData: "",

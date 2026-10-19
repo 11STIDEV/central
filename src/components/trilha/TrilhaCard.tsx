@@ -20,15 +20,15 @@ export function TrilhaCard({ trilha, progress, onClick }: TrilhaCardProps) {
     avancado: "Avançado",
   };
   const dificuldadeCor: Record<string, string> = {
-    iniciante: "text-emerald-400 bg-emerald-400/10",
-    intermediario: "text-amber-400 bg-amber-400/10",
-    avancado: "text-red-400 bg-red-400/10",
+    iniciante: "text-emerald-600 bg-emerald-500/10 dark:text-emerald-400",
+    intermediario: "text-blue-600 bg-blue-500/10 dark:text-amber-400 dark:bg-amber-400/10",
+    avancado: "text-rose-600 bg-rose-500/10 dark:text-red-400",
   };
 
   return (
     <button
       onClick={onClick}
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/8 bg-white/[0.03] text-left transition-all duration-200 hover:-translate-y-1 hover:border-white/16 hover:bg-white/[0.06] hover:shadow-xl hover:shadow-black/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50"
+      className="group relative flex flex-col overflow-hidden rounded-2xl border border-border bg-card dark:border-white/8 dark:bg-white/[0.03] text-left transition-all duration-200 hover:-translate-y-1 hover:border-primary/40 dark:hover:border-white/16 hover:shadow-lg dark:hover:shadow-black/30 shadow-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
     >
       {/* Gradient header */}
       <div className={`relative flex items-center gap-3 bg-gradient-to-br ${trilha.cor} p-5`}>
@@ -51,11 +51,11 @@ export function TrilhaCard({ trilha, progress, onClick }: TrilhaCardProps) {
               Concluída
             </span>
           ) : iniciada ? (
-            <span className="rounded-full bg-amber-400/20 px-2.5 py-1 text-xs font-bold text-amber-300 ring-1 ring-amber-400/30">
+            <span className="rounded-full bg-blue-500/20 text-white dark:bg-amber-400/20 dark:text-amber-300 px-2.5 py-1 text-xs font-bold ring-1 ring-white/30 dark:ring-amber-400/30">
               Em andamento
             </span>
           ) : (
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-xs font-bold text-white/70 ring-1 ring-white/20">
+            <span className="rounded-full bg-black/20 px-2.5 py-1 text-xs font-bold text-white/90 ring-1 ring-white/30">
               Iniciar
             </span>
           )}
@@ -71,8 +71,8 @@ export function TrilhaCard({ trilha, progress, onClick }: TrilhaCardProps) {
         {/* Meta info */}
         <div className="mt-4 flex items-center gap-3 text-xs text-muted-foreground">
           <span className="flex items-center gap-1">
-            <Zap className="h-3 w-3 text-amber-400" />
-            <span className="font-semibold text-amber-400">{trilha.xpTotal} XP</span>
+            <Zap className="h-3 w-3 text-primary dark:text-amber-400" />
+            <span className="font-semibold text-primary dark:text-amber-400">{trilha.xpTotal} XP</span>
           </span>
           <span className="flex items-center gap-1">
             <Clock className="h-3 w-3" />
@@ -81,22 +81,27 @@ export function TrilhaCard({ trilha, progress, onClick }: TrilhaCardProps) {
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${dificuldadeCor[trilha.dificuldade]}`}>
             {dificuldadeLabel[trilha.dificuldade]}
           </span>
+          {trilha.setorRestrito && (
+            <span className="rounded-full px-2 py-0.5 text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20 dark:text-blue-300">
+              🔒 {trilha.setorRestrito}
+            </span>
+          )}
         </div>
 
         {/* Progress */}
         <div className="mt-4 space-y-1.5">
           <div className="flex justify-between text-xs">
             <span className="text-muted-foreground">Progresso</span>
-            <span className={`font-semibold tabular-nums ${completa ? "text-emerald-400" : "text-foreground"}`}>
+            <span className={`font-semibold tabular-nums ${completa ? "text-emerald-600 dark:text-emerald-400" : "text-foreground"}`}>
               {concluidas}/{total}
             </span>
           </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/8">
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted dark:bg-white/8">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
                 completa
-                  ? "bg-gradient-to-r from-emerald-400 to-teal-500"
-                  : "bg-gradient-to-r from-amber-400 to-orange-500"
+                  ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+                  : "bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-amber-400 dark:to-orange-500"
               }`}
               style={{ width: `${pct}%` }}
             />

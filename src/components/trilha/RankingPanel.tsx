@@ -8,9 +8,9 @@ interface RankingPanelProps {
 }
 
 const podiumIcon = [
-  <Crown className="h-3.5 w-3.5 text-amber-400" />,
-  <Medal className="h-3.5 w-3.5 text-slate-300" />,
-  <Award className="h-3.5 w-3.5 text-orange-400" />,
+  <Crown className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />,
+  <Medal className="h-3.5 w-3.5 text-slate-400 dark:text-slate-300" />,
+  <Award className="h-3.5 w-3.5 text-amber-700 dark:text-orange-400" />,
 ];
 
 export function RankingPanel({ entries, meuNome }: RankingPanelProps) {
@@ -27,7 +27,7 @@ export function RankingPanel({ entries, meuNome }: RankingPanelProps) {
 
       {entries.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-6 text-center">
-          <Trophy className="h-8 w-8 text-white/10 mb-2" />
+          <Trophy className="h-8 w-8 text-muted-foreground/30 mb-2" />
           <p className="text-xs font-medium text-muted-foreground">Nenhuma atividade esta semana</p>
           <p className="text-[10px] text-muted-foreground/60 mt-1">
             Complete missões para aparecer no ranking!
@@ -36,7 +36,6 @@ export function RankingPanel({ entries, meuNome }: RankingPanelProps) {
       ) : (
         <div className="space-y-2">
           {entries.map((entry) => {
-            const { atual } = getNivelInfo(entry.xpSemana * 3); // rough estimate for display
             const isMe = meuNome && entry.nome === meuNome;
             const barPct = Math.round((entry.xpSemana / maxXP) * 100);
 
@@ -45,8 +44,8 @@ export function RankingPanel({ entries, meuNome }: RankingPanelProps) {
                 key={entry.posicao}
                 className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
                   isMe
-                    ? "bg-amber-400/8 ring-1 ring-amber-400/20"
-                    : "bg-white/[0.03] hover:bg-white/[0.05]"
+                    ? "bg-primary/10 ring-1 ring-primary/30 dark:bg-amber-400/8 dark:ring-amber-400/20"
+                    : "bg-muted/30 hover:bg-muted/60 dark:bg-white/[0.03] dark:hover:bg-white/[0.05]"
                 }`}
               >
                 {/* Position */}
@@ -62,7 +61,7 @@ export function RankingPanel({ entries, meuNome }: RankingPanelProps) {
 
                 {/* Avatar */}
                 <div
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white ${entry.cor}`}
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-bold text-white shadow-xs ${entry.cor}`}
                 >
                   {entry.iniciais}
                 </div>
@@ -70,19 +69,19 @@ export function RankingPanel({ entries, meuNome }: RankingPanelProps) {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <p className={`truncate text-xs font-semibold ${isMe ? "text-amber-400" : "text-foreground"}`}>
+                    <p className={`truncate text-xs font-semibold ${isMe ? "text-primary dark:text-amber-400 font-bold" : "text-foreground"}`}>
                       {entry.nome} {isMe && "(você)"}
                     </p>
-                    <span className="shrink-0 text-xs font-bold tabular-nums text-amber-400">
+                    <span className="shrink-0 text-xs font-bold tabular-nums text-primary dark:text-amber-400">
                       {entry.xpSemana} XP
                     </span>
                   </div>
                   {/* Mini progress bar */}
-                  <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/8">
+                  <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-muted dark:bg-white/8">
                     <div
                       className={`h-full rounded-full transition-all duration-500 ${
                         entry.posicao === 1
-                          ? "bg-gradient-to-r from-amber-400 to-orange-500"
+                          ? "bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-amber-400 dark:to-orange-500"
                           : "bg-gradient-to-r from-slate-400 to-slate-500"
                       }`}
                       style={{ width: `${barPct}%` }}

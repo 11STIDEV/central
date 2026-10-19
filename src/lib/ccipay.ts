@@ -109,6 +109,9 @@ export type CcipayResumo = {
   bonificacaoDisponivelGastar?: number;
   bonificacaoTeto?: number | null;
   bonificacaoDisponivelCreditar?: number | null;
+  xpTotalTrilha?: number;
+  xpValorMonetario?: number;
+  taxaConversaoXp?: number;
   movimentos: CcipayMovimento[];
 };
 
@@ -122,6 +125,8 @@ export type CcipayResumoFuncionarioDp = {
   adiantamentoDisponivel: number;
   limiteBonificacao?: number | null;
   saldoBonificacao: number;
+  xpTotalTrilha?: number;
+  xpValorMonetario?: number;
 };
 
 export type CcipayVendaQrStatus = "pendente" | "pago" | "expirado" | "cancelado";
@@ -192,6 +197,9 @@ export async function ccipayMe(idToken: string): Promise<CcipayResumo> {
     bonificacaoDisponivelGastar?: number;
     bonificacaoTeto?: number | null;
     bonificacaoDisponivelCreditar?: number | null;
+    xpTotalTrilha?: number;
+    xpValorMonetario?: number;
+    taxaConversaoXp?: number;
     movimentos: CcipayMovimento[];
   }>("/api/ccipay/me", idToken);
   return {
@@ -203,6 +211,9 @@ export async function ccipayMe(idToken: string): Promise<CcipayResumo> {
     bonificacaoDisponivelGastar: data.bonificacaoDisponivelGastar,
     bonificacaoTeto: data.bonificacaoTeto,
     bonificacaoDisponivelCreditar: data.bonificacaoDisponivelCreditar,
+    xpTotalTrilha: data.xpTotalTrilha,
+    xpValorMonetario: data.xpValorMonetario,
+    taxaConversaoXp: data.taxaConversaoXp,
     movimentos: data.movimentos,
   };
 }

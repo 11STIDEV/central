@@ -52,20 +52,31 @@ async function main() {
   for (const t of trilhas) {
     console.log(`-> Importando trilha: ${t.titulo} (${t.id})...`);
 
-    const { error: errT } = await supabase
+    const trilhaRow = {
+      id: t.id,
+      titulo: t.titulo,
+      descricao: t.descricao || '',
+      categoria: t.categoria || '',
+      icone: t.icone || '📚',
+      cor: t.cor || 'from-indigo-500 to-blue-600',
+      dificuldade: t.dificuldade || 'iniciante',
+      setor_restrito: t.setorRestrito || null,
+      ativo: true,
+      ordem: ordemTrilha,
+      xp_total: t.xpTotal || 50,
+    };
+
+    let { error: errT } = await supabase
       .from('trilhas_conhecimento')
-      .upsert({
-        id: t.id,
-        titulo: t.titulo,
-        descricao: t.descricao || '',
-        categoria: t.categoria || '',
-        icone: t.icone || '📚',
-        cor: t.cor || 'from-indigo-500 to-blue-600',
-        dificuldade: t.dificuldade || 'iniciante',
-        setor_restrito: t.setorRestrito || null,
-        ativo: true,
-        ordem: ordemTrilha,
-      }, { onConflict: 'id' });
+      .upsert(trilhaRow, { onConflict: 'id' });
+
+    if (errT && (errT.code === 'PGRST204' || errT.message.includes('xp_total'))) {
+      delete trilhaRow.xp_total;
+      const retry = await supabase
+        .from('trilhas_conhecimento')
+        .upsert(trilhaRow, { onConflict: 'id' });
+      errT = retry.error;
+    }
 
     if (errT) {
       console.error(`Erro ao importar trilha ${t.id}:`, errT.message);
@@ -84,7 +95,7 @@ async function main() {
           descricao: m.descricao || '',
           conteudo: m.conteudo || '',
           link_externo: m.linkExterno || null,
-          xp_recompensa: m.xpRecompensa || 5,
+          xp_recompensa: 0,
           tempo_estimado_min: m.tempoEstimadoMin || 10,
           quiz: m.quiz || [],
         }, { onConflict: 'id' });

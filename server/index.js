@@ -78,6 +78,8 @@ import {
   salvarProgressoUsuario,
   registrarXpGanho,
   obterRankingSemanal,
+  zerarProgressoUsuario,
+  zerarProgressoTodosUsuarios,
 } from "./trilhaProgressoStore.js";
 import {
   listarTrilhas,
@@ -1901,6 +1903,13 @@ async function enviarEmailNovoChamado(chamado) {
         <p><strong>⚠️ Prioridade:</strong> ${chamado.prioridade ? chamado.prioridade.toUpperCase() : "MÉDIA"}</p>
         <p><strong>📅 Data:</strong> ${chamado.data}</p>
       </div>
+      ${(chamado.solicitaFilmagem || chamado.filmagemData) ? `
+      <div style="background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 4px; padding: 14px 18px; margin: 16px 0;">
+        <p style="margin: 0 0 8px 0; font-weight: bold; color: #1d4ed8; font-size: 15px;">🎥 Solicitação de Acesso à Filmagem de Câmera</p>
+        <p style="margin: 4px 0; font-size: 14px; color: #1e3a8a;"><strong>📅 Data da Filmagem:</strong> ${chamado.filmagemData || "Não informada"}</p>
+        <p style="margin: 4px 0; font-size: 14px; color: #1e3a8a;"><strong>⏰ Horário de Início:</strong> ${chamado.filmagemHoraInicio || "Não informada"}</p>
+        <p style="margin: 4px 0; font-size: 14px; color: #1e3a8a;"><strong>⏰ Horário Final:</strong> ${chamado.filmagemHoraFim || "Não informada"}</p>
+      </div>` : ""}
 
       <p><strong>📝 Descrição:</strong></p>
       <div class="desc-box">${chamado.descricao || "Sem descrição."}</div>
@@ -6748,8 +6757,8 @@ app.post("/api/trilha/progresso/salvar", async (req, res) => {
       teveAtividadeRealizada: teveAtividade,
     });
 
-    // Registra XP no histórico se uma missão foi concluída
-    if (typeof xpGanho === "number" && trilhaId && missaoId) {
+    // Registra XP no histórico se houver ganho de XP (ao concluir a trilha)
+    if (typeof xpGanho === "number" && xpGanho > 0 && trilhaId && missaoId) {
       await registrarXpGanho(ctx.email, trilhaId, missaoId, xpGanho);
     }
 
@@ -6757,6 +6766,41 @@ app.post("/api/trilha/progresso/salvar", async (req, res) => {
   } catch (e) {
     if (e.status) return respostaErroIdToken(res, e);
     console.error("[trilha/progresso/salvar] Erro:", e.message);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/**
+ * POST /api/trilha/progresso/zerar
+ * Zera o progresso e o histórico de XP do usuário autenticado.
+ */
+app.post("/api/trilha/progresso/zerar", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    await zerarProgressoUsuario(ctx.email);
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilha/progresso/zerar] Erro:", e.message);
+    return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+/**
+ * POST /api/trilha/progresso/zerar-todos
+ * Zera o histórico e o XP de TODOS os usuários (restrito a admin).
+ */
+app.post("/api/trilha/progresso/zerar-todos", async (req, res) => {
+  try {
+    const ctx = await resolverContextoFromRequest(req);
+    if (!ctx.papeis?.includes("admin")) {
+      return res.status(403).json({ error: "Apenas administradores podem zerar o progresso de todos os usuários." });
+    }
+    await zerarProgressoTodosUsuarios();
+    return res.json({ ok: true });
+  } catch (e) {
+    if (e.status) return respostaErroIdToken(res, e);
+    console.error("[trilha/progresso/zerar-todos] Erro:", e.message);
     return res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
   }
 });

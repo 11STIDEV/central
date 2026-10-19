@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { PageHero } from "@/components/PageHero";
-import { BookOpen, Key, Eye, EyeOff, Copy, Search, Plus, Lock, School, Upload, CheckCircle2, XCircle, Loader2, Users, RefreshCw, AlertCircle, Check, FileText, ChevronDown, FileSpreadsheet, Server } from "lucide-react";
+import { BookOpen, Key, Eye, EyeOff, Copy, Search, Plus, Lock, School, Upload, CheckCircle2, XCircle, Loader2, Users, RefreshCw, AlertCircle, Check, FileText, ChevronDown, FileSpreadsheet, Server, ExternalLink, ShieldCheck, Download, Sparkles, Smartphone, Chrome } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import { apiUrl } from "@/lib/apiBase";
 import { AlterdataTester } from "@/components/ti/AlterdataTester";
@@ -29,18 +29,43 @@ const tutoriaisInternos = [
   },
 ];
 
-const senhasCompartilhadas = [
-  { id: 1, servico: "Servidor de Backup", usuario: "admin_backup", senha: "Bkp@2026#Srv!", categoria: "Servidores" },
-  { id: 2, servico: "Painel Hosting", usuario: "hosting_admin", senha: "H0st!ng$ecure", categoria: "Web" },
-  { id: 3, servico: "Switch Core", usuario: "admin", senha: "Sw!tch#Core99", categoria: "Rede" },
-  { id: 4, servico: "Antivírus Console", usuario: "av_admin", senha: "AV@Mng2026!", categoria: "Segurança" },
-  { id: 5, servico: "Wi-Fi Corporativo (WPA)", usuario: "N/A", senha: "Corp@WiFi#2026", categoria: "Rede" },
+const VAULTWARDEN_URL = (import.meta.env.VITE_VAULTWARDEN_URL as string) || "https://senhas.portalcci.com.br";
+
+const colecoesCofre = [
+  {
+    id: 1,
+    titulo: "Servidores & Virtualização",
+    categoria: "Servidores",
+    descricao: "Servidores de Backup, Proxmox, Storages NAS e instâncias Linux/Windows.",
+    itens: ["Servidor de Backup (Linux)", "Painel Hosting / Webmin", "Storage Backup NAS", "Acessos RDP/SSH"],
+  },
+  {
+    id: 2,
+    titulo: "Rede & Telecomunicações",
+    categoria: "Rede",
+    descricao: "Switches gerenciáveis, roteadores de borda, controladoras de APs e chaves Wi-Fi.",
+    itens: ["Switch Core L3", "Switches de Distribuição", "Wi-Fi Corporativo WPA2/WPA3", "Roteadores Mikrotik"],
+  },
+  {
+    id: 3,
+    titulo: "Segurança & Monitoramento",
+    categoria: "Segurança",
+    descricao: "Console do antivírus corporativo, firewalls perimetrais e dashboards Zabbix/Grafana.",
+    itens: ["Antivírus Endpoint Console", "Firewall / pfSense", "Zabbix & Grafana", "VPN de Administração"],
+  },
+  {
+    id: 4,
+    titulo: "Web, Domínios & SaaS",
+    categoria: "Web",
+    descricao: "Painéis de hosting, provedores de DNS, Registro.br, Cloudflare e contas de serviço.",
+    itens: ["Painel Hosting / cPanel", "Registro.br (Domínios)", "Cloudflare DNS / SSL", "Contas de Integração API"],
+  },
 ];
 
 export default function AreaTI() {
   const { googleIdToken } = useAuth();
   const [tab, setTab] = useState<"tutoriais" | "senhas" | "classroom" | "alterdata">("tutoriais");
-  const [visiblePasswords, setVisiblePasswords] = useState<Set<number>>(new Set());
+  const [copiedUrl, setCopiedUrl] = useState(false);
   const [search, setSearch] = useState("");
   const [selectedTutorial, setSelectedTutorial] = useState<number | null>(null);
 
@@ -692,14 +717,10 @@ export default function AreaTI() {
   };
 
 
-  const togglePassword = (id: number) => {
-    const next = new Set(visiblePasswords);
-    next.has(id) ? next.delete(id) : next.add(id);
-    setVisiblePasswords(next);
-  };
-
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2500);
   };
 
   const tutorial = tutoriaisInternos.find((t) => t.id === selectedTutorial);
@@ -791,63 +812,182 @@ export default function AreaTI() {
         )}
 
         {tab === "senhas" && (
-          <div>
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                type="text"
-                placeholder="Buscar serviço..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full rounded-xl border border-input bg-card py-3 pl-10 pr-4 text-sm text-card-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
-              />
+          <div className="space-y-6 animate-fade-in">
+            {/* HERO BANNER DO COFRE */}
+            <div className="relative overflow-hidden rounded-2xl border border-border/80 bg-gradient-to-br from-card via-card to-primary/5 p-6 md:p-8 shadow-card">
+              <div className="relative z-10 flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+                <div className="space-y-3 max-w-2xl">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Cofre Corporativo Ativo • Criptografia Zero-Knowledge AES-256
+                  </div>
+                  <h3 className="text-xl md:text-2xl font-bold tracking-tight text-card-foreground">
+                    Cofre de Senhas da TI (Bitwarden)
+                  </h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Todas as credenciais de servidores, roteadores, switches e serviços da instituição agora são gerenciadas centralizadamente no nosso cofre auto-hospedado com autenticação em dois fatores (2FA) e trilha de auditoria.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row md:flex-col lg:flex-row gap-3 shrink-0">
+                  <a
+                    href={VAULTWARDEN_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-md transition-all hover:bg-primary/90 hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Abrir Cofre no Navegador
+                  </a>
+                  <button
+                    onClick={() => copyToClipboard(VAULTWARDEN_URL)}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium text-card-foreground transition-all hover:bg-muted"
+                    title="Copiar URL do cofre"
+                  >
+                    {copiedUrl ? (
+                      <>
+                        <Check className="h-4 w-4 text-emerald-500" />
+                        <span className="text-emerald-500 font-semibold">Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-4 w-4 text-muted-foreground" />
+                        <span>Copiar URL</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border bg-muted/50">
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Serviço</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Usuário</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Senha</th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {senhasCompartilhadas
-                    .filter((s) => s.servico.toLowerCase().includes(search.toLowerCase()) || s.categoria.toLowerCase().includes(search.toLowerCase()))
-                    .map((s, i) => (
-                      <tr key={s.id} className={`transition-colors hover:bg-muted/30 ${i !== senhasCompartilhadas.length - 1 ? "border-b border-border" : ""}`}>
-                        <td className="px-6 py-4">
-                          <p className="text-sm font-medium text-card-foreground">{s.servico}</p>
-                          <p className="text-xs text-muted-foreground">{s.categoria}</p>
-                        </td>
-                        <td className="px-6 py-4 font-mono text-sm text-card-foreground">{s.usuario}</td>
-                        <td className="px-6 py-4 font-mono text-sm text-card-foreground">
-                          {visiblePasswords.has(s.id) ? s.senha : "••••••••••"}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => togglePassword(s.id)}
-                              className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                              title={visiblePasswords.has(s.id) ? "Ocultar" : "Mostrar"}
-                            >
-                              {visiblePasswords.has(s.id) ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
-                            </button>
-                            <button
-                              onClick={() => copyToClipboard(s.senha)}
-                              className="rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                              title="Copiar"
-                            >
-                              <Copy className="h-3.5 w-3.5" />
-                            </button>
+            {/* GUIA PASSO A PASSO PARA A EQUIPE */}
+            <div className="rounded-xl border border-border bg-card p-6 shadow-card">
+              <h4 className="text-base font-semibold text-card-foreground mb-4 flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                Como configurar a extensão Bitwarden no seu navegador
+              </h4>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-xs">
+                    1
+                  </div>
+                  <p className="text-sm font-semibold text-card-foreground">Instale a Extensão</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Baixe a extensão oficial do <strong className="text-foreground">Bitwarden</strong> na Chrome Web Store ou Edge Add-ons para o seu navegador de trabalho.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-xs">
+                    2
+                  </div>
+                  <p className="text-sm font-semibold text-card-foreground">Mude o Servidor (Ambiente)</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Na tela de login da extensão, clique no ícone de <strong className="text-foreground">engrenagem ⚙️</strong> no canto superior esquerdo e no campo <em className="text-foreground font-mono">URL do Servidor</em> digite:
+                  </p>
+                  <div className="rounded bg-background px-2 py-1 font-mono text-[11px] text-primary border border-border select-all">
+                    {VAULTWARDEN_URL}
+                  </div>
+                </div>
+
+                <div className="rounded-lg border border-border/60 bg-muted/30 p-4 space-y-2">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary font-bold text-xs">
+                    3
+                  </div>
+                  <p className="text-sm font-semibold text-card-foreground">Faça Login & Ative 2FA</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Entre com seu e-mail institucional e Master Password. Todas as senhas da equipe compartilhadas na organização estarão sincronizadas instantaneamente.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* COLEÇÕES DISPONÍVEIS NO COFRE */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div>
+                  <h4 className="text-base font-semibold text-card-foreground">Coleções Gerenciadas no Cofre</h4>
+                  <p className="text-xs text-muted-foreground">Catálogo de acessos organizados por área de infraestrutura</p>
+                </div>
+
+                <div className="relative w-full sm:w-72">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Filtrar serviços ou coleções..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    className="w-full rounded-xl border border-input bg-card py-2 pl-9 pr-3 text-xs text-card-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-2 focus:ring-ring/20"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {colecoesCofre
+                  .filter((c) =>
+                    c.titulo.toLowerCase().includes(search.toLowerCase()) ||
+                    c.categoria.toLowerCase().includes(search.toLowerCase()) ||
+                    c.itens.some((item) => item.toLowerCase().includes(search.toLowerCase()))
+                  )
+                  .map((c) => (
+                    <div
+                      key={c.id}
+                      className="rounded-xl border border-border bg-card p-5 shadow-card transition-all hover:border-primary/40 hover:shadow-elevated flex flex-col justify-between"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h5 className="font-semibold text-sm text-card-foreground flex items-center gap-2">
+                            <Key className="h-4 w-4 text-primary" />
+                            {c.titulo}
+                          </h5>
+                          <span className="rounded-md border border-border bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                            {c.categoria}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{c.descricao}</p>
+
+                        <div className="pt-2">
+                          <p className="text-[11px] font-semibold text-muted-foreground mb-1.5 uppercase tracking-wider">
+                            Principais itens cadastrados:
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {c.itens.map((item, idx) => (
+                              <span
+                                key={idx}
+                                className="rounded-md bg-muted px-2 py-1 text-[11px] text-foreground font-mono"
+                              >
+                                {item}
+                              </span>
+                            ))}
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+                        </div>
+                      </div>
+
+                      <div className="mt-4 pt-3 border-t border-border flex items-center justify-end">
+                        <a
+                          href={VAULTWARDEN_URL}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-semibold text-primary hover:underline inline-flex items-center gap-1"
+                        >
+                          Acessar esta coleção no cofre <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+
+            {/* AVISO DE POLÍTICA DE SEGURANÇA */}
+            <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-xs text-amber-800 dark:text-amber-300">
+              <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-semibold">Política de Segurança da Equipe de TI:</p>
+                <p className="text-amber-700 dark:text-amber-400 leading-relaxed">
+                  Nunca envie ou solicite credenciais institucionais por e-mail, Teams ou WhatsApp. Para compartilhar senhas temporárias com prestadores de serviço externos de forma segura e criptografada, utilize o recurso <strong className="font-semibold underline">Bitwarden Send</strong> disponível dentro do painel do cofre.
+                </p>
+              </div>
             </div>
           </div>
         )}

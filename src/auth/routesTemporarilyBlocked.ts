@@ -5,7 +5,7 @@ export const ROTAS_TEMPORARIAMENTE_BLOQUEADAS = new Set([
   "/base-conhecimento",
   "/documentos",
   "/controle-materiais-almoxarifado",
-  "/trilha-conhecimento",
+  // "/trilha-conhecimento", // [TEMPORÁRIO - TESTES LOCAIS]: Liberado para todos os papéis
 ]);
 
 function normalizarPath(pathname: string): string {

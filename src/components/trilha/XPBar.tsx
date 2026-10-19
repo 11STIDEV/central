@@ -14,11 +14,11 @@ export function XPBar({ xpTotal, className = "" }: XPBarProps) {
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
       <div className="flex items-center justify-between text-xs">
-        <span className="flex items-center gap-1.5 font-semibold text-amber-400">
+        <span className="flex items-center gap-1.5 font-semibold text-primary dark:text-amber-400">
           <span className="text-base leading-none">{atual.icone}</span>
           <span>Nível {atual.nivel} — {atual.nome}</span>
         </span>
-        <span className="text-muted-foreground tabular-nums">
+        <span className="text-muted-foreground tabular-nums font-medium">
           {xpTotal.toLocaleString("pt-BR")} XP
           {proximo && (
             <span className="opacity-60"> / {proximo.xpMin.toLocaleString("pt-BR")}</span>
@@ -27,10 +27,10 @@ export function XPBar({ xpTotal, className = "" }: XPBarProps) {
       </div>
 
       {/* Track */}
-      <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/10">
+      <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-muted dark:bg-white/10">
         {/* Fill */}
         <div
-          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-700 ease-out"
+          className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-amber-400 dark:to-orange-500 transition-all duration-700 ease-out"
           style={{ width: `${pct}%` }}
         />
         {/* Shine */}
@@ -44,14 +44,14 @@ export function XPBar({ xpTotal, className = "" }: XPBarProps) {
       {proximo && (
         <p className="text-[10px] text-muted-foreground">
           Faltam{" "}
-          <span className="font-semibold text-amber-400/80">
+          <span className="font-semibold text-primary dark:text-amber-400/80">
             {(proximo.xpMin - xpTotal).toLocaleString("pt-BR")} XP
           </span>{" "}
           para {proximo.icone} {proximo.nome}
         </p>
       )}
       {!proximo && (
-        <p className="text-[10px] font-semibold text-amber-400">
+        <p className="text-[10px] font-semibold text-primary dark:text-amber-400">
           🏆 Nível máximo atingido!
         </p>
       )}
@@ -64,8 +64,8 @@ export function XPBar({ xpTotal, className = "" }: XPBarProps) {
             title={`${n.icone} ${n.nome} (${n.xpMin} XP)`}
             className={`h-1 flex-1 rounded-full transition-all duration-300 ${
               xpTotal >= n.xpMin
-                ? "bg-amber-400/80"
-                : "bg-white/10"
+                ? "bg-primary dark:bg-amber-400/80"
+                : "bg-muted dark:bg-white/10"
             }`}
           />
         ))}

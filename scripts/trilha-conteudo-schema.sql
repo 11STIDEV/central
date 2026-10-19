@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS trilhas_conhecimento (
   setor_restrito  TEXT,
   ativo           BOOLEAN NOT NULL DEFAULT true,
   ordem           INTEGER NOT NULL DEFAULT 0,
+  xp_total        INTEGER NOT NULL DEFAULT 50,
   criado_em       TIMESTAMPTZ NOT NULL DEFAULT now(),
   atualizado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
 );

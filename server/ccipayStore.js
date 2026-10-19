@@ -324,6 +324,28 @@ export async function somarAdiantamentosCompetencia(supabase, email, competencia
     .reduce((acc, r) => acc + Number(r.valor), 0);
 }
 
+export const VALOR_REAIS_POR_XP = 1.0;
+
+export function calcularValorMonetarioXp(xpTotal) {
+  return Math.max(0, Number(xpTotal) || 0) * VALOR_REAIS_POR_XP;
+}
+
+export async function obterXpTrilha(supabase, email) {
+  if (!supabase || !email) return 0;
+  try {
+    const { data, error } = await supabase
+      .from("trilha_progresso")
+      .select("xp_total")
+      .eq("email", String(email).toLowerCase())
+      .maybeSingle();
+    if (error || !data) return 0;
+    return Number(data.xp_total) || 0;
+  } catch (err) {
+    console.error("[ccipay] erro ao obter xp da trilha:", err);
+    return 0;
+  }
+}
+
 export async function saldoConvenioDisponivel(supabase, email, competencia) {
   const comp = competencia || competenciaAtual();
   const func =
@@ -361,6 +383,10 @@ export async function saldoConvenioDisponivel(supabase, email, competencia) {
     }
   }
 
+  // Bonificação extra de XP da Trilha de Conhecimento
+  const xpTotal = await obterXpTrilha(supabase, email);
+  saldoExtraCreditos += calcularValorMonetarioXp(xpTotal);
+
   const disponivelFolha = Math.max(0, limiteTotal - usadoFolha);
   const totalDisponivel = disponivelFolha + Math.max(0, saldoExtraCreditos);
 
@@ -373,7 +399,7 @@ export async function saldoConvenioDisponivel(supabase, email, competencia) {
   };
 }
 
-export async function saldoBonificacao(supabase, email, competencia) {
+export async function saldoBonificacao(supabase, email, competencia, { incluirXp = true } = {}) {
   const comp = competencia || competenciaAtual();
   const { data, error } = await supabase
     .from("ccipay_movimentos")
@@ -398,6 +424,12 @@ export async function saldoBonificacao(supabase, email, competencia) {
       else saldo -= v;
     }
   }
+
+  if (incluirXp) {
+    const xpTotal = await obterXpTrilha(supabase, email);
+    saldo += calcularValorMonetarioXp(xpTotal);
+  }
+
   return saldo;
 }
 
@@ -415,15 +447,15 @@ export async function validarCreditoBonificacao(supabase, func, email, competenc
   if (Number.isNaN(valor) || valor <= 0) {
     throw new CcipayBonificacaoError("Informe um valor maior que zero.");
   }
-  const saldo = await saldoBonificacao(supabase, email, competencia);
-  const novoSaldo = saldo + valor;
+  const saldoSemXp = await saldoBonificacao(supabase, email, competencia, { incluirXp: false });
+  const novoSaldo = saldoSemXp + valor;
   if (func.limiteBonificacao != null && novoSaldo > func.limiteBonificacao) {
-    const disponivel = Math.max(0, func.limiteBonificacao - saldo);
+    const disponivel = Math.max(0, func.limiteBonificacao - saldoSemXp);
     throw new CcipayBonificacaoError(
       `Bonificação excede o limite. Disponível para creditar: R$ ${disponivel.toFixed(2)}.`,
     );
   }
-  return { saldo, novoSaldo };
+  return { saldo: saldoSemXp, novoSaldo };
 }
 
 /** Valida débito (dedução, compra loja, QR) contra o saldo disponível no convênio. */
@@ -918,8 +950,10 @@ export async function relatorioResumoPorFuncionario(supabase, competencia) {
   const resumo = [];
   for (const f of funcionarios) {
     const usado = await somarAdiantamentosCompetencia(supabase, f.email, competencia);
-    const saldoBon = await saldoBonificacao(supabase, f.email, competencia);
-    if (!f.ativo && usado === 0 && saldoBon === 0) continue;
+    const xpTotal = await obterXpTrilha(supabase, f.email);
+    const xpMonetario = calcularValorMonetarioXp(xpTotal);
+    const saldoBon = await saldoBonificacao(supabase, f.email, competencia, { incluirXp: true });
+    if (!f.ativo && usado === 0 && saldoBon === 0 && xpTotal === 0) continue;
     resumo.push({
       email: f.email,
       nome: f.nome,
@@ -930,6 +964,8 @@ export async function relatorioResumoPorFuncionario(supabase, competencia) {
       adiantamentoDisponivel: Math.max(0, f.limiteAdiantamento - usado),
       limiteBonificacao: f.limiteBonificacao,
       saldoBonificacao: saldoBon,
+      xpTotalTrilha: xpTotal,
+      xpValorMonetario: xpMonetario,
     });
   }
   return resumo;
@@ -972,14 +1008,17 @@ export async function montarResumoFuncionario(supabase, email) {
   if (!func) return null;
   const alt = await buscarColaboradorAlterdataPorEmail(supabase, email);
   const usado = await somarAdiantamentosCompetencia(supabase, email, comp);
-  const saldoBon = await saldoBonificacao(supabase, email, comp);
+  const xpTotalTrilha = await obterXpTrilha(supabase, email);
+  const xpValorMonetario = calcularValorMonetarioXp(xpTotalTrilha);
+  const saldoBon = await saldoBonificacao(supabase, email, comp, { incluirXp: true });
+  const saldoSemXp = Math.max(0, saldoBon - xpValorMonetario);
   const movimentos = await listarMovimentos(supabase, { funcionarioEmail: email });
   const bonificacaoDisponivelGastar = saldoBon;
   const bonificacaoTeto =
     func.limiteBonificacao != null ? func.limiteBonificacao : null;
   const bonificacaoDisponivelCreditar =
     func.limiteBonificacao != null
-      ? Math.max(0, func.limiteBonificacao - saldoBon)
+      ? Math.max(0, func.limiteBonificacao - saldoSemXp)
       : null;
 
   return {
@@ -1000,6 +1039,9 @@ export async function montarResumoFuncionario(supabase, email) {
     bonificacaoDisponivelGastar,
     bonificacaoTeto,
     bonificacaoDisponivelCreditar,
+    xpTotalTrilha,
+    xpValorMonetario,
+    taxaConversaoXp: VALOR_REAIS_POR_XP,
     movimentos: movimentos.slice(0, 50),
   };
 }
