@@ -118,6 +118,31 @@ export function CcipayQrScannerDialog({
   const onOpenChangeRef = useRef(onOpenChange);
   onOpenChangeRef.current = onOpenChange;
 
+  // Garante que todo elemento de vídeo criado pela biblioteca html5-qrcode
+  // já nasça com todos os atributos obrigatórios do iOS Safari antes do stream ser associado
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const originalCreateElement = document.createElement.bind(document);
+    document.createElement = function (tagName: string, options?: any) {
+      const el = originalCreateElement(tagName, options);
+      if (tagName && tagName.toLowerCase() === "video") {
+        el.setAttribute("playsinline", "true");
+        el.setAttribute("webkit-playsinline", "true");
+        el.setAttribute("autoplay", "true");
+        el.setAttribute("muted", "true");
+        (el as HTMLVideoElement).playsInline = true;
+        (el as HTMLVideoElement).muted = true;
+        (el as HTMLVideoElement).autoplay = true;
+        el.style.transform = "translateZ(0)";
+        (el.style as any).webkitTransform = "translateZ(0)";
+      }
+      return el;
+    };
+    return () => {
+      document.createElement = originalCreateElement;
+    };
+  }, []);
+
   const finalizarComToken = useCallback((token: string) => {
     if (handledRef.current) return;
     handledRef.current = true;
@@ -195,7 +220,7 @@ export function CcipayQrScannerDialog({
 
       let html5Qr: Html5Qrcode;
       try {
-        html5Qr = new Html5Qrcode(SCANNER_ELEMENT_ID, { verbose: true });
+        html5Qr = new Html5Qrcode(SCANNER_ELEMENT_ID, { verbose: false });
         scannerRef.current = html5Qr;
       } catch (e: any) {
         setStatus("error");
@@ -203,11 +228,13 @@ export function CcipayQrScannerDialog({
         return;
       }
 
-      // Detecta lista de câmeras para permitir alternar
+      // Detecta lista de câmeras para permitir alternar e preferir o ID direto
       let disponiveis: CameraDevice[] = [];
       try {
         disponiveis = await Html5Qrcode.getCameras();
-        setCameras(disponiveis);
+        if (disponiveis && disponiveis.length > 0) {
+          setCameras(disponiveis);
+        }
       } catch (_) {
         // getCameras pode falhar se permissão ainda não foi concedida
       }
@@ -233,17 +260,26 @@ export function CcipayQrScannerDialog({
         video.style.setProperty("display", "block", "important");
         video.style.setProperty("opacity", "1", "important");
         video.style.setProperty("visibility", "visible", "important");
+        video.style.setProperty("transform", "translateZ(0)", "important");
+        video.style.setProperty("-webkit-transform", "translateZ(0)", "important");
 
         if (video.paused) {
           video.play().catch((e) => console.warn("[scanner] auto play catch:", e));
         }
 
-        setDiagInfo({
-          videoWidth: video.videoWidth,
-          videoHeight: video.videoHeight,
-          paused: video.paused,
-          readyState: video.readyState,
-        });
+        const updateState = () => {
+          setDiagInfo({
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight,
+            paused: video.paused,
+            readyState: video.readyState,
+          });
+        };
+        updateState();
+
+        video.onloadedmetadata = updateState;
+        video.onplay = updateState;
+        video.onpause = updateState;
 
         return video;
       };
@@ -265,7 +301,7 @@ export function CcipayQrScannerDialog({
       try {
         let cameraIniciada = false;
 
-        // 1. Câmera forçada manualmente pelo usuário
+        // 1. Câmera forçada manualmente pelo usuário (ou botão alternar câmera)
         if (forceCameraId) {
           try {
             await html5Qr.start(forceCameraId, scanConfig, onScanSuccess, onScanFailure);
@@ -275,7 +311,21 @@ export function CcipayQrScannerDialog({
           }
         }
 
-        // 2. Câmera traseira nativa (compatível universalmente com iOS e Android)
+        // 2. Se já temos dispositivos identificados, prefere o ID exato da traseira (resolve tela preta no iOS)
+        if (!cameraIniciada && disponiveis.length > 0) {
+          const traseira = encontrarCameraTraseira(disponiveis);
+          if (traseira) {
+            try {
+              await html5Qr.start(traseira.camera.id, scanConfig, onScanSuccess, onScanFailure);
+              cameraIniciada = true;
+              setCameraIndex(traseira.index);
+            } catch (e) {
+              console.warn("Falha ao abrir câmera traseira por ID:", e);
+            }
+          }
+        }
+
+        // 3. Câmera traseira nativa via facingMode (padrão quando ainda não temos os IDs)
         if (!cameraIniciada) {
           try {
             await html5Qr.start(
@@ -293,12 +343,12 @@ export function CcipayQrScannerDialog({
               }
               html5Qr.clear();
             } catch (_) {}
-            html5Qr = new Html5Qrcode(SCANNER_ELEMENT_ID, { verbose: true });
+            html5Qr = new Html5Qrcode(SCANNER_ELEMENT_ID, { verbose: false });
             scannerRef.current = html5Qr;
           }
         }
 
-        // 3. Fallback para câmera frontal ou webcam padrão (ex: notebooks)
+        // 4. Fallback para câmera frontal ou webcam padrão (ex: notebooks)
         if (!cameraIniciada) {
           await html5Qr.start(
             { facingMode: "user" },
@@ -512,7 +562,10 @@ export function CcipayQrScannerDialog({
           onClick={() => {
             const container = document.getElementById(SCANNER_ELEMENT_ID);
             const video = container?.querySelector("video") as HTMLVideoElement | null;
-            if (video && video.paused) {
+            if (video) {
+              video.setAttribute("playsinline", "true");
+              video.setAttribute("webkit-playsinline", "true");
+              video.muted = true;
               video.play().catch(console.warn);
               setDiagInfo({
                 videoWidth: video.videoWidth,
@@ -522,12 +575,42 @@ export function CcipayQrScannerDialog({
               });
             }
           }}
-          className="relative w-full aspect-square max-h-[340px] sm:max-h-[380px] rounded-2xl overflow-hidden bg-neutral-950 border border-border/80 shadow-inner cursor-pointer"
+          className="relative w-full aspect-square max-h-[340px] sm:max-h-[380px] rounded-2xl overflow-hidden bg-black border border-border/80 shadow-inner cursor-pointer"
         >
+          {/* Estilos forçados para WebKit / iOS Safari */}
+          <style>{`
+            #${SCANNER_ELEMENT_ID} {
+              width: 100% !important;
+              height: 100% !important;
+              position: relative !important;
+              overflow: hidden !important;
+              transform: translateZ(0) !important;
+              -webkit-transform: translateZ(0) !important;
+            }
+            #${SCANNER_ELEMENT_ID} video {
+              width: 100% !important;
+              height: 100% !important;
+              object-fit: cover !important;
+              display: block !important;
+              opacity: 1 !important;
+              visibility: visible !important;
+              border-radius: 1rem !important;
+              transform: translateZ(0) !important;
+              -webkit-transform: translateZ(0) !important;
+              background-color: #000 !important;
+            }
+            #${SCANNER_ELEMENT_ID} canvas {
+              display: none !important;
+            }
+            #${SCANNER_ELEMENT_ID} > div {
+              border: none !important;
+            }
+          `}</style>
+
           {/* Elemento onde o Html5Qrcode renderiza o stream */}
           <div
             id={SCANNER_ELEMENT_ID}
-            className="absolute inset-0 w-full h-full overflow-hidden [&_video]:!w-full [&_video]:!h-full [&_video]:!object-cover [&_video]:!rounded-2xl [&_video]:!block [&_video]:!opacity-100 [&_canvas]:hidden"
+            className="w-full h-full"
           />
 
           {/* Estado: Iniciando Câmera Automaticamente */}
@@ -624,6 +707,7 @@ export function CcipayQrScannerDialog({
                   aria-label="Alternar câmera"
                   onClick={alternarCamera}
                   className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md hover:bg-black/80 transition-colors"
+                  title="Alternar entre câmeras"
                 >
                   <RefreshCw className="h-4 w-4" />
                 </button>
@@ -633,10 +717,10 @@ export function CcipayQrScannerDialog({
         </div>
 
         {/* Alerta de Vídeo Pausado no iOS Safari com botão direto para destravar */}
-        {diagInfo?.paused && status === "scanning" && (
+        {(diagInfo?.paused || (diagInfo && diagInfo.videoWidth === 0)) && status === "scanning" && (
           <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 flex items-center justify-between gap-2 animate-fade-in">
             <div className="text-xs text-amber-700 dark:text-amber-300">
-              O Safari pausou o vídeo. Toque para iniciar a exibição:
+              Vídeo pausado (Modo Pouca Energia ou Safari).
             </div>
             <Button
               type="button"
@@ -645,6 +729,9 @@ export function CcipayQrScannerDialog({
                 const container = document.getElementById(SCANNER_ELEMENT_ID);
                 const video = container?.querySelector("video") as HTMLVideoElement | null;
                 if (video) {
+                  video.setAttribute("playsinline", "true");
+                  video.setAttribute("webkit-playsinline", "true");
+                  video.muted = true;
                   video.play().catch(console.warn);
                   setDiagInfo({
                     videoWidth: video.videoWidth,
