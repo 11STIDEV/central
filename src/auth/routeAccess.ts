@@ -122,8 +122,19 @@ export function hasRoleAccessToRoute(papeis: Papel[], pathname: string, email?: 
 
   if (isSomenteAluno(papeis)) {
     return (
-      path === "/login" || path === "/reserva-espacos-equipamentos" || path === "/minhas-reservas"
+      path === "/login" ||
+      path === "/reserva-espacos-equipamentos" ||
+      path === "/minhas-reservas" ||
+      (path.startsWith("/trilha-conhecimento") && path !== "/trilha-conhecimento/admin")
     );
+  }
+
+  // [TEMPORÁRIO - TESTES LOCAIS]: Libera trilha de conhecimento para todos os papéis
+  if (path === "/trilha-conhecimento" || path.startsWith("/trilha-conhecimento/")) {
+    if (path === "/trilha-conhecimento/admin") {
+      return papeis.includes("admin");
+    }
+    return true;
   }
 
   if (path.startsWith("/kanban/")) {

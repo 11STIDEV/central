@@ -31,8 +31,25 @@ export function QuizModal({
   const [estado, setEstado] = useState<EstadoResposta>("aguardando");
   const [acertos, setAcertos] = useState(0);
 
+  const totalPerguntas = perguntas?.length ?? 0;
+
+  if (!perguntas || totalPerguntas === 0) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
+        <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border bg-card dark:border-white/10 dark:bg-slate-900 p-6 shadow-2xl text-center space-y-4">
+          <p className="text-sm text-muted-foreground">Esta missão não possui perguntas de quiz cadastradas no momento.</p>
+          <button
+            onClick={() => onConcluir(0, 0)}
+            className="w-full rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-amber-400 dark:to-orange-500 py-3 text-sm font-bold text-white shadow-md transition-all duration-150 hover:brightness-110"
+          >
+            Concluir Missão
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const pergunta = perguntas[perguntaIdx];
-  const totalPerguntas = perguntas.length;
   const progresso = Math.round(((perguntaIdx) / totalPerguntas) * 100);
 
   function handleSelecionar(idx: number) {

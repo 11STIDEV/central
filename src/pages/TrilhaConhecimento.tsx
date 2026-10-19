@@ -1,10 +1,11 @@
-import { useMemo } from "react";
+import { useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Flame, Zap, Trophy, Star, Target, BookOpen, ChevronRight, Loader2, Settings2 } from "lucide-react";
 import { useAuth } from "@/auth/AuthProvider";
 import {
   BADGES_MOCK,
   getNivelInfo,
+  atualizarBadgesConquistadas,
   type UserProgress,
 } from "@/data/trilhasMock";
 import { TrilhaCard } from "@/components/trilha/TrilhaCard";
@@ -23,6 +24,13 @@ export default function TrilhaConhecimento() {
 
   const carregando = carregandoProgress || carregandoTrilhas;
   const isAdmin = usuario?.papeis?.includes("admin");
+
+  // Atualiza conquistas com base nas trilhas reais carregadas do servidor
+  useEffect(() => {
+    if (trilhas.length > 0) {
+      atualizarBadgesConquistadas(progress, trilhas);
+    }
+  }, [trilhas, progress]);
 
   // Filtra as trilhas acessíveis ao usuário (admin tem acesso a todas)
   const trilhasVisiveis = useMemo(() => {

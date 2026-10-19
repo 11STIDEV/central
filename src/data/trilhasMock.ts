@@ -279,9 +279,8 @@ export function calcularProgresso(
   let trilhasCompletas = 0;
   let xpTotal = 0;
 
-  const listaTrilhas = trilhasDisponiveis && trilhasDisponiveis.length > 0
-    ? trilhasDisponiveis
-    : TRILHAS_MOCK;
+  // Usa apenas as trilhas reais fornecidas; não recorre a mocks estáticos para não gerar XP fantasma
+  const listaTrilhas = trilhasDisponiveis ?? [];
 
   for (const trail of listaTrilhas) {
     const concluidas = progressoPorTrilha[trail.id] ?? [];
@@ -293,11 +292,9 @@ export function calcularProgresso(
   }
 
   // Contabiliza missões de trilhas que eventualmente não estejam na lista
-  if (!trilhasDisponiveis || trilhasDisponiveis.length === 0) {
-    for (const [trilhaId, concluidas] of Object.entries(progressoPorTrilha)) {
-      if (!listaTrilhas.some((t) => t.id === trilhaId)) {
-        missoesCompletas += Array.isArray(concluidas) ? concluidas.length : 0;
-      }
+  for (const [trilhaId, concluidas] of Object.entries(progressoPorTrilha)) {
+    if (!listaTrilhas.some((t) => t.id === trilhaId)) {
+      missoesCompletas += Array.isArray(concluidas) ? concluidas.length : 0;
     }
   }
 
