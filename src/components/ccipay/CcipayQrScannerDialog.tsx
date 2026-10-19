@@ -47,36 +47,6 @@ export function abrirEruda() {
   document.head.appendChild(script);
 }
 
-const REGEX_CAMERA_TRASEIRA = /back|rear|environment|traseir[ao]|tr[aá]s|externa|wide|principal|main|world/i;
-const REGEX_CAMERA_FRONTAL = /front|user|frontal|selfie|face|anterior/i;
-
-function encontrarCameraTraseira(
-  lista: CameraDevice[],
-): { camera: CameraDevice; index: number } | null {
-  if (!lista || lista.length === 0) return null;
-
-  // 1. Procura câmera cujo label declare explicitamente que é traseira
-  const idxTraseira = lista.findIndex((c) => REGEX_CAMERA_TRASEIRA.test(c.label || ""));
-  if (idxTraseira >= 0) {
-    return { camera: lista[idxTraseira], index: idxTraseira };
-  }
-
-  // 2. Procura qualquer câmera que não declare ser frontal
-  const idxNaoFrontal = lista.findIndex((c) => !REGEX_CAMERA_FRONTAL.test(c.label || ""));
-  if (idxNaoFrontal >= 0) {
-    return { camera: lista[idxNaoFrontal], index: idxNaoFrontal };
-  }
-
-  // 3. Em celulares com rótulos genéricos (ex: camera 0 / camera 1),
-  // a câmera 0 costuma ser a frontal e a última (ou 1) a traseira.
-  if (lista.length > 1) {
-    const ultimoIdx = lista.length - 1;
-    return { camera: lista[ultimoIdx], index: ultimoIdx };
-  }
-
-  return { camera: lista[0], index: 0 };
-}
-
 type CcipayQrScannerDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -117,31 +87,6 @@ export function CcipayQrScannerDialog({
 
   const onOpenChangeRef = useRef(onOpenChange);
   onOpenChangeRef.current = onOpenChange;
-
-  // Garante que todo elemento de vídeo criado pela biblioteca html5-qrcode
-  // já nasça com todos os atributos obrigatórios do iOS Safari antes do stream ser associado
-  useEffect(() => {
-    if (typeof document === "undefined") return;
-    const originalCreateElement = document.createElement.bind(document);
-    document.createElement = function (tagName: string, options?: any) {
-      const el = originalCreateElement(tagName, options);
-      if (tagName && tagName.toLowerCase() === "video") {
-        el.setAttribute("playsinline", "true");
-        el.setAttribute("webkit-playsinline", "true");
-        el.setAttribute("autoplay", "true");
-        el.setAttribute("muted", "true");
-        (el as HTMLVideoElement).playsInline = true;
-        (el as HTMLVideoElement).muted = true;
-        (el as HTMLVideoElement).autoplay = true;
-        el.style.transform = "translateZ(0)";
-        (el.style as any).webkitTransform = "translateZ(0)";
-      }
-      return el;
-    };
-    return () => {
-      document.createElement = originalCreateElement;
-    };
-  }, []);
 
   const finalizarComToken = useCallback((token: string) => {
     if (handledRef.current) return;
@@ -203,6 +148,17 @@ export function CcipayQrScannerDialog({
       setErro(null);
       setStatus("starting");
 
+      if (!window.isSecureContext) {
+        setStatus("error");
+        setErro("Para abrir a câmera, acesse este site por HTTPS. No iPhone, um endereço HTTP da rede local não permite usar a câmera.");
+        return;
+      }
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setStatus("error");
+        setErro("Este navegador não disponibiliza acesso à câmera. Abra o site no Safari e permita o uso da câmera, ou envie uma foto do QR code.");
+        return;
+      }
+
       // Garante que o elemento DOM foi montado pelo Dialog
       await new Promise((r) => setTimeout(r, 150));
       if (isCancelledRef.current) return;
@@ -228,16 +184,14 @@ export function CcipayQrScannerDialog({
         return;
       }
 
-      // Detecta lista de câmeras para permitir alternar e preferir o ID direto
-      let disponiveis: CameraDevice[] = [];
-      try {
-        disponiveis = await Html5Qrcode.getCameras();
-        if (disponiveis && disponiveis.length > 0) {
-          setCameras(disponiveis);
-        }
-      } catch (_) {
-        // getCameras pode falhar se permissão ainda não foi concedida
-      }
+      // Apenas enumera dispositivos, sem abrir um segundo stream no iPhone.
+      const listarCameras = async (): Promise<CameraDevice[]> => {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        return devices
+          .filter((device) => device.kind === "videoinput" && device.deviceId)
+          .map((device) => ({ id: device.deviceId, label: device.label }));
+      };
+
 
       const scanConfig = {
         fps: 15,
@@ -311,20 +265,6 @@ export function CcipayQrScannerDialog({
           }
         }
 
-        // 2. Se já temos dispositivos identificados, prefere o ID exato da traseira (resolve tela preta no iOS)
-        if (!cameraIniciada && disponiveis.length > 0) {
-          const traseira = encontrarCameraTraseira(disponiveis);
-          if (traseira) {
-            try {
-              await html5Qr.start(traseira.camera.id, scanConfig, onScanSuccess, onScanFailure);
-              cameraIniciada = true;
-              setCameraIndex(traseira.index);
-            } catch (e) {
-              console.warn("Falha ao abrir câmera traseira por ID:", e);
-            }
-          }
-        }
-
         // 3. Câmera traseira nativa via facingMode (padrão quando ainda não temos os IDs)
         if (!cameraIniciada) {
           try {
@@ -375,13 +315,13 @@ export function CcipayQrScannerDialog({
 
         // Atualiza a lista de câmeras agora que a permissão foi concedida
         try {
-          const cams = await Html5Qrcode.getCameras();
+          const cams = await listarCameras();
+          if (isCancelledRef.current) return;
           if (cams && cams.length > 0) {
             setCameras(cams);
-            const traseira = encontrarCameraTraseira(cams);
-            if (traseira) {
-              setCameraIndex(traseira.index);
-            }
+            const activeId = html5Qr.getRunningTrackSettings().deviceId;
+            const activeIndex = cams.findIndex((camera) => camera.id === activeId);
+            if (activeIndex >= 0) setCameraIndex(activeIndex);
           }
         } catch (_) {}
 
