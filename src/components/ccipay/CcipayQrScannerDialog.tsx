@@ -110,6 +110,7 @@ export function CcipayQrScannerDialog({
     readyState?: number;
   } | null>(null);
   const [mostrarDiag, setMostrarDiag] = useState(false);
+  const [mostrarManual, setMostrarManual] = useState(false);
 
   const onTokenDetectedRef = useRef(onTokenDetected);
   onTokenDetectedRef.current = onTokenDetected;
@@ -716,7 +717,7 @@ export function CcipayQrScannerDialog({
             </div>
             <p><strong>Resolução:</strong> {diagInfo?.videoWidth ?? 0} x {diagInfo?.videoHeight ?? 0}</p>
             <p><strong>ReadyState:</strong> {diagInfo?.readyState ?? "N/A"}</p>
-            <p><strong>Câmeras ({cameras.length}):</strong> {cameras.map((c, i) => `${i}: ${c.label || c.id.slice(0, 8)}`).join("; ") || "nenhuma"}</p>
+            <p><strong>Câmeras ({cameras.length}):</strong> {cameras.map((c, i) => `${i}: ${c.label || (c?.id ? c.id.slice(0, 8) : `cam-${i}`)}`).join("; ") || "nenhuma"}</p>
             <Button
               type="button"
               variant="outline"

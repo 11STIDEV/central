@@ -28,7 +28,8 @@ class ErrorBoundary extends Component<
           <p style={{ fontSize: "14px", margin: "0 0 16px 0", color: "#7f1d1d" }}>
             Ocorreu um erro inesperado durante a renderização:
           </p>
-          <pre style={{ background: "#ffffff", padding: "16px", borderRadius: "8px", border: "1px solid #fee2e2", overflowX: "auto", fontSize: "12px", color: "#b91c1c" }}>
+          <pre style={{ background: "#ffffff", padding: "16px", borderRadius: "8px", border: "1px solid #fee2e2", overflowX: "auto", fontSize: "12px", color: "#b91c1c", whiteSpace: "pre-wrap" }}>
+            {this.state.error?.name ? `${this.state.error.name}: ${this.state.error.message}\n\n` : ""}
             {this.state.error?.stack || this.state.error?.message}
           </pre>
           <button
