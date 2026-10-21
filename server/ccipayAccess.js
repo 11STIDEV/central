@@ -18,9 +18,26 @@ const PAPEIS_CCIPAY_DP = new Set([
   "gerente_financeiro",
 ]);
 
-const PAPEIS_CCIPAY_ADMIN = new Set(["admin", "ccipay_admin"]);
+const PAPEIS_CCIPAY_ADMIN = new Set([
+  "admin",
+  "ccipay_admin",
+  "ccipay_dp",
+  "dp",
+  "financeiro",
+  "gerente_dp",
+  "gerente_financeiro",
+]);
 
-const PAPEIS_CCIPAY_LANCAMENTO = new Set(["admin", "ccipay_admin", "ccipay_lancador"]);
+const PAPEIS_CCIPAY_LANCAMENTO = new Set([
+  "admin",
+  "ccipay_admin",
+  "ccipay_dp",
+  "dp",
+  "financeiro",
+  "gerente_dp",
+  "gerente_financeiro",
+  "ccipay_lancador",
+]);
 
 export function competenciaAtual() {
   const d = new Date();

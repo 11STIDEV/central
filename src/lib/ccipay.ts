@@ -637,15 +637,15 @@ export function isCcipayDpPapel(papeis: Papel[]): boolean {
 }
 
 export function isCcipayAdminPapel(papeis: Papel[]): boolean {
-  return papeis.includes("admin") || papeis.includes("ccipay_admin");
+  return papeis.some((p) => PAPEIS_CCIPAY_DP.includes(p));
 }
 
 export function isCcipayLancadorPapel(papeis: Papel[]): boolean {
-  return papeis.some((p) => ["admin", "ccipay_admin", "ccipay_lancador"].includes(p));
+  return papeis.some((p) => [...PAPEIS_CCIPAY_DP, "ccipay_lancador"].includes(p));
 }
 
 export function isCcipayLojaPapel(papeis: Papel[]): boolean {
-  return papeis.some((p) => ["admin", "ccipay_admin", "ccipay_loja"].includes(p));
+  return papeis.some((p) => [...PAPEIS_CCIPAY_DP, "ccipay_loja"].includes(p));
 }
 
 export function labelStatusMovimento(status: CcipayMovimentoStatus | string): string {

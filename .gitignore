@@ -21,6 +21,7 @@ server/data/papeis-manuais.json
 server/data/setor-links.json
 server/data/massoterapia*.json
 server/data/alterdata*.json
+server/data/ccipay*.json
 
 # Editor directories and files
 .vscode/*

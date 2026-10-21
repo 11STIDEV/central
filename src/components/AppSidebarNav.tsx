@@ -917,6 +917,8 @@ export function AppSidebarNav({ sections, collapsed }: AppSidebarNavProps) {
               const isOverviewActive = temVisao && pathname === `/setores/${slug}/visao-geral`;
               const isOpen = sectorOpen[sector.id] ?? false;
 
+              if (!hasItems && !temVisao) return null;
+
               if (hasItems && sector.items.length === 1 && !temVisao) {
                 const item = sector.items[0];
                 const active = !item.locked && navItemIsActive(pathname, item);

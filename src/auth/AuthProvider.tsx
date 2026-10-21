@@ -449,7 +449,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (res.ok) {
           const data = (await res.json()) as { papeisManuais?: string[] };
           const extras = Array.isArray(data.papeisManuais) ? data.papeisManuais : [];
-          const permitidos = new Set<Papel>(["admin", "painel_admin", "painel_atendente"]);
+          const permitidos = new Set<Papel>([
+            "admin",
+            "painel_admin",
+            "painel_atendente",
+            "ccipay_admin",
+            "ccipay_dp",
+            "ccipay_loja",
+            "ccipay_lancador",
+          ]);
           for (const p of extras) {
             if (typeof p === "string" && permitidos.has(p as Papel)) {
               papeis = [...papeis, p as Papel];

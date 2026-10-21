@@ -9,7 +9,8 @@ export const ROTAS_TEMPORARIAMENTE_BLOQUEADAS = new Set([
 ]);
 
 function normalizarPath(pathname: string): string {
-  const p = pathname.replace(/\/+$/, "") || "/";
+  const semQuery = pathname.split("?")[0].split("#")[0];
+  const p = semQuery.replace(/\/+$/, "") || "/";
   return p;
 }
 
@@ -22,7 +23,7 @@ export function isIsentoBloqueioTemporario(papeis: Papel[]): boolean {
   return papeis.includes("setape") || papeis.includes("painel_admin");
 }
 
-/** Advance-CCI em revisão — menu com cadeado; liberado só para administradores de papéis. */
+/** Advance-CCI em revisão — menu com cadeado; liberado só para administradores de papéis e equipe DP/Financeiro. */
 export const ADVANCE_CCI_BLOQUEADO = true;
 
 export function isRotaAdvanceCci(pathname: string): boolean {
@@ -32,7 +33,17 @@ export function isRotaAdvanceCci(pathname: string): boolean {
 }
 
 export function isIsentoBloqueioAdvanceCci(papeis: Papel[]): boolean {
-  return papeis.includes("admin");
+  return papeis.some((p) =>
+    [
+      "admin",
+      "ccipay_admin",
+      "ccipay_dp",
+      "dp",
+      "financeiro",
+      "gerente_dp",
+      "gerente_financeiro",
+    ].includes(p)
+  );
 }
 
 /** Bloqueio ativo para este utilizador (menu com cadeado + rota inacessível). */

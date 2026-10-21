@@ -162,7 +162,6 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
         label: "Operação",
         items: [
           { title: "Aprovar vales", url: "/cci-pay/financeiro", icon: Briefcase },
-          { title: "Lançamentos", url: "/cci-pay/lancamentos", icon: FileText },
           { title: "Relatório DP", url: "/cci-pay/relatorios/dp", icon: FileText },
           { title: "Relatório loja", url: "/cci-pay/relatorios/loja", icon: FileText },
         ],
@@ -173,7 +172,6 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
         items: [
           { title: "Funcionários", url: "/cci-pay/admin/funcionarios", icon: UserCog },
           { title: "Lojas", url: "/cci-pay/admin/lojas", icon: Warehouse },
-          { title: "Lançadores", url: "/cci-pay/admin/lancadores", icon: Shield },
           { title: "Portal do Parceiro", url: "/parceiro", icon: Store, external: true },
         ],
       },

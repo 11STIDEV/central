@@ -26,7 +26,7 @@ export default function AdminPapeisManuais() {
   const [erro, setErro] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [emailNovo, setEmailNovo] = useState("");
-  const [adminNovo, setAdminNovo] = useState(false);
+  const [papeisSelecionados, setPapeisSelecionados] = useState<string[]>(["admin"]);
   const [salvando, setSalvando] = useState(false);
 
   const carregar = useCallback(async () => {
@@ -91,7 +91,7 @@ export default function AdminPapeisManuais() {
         "Alteração salva. O usuário precisará entrar novamente para que os novos papéis manuais tenham efeito.",
       );
       setEmailNovo("");
-      setAdminNovo(false);
+      setPapeisSelecionados(["admin"]);
     } catch {
       setErro("Falha ao salvar. Tente novamente.");
     } finally {
@@ -106,7 +106,7 @@ export default function AdminPapeisManuais() {
       setErro("Informe um e-mail válido.");
       return;
     }
-    const papeisManuais = adminNovo ? ["admin"] : [];
+    const papeisManuais = papeisSelecionados;
     if (papeisManuais.length === 0) {
       setErro("Selecione ao menos um papel manual.");
       return;
@@ -175,36 +175,63 @@ export default function AdminPapeisManuais() {
             <UserCog className="h-5 w-5 text-primary" />
             <h2 className="text-lg font-semibold text-card-foreground">Nova atribuição</h2>
           </div>
-          <form onSubmit={handleAdicionar} className="flex flex-col gap-4 sm:flex-row sm:items-end">
-            <div className="flex-1 space-y-2">
-              <Label htmlFor="email-novo">E-mail (domínio permitido)</Label>
-              <Input
-                id="email-novo"
-                type="email"
-                autoComplete="email"
-                placeholder="nome@portalcci.com.br"
-                value={emailNovo}
-                onChange={(e) => setEmailNovo(e.target.value)}
-              />
+          <form onSubmit={handleAdicionar} className="space-y-4">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="email-novo">E-mail (domínio permitido)</Label>
+                <Input
+                  id="email-novo"
+                  type="email"
+                  autoComplete="email"
+                  placeholder="nome@portalcci.com.br"
+                  value={emailNovo}
+                  onChange={(e) => setEmailNovo(e.target.value)}
+                />
+              </div>
+              <Button type="submit" disabled={salvando}>
+                {salvando ? "Salvando…" : "Salvar atribuição"}
+              </Button>
             </div>
-            <div className="flex items-center gap-2 pb-2">
-              <Checkbox
-                id="chk-admin"
-                checked={adminNovo}
-                onCheckedChange={(v) => setAdminNovo(v === true)}
-              />
-              <Label htmlFor="chk-admin" className="cursor-pointer font-normal">
-                Administrador
-              </Label>
+
+            <div className="space-y-2 border-t border-border/60 pt-3">
+              <Label className="text-xs font-semibold">Papéis a atribuir:</Label>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 md:grid-cols-3">
+                {PAPEIS_ATRIBUICAO_MANUAL.map((p) => {
+                  const checked = papeisSelecionados.includes(p.id);
+                  return (
+                    <div
+                      key={p.id}
+                      className="flex items-start gap-2.5 rounded-lg border border-border/50 bg-background/50 p-2.5 transition-colors hover:bg-muted/40"
+                    >
+                      <Checkbox
+                        id={`chk-${p.id}`}
+                        checked={checked}
+                        onCheckedChange={(v) => {
+                          if (v === true) {
+                            setPapeisSelecionados((prev) => [...prev, p.id]);
+                          } else {
+                            setPapeisSelecionados((prev) => prev.filter((x) => x !== p.id));
+                          }
+                        }}
+                        className="mt-0.5"
+                      />
+                      <div className="space-y-0.5">
+                        <Label
+                          htmlFor={`chk-${p.id}`}
+                          className="cursor-pointer text-xs font-medium text-card-foreground leading-snug"
+                        >
+                          {p.label}
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground leading-tight">
+                          {p.descricao}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <Button type="submit" disabled={salvando}>
-              {salvando ? "Salvando…" : "Salvar"}
-            </Button>
           </form>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Papéis disponíveis para marcação:{" "}
-            {PAPEIS_ATRIBUICAO_MANUAL.map((p) => p.label).join(", ")}.
-          </p>
         </section>
 
         {erro && (

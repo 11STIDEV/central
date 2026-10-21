@@ -35,6 +35,17 @@ const PAPEIS_PROFESSORES: Papel[] = ["professorfac", "professortecs", "professor
 
 const PAPEIS_ACHADOS_PERDIDOS: Papel[] = ["secretaria", "gerente_secretaria", "painel_admin"];
 
+/** Papéis com acesso à gestão operacional e administrativa do módulo Advance-CCI. */
+export const PAPEIS_CCIPAY_GESTAO: Papel[] = [
+  "admin",
+  "ccipay_admin",
+  "ccipay_dp",
+  "dp",
+  "financeiro",
+  "gerente_dp",
+  "gerente_financeiro",
+];
+
 /** Alunos não acessam o módulo de avisos. */
 const ROTAS_BLOQUEADAS_ALUNO = new Set(["/avisos", "/avisos/publicar"]);
 
@@ -55,15 +66,15 @@ export const ROTAS_PAPEIS_OBRIGATORIOS: Record<string, Papel[]> = {
   "/ti/ischolar": ["setape"],
   "/ti/alterdata": ["setape"],
   "/controle-materiais-almoxarifado": ["almoxarifado"],
-  "/financeiro/vales-adiantamento": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
-  "/cci-pay/financeiro": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
-  "/cci-pay/lancamentos": ["ccipay_lancador", "ccipay_admin"],
-  "/cci-pay/admin/funcionarios": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
-  "/cci-pay/admin/lojas": ["ccipay_admin"],
-  "/cci-pay/admin/lancadores": ["ccipay_admin"],
-  "/parceiro": ["ccipay_admin", "ccipay_loja", "dp", "financeiro", "admin"],
-  "/cci-pay/relatorios/dp": ["dp", "financeiro", "ccipay_dp", "ccipay_admin"],
-  "/cci-pay/relatorios/loja": ["ccipay_loja", "ccipay_admin", "ccipay_dp"],
+  "/financeiro/vales-adiantamento": PAPEIS_CCIPAY_GESTAO,
+  "/cci-pay/financeiro": PAPEIS_CCIPAY_GESTAO,
+  "/cci-pay/lancamentos": [...PAPEIS_CCIPAY_GESTAO, "ccipay_lancador"],
+  "/cci-pay/admin/funcionarios": PAPEIS_CCIPAY_GESTAO,
+  "/cci-pay/admin/lojas": PAPEIS_CCIPAY_GESTAO,
+  "/cci-pay/admin/lancadores": PAPEIS_CCIPAY_GESTAO,
+  "/parceiro": [...PAPEIS_CCIPAY_GESTAO, "ccipay_loja"],
+  "/cci-pay/relatorios/dp": PAPEIS_CCIPAY_GESTAO,
+  "/cci-pay/relatorios/loja": [...PAPEIS_CCIPAY_GESTAO, "ccipay_loja"],
   "/agenda-cci/admin": ["setape"],
   "/achados-e-perdidos": PAPEIS_ACHADOS_PERDIDOS,
   "/achados-e-perdidos/admin": PAPEIS_ACHADOS_PERDIDOS,
@@ -87,7 +98,8 @@ export function isSomenteAluno(papeis: Papel[]): boolean {
 }
 
 function normalizarPath(pathname: string): string {
-  const p = pathname.replace(/\/+$/, "") || "/";
+  const semQuery = pathname.split("?")[0].split("#")[0];
+  const p = semQuery.replace(/\/+$/, "") || "/";
   return p;
 }
 
