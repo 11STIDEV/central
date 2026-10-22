@@ -156,7 +156,10 @@ export function calcularTempoDeCasa(
   if (anos < 0) anos = 0;
   if (meses < 0) meses = 0;
 
-  const diffMs = hoje.getTime() - dataInicio.getTime();
+  // Normaliza ambas as datas para o início do dia local para cálculo exato de dias
+  const hojeMeiaNoite = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const inicioMeiaNoite = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), dataInicio.getDate());
+  const diffMs = hojeMeiaNoite.getTime() - inicioMeiaNoite.getTime();
   const diasTotais = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
 
   const textoFormatado =
@@ -170,6 +173,15 @@ export function calcularTempoDeCasa(
     diasTotais,
     textoFormatado,
   };
+}
+
+/**
+ * Calcula a quantidade de dias de empresa (dias de trabalho) de acordo com a 1ª admissão.
+ */
+export function calcularDiasDeEmpresa(primeiraAdmissaoStr?: string | null): number {
+  if (!primeiraAdmissaoStr) return 0;
+  const res = calcularTempoDeCasa(primeiraAdmissaoStr);
+  return res?.diasTotais ?? 0;
 }
 
 export function normalizeCpf(cpfRaw?: any): string {

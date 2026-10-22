@@ -187,11 +187,21 @@ export async function salvarFuncionariosNoBanco(supabase, listaUnificada, apenas
 
   const itensFormatados = itensParaSalvar.map(formatarItemParaPersistencia);
 
+  // Deduplica itens por chave_unica para evitar o erro do PostgreSQL:
+  // "ON CONFLICT DO UPDATE command cannot affect row a second time"
+  const mapaUnicosParaSalvar = new Map();
+  itensFormatados.forEach((item) => {
+    if (item && item.chave_unica) {
+      mapaUnicosParaSalvar.set(item.chave_unica, item);
+    }
+  });
+  const itensUnicos = Array.from(mapaUnicosParaSalvar.values());
+
   // 1. Salva no banco JSON local (armazenamento persistente local imediato)
   const bancoAtual = lerBancoLocal();
   const mapaExistentes = new Map(bancoAtual.map((i) => [i.chave_unica, i]));
 
-  itensFormatados.forEach((item) => {
+  itensUnicos.forEach((item) => {
     mapaExistentes.set(item.chave_unica, item);
   });
 
@@ -204,8 +214,8 @@ export async function salvarFuncionariosNoBanco(supabase, listaUnificada, apenas
   if (supabase) {
     try {
       const CHUNK_SIZE = 100;
-      for (let i = 0; i < itensFormatados.length; i += CHUNK_SIZE) {
-        const chunk = itensFormatados.slice(i, i + CHUNK_SIZE);
+      for (let i = 0; i < itensUnicos.length; i += CHUNK_SIZE) {
+        const chunk = itensUnicos.slice(i, i + CHUNK_SIZE);
         const { error } = await supabase
           .from("intranet_alterdata_funcionarios")
           .upsert(chunk, { onConflict: "chave_unica", ignoreDuplicates: false });
@@ -228,7 +238,7 @@ export async function salvarFuncionariosNoBanco(supabase, listaUnificada, apenas
 
   return {
     ok: true,
-    salvos: itensFormatados.length,
+    salvos: itensUnicos.length,
     totalBancoLocal: bancoAtualizado.length,
     supabase: supabaseStatus,
   };
@@ -237,13 +247,32 @@ export async function salvarFuncionariosNoBanco(supabase, listaUnificada, apenas
 export async function listarFuncionariosDoBanco(supabase) {
   if (supabase) {
     try {
-      const { data, error } = await supabase
-        .from("intranet_alterdata_funcionarios")
-        .select("*")
-        .order("nome_completo", { ascending: true });
+      const todos = [];
+      const PAGE_SIZE = 1000;
+      let from = 0;
+      let hasMore = true;
 
-      if (!error && Array.isArray(data) && data.length > 0) {
-        return data;
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from("intranet_alterdata_funcionarios")
+          .select("*")
+          .order("nome_completo", { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+
+        if (error || !Array.isArray(data) || data.length === 0) {
+          break;
+        }
+
+        todos.push(...data);
+        if (data.length < PAGE_SIZE) {
+          hasMore = false;
+        } else {
+          from += PAGE_SIZE;
+        }
+      }
+
+      if (todos.length > 0) {
+        return todos;
       }
     } catch {
       // Fallback para o banco local JSON
@@ -280,9 +309,49 @@ export async function obterFuncionarioPorEmail(supabase, email) {
 
   // 2. Fallback no banco local JSON
   const localItems = lerBancoLocal();
-  const encontrados = localItems.filter(
+  let encontrados = localItems.filter(
     (item) => String(item.email || "").trim().toLowerCase() === emailNorm
   );
+
+  // Se não encontrou pelo campo principal, procura no histórico de contratos
+  if (encontrados.length === 0) {
+    encontrados = localItems.filter((item) => {
+      if (Array.isArray(item.historico_contratos)) {
+        return item.historico_contratos.some((c) => {
+          const mail =
+            c?.registroOriginal?.attributes?.email ||
+            c?.registroOriginal?.attributes?.emailComercial ||
+            c?.registroOriginal?.attributes?.emailPessoal ||
+            c?.registroOriginal?.attributes?.email_corporativo;
+          return mail && String(mail).trim().toLowerCase() === emailNorm;
+        });
+      }
+      return false;
+    });
+  }
+
+  // Se ainda não encontrou e o email contém @, tenta comparar pelo prefixo do usuário
+  if (encontrados.length === 0 && emailNorm.includes("@")) {
+    const usuarioParte = emailNorm.split("@")[0].trim();
+    if (usuarioParte.length >= 3) {
+      encontrados = localItems.filter((item) => {
+        const itemMail = String(item.email || "").trim().toLowerCase();
+        if (itemMail && itemMail.startsWith(`${usuarioParte}@`)) return true;
+        if (Array.isArray(item.historico_contratos)) {
+          return item.historico_contratos.some((c) => {
+            const mail = String(
+              c?.registroOriginal?.attributes?.email ||
+              c?.registroOriginal?.attributes?.emailComercial ||
+              c?.registroOriginal?.attributes?.emailPessoal ||
+              ""
+            ).trim().toLowerCase();
+            return mail.startsWith(`${usuarioParte}@`);
+          });
+        }
+        return false;
+      });
+    }
+  }
 
   if (encontrados.length === 0) return null;
 
@@ -290,6 +359,126 @@ export async function obterFuncionarioPorEmail(supabase, email) {
   const ativo = encontrados.find((i) => i.tem_contrato_ativo || i.status_atual === "Ativo");
   return ativo || encontrados[0];
 }
+
+/**
+ * Converte data de admissão (ex: "2021-04-06T03:00:00Z", "2021-04-06", "06/04/2021")
+ * em objeto Date normalizado.
+ */
+export function parseDataAdmissao(dateStr) {
+  if (!dateStr) return null;
+  const str = String(dateStr).trim();
+  if (!str) return null;
+
+  if (str.includes("/")) {
+    const parts = str.split("/");
+    if (parts.length === 3) {
+      const dia = parseInt(parts[0], 10);
+      const mes = parseInt(parts[1], 10) - 1;
+      const ano = parseInt(parts[2], 10);
+      if (!isNaN(ano) && !isNaN(mes) && !isNaN(dia)) {
+        return new Date(ano, mes, dia);
+      }
+    }
+  } else if (str.includes("-")) {
+    const [dataPart] = str.split("T");
+    const parts = dataPart.split("-");
+    if (parts.length === 3) {
+      const ano = parseInt(parts[0], 10);
+      const mes = parseInt(parts[1], 10) - 1;
+      const dia = parseInt(parts[2], 10);
+      if (!isNaN(ano) && !isNaN(mes) && !isNaN(dia)) {
+        return new Date(ano, mes, dia);
+      }
+    }
+  }
+
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Extrai a data da 1ª admissão de um colaborador consolidado do Alterdata.
+ */
+export function extrairDataPrimeiraAdmissao(funcionario) {
+  if (!funcionario) return null;
+
+  // 1. Campo explícito primeira_admissao
+  if (funcionario.primeira_admissao) return String(funcionario.primeira_admissao);
+  if (funcionario._unificado?.primeiraAdmissao) return String(funcionario._unificado.primeiraAdmissao);
+
+  // 2. Histórico de contratos (busca a menor data de admissão válida)
+  const contratos = funcionario.historico_contratos || funcionario._unificado?.historicoContratos;
+  if (Array.isArray(contratos) && contratos.length > 0) {
+    const datas = contratos
+      .map((c) => {
+        const d =
+          c.dataAdmissao ||
+          c.registroOriginal?.attributes?.dataadmissao ||
+          c.registroOriginal?.attributes?.dataAdmissao ||
+          c.registroOriginal?.attributes?.admissao;
+        return d ? String(d) : null;
+      })
+      .filter(Boolean);
+
+    if (datas.length > 0) {
+      datas.sort((a, b) => {
+        const dtA = parseDataAdmissao(a)?.getTime() ?? Infinity;
+        const dtB = parseDataAdmissao(b)?.getTime() ?? Infinity;
+        return dtA - dtB;
+      });
+      return datas[0];
+    }
+  }
+
+  // 3. Atributos diretos
+  const attrs = funcionario.attributes || {};
+  const d =
+    funcionario.admissao_atual ||
+    attrs.dataadmissao ||
+    attrs.dataAdmissao ||
+    attrs.admissao ||
+    attrs.dtadmissao ||
+    null;
+
+  return d ? String(d) : null;
+}
+
+/**
+ * Calcula a quantidade de dias de empresa (tempo de trabalho)
+ * de acordo com a data da 1ª admissão do Alterdata.
+ * @param {string|null} primeiraAdmissaoStr
+ * @returns {number|null} Quantidade de dias inteiros de empresa
+ */
+export function calcularDiasDeEmpresa(primeiraAdmissaoStr) {
+  const dataInicio = parseDataAdmissao(primeiraAdmissaoStr);
+  if (!dataInicio) return null;
+
+  const hoje = new Date();
+  const hojeMeiaNoite = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
+  const inicioMeiaNoite = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), dataInicio.getDate());
+
+  const diffMs = hojeMeiaNoite.getTime() - inicioMeiaNoite.getTime();
+  const dias = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+  return dias;
+}
+
+/**
+ * Obtém a quantidade de dias de empresa de um colaborador buscando pelo seu e-mail no Alterdata.
+ * @param {any} supabase
+ * @param {string} email
+ * @returns {Promise<number|null>}
+ */
+export async function obterDiasEmpresaPorEmail(supabase, email) {
+  if (!email || typeof email !== "string") return null;
+  const funcionario = await obterFuncionarioPorEmail(supabase, email);
+  if (!funcionario) return null;
+
+  const primeiraAdm = extrairDataPrimeiraAdmissao(funcionario);
+  if (!primeiraAdm) return null;
+
+  return calcularDiasDeEmpresa(primeiraAdm);
+}
+
 
 export async function obterFuncionarioPorCodigo(supabase, codigo) {
   if (!codigo) return null;

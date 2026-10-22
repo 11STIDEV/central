@@ -19,6 +19,8 @@ import {
   zerarProgressoServidor,
 } from "@/lib/trilhaApi";
 import { getTrilhasCache } from "@/lib/trilhasStore";
+import { apiUrl, centralFetch } from "@/lib/apiBase";
+import { calcularDiasDeEmpresa } from "@/lib/alterdataDeduplication";
 
 export type UseTrilhaProgressReturn = {
   progress: UserProgress;
@@ -77,6 +79,26 @@ export function useTrilhaProgress(): UseTrilhaProgressReturn {
 
         if (cancelado) return;
 
+        // Resolve ofensiva (dias de empresa). Se veio do servidor, usa; se vier zerado, tenta obter da API do Alterdata
+        let ofensivaDias = progressoServidor?.ofensivaDias ?? 0;
+        if (ofensivaDias === 0) {
+          try {
+            const resAlter = await centralFetch(apiUrl("/api/alterdata/funcionario/me"));
+            if (resAlter.ok) {
+              const dataAlter = await resAlter.json();
+              const dt = dataAlter?.resumo?.primeiraAdmissao || dataAlter?.funcionario?.primeira_admissao;
+              if (dt) {
+                const dias = calcularDiasDeEmpresa(dt);
+                if (typeof dias === "number" && dias > 0) {
+                  ofensivaDias = dias;
+                }
+              }
+            }
+          } catch {
+            /* ignora erro de rede/offline */
+          }
+        }
+
         if (progressoServidor) {
           const cacheTrilhas = getTrilhasCache();
           const stats = cacheTrilhas && cacheTrilhas.length > 0
@@ -96,14 +118,18 @@ export function useTrilhaProgress(): UseTrilhaProgressReturn {
             trilhasCompletas: typeof progressoServidor.trilhasCompletas === "number"
               ? progressoServidor.trilhasCompletas
               : (stats?.trilhasCompletas ?? 0),
-            ofensivaDias: progressoServidor.ofensivaDias ?? 0,
+            ofensivaDias: ofensivaDias,
             ultimaAtividade: progressoServidor.ultimaAtividade ?? undefined,
           };
           atualizarBadgesConquistadas(merged, cacheTrilhas);
           setProgress(merged);
         } else {
-          // Se não há registro no Supabase, o usuário está zerado
-          setProgress(PROGRES_LIMPO);
+          // Se não há registro no Supabase, inicia com os dias de empresa do colaborador
+          const inicial: UserProgress = {
+            ...PROGRES_LIMPO,
+            ofensivaDias: ofensivaDias,
+          };
+          setProgress(inicial);
         }
 
         setRanking(rankingServidor);

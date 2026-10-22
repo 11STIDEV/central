@@ -109,6 +109,7 @@ export default function TrilhaConhecimento() {
                   label="Ofensiva"
                   value={`${progress.ofensivaDias}d`}
                   glow="orange"
+                  title={`Ofensiva: ${progress.ofensivaDias} dias de empresa`}
                 />
                 <StatChip
                   icon={<Zap className="h-4 w-4 text-primary dark:text-amber-400" />}
@@ -300,8 +301,7 @@ export default function TrilhaConhecimento() {
                 <div>
                   <p className="text-xs font-semibold text-primary dark:text-indigo-400 mb-1">Dica do dia</p>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Faça pelo menos <strong className="text-foreground">uma missão por dia</strong> para
-                    manter sua ofensiva ativa e multiplicar seu XP semanal!
+                    Conclua missões e desafios para acelerar seu desenvolvimento, acumular XP e subir no ranking da empresa!
                   </p>
                 </div>
               </div>
@@ -337,11 +337,13 @@ function StatChip({
   label,
   value,
   glow,
+  title,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   glow: "amber" | "orange" | "violet" | "emerald";
+  title?: string;
 }) {
   const glowMap = {
     amber: "bg-blue-500/10 border-blue-500/20 dark:bg-amber-400/8 dark:border-amber-400/15",
@@ -350,7 +352,10 @@ function StatChip({
     emerald: "bg-emerald-500/10 border-emerald-500/20 dark:bg-emerald-400/8 dark:border-emerald-400/15",
   };
   return (
-    <div className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 shadow-xs ${glowMap[glow]}`}>
+    <div
+      title={title}
+      className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2.5 shadow-xs ${glowMap[glow]}`}
+    >
       {icon}
       <div>
         <p className="text-xs text-muted-foreground leading-none">{label}</p>

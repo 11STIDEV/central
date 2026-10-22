@@ -4,6 +4,7 @@
 // ============================================================
 
 import { createClient } from "@supabase/supabase-js";
+import { obterDiasEmpresaPorEmail } from "./alterdataStore.js";
 
 function getSupabaseAdmin() {
   const url = (
@@ -47,43 +48,33 @@ function calcularDiferencaDias(dataStr1, dataStr2) {
 }
 
 /**
- * Calcula a ofensiva ao realizar uma atividade (missão ou trilha concluída).
- * @param {string|null} ultimaAtividade - YYYY-MM-DD da última atividade
- * @param {number} ofensivaDiasAtual - ofensiva atual registrada
- * @returns {{ ofensivaDias: number, ultimaAtividade: string }}
- */
-function calcularOfensivaAoRealizarAtividade(ultimaAtividade, ofensivaDiasAtual) {
-  const hoje = getDataHojeBrasil();
-  if (!ultimaAtividade) {
-    return { ofensivaDias: 1, ultimaAtividade: hoje };
-  }
-
-  const diff = calcularDiferencaDias(ultimaAtividade, hoje);
-
-  if (diff === 0) {
-    // Já realizou atividade hoje — mantém a ofensiva de hoje
-    return { ofensivaDias: Math.max(ofensivaDiasAtual, 1), ultimaAtividade: hoje };
-  }
-
-  if (diff === 1) {
-    // Realizou atividade ontem — sequência contínua mantida com sucesso!
-    return { ofensivaDias: Math.max(ofensivaDiasAtual, 0) + 1, ultimaAtividade: hoje };
-  }
-
-  // diff >= 2: ficou mais de 24h / 1 dia inteiro sem atividade — quebrou a sequência.
-  // Como completou uma missão hoje, inicia uma nova ofensiva de 1 dia!
-  return { ofensivaDias: 1, ultimaAtividade: hoje };
-}
-
-/**
  * Carrega o progresso de um usuário pelo email.
- * Zera automaticamente a ofensiva se o usuário tiver ficado mais de 1 dia sem atividade.
+ * O valor da ofensiva é a quantidade de dias que o colaborador tem de empresa,
+ * calculado a partir da data de 1ª admissão na base do Alterdata.
  * @param {string} email
  * @returns {Promise<object|null>}
  */
 export async function lerProgressoUsuario(email) {
   const supabase = getSupabaseAdmin();
-  if (!supabase) return null;
+
+  // 1. Resolve os dias de empresa do colaborador comparando o e-mail logado com o Alterdata
+  let diasEmpresa = null;
+  try {
+    diasEmpresa = await obterDiasEmpresaPorEmail(supabase, email);
+  } catch (errAlterdata) {
+    console.warn("[trilha] Falha ao consultar dias de empresa no Alterdata:", errAlterdata.message);
+  }
+
+  if (!supabase) {
+    return {
+      xpTotal: 0,
+      missoesCompletas: 0,
+      trilhasCompletas: 0,
+      ofensivaDias: diasEmpresa ?? 0,
+      progressoPorTrilha: {},
+      ultimaAtividade: undefined,
+    };
+  }
 
   const { data, error } = await supabase
     .from("trilha_progresso")
@@ -96,29 +87,30 @@ export async function lerProgressoUsuario(email) {
     return null;
   }
 
-  if (!data) return null;
+  // Se o usuário ainda não tem registro de progresso no Supabase,
+  // entrega o progresso inicial com os dias de empresa já vinculados
+  if (!data) {
+    return {
+      xpTotal: 0,
+      missoesCompletas: 0,
+      trilhasCompletas: 0,
+      ofensivaDias: diasEmpresa ?? 0,
+      progressoPorTrilha: {},
+      ultimaAtividade: undefined,
+    };
+  }
 
-  const hoje = getDataHojeBrasil();
-  const ultimaAtividade = data.ultima_atividade ? data.ultima_atividade.slice(0, 10) : null;
-  let ofensivaDias = data.ofensiva_dias ?? 0;
+  // O valor da ofensiva é a quantidade de dias de empresa do colaborador
+  const ofensivaDias = diasEmpresa !== null ? diasEmpresa : (data.ofensiva_dias ?? 0);
 
-  if (ultimaAtividade) {
-    const diff = calcularDiferencaDias(ultimaAtividade, hoje);
-    // diff === 0: fez atividade hoje -> ofensiva ativa
-    // diff === 1: fez atividade ontem -> ofensiva ativa (aguardando atividade de hoje)
-    // diff >= 2: ficou mais de 1 dia sem atividade -> ofensiva expirou e está ZERADA
-    if (diff >= 2 && ofensivaDias > 0) {
-      ofensivaDias = 0;
-      // Atualiza no banco em background para manter consistência
-      supabase
-        .from("trilha_progresso")
-        .update({ ofensiva_dias: 0 })
-        .eq("email", email)
-        .then(() => {})
-        .catch((err) => console.error("[trilha] Erro ao sincronizar ofensiva zerada:", err));
-    }
-  } else {
-    ofensivaDias = 0;
+  // Mantém a coluna ofensiva_dias atualizada no banco
+  if (diasEmpresa !== null && data.ofensiva_dias !== diasEmpresa) {
+    supabase
+      .from("trilha_progresso")
+      .update({ ofensiva_dias: diasEmpresa })
+      .eq("email", email)
+      .then(() => {})
+      .catch((err) => console.error("[trilha] Erro ao sincronizar ofensiva (dias de empresa):", err));
   }
 
   return {
@@ -133,6 +125,7 @@ export async function lerProgressoUsuario(email) {
 
 /**
  * Salva o progresso de um usuário no Supabase.
+ * A ofensiva reflete os dias de empresa do colaborador segundo a 1ª admissão do Alterdata.
  * @param {object} params
  */
 export async function salvarProgressoUsuario({
@@ -149,7 +142,7 @@ export async function salvarProgressoUsuario({
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
 
-  // Busca o registro atual para calcular a ofensiva
+  // Busca o registro atual para preservar dados anteriores se necessário
   const { data: atual } = await supabase
     .from("trilha_progresso")
     .select("ofensiva_dias, ultima_atividade")
@@ -157,25 +150,21 @@ export async function salvarProgressoUsuario({
     .maybeSingle();
 
   const hoje = getDataHojeBrasil();
-  const ultimaAtividadeAntiga = atual?.ultima_atividade ? atual.ultima_atividade.slice(0, 10) : null;
-  const ofensivaBase = atual?.ofensiva_dias ?? ofensivaDiasAtual ?? 0;
+  const novaUltimaAtividade = teveAtividadeRealizada
+    ? hoje
+    : (atual?.ultima_atividade ? atual.ultima_atividade.slice(0, 10) : hoje);
 
-  let novaOfensiva = ofensivaBase;
-  let novaUltimaAtividade = ultimaAtividadeAntiga;
-
-  if (teveAtividadeRealizada) {
-    const res = calcularOfensivaAoRealizarAtividade(ultimaAtividadeAntiga, ofensivaBase);
-    novaOfensiva = res.ofensivaDias;
-    novaUltimaAtividade = res.ultimaAtividade;
-  } else {
-    if (ultimaAtividadeAntiga) {
-      const diff = calcularDiferencaDias(ultimaAtividadeAntiga, hoje);
-      if (diff >= 2) {
-        novaOfensiva = 0;
-      }
-    } else {
-      novaOfensiva = 0;
+  // Calcula a quantidade de dias de empresa a partir da 1ª admissão no Alterdata
+  let novaOfensiva = ofensivaDiasAtual ?? 0;
+  try {
+    const diasEmpresa = await obterDiasEmpresaPorEmail(supabase, email);
+    if (diasEmpresa !== null) {
+      novaOfensiva = diasEmpresa;
+    } else if (atual?.ofensiva_dias !== undefined && atual?.ofensiva_dias !== null) {
+      novaOfensiva = atual.ofensiva_dias;
     }
+  } catch (err) {
+    console.warn("[trilha] salvarProgressoUsuario - erro ao buscar dias de empresa:", err.message);
   }
 
   const row = {
@@ -332,6 +321,12 @@ export async function zerarProgressoUsuario(email) {
     // 1. Remove histórico de XP do usuário
     await supabase.from("trilha_xp_historico").delete().eq("email", emailNorm);
 
+    let diasEmpresa = 0;
+    try {
+      const dias = await obterDiasEmpresaPorEmail(supabase, emailNorm);
+      if (dias !== null) diasEmpresa = dias;
+    } catch {}
+
     // 2. Reseta o registro na tabela trilha_progresso
     await supabase
       .from("trilha_progresso")
@@ -339,7 +334,7 @@ export async function zerarProgressoUsuario(email) {
         xp_total: 0,
         missoes_completas: 0,
         trilhas_completas: 0,
-        ofensiva_dias: 0,
+        ofensiva_dias: diasEmpresa,
         ultima_atividade: null,
         progresso_por_trilha: {},
         atualizado_em: new Date().toISOString(),
