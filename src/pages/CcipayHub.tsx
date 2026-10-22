@@ -273,7 +273,7 @@ export default function CcipayHub() {
               <Button asChild size="lg" className="h-auto py-4 text-center justify-center">
                 <Link to="/vale-adiantamento">
                   <Wallet className="mr-2 h-5 w-5" />
-                  Solicitar vale/pix/adiantamento
+                  Adiantamento Financeiro
                 </Link>
               </Button>
 

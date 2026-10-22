@@ -243,7 +243,7 @@ export default function CcipayAdminFuncionarios() {
                     <Input
                       type="number"
                       defaultValue={f.limiteAdiantamento}
-                      placeholder="500.00"
+                      placeholder="300.00"
                       onBlur={(e) => salvar(f, { limiteAdiantamento: Number(e.target.value) })}
                     />
                   </div>

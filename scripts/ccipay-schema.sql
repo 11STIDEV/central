@@ -8,7 +8,7 @@ create table if not exists public.ccipay_funcionarios (
   email text primary key,
   nome text not null default '',
   alterdata_codigo text,
-  limite_adiantamento numeric(12, 2) not null default 500.00,
+  limite_adiantamento numeric(12, 2) not null default 300.00,
   limite_bonificacao numeric(12, 2),
   pix_padrao text,
   ativo boolean not null default true,

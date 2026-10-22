@@ -329,7 +329,7 @@ export async function executarVerificacaoESincronizacao(supabase, options = {}) 
                   email: adm.funcionario_email.trim().toLowerCase(),
                   nome: adm.funcionario_nome,
                   alterdata_codigo: adm.funcionario_matricula,
-                  limite_adiantamento: 500.0,
+                  limite_adiantamento: 300.0,
                   limite_bonificacao: null,
                   ativo: true,
                   updated_at: now,

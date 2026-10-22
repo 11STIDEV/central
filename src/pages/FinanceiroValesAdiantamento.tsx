@@ -47,6 +47,11 @@ import {
   Download,
   Layers,
   FileSpreadsheet,
+  TrendingUp,
+  Clock,
+  XCircle,
+  Info,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
@@ -55,6 +60,8 @@ import {
   ccipayDepositarAdiantamento,
   ccipayLancarFolhaAlterdata,
   ccipayListarAdiantamentos,
+  ccipayListarSolicitacoesLimite,
+  ccipayAnalisarSolicitacaoLimite,
   ccipayObterAlterdataStatus,
   ccipaySalvarAlterdataToken,
   labelStatusMovimento,
@@ -63,6 +70,10 @@ import {
 
 export default function FinanceiroValesAdiantamento() {
   const { googleIdToken } = useAuth();
+
+  // Controle de Abas Principais (Vales vs Aumento de Limite)
+  const [abaPrincipal, setAbaPrincipal] = useState<"vales" | "limites">("vales");
+
   const [vales, setVales] = useState<CcipayMovimento[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -70,6 +81,18 @@ export default function FinanceiroValesAdiantamento() {
   const [acaoSelecionada, setAcaoSelecionada] = useState<"aprovar" | "negar" | null>(null);
   const [valeSelecionado, setValeSelecionado] = useState<CcipayMovimento | null>(null);
   const [lancandoAlterdataId, setLancandoAlterdataId] = useState<string | null>(null);
+
+  // Estados de Solicitações de Aumento de Limite
+  const [solicitacoesLimite, setSolicitacoesLimite] = useState<CcipayMovimento[]>([]);
+  const [carregandoLimites, setCarregandoLimites] = useState(false);
+  const [filtroLimiteTab, setFiltroLimiteTab] = useState<
+    "todas" | "pendentes" | "aprovadas" | "recusadas"
+  >("pendentes");
+  const [solicitacaoParaAnalisar, setSolicitacaoParaAnalisar] = useState<CcipayMovimento | null>(null);
+  const [acaoLimite, setAcaoLimite] = useState<"aprovar" | "negar" | null>(null);
+  const [valorAprovadoInput, setValorAprovadoInput] = useState<string>("");
+  const [justificativaLimiteInput, setJustificativaLimiteInput] = useState<string>("");
+  const [salvandoAnaliseLimite, setSalvandoAnaliseLimite] = useState<boolean>(false);
 
   // Controle de Token Alterdata
   const [tokenModalAberto, setTokenModalAberto] = useState(false);
@@ -118,10 +141,68 @@ export default function FinanceiroValesAdiantamento() {
     }
   }, [googleIdToken]);
 
+  const carregarLimites = useCallback(async () => {
+    if (!googleIdToken) return;
+    setCarregandoLimites(true);
+    try {
+      const res = await ccipayListarSolicitacoesLimite(googleIdToken);
+      setSolicitacoesLimite(res.solicitacoes || []);
+    } catch (e: any) {
+      console.error("Erro ao carregar solicitações de limite:", e);
+    } finally {
+      setCarregandoLimites(false);
+    }
+  }, [googleIdToken]);
+
   useEffect(() => {
     void carregar();
+    void carregarLimites();
     void carregarStatusAlterdata();
-  }, [carregar, carregarStatusAlterdata]);
+  }, [carregar, carregarLimites, carregarStatusAlterdata]);
+
+  const abrirAnaliseLimite = (solicitacao: CcipayMovimento, acao: "aprovar" | "negar") => {
+    setSolicitacaoParaAnalisar(solicitacao);
+    setAcaoLimite(acao);
+    setValorAprovadoInput(String(solicitacao.valor));
+    setJustificativaLimiteInput("");
+  };
+
+  const confirmarAnaliseLimite = async () => {
+    if (!googleIdToken || !solicitacaoParaAnalisar || !acaoLimite) return;
+    const valorNum = Number(valorAprovadoInput.replace(",", "."));
+    if (acaoLimite === "aprovar" && (Number.isNaN(valorNum) || valorNum <= 0)) {
+      toast.error("Informe um valor aprovado válido maior que zero.");
+      return;
+    }
+    if (acaoLimite === "negar" && !justificativaLimiteInput.trim()) {
+      toast.error("Informe a justificativa para recusar.");
+      return;
+    }
+
+    setSalvandoAnaliseLimite(true);
+    try {
+      const resp = await ccipayAnalisarSolicitacaoLimite(googleIdToken, {
+        movimentoId: solicitacaoParaAnalisar.id,
+        acao: acaoLimite,
+        valorAprovado: acaoLimite === "aprovar" ? valorNum : undefined,
+        justificativa: justificativaLimiteInput.trim(),
+      });
+      if (acaoLimite === "aprovar") {
+        toast.success(
+          `Aumento aprovado! Novo limite de R$ ${Number(resp.novoLimite || valorNum).toFixed(2)} aplicado ao colaborador.`
+        );
+      } else {
+        toast.info("Solicitação de aumento de limite recusada.");
+      }
+      setSolicitacaoParaAnalisar(null);
+      setAcaoLimite(null);
+      await carregarLimites();
+    } catch (e: any) {
+      toast.error(e?.message || "Falha ao processar análise da solicitação de limite.");
+    } finally {
+      setSalvandoAnaliseLimite(false);
+    }
+  };
 
   const salvarTokenAlterdata = async () => {
     const limpo = tokenInput.trim();
@@ -376,16 +457,30 @@ export default function FinanceiroValesAdiantamento() {
 
   const pendentes = contadores.pendentes;
 
+  const contadoresLimite = {
+    todas: solicitacoesLimite.length,
+    pendentes: solicitacoesLimite.filter((s) => s.status === "pendente").length,
+    aprovadas: solicitacoesLimite.filter((s) => s.status === "aprovado").length,
+    recusadas: solicitacoesLimite.filter((s) => s.status === "negado" || s.status === "recusado").length,
+  };
+
+  const solicitacoesFiltradas = solicitacoesLimite.filter((s) => {
+    if (filtroLimiteTab === "pendentes") return s.status === "pendente";
+    if (filtroLimiteTab === "aprovadas") return s.status === "aprovado";
+    if (filtroLimiteTab === "recusadas") return s.status === "negado" || s.status === "recusado";
+    return true;
+  });
+
   return (
     <div className="animate-fade-in">
       <PageHero
-        title="Controle de Vales — Financeiro"
-        subtitle="Análise, aprovação e integração automática com a Folha de Pagamento Alterdata."
+        title="Gestão de Vales e Limites"
+        subtitle="Aprovação de adiantamentos financeiros, envio ao Alterdata e deliberação de aumentos de limite."
       />
 
       <div className="mx-auto max-w-6xl px-4 py-8 md:px-8">
-        {/* Barra Superior de Ações e Status */}
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+        {/* Barra Superior com Voltar e Alternador de Abas */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <Button asChild variant="ghost" size="sm">
             <Link to="/cci-pay">
               <ArrowLeft className="mr-2 h-4 w-4" />
@@ -393,47 +488,43 @@ export default function FinanceiroValesAdiantamento() {
             </Link>
           </Button>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Indicador do Token Alterdata */}
-            <div
-              className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                alterdataConfigurado
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                  : "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+          {/* Abas Principais (Vales vs Aumento de Limite) */}
+          <div className="flex items-center rounded-xl border border-border bg-muted/40 p-1">
+            <button
+              type="button"
+              onClick={() => setAbaPrincipal("vales")}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all ${
+                abaPrincipal === "vales"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
               }`}
             >
-              {alterdataConfigurado ? (
-                <>
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>Token Alterdata Ativo</span>
-                </>
-              ) : (
-                <>
-                  <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                  <span>Token Alterdata Não Configurado</span>
-                </>
+              <Layers className="h-4 w-4 text-primary" />
+              <span>Gestão de Vales</span>
+              {contadores.pendentes > 0 && (
+                <span className="rounded-full bg-amber-500/20 text-amber-600 dark:text-amber-400 px-2 py-0.5 text-[11px] font-bold">
+                  {contadores.pendentes}
+                </span>
               )}
-            </div>
+            </button>
 
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setTokenInput(localStorage.getItem("alterdata_token") || "");
-                setTokenModalAberto(true);
-              }}
-              className="gap-1.5"
+            <button
+              type="button"
+              onClick={() => setAbaPrincipal("limites")}
+              className={`flex items-center gap-2 rounded-lg px-4 py-2 text-xs sm:text-sm font-semibold transition-all ${
+                abaPrincipal === "limites"
+                  ? "bg-background text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
             >
-              <KeyRound className="h-4 w-4" />
-              Configurar Token
-            </Button>
-
-            <Button asChild variant="ghost" size="sm" className="gap-1.5 text-muted-foreground">
-              <Link to="/ti/alterdata" target="_blank">
-                <ExternalLink className="h-4 w-4" />
-                Testador de API
-              </Link>
-            </Button>
+              <TrendingUp className="h-4 w-4 text-primary" />
+              <span>Aumento de Limite</span>
+              {contadoresLimite.pendentes > 0 && (
+                <span className="rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400 px-2 py-0.5 text-[11px] font-bold animate-pulse">
+                  {contadoresLimite.pendentes}
+                </span>
+              )}
+            </button>
           </div>
         </div>
 
@@ -442,6 +533,54 @@ export default function FinanceiroValesAdiantamento() {
             <AlertDescription>{erro}</AlertDescription>
           </Alert>
         )}
+
+        {/* ============================================================== */}
+        {/* ABA 1: GESTÃO DE ADIANTAMENTOS / VALES                        */}
+        {/* ============================================================== */}
+        {abaPrincipal === "vales" && (
+          <>
+            <div className="mb-6 flex flex-wrap items-center justify-end gap-3">
+              {/* Indicador do Token Alterdata */}
+              <div
+                className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                  alterdataConfigurado
+                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                    : "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400"
+                }`}
+              >
+                {alterdataConfigurado ? (
+                  <>
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Token Alterdata Ativo</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <span>Token Alterdata Não Configurado</span>
+                  </>
+                )}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setTokenInput(localStorage.getItem("alterdata_token") || "");
+                  setTokenModalAberto(true);
+                }}
+                className="gap-1.5"
+              >
+                <KeyRound className="h-4 w-4" />
+                Configurar Token
+              </Button>
+
+              <Button asChild variant="ghost" size="sm" className="gap-1.5 text-muted-foreground">
+                <Link to="/ti/alterdata" target="_blank">
+                  <ExternalLink className="h-4 w-4" />
+                  Testador de API
+                </Link>
+              </Button>
+            </div>
 
         {/* Card Destaque: Relatório de Vales a Lançar nos Contracheques (Alterdata Automático) */}
         <div className="mb-6 rounded-xl border border-primary/20 bg-gradient-to-r from-primary/5 via-card to-card p-5 shadow-sm">
@@ -753,6 +892,248 @@ export default function FinanceiroValesAdiantamento() {
             </Table>
           </div>
         )}
+      </>
+    )}
+
+        {/* ============================================================== */}
+        {/* ABA 2: SOLICITAÇÕES DE AUMENTO DE LIMITE                      */}
+        {/* ============================================================== */}
+        {abaPrincipal === "limites" && (
+          <div className="space-y-6">
+            {/* Cards de Métricas de Limite */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+                  <span>Pendentes de Análise</span>
+                  <Clock className="h-4 w-4 text-amber-500" />
+                </div>
+                <p className="mt-2 text-2xl font-bold text-amber-600 dark:text-amber-400">
+                  {contadoresLimite.pendentes}
+                </p>
+                <span className="text-[11px] text-muted-foreground">Aguardando decisão</span>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+                  <span>Aprovadas</span>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                </div>
+                <p className="mt-2 text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {contadoresLimite.aprovadas}
+                </p>
+                <span className="text-[11px] text-muted-foreground">Limites atualizados</span>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+                  <span>Recusadas</span>
+                  <XCircle className="h-4 w-4 text-destructive" />
+                </div>
+                <p className="mt-2 text-2xl font-bold text-destructive">
+                  {contadoresLimite.recusadas}
+                </p>
+                <span className="text-[11px] text-muted-foreground">Indeferidas</span>
+              </div>
+
+              <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+                <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
+                  <span>Total de Pedidos</span>
+                  <TrendingUp className="h-4 w-4 text-primary" />
+                </div>
+                <p className="mt-2 text-2xl font-bold text-foreground">
+                  {contadoresLimite.todas}
+                </p>
+                <span className="text-[11px] text-muted-foreground">Histórico completo</span>
+              </div>
+            </div>
+
+            {/* Filtros da Lista de Limite */}
+            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant={filtroLimiteTab === "pendentes" ? "default" : "outline"}
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => setFiltroLimiteTab("pendentes")}
+                >
+                  <Clock className="h-3.5 w-3.5" />
+                  Pendentes ({contadoresLimite.pendentes})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filtroLimiteTab === "aprovadas" ? "default" : "outline"}
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => setFiltroLimiteTab("aprovadas")}
+                >
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Aprovadas ({contadoresLimite.aprovadas})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filtroLimiteTab === "recusadas" ? "default" : "outline"}
+                  className="h-8 text-xs gap-1.5"
+                  onClick={() => setFiltroLimiteTab("recusadas")}
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                  Recusadas ({contadoresLimite.recusadas})
+                </Button>
+                <Button
+                  size="sm"
+                  variant={filtroLimiteTab === "todas" ? "default" : "outline"}
+                  className="h-8 text-xs"
+                  onClick={() => setFiltroLimiteTab("todas")}
+                >
+                  Todas ({contadoresLimite.todas})
+                </Button>
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={carregarLimites}
+                disabled={carregandoLimites}
+                className="gap-1.5 text-xs h-8 ml-auto"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${carregandoLimites ? "animate-spin" : ""}`} />
+                Atualizar
+              </Button>
+            </div>
+
+            {/* Tabela de Solicitações de Aumento de Limite */}
+            {carregandoLimites ? (
+              <div className="flex items-center justify-center py-16 text-muted-foreground gap-2">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span>Carregando solicitações de aumento de limite...</span>
+              </div>
+            ) : solicitacoesFiltradas.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-card/50 p-12 text-center text-muted-foreground">
+                <TrendingUp className="mx-auto h-10 w-10 text-muted-foreground/40 mb-3" />
+                <p className="font-semibold text-foreground">Nenhuma solicitação de limite encontrada</p>
+                <p className="text-xs mt-1">
+                  {filtroLimiteTab === "pendentes"
+                    ? "Não há solicitações de aumento de limite pendentes de análise no momento."
+                    : "Nenhum registro para o filtro selecionado."}
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Data / Hora</TableHead>
+                      <TableHead>Colaborador</TableHead>
+                      <TableHead className="text-right">Limite Atual</TableHead>
+                      <TableHead className="text-right">Novo Solicitado</TableHead>
+                      <TableHead>Justificativa do Colaborador</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Ações / Decisão</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {solicitacoesFiltradas.map((sol) => {
+                      const limiteAnterior = Number(
+                        (sol.metadata as any)?.limiteAnterior ?? 500,
+                      );
+                      const motivo = String((sol.metadata as any)?.motivo || "—");
+                      const justificativaDp = (sol.metadata as any)?.justificativaDp;
+                      const valorAprovadoFinal = (sol.metadata as any)?.valorAprovado;
+
+                      return (
+                        <TableRow key={sol.id}>
+                          <TableCell className="whitespace-nowrap text-xs text-muted-foreground">
+                            {sol.createdAt
+                              ? new Date(sol.createdAt).toLocaleString("pt-BR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "—"}
+                          </TableCell>
+
+                          <TableCell>
+                            <div>
+                              <p className="font-medium text-foreground text-sm leading-tight">
+                                {sol.funcionarioNome || sol.funcionarioEmail}
+                              </p>
+                              <p className="text-xs text-muted-foreground">{sol.funcionarioEmail}</p>
+                            </div>
+                          </TableCell>
+
+                          <TableCell className="text-right whitespace-nowrap text-xs text-muted-foreground font-mono">
+                            R$ {limiteAnterior.toFixed(2)}
+                          </TableCell>
+
+                          <TableCell className="text-right whitespace-nowrap font-bold text-sm text-primary font-mono">
+                            R$ {sol.valor.toFixed(2)}
+                          </TableCell>
+
+                          <TableCell className="max-w-[240px]">
+                            <p className="text-xs text-foreground line-clamp-2" title={motivo}>
+                              {motivo}
+                            </p>
+                            {justificativaDp && (
+                              <p className="text-[11px] text-muted-foreground mt-0.5 italic">
+                                DP: {justificativaDp}
+                              </p>
+                            )}
+                          </TableCell>
+
+                          <TableCell className="whitespace-nowrap">
+                            {sol.status === "pendente" && (
+                              <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs gap-1">
+                                <Clock className="h-3 w-3" /> Pendente
+                              </Badge>
+                            )}
+                            {sol.status === "aprovado" && (
+                              <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs gap-1">
+                                <CheckCircle2 className="h-3 w-3" /> Aprovado
+                                {valorAprovadoFinal != null && ` (R$ ${Number(valorAprovadoFinal).toFixed(2)})`}
+                              </Badge>
+                            )}
+                            {(sol.status === "negado" || sol.status === "recusado") && (
+                              <Badge variant="outline" className="border-destructive/40 bg-destructive/10 text-destructive text-xs gap-1">
+                                <XCircle className="h-3 w-3" /> Recusado
+                              </Badge>
+                            )}
+                          </TableCell>
+
+                          <TableCell className="text-right whitespace-nowrap">
+                            {sol.status === "pendente" ? (
+                              <div className="flex items-center justify-end gap-1.5">
+                                <Button
+                                  size="sm"
+                                  className="h-8 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white gap-1 text-xs"
+                                  onClick={() => abrirAnaliseLimite(sol, "aprovar")}
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                  Aprovar
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-8 px-2.5 text-xs text-muted-foreground hover:text-destructive hover:border-destructive/40"
+                                  onClick={() => abrirAnaliseLimite(sol, "negar")}
+                                >
+                                  Recusar
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                {sol.aprovadoPor ? `Por: ${sol.aprovadoPor.split("@")[0]}` : "Concluído"}
+                              </span>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Dialog de Configuração do Token Alterdata */}
@@ -995,6 +1376,146 @@ export default function FinanceiroValesAdiantamento() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Modal de Análise e Aprovação de Aumento de Limite */}
+      <Dialog
+        open={Boolean(solicitacaoParaAnalisar && acaoLimite)}
+        onOpenChange={(aberto) => {
+          if (!aberto && !salvandoAnaliseLimite) {
+            setSolicitacaoParaAnalisar(null);
+            setAcaoLimite(null);
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              {acaoLimite === "aprovar" ? (
+                <>
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  Aprovar Aumento de Limite
+                </>
+              ) : (
+                <>
+                  <XCircle className="h-5 w-5 text-destructive" />
+                  Recusar Solicitação de Limite
+                </>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              {acaoLimite === "aprovar"
+                ? `Defina o novo limite concedido para ${
+                    solicitacaoParaAnalisar?.funcionarioNome ||
+                    solicitacaoParaAnalisar?.funcionarioEmail
+                  }. O limite será atualizado imediatamente no cadastro.`
+                : `Informe o motivo da recusa para registrar no histórico de ${
+                    solicitacaoParaAnalisar?.funcionarioNome ||
+                    solicitacaoParaAnalisar?.funcionarioEmail
+                  }.`}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <div className="rounded-lg border border-border bg-muted/30 p-3 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Colaborador:</span>
+                <strong className="text-foreground">
+                  {solicitacaoParaAnalisar?.funcionarioNome || solicitacaoParaAnalisar?.funcionarioEmail}
+                </strong>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Limite Anterior:</span>
+                <span className="font-mono text-muted-foreground">
+                  R$ {Number((solicitacaoParaAnalisar?.metadata as any)?.limiteAnterior ?? 300).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Valor Solicitado:</span>
+                <strong className="font-mono text-primary text-sm">
+                  R$ {Number(solicitacaoParaAnalisar?.valor ?? 0).toFixed(2)}
+                </strong>
+              </div>
+              {(solicitacaoParaAnalisar?.metadata as any)?.motivo && (
+                <div className="pt-1.5 border-t border-border/60">
+                  <span className="text-muted-foreground block mb-0.5">Motivo informado:</span>
+                  <p className="text-foreground italic">
+                    &quot;{(solicitacaoParaAnalisar?.metadata as any)?.motivo}&quot;
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {acaoLimite === "aprovar" ? (
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  Novo Limite Aprovado (R$) *
+                </label>
+                <Input
+                  type="text"
+                  placeholder="Ex: 800,00"
+                  value={valorAprovadoInput}
+                  onChange={(e) => setValorAprovadoInput(e.target.value)}
+                  className="font-bold text-base"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Você pode conceder o valor solicitado ou definir um valor intermediário aprovado.
+                </p>
+              </div>
+            ) : null}
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">
+                {acaoLimite === "aprovar" ? "Observação do DP (opcional)" : "Motivo da Recusa *"}
+              </label>
+              <Textarea
+                placeholder={
+                  acaoLimite === "aprovar"
+                    ? "Ex: Aprovado conforme análise salarial / solicitação do colaborador..."
+                    : "Ex: Limite máximo já atingido para o perfil de cargo atual..."
+                }
+                value={justificativaLimiteInput}
+                onChange={(e) => setJustificativaLimiteInput(e.target.value)}
+                rows={2}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setSolicitacaoParaAnalisar(null);
+                setAcaoLimite(null);
+              }}
+              disabled={salvandoAnaliseLimite}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              onClick={confirmarAnaliseLimite}
+              disabled={salvandoAnaliseLimite}
+              className={
+                acaoLimite === "aprovar"
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              }
+            >
+              {salvandoAnaliseLimite ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processando...
+                </>
+              ) : acaoLimite === "aprovar" ? (
+                "Confirmar Aprovação e Atualizar Limite"
+              ) : (
+                "Confirmar Recusa"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

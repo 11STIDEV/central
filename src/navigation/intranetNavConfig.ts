@@ -154,14 +154,14 @@ export const INTRANET_NAV_SECTIONS: NavSection[] = [
         items: [
           { title: "Início / Extrato", url: "/cci-pay", icon: Wallet },
           { title: "Pagar com QR Code", url: "/cci-pay?scan=1", icon: QrCode },
-          { title: "Solicitar vale/pix/adiantamento", url: "/vale-adiantamento", icon: CircleDollarSign },
+          { title: "Adiantamento Financeiro", url: "/vale-adiantamento", icon: CircleDollarSign },
         ],
       },
       {
         id: "ccipay-operacao",
         label: "Operação",
         items: [
-          { title: "Aprovar vales", url: "/cci-pay/financeiro", icon: Briefcase },
+          { title: "Gestão de Vales e Limites", url: "/cci-pay/financeiro", icon: Briefcase },
           { title: "Relatório DP", url: "/cci-pay/relatorios/dp", icon: FileText },
           { title: "Relatório loja", url: "/cci-pay/relatorios/loja", icon: FileText },
         ],

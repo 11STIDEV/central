@@ -201,7 +201,7 @@ export async function sincronizarFuncionariosAdvanceComAlterdata(supabase) {
         email: emailLower,
         nome,
         alterdata_codigo: codigo,
-        limite_adiantamento: 500.0,
+        limite_adiantamento: 300.0,
         limite_bonificacao: null,
         pix_padrao: pix,
         ativo,
@@ -351,7 +351,7 @@ export async function saldoConvenioDisponivel(supabase, email, competencia) {
   const func =
     (await obterFuncionario(supabase, email)) ||
     (await sincronizarFuncionarioComAlterdata(supabase, email));
-  const limiteTotal = func?.limiteAdiantamento ?? 500;
+  const limiteTotal = func?.limiteAdiantamento ?? 300;
 
   const { data: movs, error } = await supabase
     .from("ccipay_movimentos")
