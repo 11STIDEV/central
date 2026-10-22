@@ -674,9 +674,9 @@ export default function CcipayAdminLojas() {
 
       {/* Modal: Cadastrar Nova Loja Parceira com Login */}
       <Dialog open={mostrarNovoModal} onOpenChange={setMostrarNovoModal}>
-        <DialogContent className="sm:max-w-lg">
-          <form onSubmit={handleCriarLojaComOperador}>
-            <DialogHeader>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <form onSubmit={handleCriarLojaComOperador} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <DialogHeader className="px-6 pt-6 pb-3 border-b shrink-0 pr-12 text-left">
               <DialogTitle className="flex items-center gap-2">
                 <Store className="h-5 w-5 text-primary" />
                 Cadastrar Loja Parceira
@@ -686,7 +686,7 @@ export default function CcipayAdminLojas() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               <div className="space-y-3 rounded-lg border border-border bg-card p-3.5">
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                   1. Dados do Estabelecimento
@@ -849,7 +849,7 @@ export default function CcipayAdminLojas() {
               </div>
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter className="gap-2 sm:gap-0 px-6 py-4 border-t bg-muted/20 shrink-0">
               <Button
                 type="button"
                 variant="outline"
@@ -878,9 +878,9 @@ export default function CcipayAdminLojas() {
         open={Boolean(lojaParaEditar)}
         onOpenChange={(open) => !open && setLojaParaEditar(null)}
       >
-        <DialogContent className="sm:max-w-lg">
-          <form onSubmit={handleSalvarEdicaoLoja}>
-            <DialogHeader>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <form onSubmit={handleSalvarEdicaoLoja} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            <DialogHeader className="px-6 pt-6 pb-3 border-b shrink-0 pr-12 text-left">
               <DialogTitle className="flex items-center gap-2">
                 <Store className="h-5 w-5 text-primary" />
                 Editar Loja Parceira
@@ -890,7 +890,7 @@ export default function CcipayAdminLojas() {
               </DialogDescription>
             </DialogHeader>
 
-            <div className="space-y-4 py-4">
+            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="edit-nome-loja" className="text-xs font-medium text-foreground">
                   Nome da Loja / Convênio *
@@ -989,7 +989,7 @@ export default function CcipayAdminLojas() {
               </div>
             </div>
 
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter className="gap-2 sm:gap-0 px-6 py-4 border-t bg-muted/20 shrink-0">
               <Button
                 type="button"
                 variant="outline"
@@ -1018,14 +1018,14 @@ export default function CcipayAdminLojas() {
         open={Boolean(lojaSelecionadaOp)}
         onOpenChange={(open) => !open && setLojaSelecionadaOp(null)}
       >
-        <DialogContent className="sm:max-w-md">
-          <form onSubmit={handleAdicionarOperadorExtra}>
+        <DialogContent className="sm:max-w-md max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <form onSubmit={handleAdicionarOperadorExtra} className="flex flex-col flex-1 min-h-0 overflow-hidden">
             {(() => {
               const opExistente = (operadoresPorLoja[lojaSelecionadaOp?.id || ""] || [])[0];
               const jaTemAcesso = Boolean(opExistente?.login);
               return (
                 <>
-                  <DialogHeader>
+                  <DialogHeader className="px-6 pt-6 pb-3 border-b shrink-0 pr-12 text-left">
                     <DialogTitle className="flex items-center gap-2">
                       <KeyRound className="h-5 w-5 text-primary" />
                       {jaTemAcesso ? "Editar Acesso do Parceiro" : "Definir Acesso do Parceiro"} — {lojaSelecionadaOp?.nome}
@@ -1037,7 +1037,7 @@ export default function CcipayAdminLojas() {
                     </DialogDescription>
                   </DialogHeader>
 
-                  <div className="space-y-4 py-4">
+                  <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-foreground">
                         Usuário (Login) *
@@ -1102,7 +1102,7 @@ export default function CcipayAdminLojas() {
               );
             })()}
 
-            <DialogFooter className="gap-2 sm:gap-0">
+            <DialogFooter className="gap-2 sm:gap-0 px-6 py-4 border-t bg-muted/20 shrink-0">
               <Button
                 type="button"
                 variant="outline"

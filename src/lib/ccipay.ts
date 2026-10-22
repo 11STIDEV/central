@@ -259,8 +259,31 @@ export async function ccipaySolicitarAumentoLimite(
   idToken?: string | null,
   dados: { novoLimite: number; motivo: string },
 ) {
-  return post<{ ok: boolean; mensagem: string; chamadoId?: string }>(
+  return post<{ ok: boolean; mensagem: string; movimento?: CcipayMovimento }>(
     "/api/ccipay/limite/solicitar-aumento",
+    idToken,
+    dados,
+  );
+}
+
+export async function ccipayListarSolicitacoesLimite(idToken?: string | null) {
+  return post<{ ok: boolean; solicitacoes: CcipayMovimento[] }>(
+    "/api/ccipay/limite/listar",
+    idToken,
+  );
+}
+
+export async function ccipayAnalisarSolicitacaoLimite(
+  idToken?: string | null,
+  dados?: {
+    movimentoId: string;
+    acao: "aprovar" | "negar";
+    valorAprovado?: number;
+    justificativa?: string;
+  },
+) {
+  return post<{ ok: boolean; movimento: CcipayMovimento; novoLimite?: number }>(
+    "/api/ccipay/limite/analisar",
     idToken,
     dados,
   );

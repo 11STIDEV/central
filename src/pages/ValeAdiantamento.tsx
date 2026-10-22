@@ -91,8 +91,8 @@ export default function ValeAdiantamento() {
   return (
     <div className="animate-fade-in">
       <PageHero
-        title="Solicitação de Vale / Pix / Adiantamento"
-        subtitle="Preencha os dados para solicitar um vale/pix/adiantamento ao setor financeiro."
+        title="Solicitação de Adiantamento Financeiro"
+        subtitle="Preencha os dados e sua chave Pix para solicitar um adiantamento financeiro."
       />
 
       <div className="mx-auto max-w-2xl px-4 py-8 md:px-8">
@@ -104,9 +104,12 @@ export default function ValeAdiantamento() {
         </Button>
 
         {disponivel != null && (
-          <div className="mb-4 rounded-xl border border-border bg-muted/30 p-4 text-sm flex items-center justify-between">
-            <span>Limite disponível nesta competência:</span>
-            <strong className="text-base font-bold text-primary">R$ {disponivel.toFixed(2)}</strong>
+          <div className="mb-4 rounded-xl border border-border bg-muted/30 p-4 text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <span className="text-muted-foreground">Limite de adiantamento cadastrado:</span>
+            <div className="flex items-center gap-2">
+              <strong className="text-base font-bold text-primary">R$ {disponivel.toFixed(2)}</strong>
+              <span className="text-xs text-muted-foreground">(análise pelo DP)</span>
+            </div>
           </div>
         )}
 
@@ -214,7 +217,10 @@ export default function ValeAdiantamento() {
 
           {/* Valor */}
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">Valor Solicitado (R$)</label>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-medium text-muted-foreground">Valor Solicitado (R$)</label>
+              <span className="text-[11px] text-muted-foreground">Sujeito à análise do DP</span>
+            </div>
             <Input
               type="number"
               min={0}
@@ -230,7 +236,7 @@ export default function ValeAdiantamento() {
           </div>
 
           <Button type="submit" disabled={enviando} className="w-full">
-            {enviando ? "Enviando solicitação..." : "Confirmar Solicitação de Vale / Pix / Adiantamento"}
+            {enviando ? "Enviando solicitação..." : "Confirmar Solicitação de Adiantamento Financeiro"}
           </Button>
         </form>
       </div>

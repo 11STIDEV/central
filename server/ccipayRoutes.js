@@ -189,12 +189,7 @@ export function registerCcipayRoutes(app, helpers) {
 
       const comp = competenciaAtual();
       const usado = await somarAdiantamentosCompetencia(supabase, ctx.email, comp);
-      const disponivel = func.limiteAdiantamento - usado;
-      if (valorNum > disponivel) {
-        return res.status(400).json({
-          error: `Valor excede o limite disponível (R$ ${disponivel.toFixed(2)}).`,
-        });
-      }
+      const disponivel = Math.max(0, func.limiteAdiantamento - usado);
 
       const mov = await criarMovimento(supabase, {
         tipo: "adiantamento",
@@ -208,6 +203,7 @@ export function registerCcipayRoutes(app, helpers) {
         metadata: {
           pix: String(pix).trim(),
           tipoPix: tipoPix ? String(tipoPix).trim() : null,
+          limiteDisponivelMomento: disponivel,
         },
       });
 
@@ -1481,6 +1477,7 @@ export function registerCcipayRoutes(app, helpers) {
   });
 
   // --- Solicitação de Aumento de Limite nos Convênios (Notifica DP) ---
+  // --- Solicitação de Aumento de Limite nos Convênios (Fila de Operação DP) ---
   app.post("/api/ccipay/limite/solicitar-aumento", async (req, res) => {
     try {
       const { idToken, novoLimite, motivo } = req.body || {};
@@ -1496,27 +1493,38 @@ export function registerCcipayRoutes(app, helpers) {
       const func = (await obterFuncionario(supabase, ctx.email)) || {
         email: ctx.email,
         nome: ctx.email,
-        limiteBonificacao: 0,
+        limiteAdiantamento: 300,
       };
 
-      const limiteAtual = func.limiteBonificacao ?? 0;
+      const limiteAtual = func.limiteAdiantamento ?? 300;
       const idChamado = `LIM-${Date.now().toString(36).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
 
-      const chamado = {
-        id: idChamado,
-        titulo: `Solicitação de Aumento de Limite nos Convênios — ${func.nome || ctx.email}`,
-        setorDestino: ["dp"],
-        solicitante: func.nome || ctx.email,
-        solicitanteEmail: ctx.email,
-        papelAbertura: "usuario",
-        categoria: "Advance-CCI / Convênios",
-        prioridade: "media",
-        status: "aberto",
-        data: new Date().toLocaleDateString("pt-BR"),
-        descricao: `Solicitação de Aumento de Limite para Compras nos Convênios CCI.\n\n• Colaborador: ${func.nome || ctx.email} (${ctx.email})\n• Limite Atual nos Convênios: R$ ${Number(limiteAtual).toFixed(2)}\n• Novo Limite Solicitado: R$ ${novoLimiteNum.toFixed(2)}\n• Motivo / Justificativa: ${String(motivo || "").trim() || "Não informado."}\n\n*Esta solicitação foi enviada automaticamente pelo módulo Advance-CCI para análise e deliberação do DP.*`,
+      const payload = {
+        limiteAnterior: limiteAtual,
+        novoLimite: novoLimiteNum,
+        motivo: String(motivo || "").trim(),
+        decisao: "pendente",
+        solicitadoEm: new Date().toISOString(),
       };
 
-      await inserirChamado(supabase, chamado);
+      const row = {
+        id: idChamado,
+        titulo: `Solicitação de Aumento de Limite nos Convênios — ${func.nome || ctx.email}`,
+        setor_destino: "dp",
+        solicitante: func.nome || ctx.email,
+        solicitante_email: ctx.email,
+        papel_abertura: "usuario",
+        categoria: "Advance-CCI / Aumento de Limite",
+        prioridade: "media",
+        status: "aberto",
+        data_abertura: new Date().toLocaleDateString("pt-BR"),
+        descricao: JSON.stringify(payload),
+      };
+
+      const { data, error } = await supabase.from("intranet_chamados").insert(row).select().single();
+      if (error) {
+        throw new Error(`Falha ao registrar solicitação: ${error.message}`);
+      }
 
       notificarEmailCcipay("solicitacao_aumento_limite", {
         solicitante: ctx.email,
@@ -1529,9 +1537,187 @@ export function registerCcipayRoutes(app, helpers) {
 
       return res.json({
         ok: true,
-        mensagem: "Solicitação de aumento de limite enviada com sucesso ao DP.",
+        mensagem: "Solicitação de aumento de limite enviada com sucesso para a Gestão de Vales e Limites do DP.",
         chamadoId: idChamado,
       });
+    } catch (e) {
+      if (e.status) return respostaErroIdToken(res, e);
+      const msg = e instanceof Error ? e.message : String(e);
+      return res.status(500).json({ error: msg });
+    }
+  });
+
+  app.post("/api/ccipay/limite/listar", async (req, res) => {
+    try {
+      const { idToken } = req.body || {};
+      const ctx = await ctxFromRequest(req);
+      const supabase = supabaseOr503(res);
+      if (!supabase) return;
+
+      if (!isCcipayDp(ctx.papeis) && !isCcipayAdmin(ctx.papeis)) {
+        return res.status(403).json({ error: "Sem permissão para gerenciar solicitações de limite." });
+      }
+
+      const { data, error } = await supabase
+        .from("intranet_chamados")
+        .select("*")
+        .eq("categoria", "Advance-CCI / Aumento de Limite")
+        .order("created_at", { ascending: false });
+
+      if (error) throw new Error(error.message);
+
+      const solicitacoes = (data || []).map((c) => {
+        let meta = {};
+        try {
+          meta = JSON.parse(c.descricao || "{}");
+        } catch {
+          meta = { motivo: c.descricao };
+        }
+        const solucao = c.solucao && typeof c.solucao === "object" ? c.solucao : {};
+        const statusFinal =
+          solucao.decisao || meta.decisao || (c.status === "aberto" ? "pendente" : "aprovado");
+
+        return {
+          id: c.id,
+          tipo: "solicitacao_limite",
+          direcao: "credito",
+          valor: Number(meta.novoLimite || 0),
+          status: statusFinal,
+          competencia: "",
+          funcionarioEmail: c.solicitante_email,
+          funcionarioNome: c.solicitante,
+          criadoPor: c.solicitante_email,
+          aprovadoPor: solucao.resolvidoPor || null,
+          metadata: {
+            limiteAnterior: Number(meta.limiteAnterior ?? 300),
+            motivo: meta.motivo || "",
+            valorAprovado: solucao.valorAprovado != null ? Number(solucao.valorAprovado) : undefined,
+            justificativaDp: solucao.justificativa || meta.justificativaDp || "",
+            analisadoEm: solucao.resolvidoEm || null,
+          },
+          createdAt: c.created_at,
+          updatedAt: c.updated_at,
+        };
+      });
+
+      return res.json({ ok: true, solicitacoes });
+    } catch (e) {
+      if (e.status) return respostaErroIdToken(res, e);
+      const msg = e instanceof Error ? e.message : String(e);
+      return res.status(500).json({ error: msg });
+    }
+  });
+
+  app.post("/api/ccipay/limite/analisar", async (req, res) => {
+    try {
+      const { idToken, movimentoId, acao, valorAprovado, justificativa } = req.body || {};
+      const ctx = await ctxFromRequest(req);
+      const supabase = supabaseOr503(res);
+      if (!supabase) return;
+
+      if (!isCcipayDp(ctx.papeis) && !isCcipayAdmin(ctx.papeis)) {
+        return res.status(403).json({ error: "Sem permissão para analisar solicitações de limite." });
+      }
+
+      const { data: chamado, error: errChamado } = await supabase
+        .from("intranet_chamados")
+        .select("*")
+        .eq("id", movimentoId)
+        .maybeSingle();
+
+      if (errChamado || !chamado) {
+        return res.status(404).json({ error: "Solicitação de limite não encontrada." });
+      }
+
+      let meta = {};
+      try {
+        meta = JSON.parse(chamado.descricao || "{}");
+      } catch {
+        meta = { motivo: chamado.descricao };
+      }
+
+      if (chamado.status !== "aberto" && meta.decisao && meta.decisao !== "pendente") {
+        return res.status(400).json({ error: "Apenas solicitações pendentes podem ser analisadas." });
+      }
+
+      if (acao === "aprovar") {
+        const valorFinal = Number(
+          valorAprovado != null && !Number.isNaN(Number(valorAprovado))
+            ? valorAprovado
+            : meta.novoLimite || 300,
+        );
+        if (valorFinal <= 0) {
+          return res.status(400).json({ error: "Valor aprovado inválido." });
+        }
+
+        const solucaoObj = {
+          decisao: "aprovado",
+          valorAprovado: valorFinal,
+          justificativa: String(justificativa || "").trim() || "Aprovado pelo DP.",
+          resolvidoPor: ctx.email,
+          resolvidoEm: new Date().toISOString(),
+        };
+
+        meta.decisao = "aprovado";
+        meta.valorAprovado = valorFinal;
+        meta.justificativaDp = solucaoObj.justificativa;
+
+        await supabase
+          .from("intranet_chamados")
+          .update({
+            status: "resolvido",
+            solucao: solucaoObj,
+            descricao: JSON.stringify(meta),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", movimentoId);
+
+        // Atualiza o limite de adiantamento do colaborador imediatamente
+        await atualizarFuncionarioAdmin(supabase, chamado.solicitante_email, {
+          limiteAdiantamento: valorFinal,
+        });
+
+        notificarEmailCcipay("limite_analisado", {
+          chamadoId: movimentoId,
+          acao: "aprovado",
+          novoLimite: valorFinal,
+          destinatario: chamado.solicitante_email,
+        });
+
+        return res.json({ ok: true, novoLimite: valorFinal });
+      }
+
+      if (acao === "negar" || acao === "recusar") {
+        const solucaoObj = {
+          decisao: "recusado",
+          justificativa: String(justificativa || "").trim() || "Recusado pelo DP.",
+          resolvidoPor: ctx.email,
+          resolvidoEm: new Date().toISOString(),
+        };
+
+        meta.decisao = "recusado";
+        meta.justificativaDp = solucaoObj.justificativa;
+
+        await supabase
+          .from("intranet_chamados")
+          .update({
+            status: "resolvido",
+            solucao: solucaoObj,
+            descricao: JSON.stringify(meta),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", movimentoId);
+
+        notificarEmailCcipay("limite_analisado", {
+          chamadoId: movimentoId,
+          acao: "recusado",
+          destinatario: chamado.solicitante_email,
+        });
+
+        return res.json({ ok: true });
+      }
+
+      return res.status(400).json({ error: "Ação inválida (use 'aprovar' ou 'negar')." });
     } catch (e) {
       if (e.status) return respostaErroIdToken(res, e);
       const msg = e instanceof Error ? e.message : String(e);
