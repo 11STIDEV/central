@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef, Fragment } from "react";
 import {
   unificarFuncionariosAlterdata,
+  calcularTempoDeCasa,
   type FuncionarioUnificado,
   type AlterdataFuncionarioItem,
 } from "@/lib/alterdataDeduplication";
@@ -169,11 +170,43 @@ export function AlterdataTester() {
   const [carregandoBancoLocal, setCarregandoBancoLocal] = useState(false);
   const [statusBancoMsg, setStatusBancoMsg] = useState<string | null>(null);
 
-  // Consulta iterativa para baixar TODAS as páginas de registros do Alterdata
+  // Sincronização completa via backend (todas as páginas, sem bloqueios de CORS e usando o token do servidor se não informado)
+  const handleSincronizarComAlterdata = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    setStatusBancoMsg("Sincronizando todos os contratos da API do Alterdata via servidor...");
+    try {
+      const res = await fetch("/api/alterdata/sincronizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          token: token.trim() || undefined,
+          host: host || undefined,
+          empresaId: empresaId.trim() || undefined,
+          apenasAtivos: false,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setStatusBancoMsg(
+          `✅ Sincronização concluída! ${data.totalContratosBaixados} contratos baixados e unificados em ${data.totalColaboradoresUnificados} colaboradores.`
+        );
+        await handleCarregarDoBancoLocal();
+      } else {
+        setErrorMsg(data.error || "Erro ao sincronizar com Alterdata.");
+      }
+    } catch (err: any) {
+      setErrorMsg(`Erro de conexão com o servidor: ${err.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Consulta iterativa para baixar TODAS as páginas de registros do Alterdata diretamente no browser
   const handleConsultarTodosFuncionariosAlterdata = async () => {
     if (!token.trim()) {
-      setErrorMsg("Informe o Token de Autorização do eContador antes de executar a requisição.");
-      return;
+      // Se não há token no frontend, usa a sincronização direta via servidor
+      return handleSincronizarComAlterdata();
     }
 
     setLoading(true);
@@ -221,7 +254,7 @@ export function AlterdataTester() {
           offset += limit;
           paginaAtual += 1;
 
-          if (itensPagina.length < limit) {
+          if (!json?.links?.next && itensPagina.length < limit) {
             temMaisPaginas = false;
           }
         }
@@ -701,13 +734,13 @@ export function AlterdataTester() {
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleConsultarTodosFuncionariosAlterdata}
+                  onClick={handleSincronizarComAlterdata}
                   disabled={loading}
                   className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-50 transition-all"
-                  title="Baixa iterativamente todas as páginas do Alterdata"
+                  title="Consulta todas as páginas e empresas do Alterdata e sincroniza a base completa"
                 >
                   {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                  <span>Carregar TODOS do Alterdata (Todas Páginas)</span>
+                  <span>Sincronizar com Alterdata (API Oficial)</span>
                 </button>
 
                 <button
