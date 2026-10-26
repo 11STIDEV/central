@@ -19,6 +19,7 @@ export type CcipayMovimento = {
   funcionarioEmail: string;
   funcionarioNome: string;
   lojaId?: string | null;
+  lojaNome?: string | null;
   pedidoId?: string | null;
   criadoPor: string;
   aprovadoPor?: string | null;
@@ -699,6 +700,27 @@ export function labelTipoMovimento(tipo: string): string {
 export function descricaoMovimento(mov: CcipayMovimento): string {
   const meta = mov.metadata ?? {};
   const isBon = (meta as any).metodoPagamento === "bonificacao";
+  const lojaNome =
+    mov.lojaNome ||
+    (typeof (meta as any).lojaNome === "string" && (meta as any).lojaNome.trim()) ||
+    (typeof (meta as any).loja_nome === "string" && (meta as any).loja_nome.trim()) ||
+    (typeof (meta as any).loja === "string" && (meta as any).loja.trim()) ||
+    "";
+
+  if (mov.tipo === "compra_loja") {
+    const rawDesc =
+      typeof meta.descricao === "string" ? meta.descricao.trim() : "";
+    const isGenerica =
+      !rawDesc ||
+      rawDesc.toLowerCase() === "venda qr" ||
+      rawDesc.toLowerCase().includes("compra no convênio") ||
+      rawDesc.toLowerCase().includes("compra na loja");
+
+    const extra = isGenerica ? "" : ` — ${rawDesc}`;
+    const nomeBase = lojaNome ? `Compra: ${lojaNome}` : "Compra na loja";
+    return isBon ? `${nomeBase} (Bonificação)${extra}` : `${nomeBase}${extra}`;
+  }
+
   const extra =
     (typeof meta.descricao === "string" && meta.descricao.trim()) ||
     (typeof meta.pix === "string" && meta.pix.trim()) ||

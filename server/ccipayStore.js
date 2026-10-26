@@ -19,6 +19,13 @@ function rowToFuncionario(row) {
 }
 
 function rowToMovimento(row) {
+  const lojaNome =
+    row.ccipay_lojas?.nome ||
+    row.metadata?.lojaNome ||
+    row.metadata?.loja_nome ||
+    row.metadata?.loja ||
+    null;
+
   return {
     id: row.id,
     tipo: row.tipo,
@@ -29,6 +36,7 @@ function rowToMovimento(row) {
     funcionarioEmail: row.funcionario_email,
     funcionarioNome: row.funcionario_nome,
     lojaId: row.loja_id ?? null,
+    lojaNome,
     pedidoId: row.pedido_id ?? null,
     criadoPor: row.criado_por,
     aprovadoPor: row.aprovado_por ?? null,
@@ -495,7 +503,10 @@ export async function criarMovimento(supabase, mov) {
 }
 
 export async function listarMovimentos(supabase, filtros = {}) {
-  let q = supabase.from("ccipay_movimentos").select("*").order("created_at", { ascending: false });
+  let q = supabase
+    .from("ccipay_movimentos")
+    .select("*, ccipay_lojas(id, nome)")
+    .order("created_at", { ascending: false });
   if (filtros.funcionarioEmail) q = q.eq("funcionario_email", String(filtros.funcionarioEmail).toLowerCase());
   if (filtros.tipo) q = q.eq("tipo", filtros.tipo);
   if (filtros.tipos) q = q.in("tipo", filtros.tipos);
@@ -508,7 +519,11 @@ export async function listarMovimentos(supabase, filtros = {}) {
 }
 
 export async function obterMovimento(supabase, id) {
-  const { data, error } = await supabase.from("ccipay_movimentos").select("*").eq("id", id).maybeSingle();
+  const { data, error } = await supabase
+    .from("ccipay_movimentos")
+    .select("*, ccipay_lojas(id, nome)")
+    .eq("id", id)
+    .maybeSingle();
   if (error) throw new Error(`[ccipay] obter movimento: ${error.message}`);
   return data ? rowToMovimento(data) : null;
 }

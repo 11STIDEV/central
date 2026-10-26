@@ -1325,6 +1325,18 @@ export function registerCcipayRoutes(app, helpers) {
       const identificador = identificadorCtx(ctx);
       const descFinal = String(descricao || "").trim() || "Compra no convênio (sem celular)";
 
+      let nomeLojaResolvido = null;
+      try {
+        const { data: dadosLoja } = await supabase
+          .from("ccipay_lojas")
+          .select("nome")
+          .eq("id", lojaId)
+          .maybeSingle();
+        if (dadosLoja?.nome) nomeLojaResolvido = dadosLoja.nome;
+      } catch (errL) {
+        console.warn("[lancar-direta] aviso loja:", errL?.message);
+      }
+
       // Cria movimento unificado no ledger
       const mov = await criarMovimento(supabase, {
         tipo: "compra_loja",
@@ -1342,6 +1354,7 @@ export function registerCcipayRoutes(app, helpers) {
           descricao: descFinal,
           operador: ctx.nome || ctx.login || ctx.email,
           lojaId,
+          lojaNome: nomeLojaResolvido,
         },
       });
 
@@ -1475,6 +1488,18 @@ export function registerCcipayRoutes(app, helpers) {
         await validarDebitoBonificacao(supabase, ctx.email, comp, venda.valor);
       }
 
+      let nomeLojaVenda = null;
+      try {
+        const { data: dadosLoja } = await supabase
+          .from("ccipay_lojas")
+          .select("nome")
+          .eq("id", venda.lojaId)
+          .maybeSingle();
+        if (dadosLoja?.nome) nomeLojaVenda = dadosLoja.nome;
+      } catch (errL) {
+        console.warn("[pagar-qr] aviso loja:", errL?.message);
+      }
+
       const mov = await criarMovimento(supabase, {
         tipo: "compra_loja",
         direcao: "debito",
@@ -1490,6 +1515,7 @@ export function registerCcipayRoutes(app, helpers) {
           descricao: venda.descricao || (isBonificacao ? "Compra QR (Bonificação)" : "Venda QR"),
           vendaQrToken: venda.token,
           metodoPagamento: isBonificacao ? "bonificacao" : "adiantamento",
+          lojaNome: nomeLojaVenda,
         },
       });
 
