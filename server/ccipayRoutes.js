@@ -1077,6 +1077,24 @@ export function registerCcipayRoutes(app, helpers) {
     }
   });
 
+  function buildRegexAcentos(termo) {
+    const mapa = {
+      a: "[aàáâãä]",
+      e: "[eèéêë]",
+      i: "[iìíîï]",
+      o: "[oòóôõö]",
+      u: "[uùúûü]",
+      c: "[cç]",
+    };
+    return String(termo || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .split("")
+      .map((ch) => mapa[ch] || ch)
+      .join("");
+  }
+
   // --- Venda sem celular: busca colaborador por matrícula, CPF ou e-mail ---
   app.post("/api/ccipay/vendas/buscar-colaborador", async (req, res) => {
     try {
@@ -1145,21 +1163,35 @@ export function registerCcipayRoutes(app, helpers) {
 
       // 3. Tenta por e-mail ou nome no Alterdata (se não foi CPF exato de 11 dígitos)
       if (digitsOnly.length !== 11) {
-        let q = supabase
-          .from("intranet_alterdata_funcionarios")
-          .select("cpf, nome_completo, email, codigo_contrato_vigente, tem_contrato_ativo")
-          .order("tem_contrato_ativo", { ascending: false })
-          .limit(25);
-
         if (t.includes("@")) {
-          q = q.ilike("email", t.toLowerCase());
+          const { data: listaEmail } = await supabase
+            .from("intranet_alterdata_funcionarios")
+            .select("cpf, nome_completo, email, codigo_contrato_vigente, tem_contrato_ativo")
+            .ilike("email", t.toLowerCase())
+            .order("tem_contrato_ativo", { ascending: false })
+            .limit(25);
+          if (listaEmail && listaEmail.length > 0) {
+            encontrados.push(...listaEmail);
+          }
         } else {
-          q = q.or(`email.ilike.%${t}%,nome_completo.ilike.%${t}%`);
-        }
+          const palavras = t.trim().split(/\s+/).filter(Boolean);
+          if (palavras.length > 0) {
+            let q = supabase
+              .from("intranet_alterdata_funcionarios")
+              .select("cpf, nome_completo, email, codigo_contrato_vigente, tem_contrato_ativo")
+              .order("tem_contrato_ativo", { ascending: false })
+              .limit(30);
 
-        const { data: listaNomeOuEmail } = await q;
-        if (listaNomeOuEmail && listaNomeOuEmail.length > 0) {
-          encontrados.push(...listaNomeOuEmail);
+            for (const p of palavras) {
+              const reg = buildRegexAcentos(p);
+              q = q.filter("nome_completo", "imatch", reg);
+            }
+
+            const { data: listaNome } = await q;
+            if (listaNome && listaNome.length > 0) {
+              encontrados.push(...listaNome);
+            }
+          }
         }
       }
 
@@ -1169,7 +1201,7 @@ export function registerCcipayRoutes(app, helpers) {
           .from("ccipay_funcionarios")
           .select("email, nome, alterdata_codigo, ativo")
           .order("ativo", { ascending: false })
-          .limit(25);
+          .limit(30);
 
         if (digitsOnly.length > 0) {
           const matVariants = Array.from(
@@ -1177,7 +1209,11 @@ export function registerCcipayRoutes(app, helpers) {
           );
           qCcipay = qCcipay.or(`email.ilike.%${t}%,nome.ilike.%${t}%,alterdata_codigo.in.(${matVariants.join(",")})`);
         } else {
-          qCcipay = qCcipay.or(`email.ilike.%${t}%,nome.ilike.%${t}%`);
+          const palavras = t.trim().split(/\s+/).filter(Boolean);
+          for (const p of palavras) {
+            const reg = buildRegexAcentos(p);
+            qCcipay = qCcipay.filter("nome", "imatch", reg);
+          }
         }
 
         const { data: listaCcipay } = await qCcipay;
@@ -1194,10 +1230,15 @@ export function registerCcipayRoutes(app, helpers) {
         }
       }
 
-      // Deduplicação preservando a prioridade dos ativos
+      // Deduplicação preservando a prioridade dos ativos e sem mesclar homônimos com matrículas diferentes
       const mapa = new Map();
       for (const item of encontrados) {
-        const chave = (item.email || item.codigo_contrato_vigente || item.cpf || item.nome_completo || "").toLowerCase().trim();
+        const chave = [
+          item.codigo_contrato_vigente || "",
+          item.cpf || "",
+          item.email || "",
+          item.nome_completo || "",
+        ].join("_").toLowerCase().trim();
         if (chave && !mapa.has(chave)) {
           mapa.set(chave, item);
         }

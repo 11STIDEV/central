@@ -134,12 +134,14 @@ export default function ParceiroVenda() {
           ? [resp.colaborador]
           : [];
 
-      if (lista.length === 1) {
+      const digits = t.replace(/\D/g, "");
+      setListaColaboradores(lista);
+      if (lista.length === 1 && digits.length >= 7) {
+        // Se digitou CPF exato, seleciona direto
         setColaboradorEncontrado(lista[0]);
-        setListaColaboradores([]);
-      } else if (lista.length > 1) {
+      } else if (lista.length > 0) {
+        // Se buscou por nome ou há múltiplos, sempre exibe a lista para o lojista escolher com segurança
         setColaboradorEncontrado(null);
-        setListaColaboradores(lista);
       } else {
         setErroBusca("Nenhum colaborador encontrado com os dados informados.");
       }
@@ -592,14 +594,14 @@ export default function ParceiroVenda() {
                 )}
               </form>
 
-              {/* Lista de Resultados quando houver mais de 1 colaborador encontrado */}
-              {listaColaboradores.length > 1 && !colaboradorEncontrado && (
+              {/* Lista de Resultados quando houver colaboradores encontrados */}
+              {listaColaboradores.length > 0 && !colaboradorEncontrado && (
                 <div className="space-y-3 rounded-xl border border-primary/20 bg-muted/30 p-4 animate-fade-in">
                   <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-primary" />
                       <span className="text-xs font-semibold text-foreground">
-                        Encontramos {listaColaboradores.length} colaboradores
+                        Encontramos {listaColaboradores.length} colaborador{listaColaboradores.length > 1 ? "es" : ""}
                       </span>
                     </div>
                     <span className="text-[11px] text-muted-foreground">
@@ -716,7 +718,7 @@ export default function ParceiroVenda() {
                         onClick={() => setColaboradorEncontrado(null)}
                         className="w-1/3"
                       >
-                        {listaColaboradores.length > 1 ? "Voltar à lista" : "Trocar"}
+                        {listaColaboradores.length > 0 ? "Voltar à lista" : "Trocar"}
                       </Button>
                       <Button
                         type="submit"
