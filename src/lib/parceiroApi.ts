@@ -58,10 +58,12 @@ export type ColaboradorConvenioBusca = {
 };
 
 export async function parceiroBuscarColaborador(lojaId: string, termo: string) {
-  return post<{ ok: boolean; colaborador: ColaboradorConvenioBusca }>(
-    "/api/ccipay/vendas/buscar-colaborador",
-    { lojaId, termo },
-  );
+  return post<{
+    ok: boolean;
+    colaborador?: ColaboradorConvenioBusca | null;
+    colaboradores?: ColaboradorConvenioBusca[];
+    total?: number;
+  }>("/api/ccipay/vendas/buscar-colaborador", { lojaId, termo });
 }
 
 export async function parceiroLancarVendaDireta(

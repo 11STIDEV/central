@@ -1099,10 +1099,9 @@ export function registerCcipayRoutes(app, helpers) {
       const digitsNoZero = digitsOnly.replace(/^0+/, "");
       const digitsPadded11 = digitsOnly.padStart(11, "0");
 
-      let funcionario = null;
+      let encontrados = [];
 
       // 1. Tenta buscar no Alterdata por CPF
-      // Na base do Alterdata zeros à esquerda são frequentemente suprimidos (ex: 10 dígitos)
       if (digitsOnly.length >= 7 && digitsOnly.length <= 11) {
         const cpfVariants = Array.from(
           new Set([digitsOnly, digitsNoZero, digitsPadded11, t].filter(Boolean))
@@ -1113,15 +1112,15 @@ export function registerCcipayRoutes(app, helpers) {
           .select("cpf, nome_completo, email, codigo_contrato_vigente, tem_contrato_ativo")
           .in("cpf", cpfVariants)
           .order("tem_contrato_ativo", { ascending: false })
-          .limit(1);
+          .limit(10);
 
         if (listaCpf && listaCpf.length > 0) {
-          funcionario = listaCpf[0];
+          encontrados.push(...listaCpf);
         }
       }
 
       // 2. Tenta por matrícula (código do contrato no Alterdata)
-      if (!funcionario && digitsOnly.length > 0 && digitsOnly.length <= 8) {
+      if (digitsOnly.length > 0 && digitsOnly.length <= 8) {
         const matVariants = Array.from(
           new Set([
             digitsOnly,
@@ -1137,20 +1136,20 @@ export function registerCcipayRoutes(app, helpers) {
           .select("cpf, nome_completo, email, codigo_contrato_vigente, tem_contrato_ativo")
           .in("codigo_contrato_vigente", matVariants)
           .order("tem_contrato_ativo", { ascending: false })
-          .limit(1);
+          .limit(10);
 
         if (listaMat && listaMat.length > 0) {
-          funcionario = listaMat[0];
+          encontrados.push(...listaMat);
         }
       }
 
-      // 3. Tenta por e-mail ou nome no Alterdata
-      if (!funcionario) {
+      // 3. Tenta por e-mail ou nome no Alterdata (se não foi CPF exato de 11 dígitos)
+      if (digitsOnly.length !== 11) {
         let q = supabase
           .from("intranet_alterdata_funcionarios")
           .select("cpf, nome_completo, email, codigo_contrato_vigente, tem_contrato_ativo")
           .order("tem_contrato_ativo", { ascending: false })
-          .limit(1);
+          .limit(25);
 
         if (t.includes("@")) {
           q = q.ilike("email", t.toLowerCase());
@@ -1160,17 +1159,17 @@ export function registerCcipayRoutes(app, helpers) {
 
         const { data: listaNomeOuEmail } = await q;
         if (listaNomeOuEmail && listaNomeOuEmail.length > 0) {
-          funcionario = listaNomeOuEmail[0];
+          encontrados.push(...listaNomeOuEmail);
         }
       }
 
-      // 4. Se não achou no Alterdata, busca na tabela ccipay_funcionarios
-      if (!funcionario) {
+      // 4. Complementa ou busca na tabela ccipay_funcionarios caso não tenha achado
+      if (encontrados.length === 0) {
         let qCcipay = supabase
           .from("ccipay_funcionarios")
           .select("email, nome, alterdata_codigo, ativo")
           .order("ativo", { ascending: false })
-          .limit(1);
+          .limit(25);
 
         if (digitsOnly.length > 0) {
           const matVariants = Array.from(
@@ -1183,46 +1182,68 @@ export function registerCcipayRoutes(app, helpers) {
 
         const { data: listaCcipay } = await qCcipay;
         if (listaCcipay && listaCcipay.length > 0) {
-          const c = listaCcipay[0];
-          funcionario = {
-            email: c.email,
-            nome_completo: c.nome,
-            codigo_contrato_vigente: c.alterdata_codigo,
-            cpf: null,
-            tem_contrato_ativo: c.ativo,
-          };
+          for (const c of listaCcipay) {
+            encontrados.push({
+              email: c.email,
+              nome_completo: c.nome,
+              codigo_contrato_vigente: c.alterdata_codigo,
+              cpf: null,
+              tem_contrato_ativo: c.ativo,
+            });
+          }
         }
       }
 
-      if (!funcionario) {
+      // Deduplicação preservando a prioridade dos ativos
+      const mapa = new Map();
+      for (const item of encontrados) {
+        const chave = (item.email || item.codigo_contrato_vigente || item.cpf || item.nome_completo || "").toLowerCase().trim();
+        if (chave && !mapa.has(chave)) {
+          mapa.set(chave, item);
+        }
+      }
+      const unicos = Array.from(mapa.values());
+
+      if (unicos.length === 0) {
         return res.status(404).json({ error: "Colaborador não encontrado com os dados informados." });
       }
 
-      const email = funcionario.email ? funcionario.email.toLowerCase() : null;
-      if (!email) {
-        return res.status(400).json({ error: "Colaborador sem e-mail cadastrado no sistema." });
-      }
-
       const comp = competenciaAtual();
-      const infoSaldo = await saldoConvenioDisponivel(supabase, email, comp);
-      const saldo = infoSaldo.disponivelFolha;
+      const colaboradores = await Promise.all(
+        unicos.slice(0, 20).map(async (func) => {
+          const email = func.email ? func.email.toLowerCase() : null;
+          let saldo = 0;
+          if (email) {
+            try {
+              const infoSaldo = await saldoConvenioDisponivel(supabase, email, comp);
+              saldo = infoSaldo.disponivelFolha;
+            } catch (err) {
+              console.warn("[buscar-colaborador] erro ao consultar saldo:", err?.message);
+            }
+          }
 
-      let cpfFormatado = null;
-      if (funcionario.cpf) {
-        const dig = funcionario.cpf.replace(/\D/g, "").padStart(11, "0");
-        cpfFormatado = `***.${dig.slice(3, 6)}.${dig.slice(6, 9)}-**`;
-      }
+          let cpfFormatado = null;
+          if (func.cpf) {
+            const dig = func.cpf.replace(/\D/g, "").padStart(11, "0");
+            cpfFormatado = `***.${dig.slice(3, 6)}.${dig.slice(6, 9)}-**`;
+          }
+
+          return {
+            email: email || "",
+            nome: func.nome_completo || func.nome || "Colaborador",
+            matricula: func.codigo_contrato_vigente || func.alterdata_codigo || "—",
+            cpfMascarado: cpfFormatado,
+            saldoDisponivel: saldo,
+            ativo: func.tem_contrato_ativo !== false && func.ativo !== false,
+          };
+        })
+      );
 
       return res.json({
         ok: true,
-        colaborador: {
-          email,
-          nome: funcionario.nome_completo,
-          matricula: funcionario.codigo_contrato_vigente || "—",
-          cpfMascarado: cpfFormatado,
-          saldoDisponivel: saldo,
-          ativo: funcionario.tem_contrato_ativo !== false,
-        },
+        colaborador: colaboradores[0] || null,
+        colaboradores,
+        total: colaboradores.length,
       });
     } catch (e) {
       if (e.status) return respostaErroIdToken(res, e);

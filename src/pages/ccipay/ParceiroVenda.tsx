@@ -27,6 +27,7 @@ import {
   RotateCcw,
   Receipt,
   User,
+  Users,
   Hash,
   Copy,
   Check,
@@ -68,6 +69,7 @@ export default function ParceiroVenda() {
   const [termoBusca, setTermoBusca] = useState("");
   const [buscandoColaborador, setBuscandoColaborador] = useState(false);
   const [colaboradorEncontrado, setColaboradorEncontrado] = useState<ColaboradorConvenioBusca | null>(null);
+  const [listaColaboradores, setListaColaboradores] = useState<ColaboradorConvenioBusca[]>([]);
   const [erroBusca, setErroBusca] = useState<string | null>(null);
 
   const [valorDireto, setValorDireto] = useState("");
@@ -117,18 +119,29 @@ export default function ParceiroVenda() {
     if (!lojaId) return;
     const t = termoBusca.trim();
     if (!t) {
-      setErroBusca("Informe a matrícula, CPF ou e-mail do colaborador.");
+      setErroBusca("Informe a matrícula, CPF ou nome do colaborador.");
       return;
     }
     setBuscandoColaborador(true);
     setErroBusca(null);
     setColaboradorEncontrado(null);
+    setListaColaboradores([]);
     try {
       const resp = await parceiroBuscarColaborador(lojaId, t);
-      if (resp.colaborador) {
-        setColaboradorEncontrado(resp.colaborador);
+      const lista = resp.colaboradores?.length
+        ? resp.colaboradores
+        : resp.colaborador
+          ? [resp.colaborador]
+          : [];
+
+      if (lista.length === 1) {
+        setColaboradorEncontrado(lista[0]);
+        setListaColaboradores([]);
+      } else if (lista.length > 1) {
+        setColaboradorEncontrado(null);
+        setListaColaboradores(lista);
       } else {
-        setErroBusca("Colaborador não encontrado.");
+        setErroBusca("Nenhum colaborador encontrado com os dados informados.");
       }
     } catch (err) {
       setErroBusca(err instanceof Error ? err.message : "Colaborador não encontrado.");
@@ -181,6 +194,7 @@ export default function ParceiroVenda() {
 
   function reiniciarVendaSemCelular() {
     setColaboradorEncontrado(null);
+    setListaColaboradores([]);
     setTermoBusca("");
     setValorDireto("");
     setDescricaoDireta("");
@@ -578,6 +592,58 @@ export default function ParceiroVenda() {
                 )}
               </form>
 
+              {/* Lista de Resultados quando houver mais de 1 colaborador encontrado */}
+              {listaColaboradores.length > 1 && !colaboradorEncontrado && (
+                <div className="space-y-3 rounded-xl border border-primary/20 bg-muted/30 p-4 animate-fade-in">
+                  <div className="flex items-center justify-between border-b border-border/60 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-primary" />
+                      <span className="text-xs font-semibold text-foreground">
+                        Encontramos {listaColaboradores.length} colaboradores
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-muted-foreground">
+                      Clique no colaborador desejado
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {listaColaboradores.map((colab, idx) => (
+                      <button
+                        key={colab.email || colab.matricula || idx}
+                        type="button"
+                        onClick={() => {
+                          setColaboradorEncontrado(colab);
+                        }}
+                        className="w-full text-left p-3 rounded-lg border border-border bg-card hover:border-primary hover:bg-primary/5 transition-all flex items-center justify-between gap-3 group focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
+                            <User className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm text-foreground truncate group-hover:text-primary transition-colors">
+                              {colab.nome}
+                            </p>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono mt-0.5">
+                              <span>Matrícula: {colab.matricula}</span>
+                              {colab.cpfMascarado && <span>· CPF: {colab.cpfMascarado}</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="shrink-0 text-right">
+                          <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                            R$ {colab.saldoDisponivel.toFixed(2)}
+                          </div>
+                          <span className="text-[10px] text-muted-foreground">disponível</span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Etapa 2: Confirmação e Dados do Colaborador */}
               {colaboradorEncontrado && (
                 <div className="space-y-4 rounded-xl border border-primary/20 bg-primary/5 p-4 animate-fade-in">
@@ -650,7 +716,7 @@ export default function ParceiroVenda() {
                         onClick={() => setColaboradorEncontrado(null)}
                         className="w-1/3"
                       >
-                        Trocar
+                        {listaColaboradores.length > 1 ? "Voltar à lista" : "Trocar"}
                       </Button>
                       <Button
                         type="submit"
