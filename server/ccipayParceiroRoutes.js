@@ -83,6 +83,7 @@ export function registerCcipayParceiroRoutes(app, helpers) {
         nome: op.nome,
         lojaId: op.lojaId,
         lojaNome: op.loja.nome,
+        permiteVendaSemCelular: Boolean(op.loja?.permiteVendaSemCelular),
       });
 
       return res.json({
@@ -93,6 +94,7 @@ export function registerCcipayParceiroRoutes(app, helpers) {
           nome: op.nome,
           lojaId: op.lojaId,
           lojaNome: op.loja.nome,
+          permiteVendaSemCelular: Boolean(op.loja?.permiteVendaSemCelular),
         },
       });
     } catch (e) {
@@ -114,6 +116,7 @@ export function registerCcipayParceiroRoutes(app, helpers) {
         nome: ctx.nome,
         lojaId: ctx.lojaId,
         lojaNome: ctx.lojaNome,
+        permiteVendaSemCelular: Boolean(ctx.permiteVendaSemCelular),
       },
     });
   });

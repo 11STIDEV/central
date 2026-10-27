@@ -8,6 +8,7 @@ export type ParceiroOperador = {
   nome: string;
   lojaId: string;
   lojaNome: string;
+  permiteVendaSemCelular?: boolean;
 };
 
 let parceiroSessionId: string | null = null;

@@ -37,22 +37,27 @@ import {
 } from "lucide-react";
 
 export default function ParceiroVenda() {
-  const { lojaId, loja } = useOutletContext<ParceiroOutletContext>();
+  const { lojaId, loja, permiteVendaSemCelular } = useOutletContext<ParceiroOutletContext>();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // Modo da venda: "qr" (colaborador escaneia) | "sem_celular" (busca por matrícula/CPF)
+  // Modo da venda: se a loja não tiver permissão de venda sem celular, força "qr"
   const modoParam = searchParams.get("modo");
   const [modoVenda, setModoVenda] = useState<"qr" | "sem_celular">(
-    modoParam === "sem_celular" ? "sem_celular" : "qr"
+    permiteVendaSemCelular && modoParam === "sem_celular" ? "sem_celular" : "qr"
   );
 
   useEffect(() => {
+    if (!permiteVendaSemCelular) {
+      setModoVenda("qr");
+      return;
+    }
     if (modoParam === "sem_celular" || modoParam === "qr") {
       setModoVenda(modoParam);
     }
-  }, [modoParam]);
+  }, [modoParam, permiteVendaSemCelular]);
 
   const alternarModo = (novoModo: "qr" | "sem_celular") => {
+    if (!permiteVendaSemCelular && novoModo === "sem_celular") return;
     setModoVenda(novoModo);
     setSearchParams({ modo: novoModo }, { replace: true });
   };
@@ -268,32 +273,39 @@ export default function ParceiroVenda() {
         </div>
 
         {/* Alternador de Modo de Venda */}
-        <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1">
-          <button
-            type="button"
-            onClick={() => alternarModo("qr")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-              modoVenda === "qr"
-                ? "bg-card text-foreground shadow-xs ring-1 ring-border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
+        {permiteVendaSemCelular ? (
+          <div className="flex items-center rounded-lg border border-border bg-muted/40 p-1">
+            <button
+              type="button"
+              onClick={() => alternarModo("qr")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                modoVenda === "qr"
+                  ? "bg-card text-foreground shadow-xs ring-1 ring-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <QrCode className="h-4 w-4" />
+              <span>Pagar com QR Code</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => alternarModo("sem_celular")}
+              className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                modoVenda === "sem_celular"
+                  ? "bg-card text-foreground shadow-xs ring-1 ring-border"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <CreditCard className="h-4 w-4" />
+              <span>Sem Celular (Matrícula / CPF)</span>
+            </button>
+          </div>
+        ) : (
+          <div className="inline-flex items-center gap-1.5 rounded-lg border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary">
             <QrCode className="h-4 w-4" />
-            <span>Pagar com QR Code</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => alternarModo("sem_celular")}
-            className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-              modoVenda === "sem_celular"
-                ? "bg-card text-foreground shadow-xs ring-1 ring-border"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <CreditCard className="h-4 w-4" />
-            <span>Sem Celular (Matrícula / CPF)</span>
-          </button>
-        </div>
+            <span>Venda com QR Code</span>
+          </div>
+        )}
       </div>
 
       {/* ========================================================= */}

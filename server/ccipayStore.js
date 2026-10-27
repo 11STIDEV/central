@@ -49,9 +49,10 @@ function rowToMovimento(row) {
 function rowToLoja(row) {
   let formaRepasse = row.forma_repasse || "pix";
   let dadosRepasse = row.dados_repasse || "";
+  let permiteVendaSemCelular = Boolean(row.permite_venda_sem_celular);
   let descricao = row.descricao ?? "";
 
-  // Suporte a metadados de repasse no campo descricao
+  // Suporte a metadados no campo descricao
   if (typeof descricao === "string" && descricao.includes("__META_REPASSE__:")) {
     try {
       const idx = descricao.indexOf("__META_REPASSE__:");
@@ -59,6 +60,9 @@ function rowToLoja(row) {
       const meta = JSON.parse(jsonStr);
       if (meta.formaRepasse) formaRepasse = meta.formaRepasse;
       if (meta.dadosRepasse) dadosRepasse = meta.dadosRepasse;
+      if (meta.permiteVendaSemCelular !== undefined) {
+        permiteVendaSemCelular = Boolean(meta.permiteVendaSemCelular);
+      }
       descricao = descricao.slice(0, idx).trim();
     } catch {
       // ignora caso nao seja json valido
@@ -72,6 +76,7 @@ function rowToLoja(row) {
     ativa: row.ativa ?? true,
     formaRepasse,
     dadosRepasse,
+    permiteVendaSemCelular,
   };
 }
 
@@ -295,7 +300,36 @@ export async function listarFuncionarios(supabase) {
     .select("*")
     .order("nome", { ascending: true });
   if (error) throw new Error(`[ccipay] listar funcionarios: ${error.message}`);
-  return (data || []).map(rowToFuncionario);
+
+  const comp = competenciaAtual();
+  const { data: movs } = await supabase
+    .from("ccipay_movimentos")
+    .select("funcionario_email, direcao, valor, status, metadata, tipo")
+    .eq("competencia", comp)
+    .neq("status", "cancelado")
+    .neq("status", "negado");
+
+  const saldoMap = {};
+  for (const r of movs || []) {
+    const isBon = r.tipo === "bonificacao";
+    const isDed = r.tipo === "deducao";
+    const isCompraBon =
+      r.tipo === "compra_loja" &&
+      (r.metadata?.metodoPagamento === "bonificacao" ||
+        r.metadata?.metodo_pagamento === "bonificacao");
+
+    if (isBon || isDed || isCompraBon) {
+      const em = String(r.funcionario_email || "").toLowerCase();
+      const v = Number(r.valor) || 0;
+      saldoMap[em] = (saldoMap[em] || 0) + (r.direcao === "credito" ? v : -v);
+    }
+  }
+
+  return (data || []).map((row) => {
+    const f = rowToFuncionario(row);
+    f.saldoBonificacao = Number((saldoMap[f.email.toLowerCase()] || 0).toFixed(2));
+    return f;
+  });
 }
 
 export async function atualizarFuncionarioAdmin(supabase, email, patch) {
@@ -557,12 +591,23 @@ export async function listarLojas(supabase, { apenasAtivas = false } = {}) {
   return (data || []).map(rowToLoja);
 }
 
-export async function criarLoja(supabase, { nome, descricao, ativa, formaRepasse = "pix", dadosRepasse = "" }) {
+export async function criarLoja(
+  supabase,
+  {
+    nome,
+    descricao,
+    ativa,
+    formaRepasse = "pix",
+    dadosRepasse = "",
+    permiteVendaSemCelular = false,
+  }
+) {
   const now = new Date().toISOString();
   let descFinal = (descricao || "").trim();
   descFinal += `\n__META_REPASSE__:${JSON.stringify({
     formaRepasse: formaRepasse || "pix",
     dadosRepasse: dadosRepasse || "",
+    permiteVendaSemCelular: Boolean(permiteVendaSemCelular),
   })}`;
 
   const { data, error } = await supabase
@@ -585,18 +630,34 @@ export async function atualizarLoja(supabase, id, patch) {
   if (patch.nome !== undefined) row.nome = patch.nome;
   if (patch.ativa !== undefined) row.ativa = patch.ativa;
 
-  if (patch.descricao !== undefined || patch.formaRepasse !== undefined || patch.dadosRepasse !== undefined) {
+  if (
+    patch.descricao !== undefined ||
+    patch.formaRepasse !== undefined ||
+    patch.dadosRepasse !== undefined ||
+    patch.permiteVendaSemCelular !== undefined
+  ) {
     let descBase = patch.descricao;
     let formaFinal = patch.formaRepasse;
     let dadosFinal = patch.dadosRepasse;
+    let permiteFinal = patch.permiteVendaSemCelular;
 
-    if (descBase === undefined || formaFinal === undefined || dadosFinal === undefined) {
-      const { data: ex } = await supabase.from("ccipay_lojas").select("*").eq("id", id).maybeSingle();
+    if (
+      descBase === undefined ||
+      formaFinal === undefined ||
+      dadosFinal === undefined ||
+      permiteFinal === undefined
+    ) {
+      const { data: ex } = await supabase
+        .from("ccipay_lojas")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
       if (ex) {
         const parsed = rowToLoja(ex);
         if (descBase === undefined) descBase = parsed.descricao;
         if (formaFinal === undefined) formaFinal = parsed.formaRepasse;
         if (dadosFinal === undefined) dadosFinal = parsed.dadosRepasse;
+        if (permiteFinal === undefined) permiteFinal = parsed.permiteVendaSemCelular;
       }
     }
 
@@ -604,13 +665,29 @@ export async function atualizarLoja(supabase, id, patch) {
     descFinal += `\n__META_REPASSE__:${JSON.stringify({
       formaRepasse: formaFinal || "pix",
       dadosRepasse: dadosFinal || "",
+      permiteVendaSemCelular: Boolean(permiteFinal),
     })}`;
     row.descricao = descFinal;
   }
 
-  const { data, error } = await supabase.from("ccipay_lojas").update(row).eq("id", id).select("*").single();
+  const { data, error } = await supabase
+    .from("ccipay_lojas")
+    .update(row)
+    .eq("id", id)
+    .select("*")
+    .single();
   if (error) throw new Error(`[ccipay] atualizar loja: ${error.message}`);
   return rowToLoja(data);
+}
+
+export async function obterLoja(supabase, id) {
+  const { data, error } = await supabase
+    .from("ccipay_lojas")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) throw new Error(`[ccipay] obter loja: ${error.message}`);
+  return data ? rowToLoja(data) : null;
 }
 
 export async function excluirLoja(supabase, id) {
@@ -656,16 +733,14 @@ export async function obterOperadorPorLogin(supabase, login) {
     .maybeSingle();
   if (error) throw new Error(`[ccipay] obter operador: ${error.message}`);
   if (!data) return null;
-  const loja = data.ccipay_lojas;
+  const loja = data.ccipay_lojas ? rowToLoja(data.ccipay_lojas) : null;
   return {
     lojaId: data.loja_id,
     login: data.login,
     email: data.email,
     nome: data.nome,
     senhaHash: data.senha_hash ?? null,
-    loja: loja
-      ? { id: loja.id, nome: loja.nome, descricao: loja.descricao ?? "", ativa: loja.ativa ?? true }
-      : null,
+    loja,
   };
 }
 
@@ -693,16 +768,14 @@ export async function obterOperadorPorLoginOuEmail(supabase, loginOuEmail) {
   }
 
   if (!data) return null;
-  const loja = data.ccipay_lojas;
+  const loja = data.ccipay_lojas ? rowToLoja(data.ccipay_lojas) : null;
   return {
     lojaId: data.loja_id,
     login: data.login,
     email: data.email,
     nome: data.nome,
     senhaHash: data.senha_hash ?? null,
-    loja: loja
-      ? { id: loja.id, nome: loja.nome, descricao: loja.descricao ?? "", ativa: loja.ativa ?? true }
-      : null,
+    loja,
   };
 }
 

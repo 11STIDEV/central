@@ -9,9 +9,31 @@ import {
   ccipayAtualizarFuncionario,
   ccipayListarFuncionarios,
   ccipaySincronizarAlterdata,
+  ccipayLancarBonificacao,
+  ccipayLancarDeducao,
   type CcipayFuncionario,
 } from "@/lib/ccipay";
-import { ArrowLeft, RefreshCw, Search, Users, CheckCircle2, AlertCircle } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  ArrowLeft,
+  RefreshCw,
+  Search,
+  Users,
+  CheckCircle2,
+  AlertCircle,
+  PlusCircle,
+  Sparkles,
+  Gift,
+  Coins,
+  MinusCircle,
+} from "lucide-react";
 import { toast } from "sonner";
 
 export default function CcipayAdminFuncionarios() {
@@ -21,6 +43,57 @@ export default function CcipayAdminFuncionarios() {
   const [sincronizando, setSincronizando] = useState(false);
   const [busca, setBusca] = useState("");
   const [filtroStatus, setFiltroStatus] = useState<"todos" | "ativos" | "inativos">("todos");
+
+  // Modal de Bonificação
+  const [modalBonificacaoAberto, setModalBonificacaoAberto] = useState(false);
+  const [funcionarioSelecionado, setFuncionarioSelecionado] = useState<CcipayFuncionario | null>(null);
+  const [tipoOperacao, setTipoOperacao] = useState<"bonificacao" | "deducao">("bonificacao");
+  const [valorBonificacao, setValorBonificacao] = useState("");
+  const [descricaoBonificacao, setDescricaoBonificacao] = useState("");
+  const [salvandoBonificacao, setSalvandoBonificacao] = useState(false);
+
+  function abrirModalBonificacao(f: CcipayFuncionario) {
+    setFuncionarioSelecionado(f);
+    setTipoOperacao("bonificacao");
+    setValorBonificacao("");
+    setDescricaoBonificacao("");
+    setModalBonificacaoAberto(true);
+  }
+
+  async function handleConfirmarBonificacao() {
+    if (!googleIdToken || !funcionarioSelecionado) return;
+    const v = Number(valorBonificacao.replace(",", "."));
+    if (Number.isNaN(v) || v <= 0) {
+      toast.error("Informe um valor válido maior que zero.");
+      return;
+    }
+    setSalvandoBonificacao(true);
+    try {
+      if (tipoOperacao === "bonificacao") {
+        await ccipayLancarBonificacao(
+          googleIdToken,
+          funcionarioSelecionado.email,
+          v,
+          descricaoBonificacao.trim() || "Bonificação de saldo"
+        );
+        toast.success(`Crédito de R$ ${v.toFixed(2)} lançado para ${funcionarioSelecionado.nome}!`);
+      } else {
+        await ccipayLancarDeducao(
+          googleIdToken,
+          funcionarioSelecionado.email,
+          v,
+          descricaoBonificacao.trim() || "Ajuste / dedução de bonificação"
+        );
+        toast.success(`Dedução de R$ ${v.toFixed(2)} lançada para ${funcionarioSelecionado.nome}!`);
+      }
+      setModalBonificacaoAberto(false);
+      await carregar();
+    } catch (e: any) {
+      toast.error(e?.message || "Erro ao processar lançamento.");
+    } finally {
+      setSalvandoBonificacao(false);
+    }
+  }
 
   const carregar = useCallback(async () => {
     if (!googleIdToken) return;
@@ -90,7 +163,10 @@ export default function CcipayAdminFuncionarios() {
     const total = lista.length;
     const ativos = lista.filter((f) => f.ativo).length;
     const comCodigo = lista.filter((f) => f.alterdataCodigo && f.alterdataCodigo.trim()).length;
-    return { total, ativos, comCodigo, semCodigo: total - comCodigo };
+    const totalBonificacoes = lista
+      .filter((f) => f.ativo)
+      .reduce((acc, f) => acc + (f.saldoBonificacao || 0), 0);
+    return { total, ativos, comCodigo, semCodigo: total - comCodigo, totalBonificacoes };
   }, [lista]);
 
   return (
@@ -122,7 +198,7 @@ export default function CcipayAdminFuncionarios() {
         </div>
 
         {/* Painel de Estatísticas Rápidas */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           <div className="rounded-xl border bg-card p-3 shadow-sm">
             <p className="text-xs text-muted-foreground">Total Cadastrados</p>
             <p className="text-xl font-bold">{stats.total}</p>
@@ -138,6 +214,12 @@ export default function CcipayAdminFuncionarios() {
           <div className="rounded-xl border bg-card p-3 shadow-sm">
             <p className="text-xs text-muted-foreground">Sem Código Folha</p>
             <p className="text-xl font-bold text-amber-600">{stats.semCodigo}</p>
+          </div>
+          <div className="col-span-2 sm:col-span-1 rounded-xl border bg-card p-3 shadow-sm">
+            <p className="text-xs text-muted-foreground">Bonificações do Mês</p>
+            <p className="text-xl font-bold text-emerald-600">
+              R$ {stats.totalBonificacoes.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
           </div>
         </div>
 
@@ -211,13 +293,34 @@ export default function CcipayAdminFuncionarios() {
                         Sem matrícula
                       </Badge>
                     )}
+
+                    <Badge
+                      variant="outline"
+                      className="border-emerald-500/40 bg-emerald-50/70 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold"
+                    >
+                      Bonificação: R$ {(f.saldoBonificacao ?? 0).toFixed(2)}
+                    </Badge>
+
                     <Badge variant={f.ativo ? "default" : "secondary"}>
                       {f.ativo ? "Ativo" : "Inativo"}
                     </Badge>
+
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="default"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 h-8 text-xs font-semibold shadow-xs"
+                      onClick={() => abrirModalBonificacao(f)}
+                    >
+                      <PlusCircle className="h-3.5 w-3.5" />
+                      Bonificar
+                    </Button>
+
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
+                      className="h-8 text-xs"
                       onClick={() => salvar(f, { ativo: !f.ativo })}
                     >
                       {f.ativo ? "Inativar" : "Ativar"}
@@ -278,6 +381,198 @@ export default function CcipayAdminFuncionarios() {
           </div>
         )}
       </div>
+
+      {/* Modal de Lançamento / Ajuste de Bonificação */}
+      <Dialog open={modalBonificacaoAberto} onOpenChange={setModalBonificacaoAberto}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-emerald-600">
+              <Sparkles className="h-5 w-5" />
+              <DialogTitle>Lançar Bonificação</DialogTitle>
+            </div>
+            <DialogDescription>
+              Adicione crédito de bonificação para uso no convênio Advance-CCI ou efetue deduções.
+            </DialogDescription>
+          </DialogHeader>
+
+          {funcionarioSelecionado && (
+            <div className="space-y-4 py-2">
+              {/* Card Resumo do Colaborador */}
+              <div className="rounded-xl border bg-muted/30 p-3 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold text-foreground text-sm">
+                    {funcionarioSelecionado.nome}
+                  </p>
+                  {funcionarioSelecionado.alterdataCodigo && (
+                    <Badge variant="outline" className="text-xs">
+                      #{funcionarioSelecionado.alterdataCodigo}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">{funcionarioSelecionado.email}</p>
+                <div className="flex items-center gap-4 pt-1 text-xs text-muted-foreground border-t border-border/60 mt-1.5">
+                  <div>
+                    <span>Saldo atual no mês: </span>
+                    <strong className="text-emerald-600 font-semibold">
+                      R$ {(funcionarioSelecionado.saldoBonificacao ?? 0).toFixed(2)}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>Teto configurado: </span>
+                    <strong>
+                      {funcionarioSelecionado.limiteBonificacao != null
+                        ? `R$ ${funcionarioSelecionado.limiteBonificacao.toFixed(2)}`
+                        : "Sem teto"}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Seletor de Tipo de Operação */}
+              <div className="flex rounded-lg border bg-muted/40 p-1 text-xs">
+                <button
+                  type="button"
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md font-medium transition-colors ${
+                    tipoOperacao === "bonificacao"
+                      ? "bg-emerald-600 text-white shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setTipoOperacao("bonificacao")}
+                >
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  Bonificação (Crédito +)
+                </button>
+                <button
+                  type="button"
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-md font-medium transition-colors ${
+                    tipoOperacao === "deducao"
+                      ? "bg-amber-600 text-white shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setTipoOperacao("deducao")}
+                >
+                  <MinusCircle className="h-3.5 w-3.5" />
+                  Dedução / Ajuste (-)
+                </button>
+              </div>
+
+              {/* Input de Valor */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  {tipoOperacao === "bonificacao" ? "Valor a Bonificar (R$)" : "Valor a Deduzir (R$)"}
+                </label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="0.00"
+                  value={valorBonificacao}
+                  onChange={(e) => setValorBonificacao(e.target.value)}
+                  className="text-base font-semibold"
+                  autoFocus
+                />
+                {/* Botões rápidos de valor */}
+                <div className="flex gap-1.5 pt-1">
+                  {[20, 50, 100, 200].map((v) => (
+                    <Button
+                      key={v}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={() => setValorBonificacao(String(v))}
+                    >
+                      +R$ {v}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Input de Descrição / Motivo */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  Motivo / Descrição
+                </label>
+                <Input
+                  placeholder="Ex.: Premiação por metas, Destaque do mês..."
+                  value={descricaoBonificacao}
+                  onChange={(e) => setDescricaoBonificacao(e.target.value)}
+                />
+                {/* Sugestões rápidas de descrição */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    "Premiação de metas",
+                    "Destaque do mês",
+                    "Campanha interna",
+                    "Gratificação institucional",
+                  ].map((sug) => (
+                    <button
+                      key={sug}
+                      type="button"
+                      className="text-[11px] px-2 py-0.5 rounded-md bg-muted/80 hover:bg-muted text-muted-foreground hover:text-foreground border transition-colors"
+                      onClick={() => setDescricaoBonificacao(sug)}
+                    >
+                      {sug}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Aviso de teto se aplicável */}
+              {tipoOperacao === "bonificacao" &&
+                funcionarioSelecionado.limiteBonificacao != null &&
+                Number(valorBonificacao) > 0 &&
+                (funcionarioSelecionado.saldoBonificacao ?? 0) + Number(valorBonificacao) >
+                  funcionarioSelecionado.limiteBonificacao && (
+                  <p className="text-xs text-destructive font-medium flex items-center gap-1">
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                    O valor ultrapassará o teto de R${" "}
+                    {funcionarioSelecionado.limiteBonificacao.toFixed(2)}. Disponível para crédito: R${" "}
+                    {Math.max(
+                      0,
+                      funcionarioSelecionado.limiteBonificacao -
+                        (funcionarioSelecionado.saldoBonificacao ?? 0)
+                    ).toFixed(2)}
+                    .
+                  </p>
+                )}
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={salvandoBonificacao}
+              onClick={() => setModalBonificacaoAberto(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              disabled={salvandoBonificacao || !valorBonificacao || Number(valorBonificacao) <= 0}
+              className={
+                tipoOperacao === "bonificacao"
+                  ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                  : "bg-amber-600 hover:bg-amber-700 text-white"
+              }
+              onClick={handleConfirmarBonificacao}
+            >
+              {salvandoBonificacao ? (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                  Processando...
+                </>
+              ) : tipoOperacao === "bonificacao" ? (
+                "Confirmar Bonificação"
+              ) : (
+                "Confirmar Dedução"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

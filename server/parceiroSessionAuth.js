@@ -45,12 +45,13 @@ export function getParceiroFromRequest(req) {
     nome: session.nome,
     lojaId: session.lojaId,
     lojaNome: session.lojaNome,
+    permiteVendaSemCelular: Boolean(session.permiteVendaSemCelular),
     email: session.login,
     papeis: [],
   };
 }
 
-/** @param {import("express").Response} res @param {{ login: string, nome: string, lojaId: string, lojaNome: string }} operador */
+/** @param {import("express").Response} res @param {{ login: string, nome: string, lojaId: string, lojaNome: string, permiteVendaSemCelular?: boolean }} operador */
 export function iniciarSessaoParceiro(res, operador) {
   const session = createParceiroSession(operador);
   setParceiroSessionCookie(res, session.id);

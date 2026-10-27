@@ -33,6 +33,7 @@ export type CcipayFuncionario = {
   alterdataCodigo?: string | null;
   limiteAdiantamento: number;
   limiteBonificacao?: number | null;
+  saldoBonificacao?: number;
   pixPadrao?: string | null;
   ativo: boolean;
 };
@@ -46,6 +47,7 @@ export type CcipayLoja = {
   ativa: boolean;
   formaRepasse?: FormaRepasseLoja;
   dadosRepasse?: string;
+  permiteVendaSemCelular?: boolean;
 };
 
 export function labelFormaRepasse(forma?: FormaRepasseLoja | string): string {
@@ -672,10 +674,16 @@ export function isCcipayLojaPapel(papeis: Papel[]): boolean {
   return papeis.some((p) => [...PAPEIS_CCIPAY_DP, "ccipay_loja"].includes(p));
 }
 
-export function labelStatusMovimento(status: CcipayMovimentoStatus | string): string {
+export function labelStatusMovimento(
+  status: CcipayMovimentoStatus | string,
+  tipo?: string
+): string {
+  if (tipo === "bonificacao" || tipo === "deducao") {
+    return "—";
+  }
   const map: Record<string, string> = {
     pendente: "Pendente",
-    aprovado: "Aprovado aguardando recurso",
+    aprovado: tipo === "compra_loja" ? "Aprovado" : "Aprovado aguardando recurso",
     negado: "Negado",
     pago: "Depositado",
     depositado: "Depositado",

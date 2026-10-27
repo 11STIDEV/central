@@ -8,6 +8,7 @@ import type { CcipayLoja } from "@/lib/ccipay";
 export type ParceiroOutletContext = {
   lojaId: string;
   loja: CcipayLoja | null;
+  permiteVendaSemCelular: boolean;
 };
 
 const NAV = [
@@ -21,16 +22,20 @@ export default function ParceiroShell() {
 
   if (!operador) return null;
 
+  const permiteVendaSemCelular = Boolean(operador.permiteVendaSemCelular);
+
   const loja: CcipayLoja = {
     id: operador.lojaId,
     nome: operador.lojaNome,
     descricao: "",
     ativa: true,
+    permiteVendaSemCelular,
   };
 
   const ctx: ParceiroOutletContext = {
     lojaId: operador.lojaId,
     loja,
+    permiteVendaSemCelular,
   };
 
   return (

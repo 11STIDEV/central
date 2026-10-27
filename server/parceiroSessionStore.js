@@ -36,6 +36,7 @@ export function createParceiroSession(data) {
     nome: data.nome,
     lojaId: data.lojaId,
     lojaNome: data.lojaNome,
+    permiteVendaSemCelular: Boolean(data.permiteVendaSemCelular),
     createdAt: now,
     lastActivityAt: now,
     expiresAt: now + PARCEIRO_SESSION_TTL_MS,

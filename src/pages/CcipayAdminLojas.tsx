@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +58,8 @@ import {
   Receipt,
   Building2,
   Zap,
+  QrCode,
+  CreditCard,
 } from "lucide-react";
 
 type OperadorLoja = {
@@ -79,6 +82,7 @@ export default function CcipayAdminLojas() {
   const [descLoja, setDescLoja] = useState("");
   const [formaRepasseNova, setFormaRepasseNova] = useState<FormaRepasseLoja>("pix");
   const [dadosRepasseNova, setDadosRepasseNova] = useState("");
+  const [permiteVendaSemCelularNova, setPermiteVendaSemCelularNova] = useState(false);
   const [loginOp, setLoginOp] = useState("");
   const [senhaOp, setSenhaOp] = useState("");
   const [nomeOp, setNomeOp] = useState("");
@@ -92,6 +96,7 @@ export default function CcipayAdminLojas() {
   const [editAtivaLoja, setEditAtivaLoja] = useState(true);
   const [editFormaRepasse, setEditFormaRepasse] = useState<FormaRepasseLoja>("pix");
   const [editDadosRepasse, setEditDadosRepasse] = useState("");
+  const [editPermiteVendaSemCelular, setEditPermiteVendaSemCelular] = useState(false);
   const [salvandoEdicaoLoja, setSalvandoEdicaoLoja] = useState(false);
 
   // Modal para Adicionar / Redefinir / Editar Operador em Loja Existente
@@ -169,6 +174,7 @@ export default function CcipayAdminLojas() {
         descricao: descLoja.trim(),
         formaRepasse: formaRepasseNova,
         dadosRepasse: dadosRepasseNova.trim() || undefined,
+        permiteVendaSemCelular: permiteVendaSemCelularNova,
       });
 
       // 2. Vincula o operador com login e senha e email de recuperação
@@ -186,7 +192,7 @@ export default function CcipayAdminLojas() {
         emailOp.trim() ? `\nE-mail de Recuperação: ${emailOp.trim()}` : ""
       }\nForma de Repasse: ${labelFormaRepasse(formaRepasseNova)}${
         dadosRepasseNova.trim() ? ` (${dadosRepasseNova.trim()})` : ""
-      }`;
+      }\nVenda sem celular: ${permiteVendaSemCelularNova ? "Liberada" : "Apenas QR Code"}`;
       navigator.clipboard.writeText(msgAcesso);
       toast.info("Dados de acesso copiados para a área de transferência!");
 
@@ -195,6 +201,7 @@ export default function CcipayAdminLojas() {
       setDescLoja("");
       setFormaRepasseNova("pix");
       setDadosRepasseNova("");
+      setPermiteVendaSemCelularNova(false);
       setLoginOp("");
       setSenhaOp("");
       setNomeOp("");
@@ -216,6 +223,7 @@ export default function CcipayAdminLojas() {
     setEditAtivaLoja(loja.ativa !== false);
     setEditFormaRepasse(loja.formaRepasse || "pix");
     setEditDadosRepasse(loja.dadosRepasse || "");
+    setEditPermiteVendaSemCelular(Boolean(loja.permiteVendaSemCelular));
   }
 
   async function handleSalvarEdicaoLoja(e: React.FormEvent) {
@@ -235,6 +243,7 @@ export default function CcipayAdminLojas() {
         ativa: editAtivaLoja,
         formaRepasse: editFormaRepasse,
         dadosRepasse: editDadosRepasse.trim() || undefined,
+        permiteVendaSemCelular: editPermiteVendaSemCelular,
       });
       toast.success(`Loja "${nomeTrim}" atualizada com sucesso!`);
       setLojaParaEditar(null);
@@ -496,6 +505,15 @@ export default function CcipayAdminLojas() {
                               <span className="text-[11px] text-muted-foreground font-mono bg-muted/40 px-1.5 py-0.5 rounded border border-border/50 truncate max-w-[220px]" title={loja.dadosRepasse}>
                                 {loja.dadosRepasse}
                               </span>
+                            )}
+                            {loja.permiteVendaSemCelular ? (
+                              <Badge variant="outline" className="gap-1 border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 text-[11px] font-normal">
+                                <CreditCard className="h-3 w-3 text-emerald-500" /> Sem celular liberado
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="gap-1 border-muted bg-muted/40 text-muted-foreground text-[11px] font-normal">
+                                <QrCode className="h-3 w-3 text-muted-foreground" /> Apenas QR Code
+                              </Badge>
                             )}
                           </div>
                         </div>
@@ -769,6 +787,27 @@ export default function CcipayAdminLojas() {
                       onChange={(e) => setDadosRepasseNova(e.target.value)}
                     />
                   </div>
+
+                  <div className="sm:col-span-2 pt-2 border-t border-border/50">
+                    <div className="flex items-start space-x-3 rounded-md border border-border/80 bg-background/50 p-3">
+                      <Checkbox
+                        id="novo-permite-sem-celular"
+                        checked={permiteVendaSemCelularNova}
+                        onCheckedChange={(checked) => setPermiteVendaSemCelularNova(Boolean(checked))}
+                      />
+                      <div className="space-y-1 leading-none">
+                        <Label
+                          htmlFor="novo-permite-sem-celular"
+                          className="text-xs font-semibold text-foreground cursor-pointer"
+                        >
+                          Permitir venda sem celular (busca por Matrícula / CPF)
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground">
+                          Recomendado apenas para lanchonetes/cantinas internas da escola. Lojas externas (farmácias, restaurantes) devem operar exclusivamente via QR Code.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -984,6 +1023,27 @@ export default function CcipayAdminLojas() {
                       value={editDadosRepasse}
                       onChange={(e) => setEditDadosRepasse(e.target.value)}
                     />
+                  </div>
+
+                  <div className="sm:col-span-2 pt-2 border-t border-border/50">
+                    <div className="flex items-start space-x-3 rounded-md border border-border/80 bg-background/50 p-3">
+                      <Checkbox
+                        id="edit-permite-sem-celular"
+                        checked={editPermiteVendaSemCelular}
+                        onCheckedChange={(checked) => setEditPermiteVendaSemCelular(Boolean(checked))}
+                      />
+                      <div className="space-y-1 leading-none">
+                        <Label
+                          htmlFor="edit-permite-sem-celular"
+                          className="text-xs font-semibold text-foreground cursor-pointer"
+                        >
+                          Permitir venda sem celular (busca por Matrícula / CPF)
+                        </Label>
+                        <p className="text-[11px] text-muted-foreground">
+                          Recomendado apenas para lanchonetes/cantinas internas da escola. Lojas externas (farmácias, restaurantes) devem operar exclusivamente via QR Code.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>

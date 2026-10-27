@@ -478,12 +478,19 @@ function ExtratoTable({ movimentos }: { movimentos: CcipayMovimento[] }) {
       {/* Visualização Mobile: Cards limpos 100% na tela sem cortes */}
       <div className="divide-y divide-border/60 rounded-xl border border-border bg-card shadow-xs md:hidden">
         {movimentos.map((m) => {
-          const isBonificacao = (m.metadata as any)?.metodoPagamento === "bonificacao";
+          const isLancamentoBonificacao = m.tipo === "bonificacao" || m.tipo === "deducao";
+          const isCompraBonificacao =
+            m.tipo === "compra_loja" &&
+            ((m.metadata as any)?.metodoPagamento === "bonificacao" ||
+              (m.metadata as any)?.metodo_pagamento === "bonificacao");
+
           const statusLabel =
-            isBonificacao && (m.status === "pago" || m.status === "aprovado")
+            isCompraBonificacao && (m.status === "pago" || m.status === "aprovado")
               ? "Pago (Bonificação)"
-              : labelStatusMovimento(m.status);
-          const badgeClass = getBadgeClass(m.status, isBonificacao);
+              : isLancamentoBonificacao
+              ? null
+              : labelStatusMovimento(m.status, m.tipo);
+          const badgeClass = getBadgeClass(m.status, isCompraBonificacao);
 
           return (
             <div key={m.id} className="p-3.5 space-y-2">
@@ -519,22 +526,25 @@ function ExtratoTable({ movimentos }: { movimentos: CcipayMovimento[] }) {
                     (m.metadata as any)?.alterdataLancado ||
                       m.status === "descontado_folha",
                   ) &&
-                    !isBonificacao && (
+                    !isCompraBonificacao &&
+                    !isLancamentoBonificacao && (
                       <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
                         <Check className="h-3 w-3 shrink-0" /> Contracheque
                       </span>
                     )}
-                  {isBonificacao && (
+                  {isCompraBonificacao && (
                     <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
                       <Sparkles className="h-3 w-3 shrink-0 text-amber-500" /> Bonificação
                     </span>
                   )}
                 </div>
-                <span
-                  className={`inline-block shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium ${badgeClass}`}
-                >
-                  {statusLabel}
-                </span>
+                {statusLabel && (
+                  <span
+                    className={`inline-block shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-medium ${badgeClass}`}
+                  >
+                    {statusLabel}
+                  </span>
+                )}
               </div>
             </div>
           );
@@ -554,12 +564,19 @@ function ExtratoTable({ movimentos }: { movimentos: CcipayMovimento[] }) {
           </TableHeader>
           <TableBody>
             {movimentos.map((m) => {
-              const isBonificacao = (m.metadata as any)?.metodoPagamento === "bonificacao";
+              const isLancamentoBonificacao = m.tipo === "bonificacao" || m.tipo === "deducao";
+              const isCompraBonificacao =
+                m.tipo === "compra_loja" &&
+                ((m.metadata as any)?.metodoPagamento === "bonificacao" ||
+                  (m.metadata as any)?.metodo_pagamento === "bonificacao");
+
               const statusLabel =
-                isBonificacao && (m.status === "pago" || m.status === "aprovado")
+                isCompraBonificacao && (m.status === "pago" || m.status === "aprovado")
                   ? "Pago (Bonificação)"
-                  : labelStatusMovimento(m.status);
-              const badgeClass = getBadgeClass(m.status, isBonificacao);
+                  : isLancamentoBonificacao
+                  ? null
+                  : labelStatusMovimento(m.status, m.tipo);
+              const badgeClass = getBadgeClass(m.status, isCompraBonificacao);
 
               return (
                 <TableRow key={m.id}>
@@ -583,12 +600,13 @@ function ExtratoTable({ movimentos }: { movimentos: CcipayMovimento[] }) {
                         (m.metadata as any)?.alterdataLancado ||
                           m.status === "descontado_folha",
                       ) &&
-                        !isBonificacao && (
+                        !isCompraBonificacao &&
+                        !isLancamentoBonificacao && (
                           <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400">
                             <Check className="h-3 w-3" /> Lançado no contracheque (Alterdata)
                           </span>
                         )}
-                      {isBonificacao && (
+                      {isCompraBonificacao && (
                         <span className="inline-flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium">
                           <Sparkles className="h-3 w-3 text-amber-500" /> Saldo de Bonificação
                         </span>
@@ -607,11 +625,15 @@ function ExtratoTable({ movimentos }: { movimentos: CcipayMovimento[] }) {
                     </span>
                   </TableCell>
                   <TableCell className="text-xs">
-                    <span
-                      className={`inline-block rounded-md border px-2 py-0.5 text-[11px] font-medium ${badgeClass}`}
-                    >
-                      {statusLabel}
-                    </span>
+                    {statusLabel ? (
+                      <span
+                        className={`inline-block rounded-md border px-2 py-0.5 text-[11px] font-medium ${badgeClass}`}
+                      >
+                        {statusLabel}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground/40">—</span>
+                    )}
                   </TableCell>
                 </TableRow>
               );

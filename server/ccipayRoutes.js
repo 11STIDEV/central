@@ -25,6 +25,7 @@ import {
   atualizarMovimentoStatus,
   montarResumoFuncionario,
   listarLojas,
+  obterLoja,
   criarLoja,
   atualizarLoja,
   excluirLoja,
@@ -1108,6 +1109,13 @@ export function registerCcipayRoutes(app, helpers) {
         return res.status(403).json({ error: "Sem permissão para esta loja." });
       }
 
+      const lojaInfo = await obterLoja(supabase, lojaId);
+      if (!lojaInfo?.permiteVendaSemCelular) {
+        return res.status(403).json({
+          error: "Esta loja parceira tem permissão apenas para vendas via QR Code. A venda sem celular está desabilitada.",
+        });
+      }
+
       const t = String(termo || "").trim();
       if (!t || t.length < 2) {
         return res.status(400).json({ error: "Informe matrícula, CPF ou e-mail para busca." });
@@ -1303,6 +1311,13 @@ export function registerCcipayRoutes(app, helpers) {
       const ok = await podeAcessarLoja(supabase, ctx, lojaId);
       if (!ok) {
         return res.status(403).json({ error: "Sem permissão para esta loja." });
+      }
+
+      const lojaInfo = await obterLoja(supabase, lojaId);
+      if (!lojaInfo?.permiteVendaSemCelular) {
+        return res.status(403).json({
+          error: "Esta loja parceira tem permissão apenas para vendas via QR Code. A venda sem celular está desabilitada.",
+        });
       }
 
       const valorNum = Number(valor);

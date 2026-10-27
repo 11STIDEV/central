@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import type { ParceiroOutletContext } from "./ParceiroShell";
 
 export default function ParceiroDashboard() {
-  const { lojaId, loja } = useOutletContext<ParceiroOutletContext>();
+  const { lojaId, loja, permiteVendaSemCelular } = useOutletContext<ParceiroOutletContext>();
   const [resumo, setResumo] = useState<CcipayResumoParceiro | null>(null);
 
   const carregar = useCallback(async () => {
@@ -39,7 +39,7 @@ export default function ParceiroDashboard() {
         </p>
       </div>
 
-      {/* Ações Rápidas - 2 Cards Destacados */}
+      {/* Ações Rápidas - Cards Destacados */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-primary" />
@@ -48,7 +48,7 @@ export default function ParceiroDashboard() {
           </h3>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className={`grid gap-4 ${permiteVendaSemCelular ? "sm:grid-cols-2" : "max-w-md"}`}>
           {/* Card 1: Pagar com QR Code */}
           <div className="flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs transition-all hover:border-primary/50 hover:shadow-md">
             <div>
@@ -74,30 +74,32 @@ export default function ParceiroDashboard() {
             </Button>
           </div>
 
-          {/* Card 2: Sem Celular */}
-          <div className="flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs transition-all hover:border-border/80 hover:shadow-md">
-            <div>
-              <div className="flex items-center justify-between">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                  <CreditCard className="h-5 w-5" />
+          {/* Card 2: Sem Celular (somente exibido se a loja tiver permissão) */}
+          {permiteVendaSemCelular && (
+            <div className="flex flex-col justify-between rounded-xl border border-border bg-card p-5 shadow-xs transition-all hover:border-border/80 hover:shadow-md">
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                    <CreditCard className="h-5 w-5" />
+                  </div>
+                  <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                    Sem celular
+                  </span>
                 </div>
-                <span className="rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                  Sem celular
-                </span>
+                <h4 className="mt-3.5 text-base font-semibold text-foreground">Sem Celular (Matrícula / CPF)</h4>
+                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
+                  Colaborador sem o celular? Busque por matrícula, nome ou CPF, consulte o saldo disponível e debite em folha.
+                </p>
               </div>
-              <h4 className="mt-3.5 text-base font-semibold text-foreground">Sem Celular (Matrícula / CPF)</h4>
-              <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                Colaborador sem o celular? Busque por matrícula, nome ou CPF, consulte o saldo disponível e debite em folha.
-              </p>
+              <Button asChild variant="outline" className="mt-5 w-full font-medium hover:bg-muted">
+                <Link to="/venda?modo=sem_celular">
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  Buscar Matrícula / CPF
+                  <ArrowRight className="ml-auto h-4 w-4" />
+                </Link>
+              </Button>
             </div>
-            <Button asChild variant="outline" className="mt-5 w-full font-medium hover:bg-muted">
-              <Link to="/venda?modo=sem_celular">
-                <CreditCard className="mr-2 h-4 w-4" />
-                Buscar Matrícula / CPF
-                <ArrowRight className="ml-auto h-4 w-4" />
-              </Link>
-            </Button>
-          </div>
+          )}
         </div>
       </div>
 
