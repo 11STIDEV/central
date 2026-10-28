@@ -6,6 +6,7 @@ import {
   desvincularOperadorLoja,
   listarUsuariosLoja,
 } from "./ccipayStore.js";
+import { isCcipayAdmin } from "./ccipayAccess.js";
 import {
   hashSenha,
   loginValido,
@@ -201,7 +202,7 @@ export function registerCcipayParceiroRoutes(app, helpers) {
     try {
       const { login } = req.body || {};
       const ctx = await resolverContextoFromRequest(req);
-      if (!ctx.papeis?.includes("admin") && !ctx.papeis?.includes("ccipay_admin")) {
+      if (!isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Sem permissão." });
       }
       const supabase = supabaseOr503(res);
@@ -238,7 +239,7 @@ export function registerCcipayParceiroRoutes(app, helpers) {
     try {
       const { idToken, lojaId, login, senha, nome, email, acao } = req.body || {};
       const ctx = await resolverContextoFromRequest(req);
-      if (!ctx.papeis?.includes("admin") && !ctx.papeis?.includes("ccipay_admin")) {
+      if (!isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Sem permissão." });
       }
       const supabase = supabaseOr503(res);
@@ -287,7 +288,7 @@ export function registerCcipayParceiroRoutes(app, helpers) {
     try {
       const { idToken, login, senha } = req.body || {};
       const ctx = await resolverContextoFromRequest(req);
-      if (!ctx.papeis?.includes("admin") && !ctx.papeis?.includes("ccipay_admin")) {
+      if (!isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Sem permissão." });
       }
       const supabase = supabaseOr503(res);

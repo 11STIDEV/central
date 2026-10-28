@@ -42,6 +42,8 @@ export function isIsentoBloqueioAdvanceCci(papeis: Papel[]): boolean {
       "financeiro",
       "gerente_dp",
       "gerente_financeiro",
+      "direcao",
+      "gerente_direcao",
     ].includes(p)
   );
 }

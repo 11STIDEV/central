@@ -16,6 +16,8 @@ const PAPEIS_CCIPAY_DP = new Set([
   "financeiro",
   "gerente_dp",
   "gerente_financeiro",
+  "direcao",
+  "gerente_direcao",
 ]);
 
 const PAPEIS_CCIPAY_ADMIN = new Set([
@@ -26,6 +28,8 @@ const PAPEIS_CCIPAY_ADMIN = new Set([
   "financeiro",
   "gerente_dp",
   "gerente_financeiro",
+  "direcao",
+  "gerente_direcao",
 ]);
 
 const PAPEIS_CCIPAY_LANCAMENTO = new Set([
@@ -36,6 +40,8 @@ const PAPEIS_CCIPAY_LANCAMENTO = new Set([
   "financeiro",
   "gerente_dp",
   "gerente_financeiro",
+  "direcao",
+  "gerente_direcao",
   "ccipay_lancador",
 ]);
 

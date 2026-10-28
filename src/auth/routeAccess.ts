@@ -46,6 +46,8 @@ export const PAPEIS_CCIPAY_GESTAO: Papel[] = [
   "financeiro",
   "gerente_dp",
   "gerente_financeiro",
+  "direcao",
+  "gerente_direcao",
 ];
 
 /** Alunos não acessam o módulo de avisos. */
