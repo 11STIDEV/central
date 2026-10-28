@@ -24,6 +24,8 @@ const ROTAS_INTRANET_COMUM = new Set([
   "/ramais",
   "/meu-setor",
   "/cci-pay",
+  "/cci-pay/scan",
+  "/cci-pay/scanner",
   "/vale-adiantamento",
   "/cci-pay/loja",
   "/cci-pay/meus-pedidos",
@@ -168,6 +170,8 @@ export function hasRoleAccessToRoute(papeis: Papel[], pathname: string, email?: 
     if (!getChamadosSetorBySlug(slug)) return false;
     return canAccessGestaoChamadosSetor(papeis, slug);
   }
+
+  if (path.startsWith("/cci-pay/pagar/")) return true;
 
   if (ROTAS_INTRANET_COMUM.has(path)) return true;
 

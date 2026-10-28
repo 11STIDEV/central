@@ -29,18 +29,24 @@ export default function CcipayPagarQr() {
   );
 
   const carregar = useCallback(async () => {
-    if (!googleIdToken || !token) return;
+    if (!googleIdToken || !token) {
+      console.warn("[CcipayPagarQr] Aguardando autenticação ou token...", { temToken: Boolean(token), temIdToken: Boolean(googleIdToken) });
+      return;
+    }
     setCarregando(true);
     setErro(null);
     try {
+      console.log(`[CcipayPagarQr] Carregando venda QR (${token})...`);
       const [{ venda: v }, res] = await Promise.all([
         ccipayObterVendaQr(googleIdToken, token),
         ccipayMe(googleIdToken),
       ]);
+      console.log("[CcipayPagarQr] Venda e limites obtidos:", { venda: v, resumo: res });
       setVenda(v);
       setResumo(res);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Venda não encontrada.");
+      console.error("[CcipayPagarQr] Erro ao carregar venda QR:", e);
+      setErro(e instanceof Error ? e.message : "Venda não encontrada ou expirada.");
     } finally {
       setCarregando(false);
     }
@@ -55,7 +61,9 @@ export default function CcipayPagarQr() {
     setPagando(true);
     setErro(null);
     try {
+      console.log(`[CcipayPagarQr] Confirmando pagamento do token ${token} via ${metodo}...`);
       await ccipayPagarVendaQr(googleIdToken, token, metodo);
+      console.log("[CcipayPagarQr] Pagamento confirmado com sucesso!");
       setSucesso({
         mensagem:
           metodo === "bonificacao"
@@ -64,6 +72,7 @@ export default function CcipayPagarQr() {
       });
       await carregar();
     } catch (e) {
+      console.error("[CcipayPagarQr] Falha ao confirmar pagamento:", e);
       setErro(e instanceof Error ? e.message : "Falha ao pagar.");
     } finally {
       setPagando(false);

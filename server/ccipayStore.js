@@ -1023,40 +1023,160 @@ export async function atualizarPedidoStatus(supabase, id, status, confirmadoPor)
   return obterPedidoCompleto(supabase, data.id);
 }
 
-export async function relatorioDpMovimentos(supabase, { competencia, tipo, status }) {
-  let q = supabase.from("ccipay_movimentos").select("*").order("created_at", { ascending: false });
+export async function relatorioDpMovimentos(supabase, { competencia, tipo, status, lojaId }) {
+  let q = supabase
+    .from("ccipay_movimentos")
+    .select("*, ccipay_lojas(id, nome)")
+    .order("created_at", { ascending: false });
   if (competencia) q = q.eq("competencia", competencia);
   if (tipo) q = q.eq("tipo", tipo);
   if (status) q = q.eq("status", status);
+  if (lojaId) q = q.eq("loja_id", lojaId);
   const { data, error } = await q;
   if (error) throw new Error(`[ccipay] relatorio dp: ${error.message}`);
   return (data || []).map(rowToMovimento);
 }
 
 export async function relatorioResumoPorFuncionario(supabase, competencia) {
+  const comp = competencia || competenciaAtual();
   const funcionarios = await listarFuncionarios(supabase);
+
+  // Busca todos os movimentos da competência em uma única query
+  const { data: movsComp, error: movsErr } = await supabase
+    .from("ccipay_movimentos")
+    .select("*")
+    .eq("competencia", comp);
+  if (movsErr) console.warn("[ccipay] aviso relatorio resumo movs:", movsErr.message);
+
+  const movsPorEmail = new Map();
+  for (const m of movsComp || []) {
+    const email = (m.funcionario_email || "").toLowerCase();
+    if (!email) continue;
+    if (!movsPorEmail.has(email)) movsPorEmail.set(email, []);
+    movsPorEmail.get(email).push(m);
+  }
+
   const resumo = [];
   for (const f of funcionarios) {
-    const usado = await somarAdiantamentosCompetencia(supabase, f.email, competencia);
-    const xpTotal = await obterXpTrilha(supabase, f.email);
-    const xpMonetario = calcularValorMonetarioXp(xpTotal);
-    const saldoBon = await saldoBonificacao(supabase, f.email, competencia, { incluirXp: true });
-    if (!f.ativo && usado === 0 && saldoBon === 0 && xpTotal === 0) continue;
+    const emailLower = f.email.toLowerCase();
+    const movs = movsPorEmail.get(emailLower) || [];
+
+    let adiantamentoUsado = 0;
+    let totalAdiantamentos = 0;
+    let qtdAdiantamentos = 0;
+    let totalComprasLoja = 0;
+    let qtdComprasLoja = 0;
+    let totalDeducoes = 0;
+    let totalBonificacao = 0;
+    let totalDescontado = 0;
+
+    for (const m of movs) {
+      const v = Number(m.valor) || 0;
+      const st = m.status;
+      const tp = m.tipo;
+      const isBonMetodo =
+        m.metadata?.metodoPagamento === "bonificacao" ||
+        m.metadata?.metodo_pagamento === "bonificacao";
+
+      if (tp === "adiantamento" || tp === "vale") {
+        if (STATUS_ADIANTAMENTO_ATIVOS.includes(st) && !isBonMetodo) {
+          adiantamentoUsado += v;
+        }
+        if (["pago", "aprovado", "descontado_folha"].includes(st)) {
+          totalAdiantamentos += v;
+          qtdAdiantamentos++;
+          if (st === "descontado_folha") {
+            totalDescontado += v;
+          }
+        }
+      } else if (tp === "compra_loja") {
+        if (st !== "cancelado" && st !== "negado" && !isBonMetodo) {
+          totalComprasLoja += v;
+          qtdComprasLoja++;
+          if (st === "descontado_folha") {
+            totalDescontado += v;
+          }
+        }
+      } else if (tp === "deducao") {
+        if (st !== "cancelado" && st !== "negado") {
+          totalDeducoes += v;
+          if (st === "descontado_folha") {
+            totalDescontado += v;
+          }
+        }
+      } else if (tp === "bonificacao") {
+        if (st !== "cancelado" && st !== "negado") {
+          totalBonificacao += v;
+        }
+      }
+    }
+
+    const totalDescontoFolha = totalAdiantamentos + totalComprasLoja + totalDeducoes;
+    const totalPendenteFolha = Math.max(0, totalDescontoFolha - totalDescontado);
+
+    if (
+      !f.ativo &&
+      adiantamentoUsado === 0 &&
+      totalComprasLoja === 0 &&
+      totalBonificacao === 0 &&
+      totalDeducoes === 0
+    ) {
+      continue;
+    }
+
     resumo.push({
       email: f.email,
       nome: f.nome,
       codigoReferencia: f.alterdataCodigo,
       ativo: f.ativo,
       limiteAdiantamento: f.limiteAdiantamento,
-      adiantamentoUsado: usado,
-      adiantamentoDisponivel: Math.max(0, f.limiteAdiantamento - usado),
+      adiantamentoUsado,
+      adiantamentoDisponivel: Math.max(0, f.limiteAdiantamento - adiantamentoUsado),
+      totalAdiantamentos,
+      qtdAdiantamentos,
+      totalComprasLoja,
+      qtdComprasLoja,
+      totalDeducoes,
+      totalDescontoFolha,
+      totalDescontadoFolha: totalDescontado,
+      totalPendenteFolha,
       limiteBonificacao: f.limiteBonificacao,
-      saldoBonificacao: saldoBon,
-      xpTotalTrilha: xpTotal,
-      xpValorMonetario: xpMonetario,
+      saldoBonificacao: f.saldoBonificacao ?? 0,
+      xpTotalTrilha: 0,
+      xpValorMonetario: 0,
     });
   }
+
   return resumo;
+}
+
+export async function alterarStatusMovimentosDp(supabase, { movimentoIds, funcionarioEmail, competencia, novoStatus, usuario }) {
+  const statusPermitidos = ["descontado_folha", "pago", "aprovado"];
+  const targetStatus = statusPermitidos.includes(novoStatus) ? novoStatus : "descontado_folha";
+
+  let q = supabase
+    .from("ccipay_movimentos")
+    .update({
+      status: targetStatus,
+      updated_at: new Date().toISOString(),
+    });
+
+  if (movimentoIds && Array.isArray(movimentoIds) && movimentoIds.length > 0) {
+    q = q.in("id", movimentoIds);
+  } else if (funcionarioEmail && competencia) {
+    q = q
+      .eq("funcionario_email", String(funcionarioEmail).toLowerCase())
+      .eq("competencia", competencia)
+      .in("tipo", ["adiantamento", "vale", "compra_loja", "deducao"])
+      .neq("status", "cancelado")
+      .neq("status", "negado");
+  } else {
+    throw new Error("Parâmetros insuficientes para alterar status no relatório DP.");
+  }
+
+  const { data, error } = await q.select("id, status, funcionario_email, valor, tipo");
+  if (error) throw new Error(`[ccipay] erro ao alterar status: ${error.message}`);
+  return data || [];
 }
 
 export async function relatorioLojaPedidos(supabase, { lojaId, de, ate }) {

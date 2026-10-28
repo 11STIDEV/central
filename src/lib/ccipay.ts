@@ -126,10 +126,29 @@ export type CcipayResumoFuncionarioDp = {
   limiteAdiantamento: number;
   adiantamentoUsado: number;
   adiantamentoDisponivel: number;
+  totalAdiantamentos?: number;
+  qtdAdiantamentos?: number;
+  totalComprasLoja?: number;
+  qtdComprasLoja?: number;
+  totalDeducoes?: number;
+  totalDescontoFolha?: number;
+  totalDescontadoFolha?: number;
+  totalPendenteFolha?: number;
   limiteBonificacao?: number | null;
   saldoBonificacao: number;
   xpTotalTrilha?: number;
   xpValorMonetario?: number;
+};
+
+export type CcipayRelatorioDpTotais = {
+  totalDescontoFolha: number;
+  totalComprasLoja: number;
+  qtdComprasLoja: number;
+  totalAdiantamentos: number;
+  qtdAdiantamentos: number;
+  totalBonificacoes: number;
+  totalDescontado: number;
+  totalPendente: number;
 };
 
 export type CcipayVendaQrStatus = "pendente" | "pago" | "expirado" | "cancelado";
@@ -482,19 +501,44 @@ export async function ccipayRelatorioDp(
   idToken?: string | null,
   competencia?: string,
   exportarCsv = false,
-  opts?: { status?: string; tipo?: string },
+  opts?: {
+    status?: string;
+    tipo?: string;
+    lojaId?: string;
+    modoCsv?: "detalhado" | "consolidado";
+  },
 ) {
   return post<{
     movimentos: CcipayMovimento[];
     funcionarios?: CcipayFuncionario[];
     resumoPorFuncionario?: CcipayResumoFuncionarioDp[];
+    lojas?: CcipayLoja[];
+    totais?: CcipayRelatorioDpTotais;
     csv?: string;
   }>("/api/ccipay/relatorios/dp", idToken, {
     competencia,
     exportarCsv,
     status: opts?.status,
     tipo: opts?.tipo,
+    lojaId: opts?.lojaId,
+    modoCsv: opts?.modoCsv,
   });
+}
+
+export async function ccipayDarBaixaFolha(
+  idToken?: string | null,
+  payload: {
+    movimentoIds?: string[];
+    funcionarioEmail?: string;
+    competencia?: string;
+    novoStatus?: "descontado_folha" | "pago" | "aprovado";
+  } = {},
+) {
+  return post<{ ok: boolean; atualizadosCount: number }>(
+    "/api/ccipay/relatorios/dp/dar-baixa",
+    idToken,
+    payload,
+  );
 }
 
 export type CcipayRepasseLoja = {

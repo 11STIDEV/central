@@ -43,6 +43,7 @@ import {
   atualizarPedidoStatus,
   relatorioDpMovimentos,
   relatorioResumoPorFuncionario,
+  alterarStatusMovimentosDp,
   relatorioLojaPedidos,
   validarCreditoBonificacao,
   validarDebitoBonificacao,
@@ -793,7 +794,7 @@ export function registerCcipayRoutes(app, helpers) {
 
   app.post("/api/ccipay/relatorios/dp", async (req, res) => {
     try {
-      const { idToken, competencia, exportarCsv, status, tipo } = req.body || {};
+      const { idToken, competencia, exportarCsv, modoCsv = "detalhado", status, tipo, lojaId } = req.body || {};
       const ctx = await ctxFromRequest(req);
       if (!isCcipayDp(ctx.papeis) && !isCcipayAdmin(ctx.papeis)) {
         return res.status(403).json({ error: "Sem permissão." });
@@ -806,37 +807,138 @@ export function registerCcipayRoutes(app, helpers) {
         competencia: comp,
         status: status || undefined,
         tipo: tipo || undefined,
+        lojaId: lojaId || undefined,
       });
       const resumoPorFuncionario = await relatorioResumoPorFuncionario(supabase, comp);
       const funcionarios = await listarFuncionarios(supabase);
-      const mapaFunc = Object.fromEntries(funcionarios.map((f) => [f.email.toLowerCase(), f]));
+      const lojas = await listarLojas(supabase);
+      const mapaLojas = Object.fromEntries(lojas.map((l) => [l.id, l.nome]));
+
+      // Garante lojaNome em todos os movimentos
+      for (const m of movimentos) {
+        if (!m.lojaNome && m.lojaId && mapaLojas[m.lojaId]) {
+          m.lojaNome = mapaLojas[m.lojaId];
+        }
+      }
+
+      // Calcula totais consolidados para o DP
+      let totalDescontoFolha = 0;
+      let totalComprasLoja = 0;
+      let qtdComprasLoja = 0;
+      let totalAdiantamentos = 0;
+      let qtdAdiantamentos = 0;
+      let totalBonificacoes = 0;
+      let totalDescontado = 0;
+      let totalPendente = 0;
+
+      for (const r of resumoPorFuncionario) {
+        totalDescontoFolha += r.totalDescontoFolha || 0;
+        totalComprasLoja += r.totalComprasLoja || 0;
+        qtdComprasLoja += r.qtdComprasLoja || 0;
+        totalAdiantamentos += r.totalAdiantamentos || 0;
+        qtdAdiantamentos += r.qtdAdiantamentos || 0;
+        totalBonificacoes += r.saldoBonificacao || 0;
+        totalDescontado += r.totalDescontadoFolha || 0;
+        totalPendente += r.totalPendenteFolha || 0;
+      }
+
+      const totais = {
+        totalDescontoFolha: Number(totalDescontoFolha.toFixed(2)),
+        totalComprasLoja: Number(totalComprasLoja.toFixed(2)),
+        qtdComprasLoja,
+        totalAdiantamentos: Number(totalAdiantamentos.toFixed(2)),
+        qtdAdiantamentos,
+        totalBonificacoes: Number(totalBonificacoes.toFixed(2)),
+        totalDescontado: Number(totalDescontado.toFixed(2)),
+        totalPendente: Number(totalPendente.toFixed(2)),
+      };
 
       if (exportarCsv) {
-        const header =
-          "codigo_referencia,nome,email,tipo,valor,competencia,status,descricao";
-        const linhas = movimentos.map((m) => {
-          const f = mapaFunc[m.funcionarioEmail.toLowerCase()] || {};
-          const desc = m.metadata?.descricao || m.metadata?.pix || "";
-          return [
-            csvEscape(f.alterdataCodigo),
-            csvEscape(m.funcionarioNome),
-            csvEscape(m.funcionarioEmail),
-            csvEscape(m.tipo),
-            csvEscape(m.valor.toFixed(2)),
-            csvEscape(m.competencia),
-            csvEscape(m.status),
-            csvEscape(desc),
-          ].join(",");
-        });
+        let csv = "";
+        const mapaFunc = Object.fromEntries(funcionarios.map((f) => [f.email.toLowerCase(), f]));
+
+        if (modoCsv === "consolidado") {
+          const header =
+            "codigo_referencia,nome,email,total_adiantamentos,total_compras_lojas,total_deducoes,total_desconto_folha,saldo_bonificacao,total_descontado,total_pendente";
+          const linhas = resumoPorFuncionario.map((r) => [
+            csvEscape(r.codigoReferencia),
+            csvEscape(r.nome),
+            csvEscape(r.email),
+            csvEscape(r.totalAdiantamentos?.toFixed(2) ?? "0.00"),
+            csvEscape(r.totalComprasLoja?.toFixed(2) ?? "0.00"),
+            csvEscape(r.totalDeducoes?.toFixed(2) ?? "0.00"),
+            csvEscape(r.totalDescontoFolha?.toFixed(2) ?? "0.00"),
+            csvEscape(r.saldoBonificacao?.toFixed(2) ?? "0.00"),
+            csvEscape(r.totalDescontadoFolha?.toFixed(2) ?? "0.00"),
+            csvEscape(r.totalPendenteFolha?.toFixed(2) ?? "0.00"),
+          ].join(","));
+          csv = [header, ...linhas].join("\n");
+        } else {
+          const header =
+            "codigo_referencia,nome,email,tipo,origem_loja,valor,competencia,data_lancamento,status,descricao";
+          const linhas = movimentos.map((m) => {
+            const f = mapaFunc[m.funcionarioEmail.toLowerCase()] || {};
+            const origem = m.lojaNome || (m.tipo === "adiantamento" ? "Adiantamento Salarial" : m.tipo);
+            const desc = m.metadata?.descricao || m.metadata?.pix || m.metadata?.motivo || "";
+            return [
+              csvEscape(f.alterdataCodigo),
+              csvEscape(m.funcionarioNome),
+              csvEscape(m.funcionarioEmail),
+              csvEscape(m.tipo),
+              csvEscape(origem),
+              csvEscape(m.valor.toFixed(2)),
+              csvEscape(m.competencia),
+              csvEscape(m.createdAt ? m.createdAt.slice(0, 19).replace("T", " ") : ""),
+              csvEscape(m.status),
+              csvEscape(desc),
+            ].join(",");
+          });
+          csv = [header, ...linhas].join("\n");
+        }
+
         return res.json({
           ok: true,
-          csv: [header, ...linhas].join("\n"),
+          csv,
           movimentos,
           resumoPorFuncionario,
+          lojas,
+          totais,
         });
       }
 
-      return res.json({ ok: true, movimentos, funcionarios, resumoPorFuncionario });
+      return res.json({
+        ok: true,
+        movimentos,
+        funcionarios,
+        resumoPorFuncionario,
+        lojas,
+        totais,
+      });
+    } catch (e) {
+      if (e.status) return respostaErroIdToken(res, e);
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/ccipay/relatorios/dp/dar-baixa", async (req, res) => {
+    try {
+      const { idToken, movimentoIds, funcionarioEmail, competencia, novoStatus = "descontado_folha" } = req.body || {};
+      const ctx = await ctxFromRequest(req);
+      if (!isCcipayDp(ctx.papeis) && !isCcipayAdmin(ctx.papeis)) {
+        return res.status(403).json({ error: "Sem permissão." });
+      }
+      const supabase = supabaseOr503(res);
+      if (!supabase) return;
+
+      const atualizados = await alterarStatusMovimentosDp(supabase, {
+        movimentoIds,
+        funcionarioEmail,
+        competencia,
+        novoStatus,
+        usuario: ctx.email,
+      });
+
+      return res.json({ ok: true, atualizadosCount: atualizados.length, atualizados });
     } catch (e) {
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });

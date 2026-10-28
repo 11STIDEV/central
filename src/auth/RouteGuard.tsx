@@ -16,6 +16,11 @@ export function RouteGuard({ children }: Props) {
   }
 
   if (!canAccessRoute(usuario.papeis, location.pathname, usuario.email)) {
+    console.warn(
+      `[RouteGuard] Acesso negado para a rota: "${location.pathname}". Papéis do usuário:`,
+      usuario.papeis,
+      `Redirecionando para destino padrão.`
+    );
     if (isSomenteAluno(usuario.papeis)) {
       return <Navigate to="/reserva-espacos-equipamentos" replace />;
     }

@@ -247,6 +247,7 @@ function CentralIntranetApp() {
                 }
               />
               <Route path="/cci-pay/pagar/:token" element={<CcipayPagarQr />} />
+              <Route path="/cci-pay/pagar" element={<Navigate to="/cci-pay?scan=1" replace />} />
               <Route path="/cci-pay/scan" element={<Navigate to="/cci-pay?scan=1" replace />} />
               <Route path="/cci-pay/scanner" element={<Navigate to="/cci-pay?scan=1" replace />} />
               <Route path="/redefinir-senha" element={<ParceiroRedefinirSenhaPage />} />
