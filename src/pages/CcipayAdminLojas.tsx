@@ -70,7 +70,7 @@ type OperadorLoja = {
 };
 
 export default function CcipayAdminLojas() {
-  const { googleIdToken } = useAuth();
+  const { googleIdToken, usuario } = useAuth();
   const [lojas, setLojas] = useState<CcipayLoja[]>([]);
   const [operadoresPorLoja, setOperadoresPorLoja] = useState<Record<string, OperadorLoja[]>>({});
   const [carregando, setCarregando] = useState(true);
@@ -116,7 +116,7 @@ export default function CcipayAdminLojas() {
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     setCarregando(true);
     try {
       const { lojas: l } = await ccipayListarLojas(googleIdToken);
@@ -140,7 +140,7 @@ export default function CcipayAdminLojas() {
     } finally {
       setCarregando(false);
     }
-  }, [googleIdToken]);
+  }, [googleIdToken, usuario]);
 
   useEffect(() => {
     void carregar();
@@ -149,7 +149,7 @@ export default function CcipayAdminLojas() {
   // Criação da loja com login do parceiro em um só fluxo
   async function handleCriarLojaComOperador(e: React.FormEvent) {
     e.preventDefault();
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
 
     const nomeTrim = nomeLoja.trim();
     const loginTrim = loginOp.trim();
@@ -228,7 +228,7 @@ export default function CcipayAdminLojas() {
 
   async function handleSalvarEdicaoLoja(e: React.FormEvent) {
     e.preventDefault();
-    if (!googleIdToken || !lojaParaEditar) return;
+    if ((!usuario && !googleIdToken) || !lojaParaEditar) return;
     const nomeTrim = editNomeLoja.trim();
     if (!nomeTrim) {
       toast.error("O nome da loja não pode ser vazio.");
@@ -272,7 +272,7 @@ export default function CcipayAdminLojas() {
   }
 
   async function handleEnviarEmailRedefinicao(op: OperadorLoja, lojaNome: string) {
-    if (!googleIdToken || !op.login) return;
+    if ((!usuario && !googleIdToken) || !op.login) return;
     const temEmailReal = Boolean(op.email && !op.email.toLowerCase().endsWith("@parceiro.cci"));
     if (!temEmailReal) {
       toast.error(
@@ -295,7 +295,7 @@ export default function CcipayAdminLojas() {
   // Salvar ou atualizar acesso único da loja parceira
   async function handleAdicionarOperadorExtra(e: React.FormEvent) {
     e.preventDefault();
-    if (!googleIdToken || !lojaSelecionadaOp) return;
+    if ((!usuario && !googleIdToken) || !lojaSelecionadaOp) return;
 
     const loginTrim = extraLoginOp.trim();
     if (!loginTrim) {
@@ -348,7 +348,7 @@ export default function CcipayAdminLojas() {
   }
 
   async function handleExcluirLoja() {
-    if (!googleIdToken || !lojaParaExcluir) return;
+    if ((!usuario && !googleIdToken) || !lojaParaExcluir) return;
     setExcluindoLoja(true);
     try {
       await ccipayExcluirLoja(googleIdToken, lojaParaExcluir.id);

@@ -37,7 +37,7 @@ import {
 import { toast } from "sonner";
 
 export default function CcipayAdminFuncionarios() {
-  const { googleIdToken } = useAuth();
+  const { googleIdToken, usuario } = useAuth();
   const [lista, setLista] = useState<CcipayFuncionario[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [sincronizando, setSincronizando] = useState(false);
@@ -61,7 +61,7 @@ export default function CcipayAdminFuncionarios() {
   }
 
   async function handleConfirmarBonificacao() {
-    if (!googleIdToken || !funcionarioSelecionado) return;
+    if ((!usuario && !googleIdToken) || !funcionarioSelecionado) return;
     const v = Number(valorBonificacao.replace(",", "."));
     if (Number.isNaN(v) || v <= 0) {
       toast.error("Informe um valor válido maior que zero.");
@@ -96,7 +96,7 @@ export default function CcipayAdminFuncionarios() {
   }
 
   const carregar = useCallback(async () => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     setCarregando(true);
     try {
       const { funcionarios } = await ccipayListarFuncionarios(googleIdToken);
@@ -106,14 +106,14 @@ export default function CcipayAdminFuncionarios() {
     } finally {
       setCarregando(false);
     }
-  }, [googleIdToken]);
+  }, [googleIdToken, usuario]);
 
   useEffect(() => {
     void carregar();
   }, [carregar]);
 
   async function salvar(f: CcipayFuncionario, patch: Partial<CcipayFuncionario>) {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     try {
       await ccipayAtualizarFuncionario(googleIdToken, f.email, patch);
       toast.success("Dados salvos com sucesso.");
@@ -124,7 +124,7 @@ export default function CcipayAdminFuncionarios() {
   }
 
   async function handleSincronizarComAlterdata() {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     setSincronizando(true);
     try {
       const res = await ccipaySincronizarAlterdata(googleIdToken);

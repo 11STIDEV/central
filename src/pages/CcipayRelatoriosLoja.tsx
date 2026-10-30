@@ -63,7 +63,7 @@ function getUltimosMeses(qtd = 12) {
 }
 
 export default function CcipayRelatoriosLoja() {
-  const { googleIdToken, user } = useAuth();
+  const { googleIdToken, usuario } = useAuth();
   const [lojaId, setLojaId] = useState("");
   const [lojas, setLojas] = useState<CcipayLoja[]>([]);
 
@@ -112,7 +112,7 @@ export default function CcipayRelatoriosLoja() {
       st?: string;
     }) => {
       const id = opcoes?.idDaLoja ?? lojaId;
-      if (!googleIdToken || !id) return;
+      if ((!usuario && !googleIdToken) || !id) return;
       setCarregando(true);
       try {
         const compFinal = opcoes?.comp !== undefined ? opcoes.comp : competencia;
@@ -140,12 +140,12 @@ export default function CcipayRelatoriosLoja() {
         setCarregando(false);
       }
     },
-    [googleIdToken, lojaId, competencia, dataInicio, dataFim, filtroStatus],
+    [googleIdToken, lojaId, competencia, dataInicio, dataFim, filtroStatus, usuario],
   );
 
   // 1. Carrega lista de lojas vinculadas (apenas quando o token mudar/iniciar)
   useEffect(() => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     let active = true;
     setCarregandoLojas(true);
 
@@ -171,14 +171,14 @@ export default function CcipayRelatoriosLoja() {
     return () => {
       active = false;
     };
-  }, [googleIdToken]);
+  }, [googleIdToken, usuario]);
 
   // 2. Carrega relatório ao selecionar ou trocar de loja
   useEffect(() => {
-    if (!googleIdToken || !lojaId) return;
+    if ((!usuario && !googleIdToken) || !lojaId) return;
     void carregarRelatorio({ idDaLoja: lojaId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [googleIdToken, lojaId]);
+  }, [googleIdToken, lojaId, usuario]);
 
   const handleLojaChange = (novoId: string) => {
     setLojaId(novoId);
@@ -323,7 +323,7 @@ export default function CcipayRelatoriosLoja() {
   };
 
   const salvarRepasse = async () => {
-    if (!googleIdToken || !lojaId) return;
+    if ((!usuario && !googleIdToken) || !lojaId) return;
     const v = Number(repasseValor.replace(",", "."));
     if (Number.isNaN(v) || v <= 0) {
       setErroRepasse("Informe um valor de repasse válido e positivo.");
@@ -354,7 +354,7 @@ export default function CcipayRelatoriosLoja() {
   };
 
   const excluirRepasse = async (id: string) => {
-    if (!googleIdToken || !confirm("Deseja realmente estornar/excluir este registro de repasse?")) return;
+    if ((!usuario && !googleIdToken) || !confirm("Deseja realmente estornar/excluir este registro de repasse?")) return;
     try {
       await ccipayExcluirRepasseLoja(googleIdToken, id);
       await carregarRelatorio();

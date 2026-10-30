@@ -16,7 +16,7 @@ import { ArrowLeft, Plus, Minus } from "lucide-react";
 type CarrinhoItem = CcipayCatalogoItem & { quantidade: number };
 
 export default function CcipayLoja() {
-  const { googleIdToken } = useAuth();
+  const { googleIdToken, usuario } = useAuth();
   const [lojas, setLojas] = useState<CcipayLoja[]>([]);
   const [lojaId, setLojaId] = useState("");
   const [catalogo, setCatalogo] = useState<CcipayCatalogoItem[]>([]);
@@ -25,17 +25,17 @@ export default function CcipayLoja() {
   const [msg, setMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     ccipayListarLojas(googleIdToken, true)
       .then(({ lojas: l }) => {
         setLojas(l);
         if (l[0]) setLojaId(l[0].id);
       })
       .catch((e) => setErro(e.message));
-  }, [googleIdToken]);
+  }, [googleIdToken, usuario]);
 
   const carregarCatalogo = useCallback(async () => {
-    if (!googleIdToken || !lojaId) return;
+    if ((!usuario && !googleIdToken) || !lojaId) return;
     try {
       const { itens } = await ccipayListarCatalogo(googleIdToken, lojaId, true);
       setCatalogo(itens);
@@ -43,7 +43,7 @@ export default function CcipayLoja() {
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Erro no catálogo.");
     }
-  }, [googleIdToken, lojaId]);
+  }, [googleIdToken, lojaId, usuario]);
 
   useEffect(() => {
     void carregarCatalogo();
@@ -68,7 +68,7 @@ export default function CcipayLoja() {
   const total = carrinho.reduce((a, i) => a + i.preco * i.quantidade, 0);
 
   async function finalizar() {
-    if (!googleIdToken || carrinho.length === 0) return;
+    if ((!usuario && !googleIdToken) || carrinho.length === 0) return;
     try {
       await ccipayCriarPedido(
         googleIdToken,

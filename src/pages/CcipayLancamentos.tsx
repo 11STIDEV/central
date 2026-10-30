@@ -9,7 +9,7 @@ import { ccipayLancarBonificacao, ccipayLancarDeducao } from "@/lib/ccipay";
 import { ArrowLeft } from "lucide-react";
 
 export default function CcipayLancamentos() {
-  const { googleIdToken } = useAuth();
+  const { googleIdToken, usuario } = useAuth();
   const [email, setEmail] = useState("");
   const [valor, setValor] = useState("");
   const [descricao, setDescricao] = useState("");
@@ -17,7 +17,7 @@ export default function CcipayLancamentos() {
   const [erro, setErro] = useState<string | null>(null);
 
   async function lancar(tipo: "bonificacao" | "deducao") {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     setErro(null);
     setMsg(null);
     const v = Number(valor.replace(",", "."));

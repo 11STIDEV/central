@@ -17,7 +17,7 @@ import {
 export default function CcipayPagarQr() {
   const { token } = useParams<{ token: string }>();
   const [searchParams] = useSearchParams();
-  const { googleIdToken } = useAuth();
+  const { googleIdToken, usuario } = useAuth();
   const [venda, setVenda] = useState<CcipayVendaQr | null>(null);
   const [resumo, setResumo] = useState<CcipayResumo | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -29,7 +29,7 @@ export default function CcipayPagarQr() {
   );
 
   const carregar = useCallback(async () => {
-    if (!googleIdToken || !token) {
+    if (!token || (!usuario && !googleIdToken)) {
       console.warn("[CcipayPagarQr] Aguardando autenticação ou token...", { temToken: Boolean(token), temIdToken: Boolean(googleIdToken) });
       return;
     }
@@ -50,14 +50,14 @@ export default function CcipayPagarQr() {
     } finally {
       setCarregando(false);
     }
-  }, [googleIdToken, token]);
+  }, [googleIdToken, token, usuario]);
 
   useEffect(() => {
     void carregar();
   }, [carregar]);
 
   async function confirmarPagamento() {
-    if (!googleIdToken || !token) return;
+    if (!token) return;
     setPagando(true);
     setErro(null);
     try {

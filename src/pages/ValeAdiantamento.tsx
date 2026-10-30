@@ -25,7 +25,7 @@ function formatarCpf(cpfStr?: string | null): string {
 }
 
 export default function ValeAdiantamento() {
-  const { googleIdToken } = useAuth();
+  const { googleIdToken, usuario } = useAuth();
   const [tipoPix, setTipoPix] = useState<TipoPix>("cpf");
   const [pix, setPix] = useState("");
   const [valor, setValor] = useState("");
@@ -37,7 +37,7 @@ export default function ValeAdiantamento() {
   const [meuEmail, setMeuEmail] = useState<string>("");
 
   const carregarLimite = useCallback(async () => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     try {
       const r = await ccipayMe(googleIdToken);
       setDisponivel(r.adiantamentoDisponivel);
@@ -47,7 +47,7 @@ export default function ValeAdiantamento() {
     } catch {
       /* ignore */
     }
-  }, [googleIdToken, pix]);
+  }, [googleIdToken, pix, usuario]);
 
   useEffect(() => {
     void carregarLimite();
@@ -57,7 +57,7 @@ export default function ValeAdiantamento() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
 
     if (!pix.trim() || !valor) {
       setStatus("error");

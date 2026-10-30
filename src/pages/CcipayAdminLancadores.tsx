@@ -8,23 +8,23 @@ import { ccipayListarLancadores, ccipaySalvarLancador } from "@/lib/ccipay";
 import { ArrowLeft } from "lucide-react";
 
 export default function CcipayAdminLancadores() {
-  const { googleIdToken } = useAuth();
+  const { googleIdToken, usuario } = useAuth();
   const [lista, setLista] = useState<{ email: string; nome: string }[]>([]);
   const [email, setEmail] = useState("");
   const [nome, setNome] = useState("");
 
   const carregar = useCallback(async () => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     const { lancadores } = await ccipayListarLancadores(googleIdToken);
     setLista(lancadores);
-  }, [googleIdToken]);
+  }, [googleIdToken, usuario]);
 
   useEffect(() => {
     void carregar();
   }, [carregar]);
 
   async function adicionar() {
-    if (!googleIdToken || !email.includes("@")) return;
+    if ((!usuario && !googleIdToken) || !email.includes("@")) return;
     await ccipaySalvarLancador(googleIdToken, email, nome || email);
     setEmail("");
     setNome("");
@@ -32,7 +32,7 @@ export default function CcipayAdminLancadores() {
   }
 
   async function remover(e: string) {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     await ccipaySalvarLancador(googleIdToken, e, "", "remover");
     await carregar();
   }

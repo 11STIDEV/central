@@ -69,7 +69,7 @@ import {
 } from "@/lib/ccipay";
 
 export default function FinanceiroValesAdiantamento() {
-  const { googleIdToken } = useAuth();
+  const { googleIdToken, usuario } = useAuth();
 
   // Controle de Abas Principais (Vales vs Aumento de Limite)
   const [abaPrincipal, setAbaPrincipal] = useState<"vales" | "limites">("vales");
@@ -125,10 +125,10 @@ export default function FinanceiroValesAdiantamento() {
     } catch {
       // Ignora erro se rota não responder
     }
-  }, [googleIdToken]);
+  }, [googleIdToken, usuario]);
 
   const carregar = useCallback(async () => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     setCarregando(true);
     setErro(null);
     try {
@@ -139,10 +139,10 @@ export default function FinanceiroValesAdiantamento() {
     } finally {
       setCarregando(false);
     }
-  }, [googleIdToken]);
+  }, [googleIdToken, usuario]);
 
   const carregarLimites = useCallback(async () => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     setCarregandoLimites(true);
     try {
       const res = await ccipayListarSolicitacoesLimite(googleIdToken);
@@ -152,7 +152,7 @@ export default function FinanceiroValesAdiantamento() {
     } finally {
       setCarregandoLimites(false);
     }
-  }, [googleIdToken]);
+  }, [googleIdToken, usuario]);
 
   useEffect(() => {
     void carregar();
@@ -168,7 +168,7 @@ export default function FinanceiroValesAdiantamento() {
   };
 
   const confirmarAnaliseLimite = async () => {
-    if (!googleIdToken || !solicitacaoParaAnalisar || !acaoLimite) return;
+    if ((!usuario && !googleIdToken) || !solicitacaoParaAnalisar || !acaoLimite) return;
     const valorNum = Number(valorAprovadoInput.replace(",", "."));
     if (acaoLimite === "aprovar" && (Number.isNaN(valorNum) || valorNum <= 0)) {
       toast.error("Informe um valor aprovado válido maior que zero.");
@@ -235,7 +235,7 @@ export default function FinanceiroValesAdiantamento() {
   };
 
   const confirmar = async () => {
-    if (!googleIdToken || !valeSelecionado || !acaoSelecionada) return;
+    if ((!usuario && !googleIdToken) || !valeSelecionado || !acaoSelecionada) return;
     if (acaoSelecionada === "negar" && !justificativa.trim()) {
       setErro("Informe a justificativa para negar.");
       return;
@@ -263,7 +263,7 @@ export default function FinanceiroValesAdiantamento() {
   };
 
   const lancarParaAlterdata = async (vale: CcipayMovimento) => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     setLancandoAlterdataId(vale.id);
     try {
       const res = await ccipayLancarFolhaAlterdata(googleIdToken, {
@@ -298,7 +298,7 @@ export default function FinanceiroValesAdiantamento() {
   };
 
   const marcarComoDepositado = async (vale: CcipayMovimento) => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     try {
       const resp = await ccipayDepositarAdiantamento(googleIdToken, vale.id);
       if (resp.alterdata?.sucesso) {
@@ -322,7 +322,7 @@ export default function FinanceiroValesAdiantamento() {
   };
 
   const lancarTodosParaAlterdata = async () => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     const elegiveis = vales.filter((v) => {
       const altMeta = v.metadata?.alterdata as any;
       const jaLancado =

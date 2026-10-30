@@ -209,7 +209,7 @@ async function post<T>(path: string, idToken?: string | null, body: Record<strin
   return data as T;
 }
 
-export async function ccipayMe(idToken: string): Promise<CcipayResumo> {
+export async function ccipayMe(idToken?: string | null): Promise<CcipayResumo> {
   const data = await post<{
     funcionario: CcipayFuncionario;
     competencia: string;
@@ -249,7 +249,7 @@ export async function ccipayCriarAdiantamento(
   return post<{ movimento: CcipayMovimento }>("/api/ccipay/adiantamentos/criar", idToken, { pix, valor, tipoPix });
 }
 
-export async function ccipayListarAdiantamentos(idToken: string) {
+export async function ccipayListarAdiantamentos(idToken?: string | null) {
   return post<{ movimentos: CcipayMovimento[] }>("/api/ccipay/adiantamentos/listar", idToken);
 }
 
@@ -373,7 +373,7 @@ export async function ccipayLancarDeducao(
   return post("/api/ccipay/deducoes/lancar", idToken, { funcionarioEmail, valor, descricao });
 }
 
-export async function ccipayListarFuncionarios(idToken: string) {
+export async function ccipayListarFuncionarios(idToken?: string | null) {
   return post<{ funcionarios: CcipayFuncionario[] }>("/api/ccipay/funcionarios/listar", idToken);
 }
 
@@ -450,7 +450,7 @@ export async function ccipayEnviarEmailRedefinicaoOperador(
 }
 
 
-export async function ccipayListarLancadores(idToken: string) {
+export async function ccipayListarLancadores(idToken?: string | null) {
   return post<{ lancadores: { email: string; nome: string; ativo: boolean }[] }>(
     "/api/ccipay/lancadores/listar",
     idToken,
@@ -630,7 +630,7 @@ export async function ccipayExcluirRepasseLoja(
 }
 
 export async function ccipayCriarVendaQr(
-  idToken: string,
+  idToken: string | null | undefined,
   lojaId: string,
   valor: number,
   descricao?: string,
@@ -643,7 +643,7 @@ export async function ccipayCriarVendaQr(
 }
 
 export async function ccipayListarVendasQr(
-  idToken: string,
+  idToken: string | null | undefined,
   lojaId: string,
   opts?: { status?: string; de?: string; ate?: string },
 ) {
@@ -653,16 +653,16 @@ export async function ccipayListarVendasQr(
   });
 }
 
-export async function ccipayResumoParceiro(idToken: string, lojaId: string) {
+export async function ccipayResumoParceiro(idToken: string | null | undefined, lojaId: string) {
   return post<CcipayResumoParceiro>("/api/ccipay/vendas/resumo", idToken, { lojaId });
 }
 
-export async function ccipayObterVendaQr(idToken: string, token: string) {
+export async function ccipayObterVendaQr(idToken: string | null | undefined, token: string) {
   return post<{ venda: CcipayVendaQr }>("/api/ccipay/vendas/obter", idToken, { token });
 }
 
 export async function ccipayPagarVendaQr(
-  idToken: string,
+  idToken: string | null | undefined,
   token: string,
   metodoPagamento: "adiantamento" | "bonificacao" = "adiantamento",
 ) {
@@ -673,7 +673,7 @@ export async function ccipayPagarVendaQr(
   );
 }
 
-export async function ccipayCancelarVendaQr(idToken: string, vendaId: string) {
+export async function ccipayCancelarVendaQr(idToken: string | null | undefined, vendaId: string) {
   return post<{ venda: CcipayVendaQr }>("/api/ccipay/vendas/cancelar", idToken, { vendaId });
 }
 
@@ -700,6 +700,8 @@ const PAPEIS_CCIPAY_DP: Papel[] = [
   "financeiro",
   "gerente_dp",
   "gerente_financeiro",
+  "direcao",
+  "gerente_direcao",
 ];
 
 export function isCcipayDpPapel(papeis: Papel[]): boolean {

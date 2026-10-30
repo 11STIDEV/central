@@ -76,7 +76,7 @@ const TIPO_OPCOES = [
 ];
 
 export default function CcipayRelatoriosDp() {
-  const { googleIdToken } = useAuth();
+  const { googleIdToken, usuario } = useAuth();
   const [competencia, setCompetencia] = useState(new Date().toISOString().slice(0, 7));
   const [status, setStatus] = useState("");
   const [tipo, setTipo] = useState("");
@@ -102,7 +102,7 @@ export default function CcipayRelatoriosDp() {
   const [exportando, setExportando] = useState<"detalhado" | "consolidado" | null>(null);
 
   const carregar = useCallback(async () => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     setCarregando(true);
     try {
       const res = await ccipayRelatorioDp(googleIdToken, competencia, false, {
@@ -119,14 +119,14 @@ export default function CcipayRelatoriosDp() {
     } finally {
       setCarregando(false);
     }
-  }, [googleIdToken, competencia, status, tipo, lojaId]);
+  }, [googleIdToken, competencia, status, tipo, lojaId, usuario]);
 
   useEffect(() => {
     carregar();
   }, [carregar]);
 
   async function exportarCsv(modo: "detalhado" | "consolidado") {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     setExportando(modo);
     try {
       const res = await ccipayRelatorioDp(googleIdToken, competencia, true, {
@@ -162,7 +162,7 @@ export default function CcipayRelatoriosDp() {
   }
 
   async function executarBaixaFolha() {
-    if (!confirmandoBaixa || !googleIdToken) return;
+    if (!confirmandoBaixa || (!usuario && !googleIdToken)) return;
     setBaixando(true);
     try {
       await ccipayDarBaixaFolha(googleIdToken, {

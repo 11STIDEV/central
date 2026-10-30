@@ -16,27 +16,27 @@ export default function CcipayMeusPedidos() {
   const modoOperador = isCcipayLojaPapel(papeis) || isCcipayAdminPapel(papeis) || isCcipayDpPapel(papeis);
 
   useEffect(() => {
-    if (!googleIdToken || !modoOperador) return;
+    if ((!usuario && !googleIdToken) || !modoOperador) return;
     ccipayListarLojas(googleIdToken).then(({ lojas }) => {
       if (lojas[0]) setLojaId(lojas[0].id);
     });
-  }, [googleIdToken, modoOperador]);
+  }, [googleIdToken, modoOperador, usuario]);
 
   const carregar = useCallback(async () => {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     const { pedidos: p } = await ccipayListarPedidos(
       googleIdToken,
       modoOperador && lojaId ? lojaId : undefined,
     );
     setPedidos(p);
-  }, [googleIdToken, lojaId, modoOperador]);
+  }, [googleIdToken, lojaId, modoOperador, usuario]);
 
   useEffect(() => {
     void carregar().catch(() => undefined);
   }, [carregar]);
 
   async function confirmar(id: string, acao: "entregar" | "cancelar") {
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
     await ccipayConfirmarPedido(googleIdToken, id, acao);
     await carregar();
   }

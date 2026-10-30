@@ -70,7 +70,7 @@ export default function CcipayHub() {
   const [enviandoLimite, setEnviandoLimite] = useState(false);
 
   const carregar = useCallback(async () => {
-    if (!googleIdToken) {
+    if (!usuario && !googleIdToken) {
       setCarregando(false);
       return;
     }
@@ -84,7 +84,7 @@ export default function CcipayHub() {
     } finally {
       setCarregando(false);
     }
-  }, [googleIdToken]);
+  }, [googleIdToken, usuario]);
 
   useEffect(() => {
     void carregar();
@@ -124,7 +124,7 @@ export default function CcipayHub() {
 
   const handleSolicitarAumentoLimite = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!googleIdToken) return;
+    if (!usuario && !googleIdToken) return;
 
     const valorNum = Number(novoLimiteInput.replace(",", "."));
     if (Number.isNaN(valorNum) || valorNum <= 0) {
