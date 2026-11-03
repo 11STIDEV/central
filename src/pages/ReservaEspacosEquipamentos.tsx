@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Calendar, Check, Laptop, Package, MapPin, Plus, Trash2 } from "lucide-react";
+import { Calendar, Check, Laptop, Package, MapPin, Plus, Trash2, Lock } from "lucide-react";
 import { PageHero } from "@/components/PageHero";
 import { useAuth } from "@/auth/AuthProvider";
 import { Button } from "@/components/ui/button";
@@ -264,11 +264,15 @@ export default function ReservaEspacosEquipamentos() {
     );
   }, [reservas, usuario, papelAluno]);
 
-  const { min: dataMin, max: dataMax } = limitesDatasReservaSemanaCorrente(new Date());
+  const { min: dataMin, max: dataMaxSemana } = limitesDatasReservaSemanaCorrente(new Date());
+
+  // Se já há espaço preenchido ou se o usuário não é aluno e está na aba de Espaço, o limite da data é livre (sem dataMax)
+  const permiteDataLivre = !papelAluno && (Boolean(espacoNome.trim()) || abaAtiva === "espaco");
+  const dataMax = permiteDataLivre ? undefined : dataMaxSemana;
 
   useEffect(() => {
-    const { min, max } = limitesDatasReservaSemanaCorrente(new Date());
-    setData((d) => (d < min || d > max ? min : d));
+    const { min } = limitesDatasReservaSemanaCorrente(new Date());
+    setData((d) => (d < min ? min : d));
   }, []);
 
   useEffect(() => {
@@ -305,14 +309,18 @@ export default function ReservaEspacosEquipamentos() {
       return "Não é possível reservar um horário de início que já passou. Ajuste a data ou o horário de início.";
     }
 
-    if (!dataReservaDentroDaSemanaPermitida(data)) {
-      return "Só é possível reservar até o sábado da semana corrente. A próxima semana (domingo a sábado) fica disponível a partir do próximo domingo.";
-    }
-
     const temChromebooks = chromebooksSelecionados.length > 0;
     const equipamentosConsolidados = consolidarEquipamentosLinhas(equipamentoLinhas);
     const temEquipamento = equipamentosConsolidados.length > 0;
     const temEspaco = Boolean(espacoNome.trim());
+
+    if (!temEspaco && !dataReservaDentroDaSemanaPermitida(data)) {
+      return "Para reservas sem espaço (apenas Chromebooks ou equipamentos), só é possível reservar até o sábado da semana corrente. Para agendar com antecedência, selecione também um espaço para o evento.";
+    }
+
+    if (temEspaco && data < dataMin) {
+      return "Não é possível reservar para datas passadas.";
+    }
 
     if (papelAluno && (temEspaco || temEquipamento)) {
       return "Contas com papel aluno só podem reservar Chromebooks.";
@@ -657,11 +665,19 @@ export default function ReservaEspacosEquipamentos() {
             </label>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Período liberado para novas reservas:{" "}
-            <strong>
-              {formatarYmdParaBR(dataMin)} a {formatarYmdParaBR(dataMax)}
-            </strong>{" "}
-            (semana domingo a sábado; no próximo domingo abre a próxima semana).
+            {permiteDataLivre ? (
+              <>
+                Reservas com <strong>espaço selecionado</strong> podem ser agendadas para qualquer data futura a partir de hoje (<strong>{formatarYmdParaBR(dataMin)}</strong>).
+              </>
+            ) : (
+              <>
+                Chromebooks e equipamentos sem espaço são limitados à semana corrente:{" "}
+                <strong>
+                  {formatarYmdParaBR(dataMin)} a {formatarYmdParaBR(dataMaxSemana)}
+                </strong>{" "}
+                (para agendar datas futuras, selecione um espaço na aba Espaços).
+              </>
+            )}
             {minHoraInicio ? (
               <>
                 {" "}
@@ -927,82 +943,24 @@ export default function ReservaEspacosEquipamentos() {
 
           {!papelAluno && (
             <div className="mt-6 border-t border-border pt-6">
-              <div className="flex items-center gap-3">
-                <label className="relative inline-flex items-center cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={checklistHabilitado}
-                    onChange={(e) => setChecklistHabilitado(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
-                  <span className="ml-3 text-sm font-semibold text-card-foreground">
-                    Habilitar checklist e organização do evento
+              <div className="flex flex-col gap-2 rounded-xl border border-dashed border-border/80 bg-muted/20 p-4">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground shrink-0">
+                    <Lock className="h-4 w-4" />
                   </span>
-                </label>
-              </div>
-
-              {checklistHabilitado && (
-                <div className="mt-4 rounded-xl border border-border bg-muted/10 p-5 animate-slide-down">
-                  <p className="text-xs text-muted-foreground mb-4">
-                    Marque os itens necessários para a realização do evento e ajuste os detalhes de atenção de cada um, se necessário.
-                  </p>
-                  <div className="space-y-4 max-h-[380px] overflow-y-auto pr-2">
-                    {checklistItens.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`flex flex-col gap-3 rounded-lg border p-4 transition-colors ${
-                          item.ativo
-                            ? "border-primary/40 bg-primary/5 dark:bg-primary/[0.02]"
-                            : "border-border bg-card/50"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <label className="flex items-start gap-3 cursor-pointer text-sm font-medium text-card-foreground flex-1">
-                            <input
-                              type="checkbox"
-                              checked={item.ativo}
-                              onChange={(e) => {
-                                const val = e.target.checked;
-                                setChecklistItens((prev) =>
-                                  prev.map((c) => (c.id === item.id ? { ...c, ativo: val } : c))
-                                );
-                              }}
-                              className="mt-0.5 h-4 w-4 rounded border-input text-primary focus:ring-primary"
-                            />
-                            <div>
-                              <span>{item.item}</span>
-                              <span className="ml-2 inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                                {item.setor}
-                              </span>
-                            </div>
-                          </label>
-                        </div>
-
-                        {item.ativo && (
-                          <div className="pl-7 animate-fade-in">
-                            <label className="block text-xs">
-                              <span className="text-muted-foreground block mb-1">Atenção / Detalhes adicionais</span>
-                              <input
-                                type="text"
-                                value={item.atencao}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  setChecklistItens((prev) =>
-                                    prev.map((c) => (c.id === item.id ? { ...c, atencao: val } : c))
-                                  );
-                                }}
-                                placeholder="Observação importante para este item..."
-                                className="w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs focus:ring-primary focus:border-primary"
-                              />
-                            </label>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                  <div>
+                    <span className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                      Checklist e organização do evento
+                      <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                        Em breve
+                      </span>
+                    </span>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      O recurso de checklist integrado e apoio intersetorial para eventos estará disponível em breve.
+                    </p>
                   </div>
                 </div>
-              )}
+              </div>
             </div>
           )}
 

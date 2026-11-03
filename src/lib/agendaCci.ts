@@ -256,10 +256,18 @@ export const EQUIPAMENTOS_CATALOGO: EquipamentoCatalogo[] = [
 ];
 
 export const ESPACOS_CATALOGO = [
-  "Auditório",
-  "Sala de Reunião 1",
-  "Sala de Reunião 2",
-  "Laboratório CCI",
+  "Pátio da Matemática",
+  "Pátio dos Heróis",
+  "Pátio do Aquário",
+  "Pátio dos Anjos",
+  "Pátio Multiuso",
+  "Ginásio",
+  "Novo Grande Pátio",
+  "Pátio das Artes",
+  "Quadra Coberta",
+  "Quadra Descoberta",
+  "Pátio da Geografia",
+  "Laboratório de Informática",
 ];
 
 /** Data local no formato YYYY-MM-DD (evita deslocamento UTC de `toISOString`). */
