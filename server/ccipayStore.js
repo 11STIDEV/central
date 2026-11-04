@@ -15,6 +15,8 @@ function rowToFuncionario(row) {
     limiteBonificacao: row.limite_bonificacao != null ? Number(row.limite_bonificacao) : null,
     pixPadrao: row.pix_padrao ?? null,
     ativo: row.ativo ?? true,
+    createdAt: row.created_at ?? null,
+    updatedAt: row.updated_at ?? null,
   };
 }
 
@@ -252,6 +254,7 @@ export async function sincronizarFuncionariosAdvanceComAlterdata(supabase) {
           limite_bonificacao: ex.limiteBonificacao,
           pix_padrao: ex.pixPadrao || pix,
           ativo: ex.ativo,
+          created_at: ex.createdAt || now,
           updated_at: now,
         });
       } else if (!existenteNoUpsert.alterdata_codigo && codigo) {
