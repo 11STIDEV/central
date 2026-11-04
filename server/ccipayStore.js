@@ -192,7 +192,9 @@ export async function sincronizarFuncionariosAdvanceComAlterdata(supabase) {
   let atualizados = 0;
   let ignoradosSemEmail = 0;
 
-  const rowsToUpsert = [];
+  // Mapa para garantir que JAMAIS haja e-mails duplicados no batch de upsert do Postgres
+  // (evita o erro: "ON CONFLICT DO UPDATE command cannot affect row a second time")
+  const mapaUpsert = new Map();
 
   for (const c of colaboradores || []) {
     if (!c.email || !c.email.trim()) {
@@ -209,33 +211,56 @@ export async function sincronizarFuncionariosAdvanceComAlterdata(supabase) {
     const ativo = c.tem_contrato_ativo !== false;
 
     if (!ex) {
-      novos += 1;
-      rowsToUpsert.push({
-        email: emailLower,
-        nome,
-        alterdata_codigo: codigo,
-        limite_adiantamento: 300.0,
-        limite_bonificacao: null,
-        pix_padrao: pix,
-        ativo,
-        created_at: now,
-        updated_at: now,
-      });
+      // Novo colaborador a ser inserido no Advance-CCI
+      const existenteNoUpsert = mapaUpsert.get(emailLower);
+      if (existenteNoUpsert) {
+        // Se houver mais de um registro no Alterdata compartilhando o mesmo e-mail,
+        // prioriza o que possui contrato ATIVO e matrícula preenchida
+        if (!existenteNoUpsert.ativo && ativo) {
+          existenteNoUpsert.ativo = true;
+          existenteNoUpsert.nome = nome;
+          if (codigo) existenteNoUpsert.alterdata_codigo = codigo;
+          if (pix) existenteNoUpsert.pix_padrao = pix;
+        } else if (!existenteNoUpsert.alterdata_codigo && codigo) {
+          existenteNoUpsert.alterdata_codigo = codigo;
+        }
+      } else {
+        novos += 1;
+        mapaUpsert.set(emailLower, {
+          email: emailLower,
+          nome,
+          alterdata_codigo: codigo,
+          limite_adiantamento: 300.0,
+          limite_bonificacao: null,
+          pix_padrao: pix,
+          ativo,
+          created_at: now,
+          updated_at: now,
+        });
+      }
     } else if (!ex.alterdataCodigo && codigo) {
-      atualizados += 1;
-      rowsToUpsert.push({
-        email: emailLower,
-        nome: ex.nome || nome,
-        alterdata_codigo: codigo,
-        limite_adiantamento: ex.limiteAdiantamento,
-        limite_bonificacao: ex.limiteBonificacao,
-        pix_padrao: ex.pixPadrao || pix,
-        ativo: ex.ativo,
-        created_at: ex.createdAt || now,
-        updated_at: now,
-      });
+      // Colaborador já existe no Advance-CCI e não tinha código Alterdata
+      // PRESERVA RIGOROSAMENTE todos os limites (adiantamento, bonificações, PIX, status)
+      const existenteNoUpsert = mapaUpsert.get(emailLower);
+      if (!existenteNoUpsert) {
+        atualizados += 1;
+        mapaUpsert.set(emailLower, {
+          email: emailLower,
+          nome: ex.nome || nome,
+          alterdata_codigo: codigo,
+          limite_adiantamento: ex.limiteAdiantamento,
+          limite_bonificacao: ex.limiteBonificacao,
+          pix_padrao: ex.pixPadrao || pix,
+          ativo: ex.ativo,
+          updated_at: now,
+        });
+      } else if (!existenteNoUpsert.alterdata_codigo && codigo) {
+        existenteNoUpsert.alterdata_codigo = codigo;
+      }
     }
   }
+
+  const rowsToUpsert = Array.from(mapaUpsert.values());
 
   if (rowsToUpsert.length > 0) {
     const CHUNK_SIZE = 100;
