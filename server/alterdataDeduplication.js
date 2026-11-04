@@ -80,24 +80,38 @@ export function nomesSaoDaMesmaPessoa(nomeA, nomeB) {
   const tokensB = getTokensNome(nomeB);
 
   if (tokensA.length === 0 || tokensB.length === 0) return false;
-  if (tokensA[0] !== tokensB[0]) return false;
 
+  // Se os tokens sem preposição forem idênticos (ex.: "Maria de Lourdes da Silva" vs "Maria de Lourdes Silva")
+  if (tokensA.join(" ") === tokensB.join(" ")) {
+    return true;
+  }
+
+  // Primeiro nome e último sobrenome DEVEM ser idênticos
+  if (tokensA[0] !== tokensB[0]) return false;
+  if (tokensA[tokensA.length - 1] !== tokensB[tokensB.length - 1]) return false;
+
+  // Se ambos têm 2 ou mais tokens, e o segundo token for diferente, não é a mesma pessoa
   if (tokensA.length > 1 && tokensB.length > 1 && tokensA[1] !== tokensB[1]) {
     return false;
   }
 
+  // Se a quantidade de tokens for diferente, só permite se os tokens a mais forem meras abreviações (ex: "L." ou "L")
+  // NUNCA unifica se houver sobrenomes familiares inteiros divergentes (ex: "Silva" vs "Conceição Freitas e Silva")
+  if (tokensA.length !== tokensB.length) {
+    const [menor, maior] = tokensA.length < tokensB.length ? [tokensA, tokensB] : [tokensB, tokensA];
+    const diff = maior.filter((t) => !menor.includes(t));
+    const todosAbrev = diff.every((t) => t.length <= 2);
+    if (!todosAbrev) {
+      return false;
+    }
+  }
+
   const setA = new Set(tokensA);
   const setB = new Set(tokensB);
-
   const [menorSet, maiorSet] = tokensA.length <= tokensB.length ? [tokensA, setB] : [tokensB, setA];
   const correspondencias = menorSet.filter((t) => maiorSet.has(t)).length;
 
-  if (menorSet.length >= 2 && correspondencias === menorSet.length) {
-    return true;
-  }
-
-  const taxa = correspondencias / menorSet.length;
-  return taxa >= 0.75;
+  return correspondencias === menorSet.length;
 }
 
 export function unificarFuncionariosAlterdata(items) {
@@ -115,18 +129,38 @@ export function unificarFuncionariosAlterdata(items) {
       let grupoEncontrado = false;
 
       for (const grupo of grupos) {
-        const rep = grupo[0];
-        const repAttrs = rep?.attributes || {};
-        const cpfRep = normalizeCpf(repAttrs.cpf || repAttrs.cpfcnpj || repAttrs.cpf_cnpj);
-        const nomeRep = repAttrs.nome || repAttrs.nomeFantasia || repAttrs.nomecargo;
+        let temCpfConflitante = false;
+        let temCpfIgual = false;
+        const nomesGrupo = [];
 
-        if (cpfItem && cpfRep && cpfItem.length >= 11 && cpfItem === cpfRep) {
+        for (const membro of grupo) {
+          const mAttrs = membro.attributes || {};
+          const cpfMembro = normalizeCpf(mAttrs.cpf || mAttrs.cpfcnpj || mAttrs.cpf_cnpj);
+          if (cpfItem && cpfItem.length >= 11 && cpfMembro && cpfMembro.length >= 11) {
+            if (cpfItem === cpfMembro) {
+              temCpfIgual = true;
+            } else {
+              temCpfConflitante = true;
+            }
+          }
+          const mNome = mAttrs.nome || mAttrs.nomeFantasia || mAttrs.nomecargo;
+          if (mNome) nomesGrupo.push(mNome);
+        }
+
+        // REGRA DE OURO: Se houver CPFs válidos conflitantes, NUNCA unifica
+        if (temCpfConflitante) {
+          continue;
+        }
+
+        // 1. CPFs válidos e idênticos: unifica com certeza
+        if (temCpfIgual) {
           grupo.push(item);
           grupoEncontrado = true;
           break;
         }
 
-        if (nomesSaoDaMesmaPessoa(nomeItem, nomeRep)) {
+        // 2. Se não há conflito de CPF (um ou ambos não têm CPF), unifica por nome estritamente compatível
+        if (nomesGrupo.some((ng) => nomesSaoDaMesmaPessoa(nomeItem, ng))) {
           grupo.push(item);
           grupoEncontrado = true;
           break;
