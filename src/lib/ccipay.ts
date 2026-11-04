@@ -134,6 +134,8 @@ export type CcipayResumoFuncionarioDp = {
   totalDescontoFolha?: number;
   totalDescontadoFolha?: number;
   totalPendenteFolha?: number;
+  totalPendenteGeral?: number;
+  temPendenciasOutrasCompetencias?: boolean;
   limiteBonificacao?: number | null;
   saldoBonificacao: number;
   xpTotalTrilha?: number;
@@ -541,6 +543,29 @@ export async function ccipayDarBaixaFolha(
   );
 }
 
+export type CcipayExtratoColaboradorDpTotais = {
+  totalCompras: number;
+  qtdCompras: number;
+  totalVales: number;
+  qtdVales: number;
+  totalDeducoes: number;
+  totalDescontado: number;
+  totalPendente: number;
+  totalGeralDebitos: number;
+  totalBonificacoes: number;
+};
+
+export async function ccipayExtratoColaboradorDp(
+  idToken: string | null | undefined,
+  email: string,
+) {
+  return post<{
+    ok: boolean;
+    movimentos: CcipayMovimento[];
+    totais: CcipayExtratoColaboradorDpTotais;
+  }>("/api/ccipay/relatorios/dp/extrato-colaborador", idToken, { email });
+}
+
 export type CcipayRepasseLoja = {
   id: string;
   lojaId: string;
@@ -673,8 +698,8 @@ export async function ccipayPagarVendaQr(
   );
 }
 
-export async function ccipayCancelarVendaQr(idToken: string | null | undefined, vendaId: string) {
-  return post<{ venda: CcipayVendaQr }>("/api/ccipay/vendas/cancelar", idToken, { vendaId });
+export async function ccipayCancelarVendaQr(idToken: string | null | undefined, vendaId: string, motivo?: string) {
+  return post<{ venda: CcipayVendaQr }>("/api/ccipay/vendas/cancelar", idToken, { vendaId, motivo });
 }
 
 export function labelStatusVendaQr(status: CcipayVendaQrStatus): string {

@@ -44,8 +44,8 @@ export async function parceiroResumo(lojaId: string) {
   return post<CcipayResumoParceiro>("/api/ccipay/vendas/resumo", { lojaId });
 }
 
-export async function parceiroCancelarVenda(vendaId: string) {
-  return post<{ venda: CcipayVendaQr }>("/api/ccipay/vendas/cancelar", { vendaId });
+export async function parceiroCancelarVenda(vendaId: string, motivo?: string) {
+  return post<{ venda: CcipayVendaQr }>("/api/ccipay/vendas/cancelar", { vendaId, motivo });
 }
 
 export type ColaboradorConvenioBusca = {

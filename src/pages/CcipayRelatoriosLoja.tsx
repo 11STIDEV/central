@@ -14,8 +14,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { toast } from "sonner";
 import { useAuth } from "@/auth/AuthProvider";
 import {
+  ccipayCancelarVendaQr,
   ccipayListarLojas,
   ccipayRelatorioLoja,
   ccipayRegistrarRepasseLoja,
@@ -45,6 +55,9 @@ import {
   TrendingUp,
   Receipt,
   FileCheck,
+  Download,
+  FileSpreadsheet,
+  XCircle,
 } from "lucide-react";
 
 function getUltimosMeses(qtd = 12) {
@@ -101,6 +114,11 @@ export default function CcipayRelatoriosLoja() {
   // Sub-filtro de status de repasse na listagem de vendas
   const [filtroStatusRepasse, setFiltroStatusRepasse] = useState<"todos" | "pendentes" | "repassados">("todos");
 
+  // Modal de Cancelamento / Estorno de Venda
+  const [vendaCancelando, setVendaCancelando] = useState<CcipayVendaQr | null>(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState("");
+  const [cancelandoVenda, setCancelandoVenda] = useState(false);
+
   const mesesDisponiveis = getUltimosMeses(12);
 
   const carregarRelatorio = useCallback(
@@ -142,6 +160,22 @@ export default function CcipayRelatoriosLoja() {
     },
     [googleIdToken, lojaId, competencia, dataInicio, dataFim, filtroStatus, usuario],
   );
+
+  async function executarCancelamentoVenda() {
+    if (!vendaCancelando || (!usuario && !googleIdToken)) return;
+    setCancelandoVenda(true);
+    try {
+      await ccipayCancelarVendaQr(googleIdToken, vendaCancelando.id, motivoCancelamento);
+      toast.success("Venda cancelada e valor estornado com sucesso!");
+      setVendaCancelando(null);
+      setMotivoCancelamento("");
+      await carregarRelatorio();
+    } catch (e: any) {
+      toast.error(e?.message || "Erro ao cancelar venda.");
+    } finally {
+      setCancelandoVenda(false);
+    }
+  }
 
   // 1. Carrega lista de lojas vinculadas (apenas quando o token mudar/iniciar)
   useEffect(() => {
@@ -363,6 +397,190 @@ export default function CcipayRelatoriosLoja() {
     }
   };
 
+  function escapeCsv(valor: any): string {
+    if (valor === null || valor === undefined) return "";
+    const str = String(valor).replace(/"/g, '""');
+    return `"${str}"`;
+  }
+
+  function downloadCsvFile(content: string, filename: string) {
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  const exportarRelatorioVendas = (tipo: "todas" | "pagas" | "pendentes_repasse" | "repasses") => {
+    const nomeLoja = lojaAtual?.nome || "Loja";
+    const nomeSanitizado = nomeLoja.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const periodoStr = competencia || (dataInicio && dataFim ? `${dataInicio}_a_${dataFim}` : "geral");
+
+    if (tipo === "repasses") {
+      if (repasses.length === 0) {
+        toast.info("Nenhum repasse registrado para exportar neste período.");
+        return;
+      }
+      const headers = [
+        "Data Repasse",
+        "Competência",
+        "Loja",
+        "Valor (R$)",
+        "Forma de Pagamento",
+        "Comprovante / Autenticação",
+        "Observação",
+        "ID Repasse",
+      ];
+      const rows = repasses.map((r) => [
+        r.dataRepasse || "",
+        r.competencia || "",
+        nomeLoja,
+        Number(r.valor).toFixed(2).replace(".", ","),
+        labelFormaRepasse(r.formaPagamento),
+        r.comprovante || "",
+        r.observacao || "",
+        r.id,
+      ]);
+      const csvContent =
+        "\uFEFF" +
+        [
+          headers.map(escapeCsv).join(";"),
+          ...rows.map((row) => row.map(escapeCsv).join(";")),
+        ].join("\r\n");
+      downloadCsvFile(csvContent, `repasses_${nomeSanitizado}_${periodoStr}.csv`);
+      toast.success("Relatório de repasses baixado com sucesso!");
+      return;
+    }
+
+    let listaVendas = [...vendasQr];
+    let listaPedidos = [...pedidos];
+
+    if (tipo === "pagas") {
+      listaVendas = listaVendas.filter((v) => v.status === "pago");
+      listaPedidos = listaPedidos.filter((p) => p.status === "pago" || p.status === "confirmado");
+    } else if (tipo === "pendentes_repasse") {
+      listaVendas = listaVendas.filter((v) => v.status === "pago" && !v.repasseId);
+      listaPedidos = listaPedidos.filter((p) => !p.repasseId && p.status !== "cancelado");
+    }
+
+    if (listaVendas.length === 0 && listaPedidos.length === 0) {
+      toast.info("Nenhuma venda encontrada para os filtros selecionados.");
+      return;
+    }
+
+    const headers = [
+      "Data/Hora",
+      "Loja",
+      "Tipo / Canal",
+      "Colaborador",
+      "E-mail",
+      "Descrição / Detalhe",
+      "Valor (R$)",
+      "Status da Venda",
+      "Data Pagamento",
+      "Status Repasse à Loja",
+      "Data Repasse",
+      "Forma Repasse",
+      "Identificador / Token",
+    ];
+
+    const linhas: any[][] = [];
+
+    // 1. Vendas QR Code
+    listaVendas.forEach((v) => {
+      const isPago = v.status === "pago";
+      const statusRepasse = isPago
+        ? v.repasseId
+          ? "Repassado à Loja"
+          : "Aguardando Repasse"
+        : "N/A";
+
+      linhas.push([
+        v.createdAt ? new Date(v.createdAt).toLocaleString("pt-BR") : "",
+        nomeLoja,
+        "Venda QR Code",
+        v.funcionarioNome || "Colaborador",
+        v.funcionarioEmail || "",
+        v.descricao || "Compra presencial via QR code",
+        Number(v.valor).toFixed(2).replace(".", ","),
+        isPago ? "Pago pelo Colaborador" : v.status === "pendente" ? "Aguardando Pagamento" : v.status,
+        v.pagoEm ? new Date(v.pagoEm).toLocaleString("pt-BR") : "",
+        statusRepasse,
+        v.repassadoEm ? new Date(v.repassadoEm).toLocaleDateString("pt-BR") : "",
+        v.repasseForma ? labelFormaRepasse(v.repasseForma) : "",
+        v.token || v.id,
+      ]);
+    });
+
+    // 2. Pedidos de Catálogo
+    listaPedidos.forEach((p) => {
+      const itensDesc =
+        (p.itens || []).map((it) => `${it.qtd}x ${it.itemNome}`).join(", ") ||
+        p.observacao ||
+        "Pedido de catálogo";
+      const statusRepasse = p.repasseId ? "Repassado à Loja" : "Aguardando Repasse";
+
+      linhas.push([
+        p.createdAt ? new Date(p.createdAt).toLocaleString("pt-BR") : "",
+        nomeLoja,
+        "Pedido Catálogo",
+        p.funcionarioNome || "Colaborador",
+        p.funcionarioEmail || "",
+        itensDesc,
+        Number(p.valorTotal).toFixed(2).replace(".", ","),
+        p.status,
+        p.createdAt ? new Date(p.createdAt).toLocaleString("pt-BR") : "",
+        statusRepasse,
+        p.repassadoEm ? new Date(p.repassadoEm).toLocaleDateString("pt-BR") : "",
+        p.repasseForma ? labelFormaRepasse(p.repasseForma) : "",
+        p.id,
+      ]);
+    });
+
+    // Linha de Totalizador
+    const totalSoma = linhas.reduce((acc, l) => {
+      const num = Number(String(l[6]).replace(",", ".")) || 0;
+      return acc + num;
+    }, 0);
+
+    linhas.push([
+      "TOTAL",
+      "",
+      "",
+      "",
+      "",
+      `${linhas.length} venda(s) no total`,
+      totalSoma.toFixed(2).replace(".", ","),
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
+
+    const csvContent =
+      "\uFEFF" +
+      [
+        headers.map(escapeCsv).join(";"),
+        ...linhas.map((row) => row.map(escapeCsv).join(";")),
+      ].join("\r\n");
+
+    const sufixo =
+      tipo === "pagas"
+        ? "vendas_pagas"
+        : tipo === "pendentes_repasse"
+          ? "vendas_aguardando_repasse"
+          : "vendas_geral";
+
+    downloadCsvFile(csvContent, `relatorio_${sufixo}_${nomeSanitizado}_${periodoStr}.csv`);
+    toast.success(`Relatório de vendas baixado com sucesso! (${linhas.length - 1} registro(s))`);
+  };
+
   const lojaAtual = lojas.find((l) => l.id === lojaId);
   const temFiltroAtivo = Boolean(competencia || dataInicio || dataFim || filtroStatus !== "todos");
 
@@ -393,6 +611,57 @@ export default function CcipayRelatoriosLoja() {
               <RefreshCw className={`h-4 w-4 ${carregando ? "animate-spin" : ""}`} />
               Atualizar
             </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={carregando || !lojaId || (vendasQr.length === 0 && pedidos.length === 0)}
+                  className="gap-2 border-emerald-500/40 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300 font-medium"
+                >
+                  <Download className="h-4 w-4" />
+                  Baixar Relatório
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel className="text-xs">Exportar para Excel / CSV</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => exportarRelatorioVendas("todas")}
+                  className="gap-2 text-xs cursor-pointer"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-emerald-500" />
+                  Todas as Vendas ({vendasQr.length + pedidos.length})
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => exportarRelatorioVendas("pagas")}
+                  className="gap-2 text-xs cursor-pointer"
+                >
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                  Apenas Vendas Pagas ({vendasQr.filter((v) => v.status === "pago").length})
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => exportarRelatorioVendas("pendentes_repasse")}
+                  className="gap-2 text-xs cursor-pointer"
+                >
+                  <Clock className="h-4 w-4 text-amber-500" />
+                  Aguardando Repasse ({vendasQrPendentes.length + pedidosPendentes.length})
+                </DropdownMenuItem>
+                {repasses.length > 0 && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => exportarRelatorioVendas("repasses")}
+                      className="gap-2 text-xs cursor-pointer"
+                    >
+                      <Receipt className="h-4 w-4 text-blue-500" />
+                      Histórico de Repasses ({repasses.length})
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
 
             <Button
               size="sm"
@@ -723,16 +992,28 @@ export default function CcipayRelatoriosLoja() {
                 </button>
               </div>
 
-              {vendasQrPendentes.length > 0 && (
+              <div className="flex items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
-                  onClick={() => abrirModalRepasse()}
-                  className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/5"
+                  onClick={() => exportarRelatorioVendas("todas")}
+                  disabled={vendasQr.length === 0}
+                  className="h-7 text-xs gap-1 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 font-medium"
                 >
-                  <Send className="h-3 w-3" /> Repassar Todas Pendentes
+                  <Download className="h-3 w-3" /> Baixar Vendas QR (CSV)
                 </Button>
-              )}
+
+                {vendasQrPendentes.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => abrirModalRepasse()}
+                    className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/5"
+                  >
+                    <Send className="h-3 w-3" /> Repassar Todas Pendentes
+                  </Button>
+                )}
+              </div>
             </div>
 
             {vendasQrFiltradas.length === 0 ? (
@@ -816,15 +1097,26 @@ export default function CcipayRelatoriosLoja() {
                       </span>
 
                       {isPago && !v.repasseId && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => abrirModalRepasse(v.id)}
-                          className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/5 mt-1"
-                          title="Fazer repasse desta venda à loja conveniada"
-                        >
-                          <Send className="h-3 w-3" /> Repassar Venda
-                        </Button>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => abrirModalRepasse(v.id)}
+                            className="h-7 text-xs gap-1 border-primary/30 text-primary hover:bg-primary/5"
+                            title="Fazer repasse desta venda à loja conveniada"
+                          >
+                            <Send className="h-3 w-3" /> Repassar Venda
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setVendaCancelando(v)}
+                            className="h-7 text-xs gap-1 border-rose-500/30 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                            title="Cancelar / estornar esta venda"
+                          >
+                            <XCircle className="h-3 w-3" /> Cancelar
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -835,6 +1127,18 @@ export default function CcipayRelatoriosLoja() {
 
           {/* Aba: Pedidos de Catálogo */}
           <TabsContent value="pedidos" className="space-y-3">
+            {pedidos.length > 0 && (
+              <div className="flex justify-end pb-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => exportarRelatorioVendas("todas")}
+                  className="h-7 text-xs gap-1 border-emerald-500/30 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 font-medium"
+                >
+                  <Download className="h-3 w-3" /> Baixar Pedidos (CSV)
+                </Button>
+              </div>
+            )}
             {pedidos.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
                 Nenhum pedido de catálogo registrado no período selecionado.
@@ -1260,6 +1564,95 @@ export default function CcipayRelatoriosLoja() {
               ) : (
                 "Confirmar Repasse"
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* DIÁLOGO: Confirmar Cancelamento / Estorno de Venda */}
+      <Dialog
+        open={Boolean(vendaCancelando)}
+        onOpenChange={(open) => !open && setVendaCancelando(null)}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base flex items-center gap-2 text-rose-600 dark:text-rose-400">
+              <AlertCircle className="h-4 w-4" />
+              Confirmar Cancelamento de Venda
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Esta ação cancelará a venda. O débito na folha de pagamento do colaborador será estornado e o limite dele liberado na hora.
+            </DialogDescription>
+          </DialogHeader>
+
+          {vendaCancelando && (
+            <div className="space-y-3 py-2 text-xs">
+              <div className="rounded-lg border border-border p-3 space-y-1.5 bg-muted/30">
+                {vendaCancelando.funcionarioNome && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Colaborador:</span>
+                    <strong className="text-foreground">{vendaCancelando.funcionarioNome}</strong>
+                  </div>
+                )}
+                {vendaCancelando.funcionarioEmail && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">E-mail:</span>
+                    <span className="text-foreground">{vendaCancelando.funcionarioEmail}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Data da Venda:</span>
+                  <span className="text-foreground">
+                    {vendaCancelando.createdAt
+                      ? new Date(vendaCancelando.createdAt).toLocaleString("pt-BR")
+                      : "—"}
+                  </span>
+                </div>
+                <div className="flex justify-between pt-1 border-t border-border/50">
+                  <span className="font-semibold text-rose-600 dark:text-rose-400">Valor a Estornar:</span>
+                  <strong className="text-rose-600 dark:text-rose-400 font-bold text-sm">
+                    R$ {Number(vendaCancelando.valor).toFixed(2)}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="motivo-canc-loja" className="text-[11px] font-medium text-muted-foreground">
+                  Motivo do cancelamento (opcional):
+                </Label>
+                <Input
+                  id="motivo-canc-loja"
+                  placeholder="Ex: Erro no valor digitado, teste, desistência do cliente..."
+                  value={motivoCancelamento}
+                  onChange={(e) => setMotivoCancelamento(e.target.value)}
+                  className="h-8 text-xs"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setVendaCancelando(null)}
+              disabled={cancelandoVenda}
+            >
+              Voltar
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={executarCancelamentoVenda}
+              disabled={cancelandoVenda}
+              className="gap-1.5"
+            >
+              {cancelandoVenda ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <XCircle className="h-3.5 w-3.5" />
+              )}
+              Confirmar Cancelamento
             </Button>
           </DialogFooter>
         </DialogContent>

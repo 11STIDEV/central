@@ -802,7 +802,8 @@ export function registerCcipayRoutes(app, helpers) {
       const supabase = supabaseOr503(res);
       if (!supabase) return;
 
-      const comp = competencia || competenciaAtual();
+      const isTodas = !competencia || competencia === "todas" || competencia === "geral" || competencia === "todas_competencias";
+      const comp = isTodas ? null : competencia;
       const movimentos = await relatorioDpMovimentos(supabase, {
         competencia: comp,
         status: status || undefined,
@@ -942,6 +943,93 @@ export function registerCcipayRoutes(app, helpers) {
     } catch (e) {
       if (e.status) return respostaErroIdToken(res, e);
       return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post("/api/ccipay/relatorios/dp/extrato-colaborador", async (req, res) => {
+    try {
+      const { idToken, email } = req.body || {};
+      const ctx = await ctxFromRequest(req);
+      if (!isCcipayDp(ctx.papeis) && !isCcipayAdmin(ctx.papeis)) {
+        return res.status(403).json({ error: "Sem permissão." });
+      }
+      const supabase = supabaseOr503(res);
+      if (!supabase) return;
+      if (!email) return res.status(400).json({ error: "E-mail obrigatório." });
+
+      const emailNorm = String(email).trim().toLowerCase();
+      const movimentos = await listarMovimentos(supabase, { funcionarioEmail: emailNorm });
+      const lojas = await listarLojas(supabase);
+      const mapaLojas = Object.fromEntries(lojas.map((l) => [l.id, l.nome]));
+      for (const m of movimentos) {
+        if (!m.lojaNome && m.lojaId && mapaLojas[m.lojaId]) {
+          m.lojaNome = mapaLojas[m.lojaId];
+        }
+      }
+
+      let totalCompras = 0;
+      let qtdCompras = 0;
+      let totalVales = 0;
+      let qtdVales = 0;
+      let totalDeducoes = 0;
+      let totalBonificacoes = 0;
+      let totalDescontado = 0;
+      let totalPendente = 0;
+
+      for (const m of movimentos) {
+        const v = Number(m.valor) || 0;
+        const st = m.status;
+        const tp = m.tipo;
+        const isBon =
+          m.metadata?.metodoPagamento === "bonificacao" ||
+          m.metadata?.metodo_pagamento === "bonificacao";
+
+        if (tp === "compra_loja") {
+          if (st !== "cancelado" && st !== "negado" && !isBon) {
+            totalCompras += v;
+            qtdCompras++;
+            if (st === "descontado_folha") totalDescontado += v;
+            else totalPendente += v;
+          }
+        } else if (tp === "adiantamento" || tp === "vale") {
+          if (st !== "cancelado" && st !== "negado" && !isBon) {
+            totalVales += v;
+            qtdVales++;
+            if (st === "descontado_folha") totalDescontado += v;
+            else totalPendente += v;
+          }
+        } else if (tp === "deducao") {
+          if (st !== "cancelado" && st !== "negado") {
+            totalDeducoes += v;
+            if (st === "descontado_folha") totalDescontado += v;
+            else totalPendente += v;
+          }
+        } else if (tp === "bonificacao") {
+          if (st !== "cancelado" && st !== "negado") {
+            totalBonificacoes += v;
+          }
+        }
+      }
+
+      return res.json({
+        ok: true,
+        movimentos,
+        totais: {
+          totalCompras: Number(totalCompras.toFixed(2)),
+          qtdCompras,
+          totalVales: Number(totalVales.toFixed(2)),
+          qtdVales,
+          totalDeducoes: Number(totalDeducoes.toFixed(2)),
+          totalDescontado: Number(totalDescontado.toFixed(2)),
+          totalPendente: Number(totalPendente.toFixed(2)),
+          totalGeralDebitos: Number((totalCompras + totalVales + totalDeducoes).toFixed(2)),
+          totalBonificacoes: Number(totalBonificacoes.toFixed(2)),
+        },
+      });
+    } catch (e) {
+      if (e.status) return respostaErroIdToken(res, e);
+      const msg = e instanceof Error ? e.message : String(e);
+      return res.status(500).json({ error: msg });
     }
   });
 
@@ -1656,7 +1744,7 @@ export function registerCcipayRoutes(app, helpers) {
 
   app.post("/api/ccipay/vendas/cancelar", async (req, res) => {
     try {
-      const { idToken, vendaId } = req.body || {};
+      const { idToken, vendaId, motivo } = req.body || {};
       const ctx = await ctxOrParceiro(req);
       const supabase = supabaseOr503(res);
       if (!supabase) return;
@@ -1666,14 +1754,73 @@ export function registerCcipayRoutes(app, helpers) {
       if (!venda) return res.status(404).json({ error: "Venda não encontrada." });
 
       const ok = await podeAcessarLoja(supabase, ctx, venda.lojaId);
-      if (!ok) {
-        return res.status(403).json({ error: "Sem permissão." });
-      }
-      if (venda.status !== "pendente") {
-        return res.status(400).json({ error: "Somente vendas pendentes podem ser canceladas." });
+      const isAdmin = isCcipayAdmin(ctx.papeis) || isCcipayDp(ctx.papeis);
+      if (!ok && !isAdmin) {
+        return res.status(403).json({ error: "Sem permissão para cancelar vendas desta loja." });
       }
 
-      const atualizada = await atualizarVendaQr(supabase, venda.id, { status: "cancelado" });
+      if (venda.status === "cancelado") {
+        return res.status(400).json({ error: "Esta venda já está cancelada." });
+      }
+
+      // Se a venda já foi repassada para a loja e o usuário não for admin/dp:
+      if (venda.repasseId && !isAdmin) {
+        return res.status(400).json({
+          error: "Esta venda já foi repassada financeiramente pelo CCI para a loja. Para estornar, entre em contato com o DP.",
+        });
+      }
+
+      const motivoTexto = String(motivo || "").trim() || "Cancelado pelo operador da loja";
+      const quemCancelou = ctx.nome || ctx.email || ctx.login || "Operador";
+
+      // 1. Atualiza venda QR para cancelado
+      const atualizada = await atualizarVendaQr(supabase, venda.id, {
+        status: "cancelado",
+      });
+
+      // 2. Se houver débito gerado no ledger da folha (ccipay_movimentos), cancela para estornar o valor e devolver saldo do colaborador
+      if (venda.movimentoId) {
+        await atualizarMovimentoStatus(supabase, venda.movimentoId, {
+          status: "cancelado",
+          aprovadoPor: quemCancelou,
+          metadataPatch: {
+            canceladoEm: new Date().toISOString(),
+            motivoCancelamento: motivoTexto,
+            canceladoPor: quemCancelou,
+          },
+        });
+      } else {
+        // Se movimentoId não estiver diretamente no registro da venda, busca por token do QR ou pedido
+        const { data: movs } = await supabase
+          .from("ccipay_movimentos")
+          .select("id")
+          .or(`metadata->>vendaQrToken.eq.${venda.token},pedido_id.eq.${venda.pedidoId || 'null'}`)
+          .neq("status", "cancelado");
+        for (const m of movs || []) {
+          await atualizarMovimentoStatus(supabase, m.id, {
+            status: "cancelado",
+            aprovadoPor: quemCancelou,
+            metadataPatch: {
+              canceladoEm: new Date().toISOString(),
+              motivoCancelamento: motivoTexto,
+              canceladoPor: quemCancelou,
+            },
+          });
+        }
+      }
+
+      // 3. Se for pedido vinculado, cancela o pedido também
+      if (venda.pedidoId) {
+        try {
+          await supabase
+            .from("ccipay_pedidos_loja")
+            .update({ status: "cancelado", updated_at: new Date().toISOString() })
+            .eq("id", venda.pedidoId);
+        } catch (errP) {
+          console.warn("[cancelar-venda] aviso pedido:", errP?.message);
+        }
+      }
+
       return res.json({ ok: true, venda: atualizada });
     } catch (e) {
       if (e.status) return respostaErroIdToken(res, e);

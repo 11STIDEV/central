@@ -285,12 +285,22 @@ export async function executarVerificacaoESincronizacao(supabase, options = {}) 
     console.log(`[alterdataMonitor] Registros atuais no Supabase: ${colaboradoresAtuais.length}`);
 
     // 2. Consulta o Alterdata e unifica
+    const hostAlvo = options.host || process.env.ALTERDATA_HOST || "https://dp.pack.alterdata.com.br";
+    const empresaAlvo = options.empresaId !== undefined ? options.empresaId : (process.env.ALTERDATA_EMPRESA_ID || "");
     const colaboradoresNovos = await baixarSnapshotApiAlterdata(
       token,
-      options.host || "https://dp.pack.alterdata.com.br",
-      options.empresaId || ""
+      hostAlvo,
+      empresaAlvo
     );
     console.log(`[alterdataMonitor] Registros obtidos no Alterdata: ${colaboradoresNovos.length}`);
+
+    // Trava de segurança (circuit breaker): se o snapshot novo for substancialmente menor que a base existente,
+    // aborta para evitar falsas demissões em massa por falha de paginação ou filtro parcial
+    if (colaboradoresAtuais.length > 50 && colaboradoresNovos.length < Math.floor(colaboradoresAtuais.length * 0.7)) {
+      const msgBloqueio = `[alterdataMonitor] BLOQUEIO DE SEGURANÇA: Snapshot retornado (${colaboradoresNovos.length}) é menor que 70% da base atual (${colaboradoresAtuais.length}). Abortando sincronização para proteger a integridade dos colaboradores.`;
+      console.error(msgBloqueio);
+      throw new Error(msgBloqueio);
+    }
 
     // 3. Compara os snapshots
     const mudancasDetectadas = compararSnapshotsAlterdata(colaboradoresAtuais, colaboradoresNovos);
@@ -308,13 +318,20 @@ export async function executarVerificacaoESincronizacao(supabase, options = {}) 
     // 5. Atualiza o módulo Advance-CCI (ccipay_funcionarios)
     if (supabase) {
       try {
-        // Inativa os demitidos no Advance-CCI
-        for (const dem of demissoes) {
-          if (dem.funcionario_email) {
-            await supabase
-              .from("ccipay_funcionarios")
-              .update({ ativo: false, updated_at: new Date().toISOString() })
-              .eq("email", dem.funcionario_email.trim().toLowerCase());
+        // Trava de segurança contra inativação indevida em lote no Advance-CCI
+        if (demissoes.length > 10) {
+          console.warn(
+            `[alterdataMonitor] ALERTA DE SEGURANÇA: ${demissoes.length} demissões detectadas (limite seguro: 10). A inativação automática em lote no Advance-CCI foi bloqueada para evitar inativação acidental.`
+          );
+        } else {
+          // Inativa os demitidos no Advance-CCI apenas dentro do limite seguro
+          for (const dem of demissoes) {
+            if (dem.funcionario_email) {
+              await supabase
+                .from("ccipay_funcionarios")
+                .update({ ativo: false, updated_at: new Date().toISOString() })
+                .eq("email", dem.funcionario_email.trim().toLowerCase());
+            }
           }
         }
 

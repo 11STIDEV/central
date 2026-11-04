@@ -25,11 +25,13 @@ import { useAuth } from "@/auth/AuthProvider";
 import {
   ccipayRelatorioDp,
   ccipayDarBaixaFolha,
+  ccipayExtratoColaboradorDp,
   labelStatusMovimento,
   type CcipayMovimento,
   type CcipayResumoFuncionarioDp,
   type CcipayLoja,
   type CcipayRelatorioDpTotais,
+  type CcipayExtratoColaboradorDpTotais,
 } from "@/lib/ccipay";
 import { toast } from "sonner";
 import {
@@ -52,6 +54,9 @@ import {
   Check,
   Building2,
   Calendar,
+  CalendarDays,
+  ChevronLeft,
+  History,
   XCircle,
   ChevronRight,
   Receipt,
@@ -91,12 +96,19 @@ export default function CcipayRelatoriosDp() {
 
   const [abaAtiva, setAbaAtiva] = useState<"colaboradores" | "movimentos">("colaboradores");
   const [colaboradorDetalhes, setColaboradorDetalhes] = useState<CcipayResumoFuncionarioDp | null>(null);
+  const [extratoColaborador, setExtratoColaborador] = useState<{
+    movimentos: CcipayMovimento[];
+    totais: CcipayExtratoColaboradorDpTotais;
+  } | null>(null);
+  const [carregandoExtrato, setCarregandoExtrato] = useState(false);
+  const [filtroExtratoModal, setFiltroExtratoModal] = useState<"todos" | "pendentes" | "baixados">("todos");
   const [confirmandoBaixa, setConfirmandoBaixa] = useState<{
     funcionarioEmail?: string;
     funcionarioNome?: string;
     movimentoId?: string;
     valor?: number;
     tipoDescricao?: string;
+    novoStatus?: "descontado_folha" | "cancelado";
   } | null>(null);
   const [baixando, setBaixando] = useState(false);
   const [exportando, setExportando] = useState<"detalhado" | "consolidado" | null>(null);
@@ -165,21 +177,155 @@ export default function CcipayRelatoriosDp() {
     if (!confirmandoBaixa || (!usuario && !googleIdToken)) return;
     setBaixando(true);
     try {
+      const statusAlvo = confirmandoBaixa.novoStatus || "descontado_folha";
       await ccipayDarBaixaFolha(googleIdToken, {
         movimentoIds: confirmandoBaixa.movimentoId ? [confirmandoBaixa.movimentoId] : undefined,
         funcionarioEmail: confirmandoBaixa.funcionarioEmail,
         competencia,
-        novoStatus: "descontado_folha",
+        novoStatus: statusAlvo,
       });
-      toast.success("Baixa em folha registrada com sucesso!");
+      toast.success(
+        statusAlvo === "cancelado"
+          ? "Lançamento cancelado e estornado com sucesso!"
+          : "Baixa em folha registrada com sucesso!",
+      );
       setConfirmandoBaixa(null);
       await carregar();
+      if (colaboradorDetalhes?.email) {
+        const atualizado = await ccipayExtratoColaboradorDp(googleIdToken, colaboradorDetalhes.email);
+        setExtratoColaborador(atualizado);
+      }
     } catch (e: any) {
       toast.error(e?.message || "Erro ao registrar baixa em folha.");
     } finally {
       setBaixando(false);
     }
   }
+
+  const rotuloPeriodo = useMemo(() => {
+    if (competencia === "todas" || !competencia) {
+      return "Todo o Histórico (Acumulado Geral)";
+    }
+    const [ano, mes] = competencia.split("-");
+    if (!ano || !mes) return competencia;
+    const d = new Date(Number(ano), Number(mes) - 1, 1);
+    const nomeMes = d.toLocaleString("pt-BR", { month: "long" });
+    return `${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1)} de ${ano}`;
+  }, [competencia]);
+
+  const irMesAnterior = () => {
+    let base = new Date();
+    if (competencia && competencia !== "todas") {
+      const [ano, mes] = competencia.split("-");
+      if (ano && mes) {
+        base = new Date(Number(ano), Number(mes) - 1, 1);
+      }
+    }
+    base.setMonth(base.getMonth() - 1);
+    const y = base.getFullYear();
+    const m = String(base.getMonth() + 1).padStart(2, "0");
+    setCompetencia(`${y}-${m}`);
+  };
+
+  const irMesAtual = () => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    setCompetencia(`${y}-${m}`);
+  };
+
+  const irProximoMes = () => {
+    let base = new Date();
+    if (competencia && competencia !== "todas") {
+      const [ano, mes] = competencia.split("-");
+      if (ano && mes) {
+        base = new Date(Number(ano), Number(mes) - 1, 1);
+      }
+    }
+    base.setMonth(base.getMonth() + 1);
+    const y = base.getFullYear();
+    const m = String(base.getMonth() + 1).padStart(2, "0");
+    setCompetencia(`${y}-${m}`);
+  };
+
+  useEffect(() => {
+    if (!colaboradorDetalhes?.email || (!usuario && !googleIdToken)) {
+      setExtratoColaborador(null);
+      return;
+    }
+    setCarregandoExtrato(true);
+    setFiltroExtratoModal("todos");
+
+    const emailColab = colaboradorDetalhes.email.toLowerCase();
+    function usarFallbackLocal() {
+      const movsLocais = linhas.filter(
+        (m) => (m.funcionarioEmail || "").toLowerCase() === emailColab,
+      );
+      let totalCompras = 0;
+      let qtdCompras = 0;
+      let totalVales = 0;
+      let qtdVales = 0;
+      let totalDescontado = 0;
+      let totalPendente = 0;
+
+      for (const m of movsLocais) {
+        const v = Number(m.valor) || 0;
+        if (m.tipo === "compra_loja") {
+          totalCompras += v;
+          qtdCompras++;
+        } else if (m.tipo === "adiantamento" || m.tipo === "vale") {
+          totalVales += v;
+          qtdVales++;
+        }
+        if (m.status === "descontado_folha") totalDescontado += v;
+        else totalPendente += v;
+      }
+
+      setExtratoColaborador({
+        movimentos: movsLocais,
+        totais: {
+          totalCompras: Number(totalCompras.toFixed(2)),
+          qtdCompras,
+          totalVales: Number(totalVales.toFixed(2)),
+          qtdVales,
+          totalDeducoes: 0,
+          totalDescontado: Number(totalDescontado.toFixed(2)),
+          totalPendente: Number(totalPendente.toFixed(2)),
+          totalGeralDebitos: Number((totalCompras + totalVales).toFixed(2)),
+          totalBonificacoes: 0,
+        },
+      });
+    }
+
+    ccipayExtratoColaboradorDp(googleIdToken, colaboradorDetalhes.email)
+      .then((res) => {
+        if (res?.ok && Array.isArray(res.movimentos)) {
+          setExtratoColaborador(res);
+        } else {
+          usarFallbackLocal();
+        }
+      })
+      .catch((err) => {
+        console.warn("[extrato] Fallback para movimentos locais:", err?.message || err);
+        usarFallbackLocal();
+      })
+      .finally(() => {
+        setCarregandoExtrato(false);
+      });
+  }, [colaboradorDetalhes, googleIdToken, usuario, linhas]);
+
+  const movimentosExtratoFiltrados = useMemo(() => {
+    if (!extratoColaborador?.movimentos) return [];
+    if (filtroExtratoModal === "pendentes") {
+      return extratoColaborador.movimentos.filter(
+        (m) => m.status !== "descontado_folha" && m.status !== "cancelado" && m.status !== "negado",
+      );
+    }
+    if (filtroExtratoModal === "baixados") {
+      return extratoColaborador.movimentos.filter((m) => m.status === "descontado_folha");
+    }
+    return extratoColaborador.movimentos;
+  }, [extratoColaborador, filtroExtratoModal]);
 
   // Filtragem local por texto (busca)
   const resumoFiltrado = useMemo(() => {
@@ -351,23 +497,94 @@ export default function CcipayRelatoriosDp() {
 
         {/* Filtros de Pesquisa */}
         <div className="rounded-xl border border-border/80 bg-card p-4 shadow-sm space-y-3">
-          <div className="flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wider">
-            <Filter className="h-3.5 w-3.5 text-primary" />
-            Filtros do Relatório
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-foreground uppercase tracking-wider">
+              <Filter className="h-3.5 w-3.5 text-primary" />
+              Filtros do Relatório
+            </div>
+            <Badge variant="outline" className="gap-1.5 text-xs font-medium border-primary/30 text-primary bg-primary/5">
+              <CalendarDays className="h-3.5 w-3.5" />
+              {rotuloPeriodo}
+            </Badge>
+          </div>
+
+          {/* Atalhos Rápidos de Competência */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-b border-border/40 pb-2.5">
+            <span className="text-[11px] text-muted-foreground font-medium mr-1">Atalhos:</span>
+            <Button
+              type="button"
+              variant={competencia === "todas" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setCompetencia("todas")}
+              className="h-7 px-2.5 text-xs gap-1.5"
+            >
+              <History className="h-3.5 w-3.5" />
+              Todo o Histórico (Geral)
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={irMesAnterior}
+              className="h-7 px-2.5 text-xs gap-1"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" /> Mês Anterior
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={irMesAtual}
+              className="h-7 px-2.5 text-xs"
+            >
+              Mês Atual
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={irProximoMes}
+              className="h-7 px-2.5 text-xs gap-1"
+            >
+              Próximo Mês <ChevronRight className="h-3.5 w-3.5" />
+            </Button>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
             {/* Competência */}
             <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-                <Calendar className="h-3 w-3" /> Competência
+              <label className="text-[11px] font-medium text-muted-foreground flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" /> Competência
+                </span>
+                {competencia === "todas" && (
+                  <span className="text-[10px] text-primary font-semibold">Geral</span>
+                )}
               </label>
-              <Input
-                type="month"
-                value={competencia}
-                onChange={(e) => setCompetencia(e.target.value)}
-                className="h-9 text-xs"
-              />
+              {competencia === "todas" ? (
+                <div className="flex items-center gap-1.5 h-9">
+                  <Badge variant="outline" className="h-full flex-1 justify-center border-primary/40 bg-primary/5 text-primary text-xs font-normal">
+                    Todas as Competências
+                  </Badge>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={irMesAtual}
+                    className="h-9 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+                    title="Filtrar por mês"
+                  >
+                    Mês
+                  </Button>
+                </div>
+              ) : (
+                <Input
+                  type="month"
+                  value={competencia}
+                  onChange={(e) => setCompetencia(e.target.value)}
+                  className="h-9 text-xs"
+                />
+              )}
             </div>
 
             {/* Tipo de Lançamento */}
@@ -633,6 +850,7 @@ export default function CcipayRelatoriosDp() {
                       <TableHead className="font-semibold text-xs">Colaborador</TableHead>
                       <TableHead className="font-semibold text-xs">Tipo</TableHead>
                       <TableHead className="font-semibold text-xs">Origem / Loja</TableHead>
+                      <TableHead className="font-semibold text-xs text-center">Competência</TableHead>
                       <TableHead className="font-semibold text-xs text-right">Valor</TableHead>
                       <TableHead className="font-semibold text-xs text-center">Status</TableHead>
                       <TableHead className="font-semibold text-xs text-right">Ação</TableHead>
@@ -641,7 +859,7 @@ export default function CcipayRelatoriosDp() {
                   <TableBody>
                     {linhasFiltradas.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="h-32 text-center text-muted-foreground text-xs">
+                        <TableCell colSpan={8} className="h-32 text-center text-muted-foreground text-xs">
                           {carregando ? (
                             <span className="flex items-center justify-center gap-2">
                               <Loader2 className="h-4 w-4 animate-spin text-primary" /> Carregando movimentos...
@@ -717,6 +935,11 @@ export default function CcipayRelatoriosDp() {
                               </div>
                             </TableCell>
 
+                            <TableCell className="py-3 text-center">
+                              <Badge variant="outline" className="text-[10px] font-mono border-border">
+                                {m.competencia ? `${m.competencia.slice(5, 7)}/${m.competencia.slice(0, 4)}` : "—"}
+                              </Badge>
+                            </TableCell>
                             <TableCell className="py-3 text-right">
                               <span
                                 className={`text-xs font-semibold ${
@@ -783,96 +1006,301 @@ export default function CcipayRelatoriosDp() {
         </Tabs>
       </div>
 
-      {/* DIÁLOGO: Extrato Individual do Colaborador */}
+      {/* DIÁLOGO: Extrato Histórico Completo do Colaborador */}
       <Dialog open={Boolean(colaboradorDetalhes)} onOpenChange={(open) => !open && setColaboradorDetalhes(null)}>
-        <DialogContent className="sm:max-w-2xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
-          <DialogHeader className="p-6 pb-2 border-b">
-            <DialogTitle className="text-base flex items-center justify-between">
-              <span>Extrato de Folha: {colaboradorDetalhes?.nome}</span>
-              <span className="text-xs font-mono font-normal text-muted-foreground">
-                Comp: {competencia}
-              </span>
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              {colaboradorDetalhes?.email} · Matrícula: {colaboradorDetalhes?.codigoReferencia || "—"}
-            </DialogDescription>
+        <DialogContent className="sm:max-w-3xl max-h-[90vh] flex flex-col p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-3 border-b bg-muted/20">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <DialogTitle className="text-base flex items-center gap-2">
+                  <span>Extrato Geral: {colaboradorDetalhes?.nome}</span>
+                  {colaboradorDetalhes?.ativo ? (
+                    <Badge variant="outline" className="border-emerald-500/30 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/40 text-[10px]">
+                      Ativo
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="border-muted text-muted-foreground text-[10px]">
+                      Inativo
+                    </Badge>
+                  )}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-1">
+                  {colaboradorDetalhes?.email} · Matrícula Alterdata: <strong>#{colaboradorDetalhes?.codigoReferencia || "—"}</strong>
+                </DialogDescription>
+              </div>
+
+              <div className="text-right shrink-0">
+                <Badge variant="secondary" className="text-xs font-mono">
+                  {competencia === "todas" ? "Filtro: Todo o Histórico" : `Filtro atual: ${competencia}`}
+                </Badge>
+              </div>
+            </div>
           </DialogHeader>
 
           <div className="p-6 space-y-4 overflow-y-auto flex-1">
-            {/* Totais do colaborador */}
-            <div className="grid grid-cols-3 gap-2 p-3 rounded-lg bg-muted/40 border border-border/60 text-center">
-              <div>
-                <span className="text-[11px] text-muted-foreground block">Compras em Lojas</span>
-                <strong className="text-sm text-foreground">
-                  R$ {(colaboradorDetalhes?.totalComprasLoja || 0).toFixed(2)}
-                </strong>
+            {carregandoExtrato ? (
+              <div className="flex flex-col items-center justify-center py-12 gap-3 text-sm text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <span>Carregando extrato histórico completo...</span>
               </div>
-              <div>
-                <span className="text-[11px] text-muted-foreground block">Vales PIX</span>
-                <strong className="text-sm text-foreground">
-                  R$ {(colaboradorDetalhes?.totalAdiantamentos || 0).toFixed(2)}
-                </strong>
-              </div>
-              <div>
-                <span className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold block">
-                  Total Desconto Folha
-                </span>
-                <strong className="text-sm text-rose-600 dark:text-rose-400">
-                  R$ {(colaboradorDetalhes?.totalDescontoFolha || 0).toFixed(2)}
-                </strong>
-              </div>
-            </div>
+            ) : (
+              <>
+                {/* Cards de Totais Históricos do Colaborador */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 text-center">
+                    <span className="text-[11px] text-amber-700 dark:text-amber-400 font-medium block">
+                      Compras em Loja
+                    </span>
+                    <strong className="text-base text-foreground block mt-0.5">
+                      R$ {(extratoColaborador?.totais?.totalCompras || 0).toFixed(2)}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground">
+                      {extratoColaborador?.totais?.qtdCompras || 0} compra(s)
+                    </span>
+                  </div>
 
-            {/* Lista de Movimentos deste colaborador */}
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                Lançamentos da Competência
-              </h4>
+                  <div className="p-3 rounded-xl border border-blue-500/30 bg-blue-500/5 text-center">
+                    <span className="text-[11px] text-blue-700 dark:text-blue-400 font-medium block">
+                      Vales PIX
+                    </span>
+                    <strong className="text-base text-foreground block mt-0.5">
+                      R$ {(extratoColaborador?.totais?.totalVales || 0).toFixed(2)}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground">
+                      {extratoColaborador?.totais?.qtdVales || 0} vale(s)
+                    </span>
+                  </div>
 
-              {movimentosDoColaborador.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-4 text-center">
-                  Nenhum lançamento individual registrado neste mês.
-                </p>
-              ) : (
-                <div className="divide-y divide-border/60 rounded-lg border border-border">
-                  {movimentosDoColaborador.map((mov) => (
-                    <div key={mov.id} className="p-3 flex items-center justify-between gap-3 text-xs">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-foreground">
-                            {mov.lojaNome || (mov.tipo === "adiantamento" ? "Adiantamento Salarial" : mov.tipo)}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground">
-                            {mov.createdAt ? new Date(mov.createdAt).toLocaleDateString("pt-BR") : ""}
-                          </span>
-                        </div>
-                        {mov.metadata?.descricao && (
-                          <p className="text-[11px] text-muted-foreground">{mov.metadata.descricao}</p>
-                        )}
-                      </div>
+                  <div className="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 text-center">
+                    <span className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium block">
+                      Já Baixado em Folha
+                    </span>
+                    <strong className="text-base text-emerald-700 dark:text-emerald-400 block mt-0.5">
+                      R$ {(extratoColaborador?.totais?.totalDescontado || 0).toFixed(2)}
+                    </strong>
+                    <span className="text-[10px] text-muted-foreground">Descontado</span>
+                  </div>
 
-                      <div className="flex items-center gap-3">
-                        <span className="font-semibold text-foreground">
-                          R$ {mov.valor.toFixed(2)}
-                        </span>
-                        {mov.status === "descontado_folha" ? (
-                          <Badge variant="outline" className="text-[10px] border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                            Baixado
-                          </Badge>
-                        ) : (
-                          <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
-                            Pendente
-                          </Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                  <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/5 text-center">
+                    <span className="text-[11px] text-rose-700 dark:text-rose-400 font-semibold block">
+                      Pendente de Desconto
+                    </span>
+                    <strong className="text-base text-rose-600 dark:text-rose-400 block mt-0.5">
+                      R$ {(extratoColaborador?.totais?.totalPendente || 0).toFixed(2)}
+                    </strong>
+                    <span className="text-[10px] text-rose-600/80">A descontar</span>
+                  </div>
                 </div>
-              )}
-            </div>
+
+                {/* Filtro rápido dentro do modal */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/50">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold text-foreground">Extrato Completo:</span>
+                    <span className="text-xs text-muted-foreground">
+                      ({movimentosExtratoFiltrados.length} lançamento(s))
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant={filtroExtratoModal === "todos" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setFiltroExtratoModal("todos")}
+                      className="h-6 px-2 text-[11px]"
+                    >
+                      Todos ({extratoColaborador?.movimentos?.length || 0})
+                    </Button>
+                    <Button
+                      variant={filtroExtratoModal === "pendentes" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setFiltroExtratoModal("pendentes")}
+                      className="h-6 px-2 text-[11px]"
+                    >
+                      Pendentes ({extratoColaborador?.movimentos?.filter((m) => m.status !== "descontado_folha" && m.status !== "cancelado" && m.status !== "negado").length || 0})
+                    </Button>
+                    <Button
+                      variant={filtroExtratoModal === "baixados" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setFiltroExtratoModal("baixados")}
+                      className="h-6 px-2 text-[11px]"
+                    >
+                      Baixados ({extratoColaborador?.movimentos?.filter((m) => m.status === "descontado_folha").length || 0})
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Lista de Movimentos deste colaborador */}
+                {movimentosExtratoFiltrados.length === 0 ? (
+                  <p className="text-xs text-muted-foreground py-8 text-center border rounded-lg">
+                    Nenhum lançamento encontrado para o filtro selecionado.
+                  </p>
+                ) : (
+                  <div className="divide-y divide-border/60 rounded-lg border border-border overflow-hidden">
+                    {movimentosExtratoFiltrados.map((mov) => {
+                      const isPendente =
+                        mov.status !== "descontado_folha" &&
+                        mov.status !== "cancelado" &&
+                        mov.status !== "negado";
+                      const desc = mov.metadata?.descricao || mov.metadata?.pix || mov.metadata?.motivo || "";
+
+                      return (
+                        <div key={mov.id} className="p-3 flex items-center justify-between gap-3 text-xs hover:bg-muted/30">
+                          <div className="flex items-center gap-3">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground shrink-0">
+                              {mov.tipo === "compra_loja" ? (
+                                <Store className="h-4 w-4 text-amber-500" />
+                              ) : mov.tipo === "adiantamento" ? (
+                                <Banknote className="h-4 w-4 text-blue-500" />
+                              ) : mov.tipo === "bonificacao" ? (
+                                <Gift className="h-4 w-4 text-emerald-500" />
+                              ) : (
+                                <MinusCircle className="h-4 w-4" />
+                              )}
+                            </span>
+
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-foreground">
+                                  {mov.lojaNome || (mov.tipo === "adiantamento" ? "Adiantamento Salarial" : mov.tipo === "bonificacao" ? "Bonificação" : mov.tipo)}
+                                </span>
+                                <Badge variant="outline" className="text-[10px] font-mono border-border px-1.5 py-0">
+                                  Comp: {mov.competencia ? `${mov.competencia.slice(5, 7)}/${mov.competencia.slice(0, 4)}` : "—"}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted-foreground">
+                                <span>
+                                  {mov.createdAt
+                                    ? new Date(mov.createdAt).toLocaleString("pt-BR", {
+                                        day: "2-digit",
+                                        month: "2-digit",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : "—"}
+                                </span>
+                                {desc && (
+                                  <>
+                                    <span>·</span>
+                                    <span className="italic">{desc}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-sm text-foreground whitespace-nowrap">
+                              R$ {mov.valor.toFixed(2)}
+                            </span>
+
+                            {mov.status === "descontado_folha" ? (
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className="text-[10px] border-emerald-500/30 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                                  Baixado
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setConfirmandoBaixa({
+                                      movimentoId: mov.id,
+                                      funcionarioNome: colaboradorDetalhes?.nome,
+                                      funcionarioEmail: colaboradorDetalhes?.email,
+                                      valor: mov.valor,
+                                      novoStatus: "cancelado",
+                                      tipoDescricao: `${mov.lojaNome || mov.tipo} (R$ ${mov.valor.toFixed(2)}) de ${mov.competencia || ""}`,
+                                    })
+                                  }
+                                  className="h-6 px-1.5 text-[10px] text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 gap-0.5"
+                                  title="Estornar / Cancelar este lançamento"
+                                >
+                                  <XCircle className="h-3 w-3" /> Estornar
+                                </Button>
+                              </div>
+                            ) : mov.status === "cancelado" ? (
+                              <Badge variant="outline" className="text-[10px] border-rose-500/30 bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300">
+                                Cancelado
+                              </Badge>
+                            ) : isPendente ? (
+                              <div className="flex items-center gap-1.5">
+                                <Badge variant="outline" className="text-[10px] border-amber-500/30 bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300">
+                                  Pendente
+                                </Badge>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setConfirmandoBaixa({
+                                      movimentoId: mov.id,
+                                      funcionarioNome: colaboradorDetalhes?.nome,
+                                      funcionarioEmail: colaboradorDetalhes?.email,
+                                      valor: mov.valor,
+                                      novoStatus: "descontado_folha",
+                                      tipoDescricao: `${mov.lojaNome || mov.tipo} (R$ ${mov.valor.toFixed(2)}) de ${mov.competencia || ""}`,
+                                    })
+                                  }
+                                  className="h-6 px-1.5 text-[10px] text-primary hover:bg-primary/10 gap-0.5"
+                                  title="Dar baixa somente neste lançamento"
+                                >
+                                  <Check className="h-3 w-3" /> Baixar
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    setConfirmandoBaixa({
+                                      movimentoId: mov.id,
+                                      funcionarioNome: colaboradorDetalhes?.nome,
+                                      funcionarioEmail: colaboradorDetalhes?.email,
+                                      valor: mov.valor,
+                                      novoStatus: "cancelado",
+                                      tipoDescricao: `${mov.lojaNome || mov.tipo} (R$ ${mov.valor.toFixed(2)}) de ${mov.competencia || ""}`,
+                                    })
+                                  }
+                                  className="h-6 px-1.5 text-[10px] text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 gap-0.5"
+                                  title="Estornar / Cancelar este lançamento"
+                                >
+                                  <XCircle className="h-3 w-3" /> Estornar
+                                </Button>
+                              </div>
+                            ) : (
+                              <Badge variant="outline" className="text-[10px]">
+                                {labelStatusMovimento(mov.status, mov.tipo)}
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            )}
           </div>
 
-          <DialogFooter className="p-4 border-t bg-muted/20">
+          <DialogFooter className="p-4 border-t bg-muted/20 flex flex-row items-center justify-between">
+            <div>
+              {extratoColaborador?.totais && extratoColaborador.totais.totalPendente > 0 && (
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={() =>
+                    setConfirmandoBaixa({
+                      funcionarioEmail: colaboradorDetalhes?.email,
+                      funcionarioNome: colaboradorDetalhes?.nome,
+                      valor: extratoColaborador.totais.totalPendente,
+                      tipoDescricao: `todos os lançamentos pendentes de todas as competências (Total R$ ${extratoColaborador.totais.totalPendente.toFixed(2)})`,
+                    })
+                  }
+                  className="gap-1.5 text-xs bg-rose-600 hover:bg-rose-700 text-white"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                  Dar Baixa em Todos os Pendentes (R$ {extratoColaborador.totais.totalPendente.toFixed(2)})
+                </Button>
+              )}
+            </div>
+
             <Button variant="outline" size="sm" onClick={() => setColaboradorDetalhes(null)}>
               Fechar
             </Button>
@@ -885,11 +1313,22 @@ export default function CcipayRelatoriosDp() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-base flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              Confirmar Baixa em Folha
+              {confirmandoBaixa?.novoStatus === "cancelado" ? (
+                <>
+                  <AlertCircle className="h-4 w-4 text-rose-600" />
+                  <span className="text-rose-600 dark:text-rose-400">Confirmar Cancelamento / Estorno</span>
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  Confirmar Baixa em Folha
+                </>
+              )}
             </DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground">
-              Esta ação marcará o(s) débito(s) como <strong>Descontado em Folha</strong> (fechado na folha de pagamento do colaborador).
+              {confirmandoBaixa?.novoStatus === "cancelado"
+                ? "Esta ação cancelará o lançamento, estornando o valor da folha de pagamento e liberando o saldo do colaborador."
+                : "Esta ação marcará o(s) débito(s) como Descontado em Folha (fechado na folha de pagamento do colaborador)."}
             </DialogDescription>
           </DialogHeader>
 
@@ -926,14 +1365,20 @@ export default function CcipayRelatoriosDp() {
               Cancelar
             </Button>
             <Button
-              variant="default"
+              variant={confirmandoBaixa?.novoStatus === "cancelado" ? "destructive" : "default"}
               size="sm"
               onClick={executarBaixaFolha}
               disabled={baixando}
               className="gap-2"
             >
-              {baixando ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-              Confirmar Baixa em Folha
+              {baixando ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : confirmandoBaixa?.novoStatus === "cancelado" ? (
+                <XCircle className="h-3.5 w-3.5" />
+              ) : (
+                <Check className="h-3.5 w-3.5" />
+              )}
+              {confirmandoBaixa?.novoStatus === "cancelado" ? "Confirmar Estorno" : "Confirmar Baixa em Folha"}
             </Button>
           </DialogFooter>
         </DialogContent>

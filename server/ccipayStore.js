@@ -1056,7 +1056,9 @@ export async function relatorioDpMovimentos(supabase, { competencia, tipo, statu
     .from("ccipay_movimentos")
     .select("*, ccipay_lojas(id, nome)")
     .order("created_at", { ascending: false });
-  if (competencia) q = q.eq("competencia", competencia);
+  if (competencia && competencia !== "todas" && competencia !== "geral") {
+    q = q.eq("competencia", competencia);
+  }
   if (tipo) q = q.eq("tipo", tipo);
   if (status) q = q.eq("status", status);
   if (lojaId) q = q.eq("loja_id", lojaId);
@@ -1066,15 +1068,40 @@ export async function relatorioDpMovimentos(supabase, { competencia, tipo, statu
 }
 
 export async function relatorioResumoPorFuncionario(supabase, competencia) {
-  const comp = competencia || competenciaAtual();
+  const isTodas = !competencia || competencia === "todas" || competencia === "geral";
+  const comp = isTodas ? null : competencia;
   const funcionarios = await listarFuncionarios(supabase);
 
-  // Busca todos os movimentos da competência em uma única query
-  const { data: movsComp, error: movsErr } = await supabase
+  // Busca todos os movimentos da competência (ou geral se comp for null) em uma única query
+  let q = supabase
     .from("ccipay_movimentos")
-    .select("*")
-    .eq("competencia", comp);
+    .select("*");
+  if (comp) {
+    q = q.eq("competencia", comp);
+  }
+  const { data: movsComp, error: movsErr } = await q;
   if (movsErr) console.warn("[ccipay] aviso relatorio resumo movs:", movsErr.message);
+
+  // Se comp estiver filtrando um mês específico, buscamos também pendências gerais de todas as competências
+  const pendenciasGeraisPorEmail = new Map();
+  if (comp) {
+    const { data: movsPend, error: pendErr } = await supabase
+      .from("ccipay_movimentos")
+      .select("funcionario_email, valor, status, tipo, metadata")
+      .in("status", ["pendente", "aprovado", "pago"]);
+    if (!pendErr && movsPend) {
+      for (const p of movsPend) {
+        const em = (p.funcionario_email || "").toLowerCase();
+        if (!em) continue;
+        const isBon =
+          p.metadata?.metodoPagamento === "bonificacao" ||
+          p.metadata?.metodo_pagamento === "bonificacao";
+        if (isBon || p.tipo === "bonificacao") continue;
+        const v = Number(p.valor) || 0;
+        pendenciasGeraisPorEmail.set(em, (pendenciasGeraisPorEmail.get(em) || 0) + v);
+      }
+    }
+  }
 
   const movsPorEmail = new Map();
   for (const m of movsComp || []) {
@@ -1141,13 +1168,20 @@ export async function relatorioResumoPorFuncionario(supabase, competencia) {
 
     const totalDescontoFolha = totalAdiantamentos + totalComprasLoja + totalDeducoes;
     const totalPendenteFolha = Math.max(0, totalDescontoFolha - totalDescontado);
+    const totalPendenteGeral = comp
+      ? (pendenciasGeraisPorEmail.get(emailLower) ?? totalPendenteFolha)
+      : totalPendenteFolha;
+    const temPendenciasOutrasCompetencias = comp
+      ? totalPendenteGeral > totalPendenteFolha
+      : false;
 
     if (
       !f.ativo &&
       adiantamentoUsado === 0 &&
       totalComprasLoja === 0 &&
       totalBonificacao === 0 &&
-      totalDeducoes === 0
+      totalDeducoes === 0 &&
+      totalPendenteGeral === 0
     ) {
       continue;
     }
@@ -1168,6 +1202,8 @@ export async function relatorioResumoPorFuncionario(supabase, competencia) {
       totalDescontoFolha,
       totalDescontadoFolha: totalDescontado,
       totalPendenteFolha,
+      totalPendenteGeral,
+      temPendenciasOutrasCompetencias,
       limiteBonificacao: f.limiteBonificacao,
       saldoBonificacao: f.saldoBonificacao ?? 0,
       xpTotalTrilha: 0,
@@ -1179,7 +1215,7 @@ export async function relatorioResumoPorFuncionario(supabase, competencia) {
 }
 
 export async function alterarStatusMovimentosDp(supabase, { movimentoIds, funcionarioEmail, competencia, novoStatus, usuario }) {
-  const statusPermitidos = ["descontado_folha", "pago", "aprovado"];
+  const statusPermitidos = ["descontado_folha", "pago", "aprovado", "cancelado"];
   const targetStatus = statusPermitidos.includes(novoStatus) ? novoStatus : "descontado_folha";
 
   let q = supabase
@@ -1191,10 +1227,12 @@ export async function alterarStatusMovimentosDp(supabase, { movimentoIds, funcio
 
   if (movimentoIds && Array.isArray(movimentoIds) && movimentoIds.length > 0) {
     q = q.in("id", movimentoIds);
-  } else if (funcionarioEmail && competencia) {
+  } else if (funcionarioEmail) {
+    q = q.eq("funcionario_email", String(funcionarioEmail).toLowerCase());
+    if (competencia && competencia !== "todas" && competencia !== "geral") {
+      q = q.eq("competencia", competencia);
+    }
     q = q
-      .eq("funcionario_email", String(funcionarioEmail).toLowerCase())
-      .eq("competencia", competencia)
       .in("tipo", ["adiantamento", "vale", "compra_loja", "deducao"])
       .neq("status", "cancelado")
       .neq("status", "negado");
@@ -1204,6 +1242,16 @@ export async function alterarStatusMovimentosDp(supabase, { movimentoIds, funcio
 
   const { data, error } = await q.select("id, status, funcionario_email, valor, tipo");
   if (error) throw new Error(`[ccipay] erro ao alterar status: ${error.message}`);
+
+  if (targetStatus === "cancelado" && data && data.length > 0) {
+    const ids = data.map((d) => d.id);
+    try {
+      await supabase.from("ccipay_vendas_qr").update({ status: "cancelado" }).in("movimento_id", ids);
+    } catch (e) {
+      console.warn("[ccipay] aviso cancelar vendas_qr associadas:", e?.message);
+    }
+  }
+
   return data || [];
 }
 
